@@ -10,13 +10,16 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   queryRaw: vi.fn(),
   clanFindMany: vi.fn(),
+  configFindUnique: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { $queryRaw: mocks.queryRaw, clan: { findMany: mocks.clanFindMany } },
+  prisma: { $queryRaw: mocks.queryRaw, clan: { findMany: mocks.clanFindMany }, appConfig: { findUnique: mocks.configFindUnique } },
 }))
 
+import { DEFAULT_LEAGUE_SETTINGS } from './clan-league'
 import { getClanLeague, loadLeagueRows } from './clan-league-service'
+import { invalidateLeagueSettingsCache } from './league-settings-service'
 
 /** Valeurs liées à une requête `Prisma.sql` (paramètres de la clause `IN`, dates…). */
 const valuesOf = (call: unknown[]) => (call[0] as Prisma.Sql).values
@@ -25,8 +28,11 @@ const sqlOf = (call: unknown[]) => (call[0] as Prisma.Sql).sql
 beforeEach(() => {
   mocks.queryRaw.mockReset()
   mocks.clanFindMany.mockReset()
+  mocks.configFindUnique.mockReset()
   mocks.queryRaw.mockResolvedValue([])
   mocks.clanFindMany.mockResolvedValue([])
+  mocks.configFindUnique.mockResolvedValue(null)
+  invalidateLeagueSettingsCache()
 })
 
 describe('loadLeagueRows — filtre de type de partie', () => {
@@ -71,5 +77,22 @@ describe('getClanLeague — type de partie', () => {
     expect(normal.matchType).toBe('official')
     expect(mocks.queryRaw.mock.calls.length).toBeGreaterThan(rankedCalls)
     expect(mocks.queryRaw.mock.calls.slice(rankedCalls).every((call) => valuesOf(call).includes('official'))).toBe(true)
+  })
+
+  it('réglages enregistrés par le SuperUser : seuil du type et de la période, ligue recalculée (nouvelle clé de cache)', async () => {
+    const now = new Date('2026-10-04T12:00:00Z')
+    const before = await getClanLeague('month', 'custom', now)
+    expect(before.scoring.minMatches).toBe(15)
+    const calls = mocks.queryRaw.mock.calls.length
+
+    const stored = JSON.parse(JSON.stringify(DEFAULT_LEAGUE_SETTINGS)) as typeof DEFAULT_LEAGUE_SETTINGS
+    stored.minMatches.custom.month = 3
+    mocks.configFindUnique.mockResolvedValue({ value: JSON.stringify({ settings: stored, updatedAt: now.toISOString(), updatedBy: 'admin' }) })
+    invalidateLeagueSettingsCache()
+
+    const after = await getClanLeague('month', 'custom', now)
+    expect(after.scoring.minMatches).toBe(3)
+    expect(after.scoring.settings.minMatches.custom.month).toBe(3)
+    expect(mocks.queryRaw.mock.calls.length).toBeGreaterThan(calls)
   })
 })

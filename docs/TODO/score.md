@@ -135,3 +135,11 @@ Fait selon ce cahier des charges : `src/lib/clan-league.ts` (formule, constantes
    NOZONE 1/15.
 3. **Tests** : 1 partie gagnée non classée, plus de parties = moins tiré vers la moyenne, 2e place qui rapporte — et le
    filtre `matchType` (Ranked = `competitive` seul) côté service et e2e.
+
+### Réglages (2026-10-04, suite)
+
+Les constantes sont devenues des **réglages** modifiables par le SuperUser sur `/settings/league`
+([ligue-clans.md](../features/ligue-clans.md) §5) : barème, coefficients, M, seuils **par type de partie et par période**,
+zone et titres, avec un aperçu du classement avant enregistrement. Les deux décisions ouvertes ci-dessus — coefficient
+du placement (≈ 170 proposé, affiché par la page avec un lien « appliquer ») et seuils hors Normal — s'y prennent sans
+toucher au code. Sans enregistrement, les valeurs par défaut restent celles de ce document.

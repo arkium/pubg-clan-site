@@ -1,8 +1,6 @@
 import { Prisma } from '@prisma/client'
 
 import {
-  LEAGUE_MIN_MATCHES,
-  LEAGUE_PRIOR_MATCHES,
   leagueFeed,
   leagueMatchTypeValues,
   leagueTableBetween,
@@ -14,8 +12,10 @@ import {
   type LeagueMatchRow,
   type LeagueMatchType,
   type LeagueQualifier,
+  type LeagueSettings,
   type LeagueStanding,
 } from '@/lib/clan-league'
+import { getLeagueSettings } from '@/lib/league-settings-service'
 import { sessionDateOf } from '@/lib/match-sessions'
 import { getPeriodRange, type StandardPeriod } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
@@ -49,8 +49,8 @@ export type ClanLeaguePayload = {
   withoutMatch: LeagueClan[]
   feed: LeagueFeedEvent[]
   titles: ReturnType<typeof leagueTitles>
-  /** Règles de la période, pour l'explication du Power score affichée sur la page. */
-  scoring: { minMatches: number; priorMatches: number; league: LeagueAverage }
+  /** Règles en vigueur (réglages du SuperUser, /settings/league), pour l'explication du Power score et les zones. */
+  scoring: { minMatches: number; settings: LeagueSettings; league: LeagueAverage }
 }
 
 const CACHE_TTL_MS = 5 * 60 * 1000
@@ -59,7 +59,7 @@ const FEED_DAYS = 7
 
 type RawRow = { clanId: number; matchId: string; createdAt: Date; placement: number; damage: number | null; kills: number | bigint | null; knocks: number | bigint | null }
 
-async function loadLeagueClans(): Promise<LeagueClan[]> {
+export async function loadLeagueClans(): Promise<LeagueClan[]> {
   const clans = await prisma.clan.findMany({
     where: { isActive: true, pubgClanId: { not: null } },
     select: { id: true, name: true, tag: true, clanConfigs: { where: { key: 'login_welcome_image_url' }, select: { value: true }, take: 1 } },
@@ -125,7 +125,9 @@ export function feedSessionDates(now: Date, days = FEED_DAYS) {
 }
 
 export async function getClanLeague(period: StandardPeriod, matchType: LeagueMatchType = 'official', now = new Date()): Promise<ClanLeaguePayload> {
-  const cacheKey = `${period}:${matchType}`
+  // Réglages dans la clé : un enregistrement sur /settings/league recalcule la ligue au prochain appel.
+  const settings = await getLeagueSettings()
+  const cacheKey = `${period}:${matchType}:${JSON.stringify(settings)}`
   const cached = cache.get(cacheKey)
   if (cached && cached.expiresAt > Date.now()) return cached.payload
 
@@ -144,9 +146,9 @@ export async function getClanLeague(period: StandardPeriod, matchType: LeagueMat
   ])
 
   // Même seuil pour la période, la période précédente et le fil : seuls les clans classés y figurent.
-  const minMatches = LEAGUE_MIN_MATCHES[period]
-  const { standings, qualifying, league } = leagueTableBetween(rows, clans, current?.start ?? null, null, minMatches)
-  const previousStandings = previous ? standingsBetween(rows, clans, previous.start, previous.end, minMatches) : null
+  const minMatches = settings.minMatches[matchType][period]
+  const { standings, qualifying, league } = leagueTableBetween(rows, clans, current?.start ?? null, null, minMatches, settings)
+  const previousStandings = previous ? standingsBetween(rows, clans, previous.start, previous.end, minMatches, settings) : null
   const previousRanks = previousStandings ? new Map(previousStandings.map((standing) => [standing.clanId, standing.rank])) : null
   const played = new Set([...standings, ...qualifying].map((entry) => entry.clanId))
   const lastMatch = rows.reduce<Date | null>((latest, row) => (!latest || row.createdAt > latest ? row.createdAt : latest), null)
@@ -163,9 +165,9 @@ export async function getClanLeague(period: StandardPeriod, matchType: LeagueMat
     })),
     qualifying,
     withoutMatch: clans.filter((clan) => !played.has(clan.clanId)).sort((a, b) => a.name.localeCompare(b.name, 'fr')),
-    feed: leagueFeed(rows, clans, current?.start ?? null, sessionDates, minMatches),
-    titles: leagueTitles(standings, previousRanks),
-    scoring: { minMatches, priorMatches: LEAGUE_PRIOR_MATCHES, league },
+    feed: leagueFeed(rows, clans, current?.start ?? null, sessionDates, minMatches, settings),
+    titles: leagueTitles(standings, previousRanks, settings.titleMinMatches),
+    scoring: { minMatches, settings, league },
   }
   cache.set(cacheKey, { expiresAt: Date.now() + CACHE_TTL_MS, payload })
   return payload

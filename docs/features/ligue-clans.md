@@ -33,8 +33,9 @@ partie gagnée restait premier toute la semaine — et le win rate en pesait la 
 3. **Qualification** : classé à partir de **5 parties la semaine, 15 le mois, 30 pour « Tous »**. En dessous, bloc
    « En qualification » avec la progression (« 3 / 5 parties ») ; ses parties comptent dans le score moyen.
 
-Constantes nommées et exportées dans `src/lib/clan-league.ts` (`PLACEMENT_POINTS`, `PLACEMENT_WEIGHT`,
-`KILL_WEIGHT`, `KNOCK_WEIGHT`, `LEAGUE_PRIOR_MATCHES`, `LEAGUE_MIN_MATCHES`). `clanPowerScore` est **la seule formule du
+Tous ces paramètres forment `LeagueSettings` (`src/lib/clan-league.ts`) : valeurs par défaut
+`DEFAULT_LEAGUE_SETTINGS` (celles ci-dessus), **réglables par le SuperUser sur /settings/league** (§5) — barème, coefficients,
+M, seuils **par type de partie et par période**, zone, titres. `clanPowerScore` est **la seule formule du
 site** : l'annuaire et la vitrine de la vue d'ensemble ne lisent que le rang (`computeClansLeaderboard`, type Normal).
 `leagueTableBetween` applique la même règle à toute fenêtre : période, période précédente (flèches), soirée par
 soirée (fil). Fil, titres et `previousRank` ne portent que sur les clans classés ; franchir le seuil n'est pas un
@@ -58,8 +59,8 @@ Parts du mois en cours : placement 50,9 %, dégâts 44,8 %, kills 3,0 %, knocks 
 visée** : un coefficient d'environ 170 ramènerait le placement à 40 % — non appliqué, en attente de décision.
 
 Clans classés / en qualification par type (2026-10-04) : Normal 25 / 2 (semaine), 21 / 5 (mois) ; Ranked 12 / 1
-(semaine), 3 / 6 (mois) ; Casual 6 / 4, 0 / 10 ; Tournois / Custom 2 / 4, 0 / 6. Les seuils sont communs à tous les
-types : hors Normal, le classement du mois est presque vide.
+(semaine), 3 / 6 (mois) ; Casual 6 / 4, 0 / 10 ; Tournois / Custom 2 / 4, 0 / 6. Avec les seuils par défaut, communs à
+tous les types, le classement du mois est presque vide hors Normal : les seuils se règlent par type sur /settings/league.
 
 ## 2. La page
 
@@ -116,9 +117,43 @@ calcul du cache (le calcul à la volée en compte quelques-unes de plus, jamais 
 | Fichier | Couvre |
 |---|---|
 | `src/lib/clan-league.test.ts` | Barème, score brut, pondération ; 1 partie gagnée non classée ; à performance égale, plus de parties = moins tiré vers la moyenne ; une 2e place rapporte ; score moyen mis en commun (qualification comprise) ; seuils ; types de partie ; classement entre deux dates, tri par critère (placement compris) et cible, zones, fil (1re place, dépassement, zone, blue zone, rien au premier jour, franchir le seuil n'est pas un événement), titres et meilleure remontée |
-| `src/lib/clan-league-service.test.ts` | Prisma simulé : Ranked ne lit que `competitive`, Casual `casual` + `airoyale`, toutes les requêtes suivent le type, un cache par période et type |
+| `src/lib/clan-league-service.test.ts` | Prisma simulé : Ranked ne lit que `competitive`, Casual `casual` + `airoyale`, toutes les requêtes suivent le type, un cache par période et type ; réglages enregistrés appliqués (seuil du type, nouvelle clé de cache) |
+| `src/lib/league-settings.test.ts` | Validation (barème, bornes, seuils par type et période, au moins un coefficient), lecture tolérante, changements lisibles, aperçu (seuil abaissé, parts recalculées) |
+| `src/lib/league-settings-route-contracts.test.ts` | Routes `/api/settings/league` et `/preview` : SuperUser seulement, 400 champ par champ, enregistrement `AppConfig` avec l'auteur, aperçu en lecture seule (Ranked = `competitive`) |
+| `e2e/league-settings.spec.ts` | Valeurs par défaut, coefficient modifié (formule, changements, aperçu, enregistrement), seuil abaissé, erreurs et enregistrement bloqué, barème ±1 place, M = 0, annuler, pas de défilement horizontal, membre non SuperUser refusé. Données : `e2e/support/league-settings.ts` |
 | `src/lib/ui-conformance.test.ts` | Exception nommée du bandeau docké complet sur mobile |
 | `e2e/clans-league.spec.ts` | Podium qui suit le critère, fil (3 / 5 lignes), titres, zones et blue zone repliée, en qualification (« 3 / 5 parties »), type de partie (Ranked recharge, `matchType=competitive`), explication du Power score, sans partie, flèches (Power seulement, aucune pour « Tous »), visiteur sans pastille, bandeau docké sur une ligne ; membre connecté : « Mon clan · #10 », ligne visible repliée avec sa cible, pastille qui déplie et amène la ligne, liens limités à son clan. Données : `clansLeaderboardResponse` (`e2e/support/data.ts`) |
+
+## 5. Réglages SuperUser — `/settings/league` (2026-10-04)
+
+Page réservée au SuperUser (menu « Réglages de la ligue », `superuser.league-settings` ; entrée inscrite en base par
+`npx tsx scripts/seed-league-settings-nav.ts`), écrite selon la charte UI (`.charte`, bandeau photo, `DockingToolbar`).
+
+| Bloc | Réglage | Bornes |
+|---|---|---|
+| Points de placement | Points par place finale, de 1 à 16 places (au-delà, 0) — jamais plus que la place précédente, 1re place > 0 | 0 à 100 |
+| Score brut | Coefficients placement, dégâts, kills, knocks ; part de chaque terme dans le score moyen de la ligue (aperçu), cible 35-45 % pour le placement et **coefficient proposé pour 40 %** (lien « appliquer ») | 0 à 2 000 · 0 à 10 · 0 à 500 · 0 à 500 |
+| Pondération par le volume | M (0 : pas de pondération), avec le poids du propre score d'un clan à 5, 15 et 50 parties | 0 à 200 |
+| Seuils de qualification | Une valeur par type (Normal, Ranked, Casual, Tournois / Custom) et par période (semaine, mois, tous) | 1 à 500 |
+| Zones et titres | Dernier rang « Dans la zone » (podium 1 à 3, blue zone au-delà) ; parties minimum pour un titre | 4 à 30 · 1 à 100 |
+
+- **Bandeau** : aperçu sur une période (`PeriodFilter`) et un type de partie (`MatchTypeMenu`), puis « Valeurs par
+  défaut », « Annuler » et « Enregistrer » (accent). Docké sur mobile : la période seule.
+- **Brouillon** : les erreurs s'affichent sous chaque champ (validation partagée avec la route) ; un bandeau liste les
+  changements lisibles (« coefficient du placement : 250 → 170 ») tant qu'ils ne sont pas enregistrés.
+- **Aperçu du classement** : recalculé 400 ms après la dernière frappe (`POST /api/settings/league/preview`, lecture
+  seule) — rang et score avec les réglages en vigueur puis avec le brouillon, écart, clans qui entrent au classement ;
+  paginé (`Pagination`, 12 lignes). Suspendu tant qu'un champ est en erreur.
+- **Enregistrement** : `PUT /api/settings/league`, validation stricte, une ligne `AppConfig` (`league_settings`, JSON avec
+  date et auteur). Aucune migration. La ligue publique relit les réglages (cache 30 s) et les inclut dans sa clé de cache :
+  elle est recalculée au prochain appel. Une valeur enregistrée abîmée reprend champ par champ sa valeur par défaut
+  (`mergeStoredLeagueSettings`) : la ligue publique ne tombe jamais.
+- L'explication publique du Power score (`/clans-leaderboard`) et le découpage des zones suivent les réglages en vigueur
+  (`scoring.settings` de la réponse).
+
+Code : `src/lib/league-settings.ts` (bornes, validation, lecture tolérante, changements, aperçu — pur),
+`src/lib/league-settings-service.ts` (`AppConfig`, cache), `src/app/api/settings/league/` (routes),
+`src/components/league-settings/LeagueSettingsSections.tsx`, `src/app/settings/league/page.tsx`.
 
 ## Voir aussi
 

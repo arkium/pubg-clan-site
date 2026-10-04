@@ -56,9 +56,11 @@ function LeagueContent() {
   const criterionIndex = LEAGUE_CRITERIA.findIndex((entry) => entry.key === criterion)
   const type = leagueMatchTypeOption(matchType)
 
+  const zoneEnd = data?.scoring.settings.zoneEnd ?? 8
+
   function goToMine() {
     if (!mineClanId) return
-    if (mine && mine.position > 8) setBlueOpen(true)
+    if (mine && mine.position > zoneEnd) setBlueOpen(true)
     // Après l'ouverture éventuelle de la blue zone : la ligne existe alors dans la page.
     requestAnimationFrame(() => document.getElementById(`league-clan-${mineClanId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' }))
   }
@@ -168,6 +170,7 @@ function LeagueContent() {
               withoutMatch={data.withoutMatch}
               periodWhen={PERIOD_WHEN_LABELS[period]}
               typeNoun={type.noun}
+              zoneEnd={zoneEnd}
               access={access}
             />
             <PowerScoreHelp scoring={data.scoring} />

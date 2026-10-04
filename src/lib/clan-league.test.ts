@@ -1,9 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  LEAGUE_MIN_MATCHES,
-  LEAGUE_PRIOR_MATCHES,
-  PLACEMENT_WEIGHT,
+  DEFAULT_LEAGUE_SETTINGS,
   clanPowerScore,
   clanRawScore,
   feedBetween,
@@ -15,12 +13,19 @@ import {
   parseLeagueMatchType,
   placementPoints,
   rankByCriterion,
+  scoreShares,
   standingsBetween,
   targetAhead,
   type LeagueClan,
   type LeagueMatchRow,
+  type LeagueSettings,
   type LeagueStanding,
 } from './clan-league'
+
+const PLACEMENT_WEIGHT = DEFAULT_LEAGUE_SETTINGS.placementWeight
+const LEAGUE_PRIOR_MATCHES = DEFAULT_LEAGUE_SETTINGS.priorMatches
+const LEAGUE_MIN_MATCHES = DEFAULT_LEAGUE_SETTINGS.minMatches.official
+const withSettings = (changes: Partial<LeagueSettings>): LeagueSettings => ({ ...DEFAULT_LEAGUE_SETTINGS, ...changes })
 
 const clans: LeagueClan[] = ['Alpha', 'Bravo', 'Charlie', 'Delta'].map((name, index) => ({ clanId: index + 1, name, tag: name.slice(0, 3).toUpperCase(), imageUrl: null }))
 
@@ -46,7 +51,7 @@ const ROWS = [
 
 describe('Power score', () => {
   it('barème de placement : 10, 6, 5, 4, 3, 2, 1, 1, puis 0', () => {
-    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 0].map(placementPoints)).toEqual([10, 6, 5, 4, 3, 2, 1, 1, 0, 0, 0])
+    expect([1, 2, 3, 4, 5, 6, 7, 8, 9, 30, 0].map((place) => placementPoints(place))).toEqual([10, 6, 5, 4, 3, 2, 1, 1, 0, 0, 0])
   })
 
   it('score brut : placement × 250 + dégâts + kills × 10 + knocks × 5', () => {
@@ -97,8 +102,40 @@ describe('Power score', () => {
     expect(league.rawScore).toBe(1 * PLACEMENT_WEIGHT + 380)
   })
 
-  it('seuils par période : 5 la semaine, 15 le mois, 30 pour « Tous »', () => {
-    expect(LEAGUE_MIN_MATCHES).toEqual({ week: 5, month: 15, all: 30 })
+  it('seuils par défaut : 5 la semaine, 15 le mois, 30 pour « Tous », pour chaque type de partie', () => {
+    for (const thresholds of Object.values(DEFAULT_LEAGUE_SETTINGS.minMatches)) expect(thresholds).toEqual({ week: 5, month: 15, all: 30 })
+  })
+
+  it('parts de chaque terme dans un score brut (cible ≈ 40 % pour le placement)', () => {
+    const shares = scoreShares({ avgPlacementPoints: 2, avgDamage: 400, avgKills: 3, avgKnocks: 2 })
+    expect(shares.placement).toBeCloseTo(500 / 940)
+    expect(shares.placement + shares.damage + shares.kills + shares.knocks).toBeCloseTo(1)
+  })
+})
+
+describe('réglages du SuperUser', () => {
+  it('barème et coefficients réglés : une 9e place rapporte, le placement compte moins', () => {
+    const settings = withSettings({ placementPoints: [12, 8, 6, 5, 4, 3, 2, 2, 1], placementWeight: 170 })
+    expect(placementPoints(9, settings.placementPoints)).toBe(1)
+    expect(clanRawScore({ avgPlacementPoints: 2, avgDamage: 400, avgKills: 3, avgKnocks: 2 }, settings)).toBe(2 * 170 + 400 + 30 + 10)
+    const rows = many(1, 5, 9, 400)
+    expect(leagueTableBetween(rows, clans, null, null, 5, settings).standings[0].avgPlacementPoints).toBe(1)
+    expect(leagueTableBetween(rows, clans, null, null, 5).standings[0].avgPlacementPoints).toBe(0)
+  })
+
+  it('M = 0 : plus de pondération, le Power score égale le score brut', () => {
+    const rows = [...many(1, 5, 2, 600), ...many(2, 30, 20, 150)]
+    const { standings } = leagueTableBetween(rows, clans, null, null, 5, withSettings({ priorMatches: 0 }))
+    for (const standing of standings) expect(standing.powerScore).toBe(standing.rawScore)
+  })
+
+  it('zone et titres réglés : zone jusqu’au 5e, titres dès 1 partie', () => {
+    const ranked = Array.from({ length: 11 }, (_, index) => ({ position: index + 1 }))
+    expect(leagueZones(ranked, 5).zone.length).toBe(2)
+    expect(leagueZones(ranked, 5).blue[0].position).toBe(6)
+    const week = standingsBetween(ROWS.slice(0, 3), clans, null, null, 1)
+    expect(leagueTitles(week, null).damage).toBeNull()
+    expect(leagueTitles(week, null, 1).damage?.name).toBe('Alpha')
   })
 })
 

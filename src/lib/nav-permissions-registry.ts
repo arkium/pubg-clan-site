@@ -531,6 +531,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: "Vérification et import manuel des derniers matchs PUBG d'un membre, tous clans confondus.",
   },
   {
+    navKey: 'superuser.league-settings',
+    section: 'superuser-menu',
+    label: 'Réglages de la ligue',
+    hrefTemplate: '/settings/league',
+    defaultRole: 'superuser',
+    description: 'Barème de placement, coefficients, pondération et seuils du Power score de la Ligue Inter-Clans.',
+  },
+  {
     navKey: 'superuser.database',
     section: 'superuser-menu',
     label: 'Base de données',

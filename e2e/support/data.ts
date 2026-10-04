@@ -1,5 +1,5 @@
 import type { ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
-import { LEAGUE_MIN_MATCHES, LEAGUE_PRIOR_MATCHES, clanPowerScore, clanRawScore, type LeagueMatchType } from '@/lib/clan-league'
+import { DEFAULT_LEAGUE_SETTINGS, clanPowerScore, clanRawScore, type LeagueMatchType } from '@/lib/clan-league'
 import type { HomeShowcasePayload } from '@/lib/home-showcase'
 import type { ClanMatchesResponse, SquadMatch } from '@/types/squad-matches'
 import { sessionDateOf } from '@/lib/match-sessions'
@@ -90,7 +90,7 @@ export function clansLeaderboardResponse(period: LeaderboardPeriod, matchType: L
   const factor = PERIOD_FACTOR[period]
   const previous = [2, 1, 5, 3, 4, 9, 6, 8, 7, 12, 10, 11, 14, 13, null, 15]
   const leagueScore = 1100
-  const minMatches = LEAGUE_MIN_MATCHES[period]
+  const minMatches = DEFAULT_LEAGUE_SETTINGS.minMatches[matchType][period]
   const standings = CALLSIGNS.slice(0, matchType === 'competitive' ? 4 : 16).map((callsign, index) => {
     const mine = index === 9
     const winRate = 0.26 - index * 0.015
@@ -131,7 +131,7 @@ export function clansLeaderboardResponse(period: LeaderboardPeriod, matchType: L
     ],
     scoring: {
       minMatches,
-      priorMatches: LEAGUE_PRIOR_MATCHES,
+      settings: DEFAULT_LEAGUE_SETTINGS,
       league: { matches: 400, avgPlacementPoints: 2.1, avgDamage: 480, avgKills: 3.4, avgKnocks: 3, rawScore: leagueScore },
     },
     withoutMatch: [

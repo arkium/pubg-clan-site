@@ -54,7 +54,7 @@ export class ApiMock {
   }
 
   /** Déclare la réponse d'une API (`GET /api/clans/1/leaderboard`, paramètres ignorés). */
-  on(method: 'GET' | 'POST', pathname: string, handler: ApiHandler) {
+  on(method: 'GET' | 'POST' | 'PUT', pathname: string, handler: ApiHandler) {
     this.handlers.set(`${method} ${pathname}`, handler)
     return this
   }

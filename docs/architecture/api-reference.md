@@ -136,7 +136,10 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
-| GET | `/api/clans-leaderboard?period=week\|month\|all&matchType=official\|competitive\|casual\|custom` | Publique | ✅ Pertinent | Classement au Power score pondéré (type Normal par défaut), rang de la période précédente, clans en qualification et sans partie, fil de la ligue, titres, règles du score (`scoring`) ; calculé à la volée, 5 min en mémoire par période et type — voir [Ligue Inter-Clans](../features/ligue-clans.md) |
+| GET | `/api/clans-leaderboard?period=week\|month\|all&matchType=official\|competitive\|casual\|custom` | Publique | ✅ Pertinent | Classement au Power score pondéré (type Normal par défaut), rang de la période précédente, clans en qualification et sans partie, fil de la ligue, titres, règles du score en vigueur (`scoring.settings`) ; calculé à la volée, 5 min en mémoire par période, type et réglages — voir [Ligue Inter-Clans](../features/ligue-clans.md) |
+| GET | `/api/settings/league` | SuperUser | ❌ | Réglages de la ligue en vigueur, valeurs par défaut, bornes, date et auteur du dernier enregistrement |
+| PUT | `/api/settings/league` | SuperUser | ❌ | `{ settings }` : validation stricte (400 + `errors` champ par champ), enregistrement dans `AppConfig` (`league_settings`) |
+| POST | `/api/settings/league/preview` | SuperUser | ❌ | `{ settings, period, matchType }` : classement avec les réglages en vigueur et avec le brouillon, parts du score moyen — lecture seule |
 
 ---
 

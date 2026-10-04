@@ -192,6 +192,7 @@ Remplace les anciennes listes d'état courant (Pages transverses, Espace Clan, E
 | Télémétrie cross-clans | `/settings/telemetry-recoveries` | ⚠️ absent du §8 |
 | Adversaires (vue transverse) | `/settings/opponents` | ⚠️ absent du §8 |
 | Import de matchs PUBG | `/settings/match-import` | ⚠️ absent du §8 |
+| Réglages de la ligue | `/settings/league` | ⚠️ absent du §8 — barème, coefficients et seuils de la Ligue Inter-Clans (2026-10-04, `scripts/seed-league-settings-nav.ts`) |
 
 **Bilan :** 11 pages (les ⚠️ ci-dessus) n'apparaissent dans aucun tableau du §8 — toutes des outils de configuration purs. Rien n'est perdu tant que ce §9 reste à jour ; c'est désormais la seule source pour ces routes dans ce document.
 
@@ -355,6 +356,7 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/settings/telemetry-recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/match-import` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/league` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 
 ### 13.4.1 Tickets issus du tableau de suivi
 

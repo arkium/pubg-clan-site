@@ -11,17 +11,13 @@
 import 'dotenv/config'
 
 import {
-  DAMAGE_WEIGHT,
-  KILL_WEIGHT,
-  KNOCK_WEIGHT,
   LEAGUE_MATCH_TYPE_OPTIONS,
-  LEAGUE_MIN_MATCHES,
-  PLACEMENT_WEIGHT,
   leagueTableBetween,
   type LeagueClan,
   type LeagueMatchRow,
 } from '@/lib/clan-league'
 import { loadLeagueRows } from '@/lib/clan-league-service'
+import { getLeagueSettingsState } from '@/lib/league-settings-service'
 import { getPeriodRange, STANDARD_PERIODS } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
 
@@ -61,10 +57,16 @@ async function main() {
   const now = new Date()
   const clans = await loadClans()
   const month = getPeriodRange('month', now)!
+  // Réglages en vigueur (/settings/league, lecture seule) : défaut tant que le SuperUser n'a rien enregistré.
+  const state = await getLeagueSettingsState()
+  const settings = state.settings
+  const { placementWeight: PLACEMENT_WEIGHT, damageWeight: DAMAGE_WEIGHT, killWeight: KILL_WEIGHT, knockWeight: KNOCK_WEIGHT } = settings
+  const minOf = (matchType: (typeof LEAGUE_MATCH_TYPE_OPTIONS)[number]['value'], period: 'week' | 'month' | 'all') => settings.minMatches[matchType][period]
+  console.log(`Réglages : ${state.isDefault ? 'par défaut' : `enregistrés le ${state.updatedAt} par ${state.updatedBy ?? '—'}`}`)
 
   // 1. Moyennes et parts — mois en cours, Normal.
   const officialRows = await loadLeagueRows(null, 'official')
-  const table = leagueTableBetween(officialRows, clans, month.start, null, LEAGUE_MIN_MATCHES.month)
+  const table = leagueTableBetween(officialRows, clans, month.start, null, minOf('official', 'month'), settings)
   const { league } = table
   const terms = {
     placement: league.avgPlacementPoints * PLACEMENT_WEIGHT,
@@ -87,7 +89,7 @@ async function main() {
   const previousMonth = getPeriodRange('month-1', now)!
   const windows: Array<[string, Date | null, Date | null]> = [['mois précédent', previousMonth.start, previousMonth.end], ['tout l’historique', null, null]]
   for (const [label, from, to] of windows) {
-    const window = leagueTableBetween(officialRows, clans, from, to, LEAGUE_MIN_MATCHES.month).league
+    const window = leagueTableBetween(officialRows, clans, from, to, minOf('official', 'month'), settings).league
     const share = (window.avgPlacementPoints * PLACEMENT_WEIGHT) / window.rawScore
     const coefficient = (0.4 * (window.rawScore - window.avgPlacementPoints * PLACEMENT_WEIGHT)) / (0.6 * window.avgPlacementPoints)
     console.log(
@@ -99,7 +101,7 @@ async function main() {
   // 2. Classement du mois avant / après.
   const before = oldStandings(officialRows, clans, month.start)
   const oldById = new Map(before.map((entry) => [entry.clanId, entry]))
-  console.log(`\n2. Classement du mois, avant → après (seuil ${LEAGUE_MIN_MATCHES.month} parties)`)
+  console.log(`\n2. Classement du mois, avant → après (seuil ${minOf('official', 'month')} parties)`)
   console.log(`   ${'Clan'.padEnd(26)} ${'parties'.padStart(7)} ${'ancien rang'.padStart(11)} ${'ancien score'.padStart(12)} ${'nouveau rang'.padStart(12)} ${'brut'.padStart(8)} ${'nouveau score'.padStart(13)}`)
   for (const standing of table.standings) {
     const old = oldById.get(standing.clanId)
@@ -120,7 +122,7 @@ async function main() {
     const rows = option.value === 'official' ? officialRows : await loadLeagueRows(null, option.value)
     const cells = STANDARD_PERIODS.map((period) => {
       const range = getPeriodRange(period, now)
-      const result = leagueTableBetween(rows, clans, range?.start ?? null, null, LEAGUE_MIN_MATCHES[period])
+      const result = leagueTableBetween(rows, clans, range?.start ?? null, null, minOf(option.value, period), settings)
       return `${period} ${result.standings.length} classés / ${result.qualifying.length} en qualif. (${integer.format(result.league.matches)} lignes)`
     })
     console.log(`   ${option.label.padEnd(18)} ${cells.join(' · ')}`)

@@ -6,11 +6,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import RankCell from '@/components/ui/RankCell'
 import {
-  KILL_WEIGHT,
-  KNOCK_WEIGHT,
   LEAGUE_MATCH_TYPE_OPTIONS,
-  PLACEMENT_POINTS,
-  PLACEMENT_WEIGHT,
   leagueCriterion,
   targetAhead,
   type LeagueAverage,
@@ -19,6 +15,7 @@ import {
   type LeagueFeedEvent,
   type LeagueMatchType,
   type LeagueQualifier,
+  type LeagueSettings,
 } from '@/lib/clan-league'
 import type { LeagueEntry } from '@/lib/clan-league-service'
 import { clanBackgroundImage } from '@/lib/clan-image'
@@ -398,9 +395,12 @@ export function LeagueRanking({
   withoutMatch,
   periodWhen,
   typeNoun,
+  zoneEnd,
   access,
 }: {
   access: ClanAccess
+  /** Dernier rang « Dans la zone » (réglage de la ligue, 8 par défaut). */
+  zoneEnd: number
   ranked: RankedEntry[]
   criterion: LeagueCriterion
   showMovement: boolean
@@ -416,8 +416,8 @@ export function LeagueRanking({
   const [idleOpen, setIdleOpen] = useState(false)
   const meta = leagueCriterion(criterion)
   const top = ranked[0] ? meta.value(ranked[0]) : 0
-  const zone = ranked.slice(3, 8)
-  const blue = ranked.slice(8)
+  const zone = ranked.slice(3, zoneEnd)
+  const blue = ranked.slice(zoneEnd)
   const visibleBlue = blueOpen ? blue : blue.filter((entry) => entry.clanId === mineClanId)
   const row = (entry: RankedEntry, barColor: string, dimmed = false) => (
     <LeagueRow key={entry.clanId} access={access} entry={entry} ranked={ranked} criterion={criterion} mine={entry.clanId === mineClanId} showMovement={showMovement} top={top} barColor={barColor} dimmed={dimmed} />
@@ -434,7 +434,7 @@ export function LeagueRanking({
       {blue.length > 0 ? (
         <Group
           title="Blue zone"
-          subtitle={`9 à ${ranked.length} · à l’extérieur du cercle`}
+          subtitle={`${zoneEnd + 1} à ${ranked.length} · à l’extérieur du cercle`}
           icon={CircleDashed}
           iconClass="text-blue-500 dark:text-blue-400"
           action={blueOpen ? 'Replier' : `Voir les ${blue.length} clans`}
@@ -497,9 +497,12 @@ export function LeagueRanking({
 
 // ── Explication du Power score ──────────────────────────────────────────────────────────────────
 
-export function PowerScoreHelp({ scoring }: { scoring: { minMatches: number; priorMatches: number; league: LeagueAverage } }) {
+/** Explication lue dans les réglages en vigueur (`scoring.settings`) : elle suit ce que le SuperUser a réglé. */
+export function PowerScoreHelp({ scoring }: { scoring: { minMatches: number; settings: LeagueSettings; league: LeagueAverage } }) {
   const [open, setOpen] = useState(false)
-  const scale = PLACEMENT_POINTS.map((points, index) => `${index + 1}${index === 0 ? 'er' : 'e'} ${points}`).join(' · ')
+  const { settings } = scoring
+  const scale = settings.placementPoints.map((points, index) => `${index + 1}${index === 0 ? 'er' : 'e'} ${points}`).join(' · ')
+  const weight = (value: number) => integer.format(value)
   return (
     <section className="app-panel">
       <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex w-full items-center gap-2 px-3.5 py-3 text-left text-[13px]">
@@ -513,11 +516,14 @@ export function PowerScoreHelp({ scoring }: { scoring: { minMatches: number; pri
             <b className="text-gray-900">1. Score brut</b> du clan, moyennes par partie (membres actifs uniquement) :
           </span>
           <code className="font-mono text-[13px] text-gray-900">
-            points de placement × {PLACEMENT_WEIGHT} + dégâts + kills × {KILL_WEIGHT} + knocks × {KNOCK_WEIGHT}
+            points de placement × {weight(settings.placementWeight)} + dégâts{settings.damageWeight !== 1 ? ` × ${oneDecimal.format(settings.damageWeight)}` : ''} + kills ×{' '}
+            {weight(settings.killWeight)} + knocks × {weight(settings.knockWeight)}
           </code>
-          <span className="text-gray-500">Points de placement : {scale} ; au-delà de la 8e, 0. Un top 2 rapporte, plus seulement la victoire.</span>
+          <span className="text-gray-500">
+            Points de placement : {scale} ; au-delà de la {settings.placementPoints.length}e, 0. Un top 2 rapporte, plus seulement la victoire.
+          </span>
           <span>
-            <b className="text-gray-900">2. Pondération par le volume</b> : on ajoute {scoring.priorMatches} parties fictives au niveau moyen de la
+            <b className="text-gray-900">2. Pondération par le volume</b> : on ajoute {settings.priorMatches} parties fictives au niveau moyen de la
             ligue (score brut <span className="t-num font-bold text-gray-900">{integer.format(scoring.league.rawScore)}</span> sur la période). Avec
             peu de parties, le score reste proche de la moyenne ; plus un clan joue, plus son propre niveau pèse.
           </span>

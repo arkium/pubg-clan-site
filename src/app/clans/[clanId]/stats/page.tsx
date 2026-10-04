@@ -28,8 +28,8 @@ import { STANDARD_PERIODS } from '@/lib/period'
 
 /** Constante : SectionAnchorNav se réabonne quand ses `items` changent. */
 const SECTIONS: SectionAnchorNavItem[] = [
-  { id: 'sec-profile', label: 'Profil de jeu', icon: 'playstyle' },
-  { id: 'sec-items', label: 'Objets consommés', icon: 'support' },
+  { id: 'sec-profile', label: 'Profil', icon: 'playstyle' },
+  { id: 'sec-items', label: 'Objets', icon: 'support' },
   { id: 'sec-synergies', label: 'Synergies', icon: 'victory' },
   { id: 'sec-cooperation', label: 'Coopération', icon: 'other' },
 ]
@@ -91,7 +91,9 @@ export default function ClanStatsPage() {
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html. `.game-ui` :
+    // couleurs des rôles et des familles d'objets en jetons --game-*.
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Style de jeu du clan"
@@ -99,14 +101,14 @@ export default function ClanStatsPage() {
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
         <header
-          className="relative min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-[center_45%] bg-no-repeat sm:min-h-[13rem]"
+          className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-[center_45%] bg-no-repeat sm:min-h-[13rem]"
           style={{ backgroundImage: `url('/clan-stats.jpg')` }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-black/90 to-black/20 sm:bg-gradient-to-r sm:from-black/85 sm:via-black/40 sm:to-black/5" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2.5 px-3 py-2.5 sm:px-5 sm:py-4">
             <div className="flex items-center gap-1.5 sm:gap-2">
-              <Radar className="h-4 w-4 text-emerald-400 sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">Style de jeu du clan</h1>
+              <Radar className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
+              <h1 className="t-banner-title text-white drop-shadow-md">Style de jeu du clan</h1>
             </div>
             <div className="flex flex-wrap gap-1.5 text-xs font-semibold text-white">
               {playstyle.data ? (
@@ -114,7 +116,7 @@ export default function ClanStatsPage() {
                   {rows.length} joueur{rows.length > 1 ? 's' : ''} analysé{rows.length > 1 ? 's' : ''}
                 </span>
               ) : null}
-              <span className="rounded-full border border-emerald-400/60 bg-emerald-500/20 px-2.5 py-0.5 text-emerald-200">
+              <span className="rounded-full border border-[var(--game-pos-ring)] bg-[var(--game-pos-soft)] px-2.5 py-0.5 text-[var(--game-pos)]">
                 Télémétrie des matchs
               </span>
             </div>
@@ -129,10 +131,10 @@ export default function ClanStatsPage() {
               <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
               {!isSticky ? (
                 <>
-                  <span className="text-xs text-gray-500" data-testid="playstyle-context">
+                  <span className="t-meta" data-testid="playstyle-context">
                     {playstyleContext(rows, bots.data ?? null)}
                   </span>
-                  <Link href={`/clans/${clanId}/stats/career`} className="ml-auto text-xs font-semibold text-[var(--theme-ui-accent-text)] hover:underline">
+                  <Link href={`/clans/${clanId}/stats/career`} className="app-link ml-auto text-xs font-semibold">
                     Carrière PUBG du clan →
                   </Link>
                 </>
@@ -148,7 +150,7 @@ export default function ClanStatsPage() {
         <section id="sec-profile" aria-labelledby="sec-profile-title" className="flex flex-col gap-3">
           <SectionHeading id="sec-profile-title" title="Profil de jeu" subtitle="Moyenne des joueurs du clan, et les trois qui incarnent le mieux chaque rôle." />
           {playstyle.loading && !playstyle.data ? <CardSkeleton /> : null}
-          {playstyle.error ? <p className="text-sm text-red-600">{playstyle.error}</p> : null}
+          {playstyle.error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{playstyle.error}</p> : null}
           {playstyle.data ? (
             rows.length > 0 ? (
               <div aria-busy={playstyle.loading} className={`flex flex-col gap-3 ${playstyle.loading ? 'opacity-60' : ''}`}>
@@ -156,7 +158,7 @@ export default function ClanStatsPage() {
                 <PlaystyleThemeCards rows={rows} />
               </div>
             ) : (
-              <p className="app-panel p-4 text-sm text-gray-600">Aucun match analysé par la télémétrie sur cette période.</p>
+              <p className="app-panel t-body p-4 text-gray-700">Aucun match analysé par la télémétrie sur cette période.</p>
             )
           ) : null}
         </section>
@@ -164,7 +166,7 @@ export default function ClanStatsPage() {
         <section id="sec-items" aria-labelledby="sec-items-title" className="flex flex-col gap-3">
           <SectionHeading id="sec-items-title" title="Objets consommés" subtitle="Soins, boosts, carburant et gadgets réellement utilisés en match." />
           {items.loading && !items.data ? <CardSkeleton /> : null}
-          {items.error ? <p className="text-sm text-red-600">{items.error}</p> : null}
+          {items.error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{items.error}</p> : null}
           {!items.error && (items.data || !items.loading) ? (
             <div aria-busy={items.loading} className={`flex flex-col gap-3 ${items.loading ? 'opacity-60' : ''}`}>
               <ItemUseSection key={period} stats={items.data} />
@@ -193,7 +195,7 @@ export default function ClanStatsPage() {
             subtitle="Entraide entre coéquipiers en parties officielles : réanimations, éliminations à deux (co-kills) et rappels de squad (recalls)."
           />
           {cooperation.loading && !cooperation.data ? <CardSkeleton /> : null}
-          {cooperation.error ? <p className="text-sm text-red-600">{cooperation.error}</p> : null}
+          {cooperation.error ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{cooperation.error}</p> : null}
           {cooperation.data ? (
             <div aria-busy={cooperation.loading} className={`flex flex-col gap-3 ${cooperation.loading ? 'opacity-60' : ''}`}>
               <CooperationSection pairs={cooperation.data} />

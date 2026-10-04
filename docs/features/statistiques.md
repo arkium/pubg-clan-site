@@ -45,6 +45,21 @@ partagés × 1 (`cooperationSummary`). Distances et vitesses de télémétrie so
 Toute la logique d'affichage est pure, dans `src/lib/clan-playstyle.ts` (rôles, thèmes, contexte, familles et noms
 français des objets, groupes de synergies, coopération).
 
+**Charte UI** (2026-10-04) : la page porte `.charte` et `.game-ui` ([docs/ui/index.html](../ui/index.html#cartes)).
+
+- **Bandeau** : titre en Teko, icône à l'accent, pastille « Télémétrie des matchs » en vert de jeu sur la photo
+  (`.app-on-photo`) ; hauteur inchangée. Contexte en `t-meta`, « Carrière PUBG du clan → » en `app-link`.
+- **Ancres courtes** (« Profil », « Objets », « Synergies », « Coopération » ; titres complets dans les sections) : une ligne
+  dès 640 px. `SectionAnchorNav` **passe à la ligne** au lieu de défiler de côté (charte, sur toutes les pages qui
+  l'utilisent) — deux lignes au repos sur mobile, rien de docké sur mobile de toute façon.
+- **Couleurs** en jetons, comme le style de jeu du joueur : rôles Fragger `--game-neg`, Medic `--game-sky`, Ghost
+  `--game-pos` ; thèmes (à pied ciel, véhicule violet, zone sûre vert, hors zone rouge, soins vert) ; coopération
+  (réanimations vert, co-kills rouge — plus l'orange, réservé à « en attente » —, recalls ciel, indice à l'accent).
+  Familles d'objets : `ITEM_FAMILY_COLORS` passe en jetons et devient la seule source (la page Objets du joueur la lit
+  aussi).
+- **Chiffres** en Teko (`t-hero`) : pourcentage des jauges, chiffres clés des objets et de la coopération
+  (`app-panel app-kpi`) ; libellés `t-label` à 11 px (« matchs », « WR » étaient à 9 px, les KPI de coopération à 10).
+
 ## 3. « Carrière PUBG du clan » (`/clans/[clanId]/stats/career`)
 
 > Records (kill le plus long, série max, survie max) : jusqu'au 2026-09-27 la synchro additionnait les records de chaque

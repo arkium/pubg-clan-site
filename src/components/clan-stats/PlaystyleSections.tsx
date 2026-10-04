@@ -35,8 +35,8 @@ export function SectionHeading({ id, title, subtitle, children }: { id: string; 
   return (
     <div className="flex flex-wrap items-end justify-between gap-2">
       <div className="flex flex-col gap-0.5">
-        <h2 id={id} className="text-lg font-extrabold text-gray-900">{title}</h2>
-        <span className="text-[13px] text-gray-500">{subtitle}</span>
+        <h2 id={id} className="t-section-title">{title}</h2>
+        <span className="t-meta">{subtitle}</span>
       </div>
       {children}
     </div>
@@ -45,11 +45,15 @@ export function SectionHeading({ id, title, subtitle, children }: { id: string; 
 
 // ── Profil de jeu ───────────────────────────────────────────────────────────────────────────────────
 
+/** Couleurs des rôles : jetons de thème (charte, « Rôles ») — lisibles en texte dans les deux thèmes, comme le style de jeu du joueur. */
 const ROLE_STYLE: Record<PlaystyleRoleId, { color: string; icon: LucideIcon }> = {
-  fragger: { color: '#ef4444', icon: Crosshair },
-  medic: { color: '#0ea5e9', icon: HeartPulse },
-  ghost: { color: '#10b981', icon: Shield },
+  fragger: { color: 'var(--game-neg)', icon: Crosshair },
+  medic: { color: 'var(--game-sky)', icon: HeartPulse },
+  ghost: { color: 'var(--game-pos)', icon: Shield },
 }
+
+/** Fond teinté d'une couleur (jeton compris : `${hex}26` ne marche pas sur une variable CSS). */
+const tint = (color: string, percent: number) => `color-mix(in srgb, ${color} ${percent}%, transparent)`
 
 /** Jauge en arc de 270°, comme le tableau de bord d’un joueur ; reprise par le style de jeu du joueur. */
 export function ArcGauge({ value, color }: { value: number; color: string }) {
@@ -80,18 +84,18 @@ export function PlaystyleRoleCards({ rows }: { rows: ClanPlaystyleRow[] }) {
                 <ArcGauge value={role.average} color={color} />
                 <span className="absolute inset-0 flex flex-col items-center justify-center gap-px">
                   <Icon className="h-4 w-4" style={{ color }} aria-hidden="true" />
-                  <b className="text-lg font-black tabular-nums" style={{ color }}>{formatPercent(role.average)}</b>
+                  <b className="t-hero t-hero--sm" style={{ color }}>{formatPercent(role.average)}</b>
                 </span>
               </div>
               <div className="flex min-w-0 flex-col gap-0.5">
-                <span className="text-[11px] font-extrabold uppercase tracking-[0.14em]" style={{ color }}>{role.role}</span>
-                <b className="text-[15px] text-gray-900">{role.metric}</b>
-                <span className="text-xs text-gray-500">{role.hint}</span>
+                <span className="t-label" style={{ color }}>{role.role}</span>
+                <b className="t-card-title">{role.metric}</b>
+                <span className="t-meta">{role.hint}</span>
               </div>
             </div>
             <div className="flex flex-col gap-2 border-t border-gray-200 pt-3">
               {role.top.length === 0 ? (
-                <span className="text-xs text-gray-500">Aucun joueur avec ce score sur la période.</span>
+                <span className="t-meta">Aucun joueur avec ce score sur la période.</span>
               ) : (
                 role.top.map((entry, index) => (
                   <div key={entry.memberId} className="grid grid-cols-[18px_minmax(0,1fr)_auto] items-center gap-2 text-xs">
@@ -102,7 +106,7 @@ export function PlaystyleRoleCards({ rows }: { rows: ClanPlaystyleRow[] }) {
                         <span className="block h-full rounded" style={{ width: `${best > 0 ? (entry.score / best) * 100 : 0}%`, backgroundColor: color }} />
                       </span>
                     </span>
-                    <b className="tabular-nums" style={{ color }}>{formatPercent(entry.score)}</b>
+                    <b className="t-num" style={{ color }}>{formatPercent(entry.score)}</b>
                   </div>
                 ))
               )}
@@ -132,12 +136,12 @@ function ThemeCard({
   return (
     <article className="app-panel flex flex-col gap-2.5 p-4" aria-label={title}>
       <div className="flex items-center gap-2.5">
-        <span className="grid h-8 w-8 place-items-center rounded-[9px]" style={{ backgroundColor: `${color}26` }}>
+        <span className="grid h-8 w-8 place-items-center rounded-[9px]" style={{ backgroundColor: tint(color, 15) }}>
           <Icon className="h-4 w-4" style={{ color }} aria-hidden="true" />
         </span>
         <span className="flex flex-col">
-          <b className="text-sm text-gray-900">{title}</b>
-          <span className="text-xs text-gray-500">{subtitle}</span>
+          <b className="t-card-title">{title}</b>
+          <span className="t-meta">{subtitle}</span>
         </span>
       </div>
       <div className="flex h-2.5 overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]" aria-hidden="true">
@@ -157,7 +161,7 @@ function ThemeCard({
         {rows.map((row) => (
           <div key={row.label} className="flex items-baseline justify-between gap-2 text-xs">
             <dt className="text-gray-700">{row.label}</dt>
-            <dd className="text-[13px] font-bold tabular-nums text-gray-900">{row.value}</dd>
+            <dd className="t-num text-[13px] font-bold text-gray-900">{row.value}</dd>
           </div>
         ))}
       </dl>
@@ -173,10 +177,10 @@ export function PlaystyleThemeCards({ rows }: { rows: ClanPlaystyleRow[] }) {
         title="Mobilité"
         subtitle={`${formatDecimal(mobility.distance)} km par match en moyenne`}
         icon={Car}
-        color="#3b82f6"
+        color="var(--game-sky)"
         bar={[
-          { value: mobility.footShare, color: '#60a5fa', label: `${formatPercent(mobility.footShare)} à pied` },
-          { value: mobility.vehicleShare, color: '#f472b6', label: `${formatPercent(mobility.vehicleShare)} en véhicule` },
+          { value: mobility.footShare, color: 'var(--game-sky)', label: `${formatPercent(mobility.footShare)} à pied` },
+          { value: mobility.vehicleShare, color: 'var(--game-violet)', label: `${formatPercent(mobility.vehicleShare)} en véhicule` },
         ]}
         rows={[
           { label: 'À pied', value: `${formatDecimal(mobility.foot)} km` },
@@ -188,10 +192,10 @@ export function PlaystyleThemeCards({ rows }: { rows: ClanPlaystyleRow[] }) {
         title="Gestion du cercle"
         subtitle={`${formatPercent(circle.safe)} du temps en zone sûre`}
         icon={MapPin}
-        color="#10b981"
+        color="var(--game-pos)"
         bar={[
-          { value: circle.safe, color: '#34d399', label: `En zone ${formatPercent(circle.safe)}` },
-          ...(circle.outside !== null ? [{ value: circle.outside, color: '#f87171', label: `Hors zone ${formatPercent(circle.outside)}` }] : []),
+          { value: circle.safe, color: 'var(--game-pos)', label: `En zone ${formatPercent(circle.safe)}` },
+          ...(circle.outside !== null ? [{ value: circle.outside, color: 'var(--game-neg)', label: `Hors zone ${formatPercent(circle.outside)}` }] : []),
         ]}
         rows={[
           { label: 'Coups de zone bleue', value: `${formatDecimal(circle.blueZoneHits)} / match` },
@@ -203,8 +207,8 @@ export function PlaystyleThemeCards({ rows }: { rows: ClanPlaystyleRow[] }) {
         title="Survie et soins"
         subtitle={`${formatInteger(survival.healed)} PV soignés · ${formatInteger(survival.damageTaken)} dégâts reçus`}
         icon={HeartPulse}
-        color="#f43f5e"
-        bar={[{ value: survival.coverage, color: '#fb7185', label: `Les soins couvrent ${formatPercent(survival.coverage)} des dégâts reçus` }]}
+        color="var(--game-neg)"
+        bar={[{ value: survival.coverage, color: 'var(--game-pos)', label: `Les soins couvrent ${formatPercent(survival.coverage)} des dégâts reçus` }]}
         rows={[
           { label: 'Soins', value: `${formatDecimal(survival.heals)} / match` },
           { label: 'Boosts', value: `${formatDecimal(survival.boosts)} / match` },
@@ -258,7 +262,7 @@ export function ItemUseSection({ stats }: { stats: ItemUseStats | null }) {
 
   if (!stats || stats.totalCount === 0) {
     return (
-      <p className="app-panel p-4 text-sm text-gray-600">
+      <p className="app-panel t-body p-4 text-gray-700">
         Aucun objet consommé enregistré sur cette période. Le détail par objet n’existe que pour les matchs analysés
         depuis le 2026-09-17 : la télémétrie plus ancienne ne conserve pas ces événements.
       </p>
@@ -284,12 +288,13 @@ export function ItemUseSection({ stats }: { stats: ItemUseStats | null }) {
             color: dominant ? itemFamilyColor(dominant.subCategory) : undefined,
           },
         ].map((kpi) => (
-          <div key={kpi.label} className="app-panel flex flex-col gap-0.5 px-4 py-3.5">
-            <span className="text-[11px] font-bold uppercase tracking-[0.08em] text-gray-500">{kpi.label}</span>
-            <b className="text-[26px] font-black tracking-[-0.02em] tabular-nums text-gray-900" style={kpi.color ? { color: kpi.color } : undefined}>
+          <div key={kpi.label} className="app-panel app-kpi">
+            <span className="t-label">{kpi.label}</span>
+            <b className="t-hero t-hero--md flex items-center gap-2 text-gray-900">
+              {kpi.color ? <span className="h-3 w-3 shrink-0 rounded-full" style={{ backgroundColor: kpi.color }} aria-hidden="true" /> : null}
               {kpi.value}
             </b>
-            <span className="text-xs text-gray-500">{kpi.detail}</span>
+            <span className="t-meta">{kpi.detail}</span>
           </div>
         ))}
       </div>
@@ -308,7 +313,7 @@ export function ItemUseSection({ stats }: { stats: ItemUseStats | null }) {
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: itemFamilyColor(family.subCategory) }} aria-hidden="true" />
                   {itemFamilyLabel(family.subCategory)}
                 </span>
-                <span className="tabular-nums text-gray-900">
+                <span className="t-num text-gray-900">
                   <b>{formatInteger(family.count)}</b> <span className="text-[11px] text-gray-500">{formatDecimal(family.share)} %</span>
                 </span>
               </li>
@@ -321,12 +326,12 @@ export function ItemUseSection({ stats }: { stats: ItemUseStats | null }) {
                 className="relative flex flex-col items-center gap-1 rounded-xl bg-gradient-to-b from-slate-700 to-slate-900 px-2 pb-2 pt-2.5 text-white"
                 style={{ borderBottom: `3px solid ${itemFamilyColor(item.subCategory)}` }}
               >
-                <span className="absolute left-2 top-1.5 text-[10px] font-extrabold text-white/55">#{items.start + index + 1}</span>
+                <span className="t-num absolute left-2 top-1.5 text-[11px] font-extrabold text-white/55">#{items.start + index + 1}</span>
                 <ItemVignetteIcon itemId={item.itemId} subCategory={item.subCategory} />
                 <span className="flex min-h-[26px] items-center text-center text-[11px] font-semibold leading-tight">
                   {itemLabel(item.itemId, resolveItemName)}
                 </span>
-                <b className="text-[15px] tabular-nums">{formatInteger(item.count)}</b>
+                <b className="t-num text-[15px]">{formatInteger(item.count)}</b>
               </li>
             ))}
           </ul>
@@ -344,17 +349,17 @@ export function ItemUseSection({ stats }: { stats: ItemUseStats | null }) {
         {stats.members.length > 0 ? (
           <div className="app-panel flex flex-col gap-2 p-4">
             <div className="flex items-baseline justify-between">
-              <b className="text-sm text-gray-900">Par membre</b>
-              <span className="text-[11px] text-gray-500">objets / match</span>
+              <b className="t-card-title">Par membre</b>
+              <span className="t-meta">objets / match</span>
             </div>
             <ol className="flex flex-col gap-2" aria-label="Objets consommés par membre">
               {members.visible.map((member) => (
                 <li key={member.memberId} className="grid grid-cols-[minmax(0,1fr)_70px_40px] items-center gap-2 text-xs">
                   <span className="truncate text-gray-900">{member.displayName}</span>
                   <span className="h-1.5 overflow-hidden rounded bg-[var(--theme-ui-surface-strong)]" aria-hidden="true">
-                    <span className="block h-full rounded bg-emerald-500" style={{ width: `${bestPerMatch > 0 ? (member.perMatch / bestPerMatch) * 100 : 0}%` }} />
+                    <span className="block h-full rounded bg-[var(--theme-ui-accent)]" style={{ width: `${bestPerMatch > 0 ? (member.perMatch / bestPerMatch) * 100 : 0}%` }} />
                   </span>
-                  <b className="text-right tabular-nums text-gray-900">{formatDecimal(member.perMatch)}</b>
+                  <b className="t-num text-right text-gray-900">{formatDecimal(member.perMatch)}</b>
                 </li>
               ))}
             </ol>
@@ -394,29 +399,29 @@ function SynergyList({ id, label, entries }: { id: 'duo' | 'trio' | 'squad'; lab
   const visible = expanded ? entries : entries.slice(0, 3)
   return (
     <article className="app-panel overflow-hidden p-0!" aria-label={`Synergies ${label}`}>
-      <div className="relative h-[84px] bg-cover bg-center" style={{ backgroundImage: `url('/${id}.jpg')` }}>
+      <div className="bg-photo-fallback relative h-[84px] bg-cover bg-center" style={{ backgroundImage: `url('/${id}.jpg')` }}>
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-black/5" />
         <TeamModeBadge mode={id} size="sm" className="absolute bottom-2.5 left-3" />
       </div>
       <div className="flex flex-col px-3.5 py-1">
         {entries.length === 0 ? (
-          <p className="py-3 text-xs text-gray-500">Pas encore assez de parties ensemble.</p>
+          <p className="t-meta py-3">Pas encore assez de parties ensemble.</p>
         ) : (
           visible.map((entry, index) => (
             <div key={entry.memberIds.join(':')} className="flex flex-col gap-1.5 border-b border-gray-200 py-2.5 last:border-b-0">
               <div className="flex items-center gap-2.5">
                 <RankCell rank={index + 1} size="xs" />
                 <NameChips names={entry.memberNames} />
-                <span className="grid grid-cols-2 gap-x-3 text-right tabular-nums">
+                <span className="t-num grid grid-cols-2 gap-x-3 text-right">
                   <b className="text-[13px] text-gray-900">{formatInteger(entry.matchesPlayed)}</b>
-                  <b className="text-[13px] text-emerald-600 dark:text-emerald-400">{formatDecimal(entry.winRate * 100)} %</b>
-                  <span className="text-[9px] font-bold uppercase text-gray-500">matchs</span>
-                  <span className="text-[9px] font-bold uppercase text-gray-500">WR</span>
+                  <b className="t-pos text-[13px]">{formatDecimal(entry.winRate * 100)} %</b>
+                  <span className="t-label">Matchs</span>
+                  <span className="t-label" title="Win rate">WR</span>
                 </span>
               </div>
               {/* La barre de win rate de l'ancien bloc « Synergies de squad », fusionné ici (décision du 2026-09-27). */}
               <span className="h-1.5 overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]" aria-hidden="true">
-                <span className="block h-full rounded-full bg-emerald-500" style={{ width: `${Math.min(100, entry.winRate * 100)}%` }} />
+                <span className="block h-full rounded-full bg-[var(--game-pos)]" style={{ width: `${Math.min(100, entry.winRate * 100)}%` }} />
               </span>
             </div>
           ))
@@ -440,9 +445,9 @@ export function SynergySection({ synergies }: { synergies: { topPairs: SynergyEn
 // ── Coopération ─────────────────────────────────────────────────────────────────────────────────────
 
 const COOPERATION_TOPS: Array<{ id: CooperationTopId; title: string; image: string; icon: LucideIcon; color: string }> = [
-  { id: 'revives', title: 'Top sauvetages', image: '/sauvetage.jpg', icon: HeartPulse, color: '#10b981' },
-  { id: 'coKills', title: 'Top co-kills', image: '/cokills.jpg', icon: Target, color: '#f97316' },
-  { id: 'recalls', title: 'Top recalls', image: '/recall.jpg', icon: RefreshCcw, color: '#3b82f6' },
+  { id: 'revives', title: 'Top sauvetages', image: '/sauvetage.jpg', icon: HeartPulse, color: 'var(--game-pos)' },
+  { id: 'coKills', title: 'Top co-kills', image: '/cokills.jpg', icon: Target, color: 'var(--game-neg)' },
+  { id: 'recalls', title: 'Top recalls', image: '/recall.jpg', icon: RefreshCcw, color: 'var(--game-sky)' },
 ]
 
 function CooperationTop({ pairs, top }: { pairs: CooperationPair[]; top: (typeof COOPERATION_TOPS)[number] }) {
@@ -452,7 +457,7 @@ function CooperationTop({ pairs, top }: { pairs: CooperationPair[]; top: (typeof
   const Icon = top.icon
   return (
     <article className="app-panel overflow-hidden p-0!" aria-label={top.title}>
-      <div className="relative h-[84px] bg-cover bg-center" style={{ backgroundImage: `url('${top.image}')` }}>
+      <div className="app-on-photo bg-photo-fallback relative h-[84px] bg-cover bg-center" style={{ backgroundImage: `url('${top.image}')` }}>
         <div className="absolute inset-0 bg-gradient-to-t from-black/75 to-black/5" />
         <span className="absolute bottom-2.5 left-3 inline-flex items-center gap-1.5 rounded-md bg-black/60 px-2.5 py-1 text-[13px] font-extrabold text-white">
           <Icon className="h-3.5 w-3.5" style={{ color: top.color }} aria-hidden="true" />
@@ -461,13 +466,13 @@ function CooperationTop({ pairs, top }: { pairs: CooperationPair[]; top: (typeof
       </div>
       <div className="flex flex-col px-3.5 pb-2 pt-1">
         {rows.length === 0 ? (
-          <p className="py-3 text-xs text-gray-500">Aucun binôme sur cette période.</p>
+          <p className="t-meta py-3">Aucun binôme sur cette période.</p>
         ) : (
           visible.map((row, index) => (
             <div key={row.key} className="flex items-center gap-2.5 border-b border-gray-200 py-2.5 last:border-b-0">
               <RankCell rank={index + 1} size="xs" />
               <NameChips names={row.names} />
-              <b className="rounded-md px-2 py-0.5 text-[13px] tabular-nums" style={{ backgroundColor: `${top.color}2e`, color: top.color }}>
+              <b className="t-num rounded-md px-2 py-0.5 text-[13px]" style={{ backgroundColor: tint(top.color, 18), color: top.color }}>
                 {formatInteger(row.value)}
               </b>
             </div>
@@ -487,13 +492,13 @@ export function CooperationSection({ pairs }: { pairs: CooperationPair[] }) {
       value: formatDecimal(summary.index),
       unit: ' / 100',
       icon: Zap,
-      color: '#6366f1',
+      color: 'var(--theme-ui-accent)',
       title: 'Proche de 100 quand tous les binômes coopèrent autant que le meilleur ; proche de 0 quand la coopération repose sur un seul binôme.',
     },
-    { label: 'Binômes actifs', value: formatInteger(summary.pairs), icon: Users, color: '#64748b' },
-    { label: 'Réanimations', value: formatInteger(summary.revives), icon: HeartPulse, color: '#10b981' },
-    { label: 'Co-kills', value: formatInteger(summary.coKills), icon: Target, color: '#f97316' },
-    { label: 'Recalls', value: formatInteger(summary.recalls), icon: RefreshCcw, color: '#3b82f6' },
+    { label: 'Binômes actifs', value: formatInteger(summary.pairs), icon: Users, color: 'var(--theme-ui-text-muted)' },
+    { label: 'Réanimations', value: formatInteger(summary.revives), icon: HeartPulse, color: 'var(--game-pos)' },
+    { label: 'Co-kills', value: formatInteger(summary.coKills), icon: Target, color: 'var(--game-neg)' },
+    { label: 'Recalls', value: formatInteger(summary.recalls), icon: RefreshCcw, color: 'var(--game-sky)' },
   ]
   return (
     <>
@@ -501,15 +506,15 @@ export function CooperationSection({ pairs }: { pairs: CooperationPair[] }) {
         {kpis.map((kpi) => {
           const Icon = kpi.icon
           return (
-            <div key={kpi.label} className="app-panel flex flex-col gap-1.5 px-3.5 py-3" title={kpi.title}>
-              <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ backgroundColor: `${kpi.color}29` }}>
+            <div key={kpi.label} className="app-panel app-kpi" title={kpi.title}>
+              <span className="grid h-7 w-7 place-items-center rounded-lg" style={{ backgroundColor: tint(kpi.color, 16) }}>
                 <Icon className="h-[15px] w-[15px]" style={{ color: kpi.color }} aria-hidden="true" />
               </span>
-              <b className="text-2xl font-black tabular-nums text-gray-900">
+              <b className="t-hero t-hero--md text-gray-900">
                 {kpi.value}
-                {kpi.unit ? <span className="text-xs font-semibold text-gray-500">{kpi.unit}</span> : null}
+                {kpi.unit ? <span className="ml-0.5 text-base text-gray-500">{kpi.unit}</span> : null}
               </b>
-              <span className="text-[10px] font-bold uppercase tracking-[0.06em] text-gray-500">{kpi.label}</span>
+              <span className="t-label">{kpi.label}</span>
             </div>
           )
         })}
@@ -519,12 +524,12 @@ export function CooperationSection({ pairs }: { pairs: CooperationPair[] }) {
           <CooperationTop key={top.id} pairs={pairs} top={top} />
         ))}
       </div>
-      <p className="flex flex-wrap gap-4 text-xs text-gray-500">
+      <p className="t-meta flex flex-wrap gap-4">
         <span>
-          Dégâts partagés : <b className="text-gray-900">{formatInteger(summary.sharedDamage)}</b>
+          Dégâts partagés : <b className="t-num text-gray-900">{formatInteger(summary.sharedDamage)}</b>
         </span>
         <span>
-          Score moyen par binôme : <b className="text-gray-900">{formatDecimal(summary.averageScore)}</b>
+          Score moyen par binôme : <b className="t-num text-gray-900">{formatDecimal(summary.averageScore)}</b>
         </span>
       </p>
     </>

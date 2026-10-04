@@ -5,7 +5,7 @@ import { useMemo } from 'react'
 import ItemIcon from '@/components/ui/ItemIcon'
 import { Skeleton } from '@/components/ui/Skeleton'
 import SortableTh from '@/components/ui/SortableTh'
-import { itemLabel } from '@/lib/clan-playstyle'
+import { itemFamilyColor, itemLabel } from '@/lib/clan-playstyle'
 import { resolveItemName } from '@/lib/pubg-assets'
 import type { ItemUseStats } from '@/lib/item-use-stats'
 
@@ -31,14 +31,6 @@ const FAMILY_LABELS: Record<string, string> = {
   Unknown: 'Non classés',
 }
 
-/** Couleurs de la charte : soins positif, boosts « en attente » (orange), carburant ciel, gadgets violet. */
-const FAMILY_COLORS: Record<string, string> = {
-  Heal: 'var(--game-pos)',
-  Boost: 'var(--game-warn)',
-  Fuel: 'var(--game-sky)',
-  Gadget: 'var(--game-violet)',
-  Unknown: 'var(--theme-ui-text-muted)',
-}
 
 const numberFormat = new Intl.NumberFormat('fr-FR')
 const decimalFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
@@ -49,7 +41,8 @@ const formatShare = (value: number) => `${value.toLocaleString('fr-FR', { maximu
 const familyLabel = (subCategory: string) => FAMILY_LABELS[subCategory] ?? subCategory
 /** Nom français de l'objet (« Trousse de soins »), comme le style de jeu du clan ; le dictionnaire PUBG en repli. */
 const itemName = (itemId: string) => itemLabel(itemId, resolveItemName)
-const familyColor = (subCategory: string) => FAMILY_COLORS[subCategory] ?? 'var(--theme-ui-text-muted)'
+/** Couleurs des familles : une seule source, partagée avec le style de jeu du clan (`src/lib/clan-playstyle.ts`). */
+const familyColor = itemFamilyColor
 
 function FamilyDot({ subCategory }: { subCategory: string }) {
   return <span className="inline-block h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: familyColor(subCategory) }} aria-hidden="true" />

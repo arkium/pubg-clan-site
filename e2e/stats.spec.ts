@@ -101,7 +101,7 @@ test.describe('Style de jeu du clan', () => {
   test('ancres dans le bandeau, lien vers la carrière, aucun défilement horizontal', async ({ page }, testInfo) => {
     await expect(toolbar(page).getByRole('link', { name: 'Carrière PUBG du clan →' })).toHaveAttribute('href', `/clans/${CLAN_ID}/stats/career`)
     if (!isMobile(testInfo)) {
-      await expect(toolbar(page).getByRole('link', { name: 'Objets consommés' })).toHaveAttribute('href', '#sec-items')
+      await expect(toolbar(page).getByRole('link', { name: 'Objets', exact: true })).toHaveAttribute('href', '#sec-items')
     }
     await expectNoHorizontalScroll(page)
   })

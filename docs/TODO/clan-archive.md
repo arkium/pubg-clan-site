@@ -279,4 +279,7 @@ après lecture du `migrate diff` : exactement les deux `ADD COLUMN`. Après appl
 **Déploiement** : la migration est déjà en base ; le `prisma migrate deploy` de la procédure de déploiement n'aura
 rien à faire. Le code actuellement en production ignore les deux colonnes nullables : l'ordre n'a plus d'importance.
 
-**Reste à faire** : la recette du §5 dans un navigateur.
+**Reste à faire** :
+- [ ] Faire la recette du §5 (Tests de contrôle manuels) dans un navigateur.
+- [ ] **Décision à prendre** : Un Owner de clan (non SuperUser) peut-il demander l'arrêt du suivi de son propre clan ? (Aujourd'hui : SuperUser seulement).
+- [ ] **Décision à prendre** : Les demandes d'adhésion en attente (`joinStatus: 'pending'`) d'un clan archivé doivent-elles être refusées automatiquement à l'archivage ? (Actuellement elles restent en l'état).

@@ -127,16 +127,17 @@ export const ITEM_FAMILY_LABELS: Record<string, string> = {
   Unknown: 'Non classés',
 }
 
+/** Couleurs de la charte (jetons `--game-*`, dans `.game-ui`) : soins positif, boosts orange, carburant ciel, gadgets violet. */
 export const ITEM_FAMILY_COLORS: Record<string, string> = {
-  Heal: '#22c55e',
-  Boost: '#f97316',
-  Fuel: '#3b82f6',
-  Gadget: '#a855f7',
-  Unknown: '#94a3b8',
+  Heal: 'var(--game-pos)',
+  Boost: 'var(--game-warn)',
+  Fuel: 'var(--game-sky)',
+  Gadget: 'var(--game-violet)',
+  Unknown: 'var(--theme-ui-text-muted)',
 }
 
 export const itemFamilyLabel = (subCategory: string) => ITEM_FAMILY_LABELS[subCategory] ?? subCategory
-export const itemFamilyColor = (subCategory: string) => ITEM_FAMILY_COLORS[subCategory] ?? '#64748b'
+export const itemFamilyColor = (subCategory: string) => ITEM_FAMILY_COLORS[subCategory] ?? 'var(--theme-ui-text-muted)'
 
 /** Noms français des objets du jeu ; le dictionnaire PUBG (anglais) sert de repli. */
 const ITEM_LABELS: Record<string, string> = {

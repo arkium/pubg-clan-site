@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 import { readHeaderHeight } from '@/hooks/useStickyToolbar'
 
@@ -92,26 +92,13 @@ function activationOffset() {
  * Liens d'ancre d'une page — docs/TODO/sticky.md §4.B.
  *
  * Une page ne superpose jamais deux éléments collants : les ancres sont une ligne du bandeau
- * (`DockingToolbar`) et prennent son style. La ligne ne passe jamais à la ligne — elle défile
- * horizontalement, pour que le bandeau docké garde sa hauteur — et le lien actif y reste visible.
+ * (`DockingToolbar`) et prennent son style. Trop longue pour la largeur, la ligne **passe à la ligne**
+ * (charte : jamais de défilement horizontal, 2026-10-04) ; docké sur mobile, une page ne garde de toute façon que
+ * sa période. Libellés courts (« Profil », « Objets ») : une seule ligne dans le cas courant.
  * Le lien actif suit la lecture ; l'écoute du défilement sert uniquement à cela, pas au docking.
  */
 export default function SectionAnchorNav({ items, ariaLabel, className }: SectionAnchorNavProps) {
   const [activeSectionId, setActiveSectionId] = useState(items[0]?.id ?? '')
-  const navRef = useRef<HTMLElement | null>(null)
-
-  // Garde le lien actif visible dans la ligne, sans jamais faire défiler la page verticalement.
-  useEffect(() => {
-    const nav = navRef.current
-    const link = nav?.querySelector<HTMLElement>('[aria-current="location"]')
-    if (!nav || !link) return
-    // La ligne est `relative` : offsetLeft se mesure dans son contenu défilant, indépendamment de scrollLeft.
-    const left = link.offsetLeft
-    const right = left + link.offsetWidth
-    if (left < nav.scrollLeft || right > nav.scrollLeft + nav.clientWidth) {
-      nav.scrollTo({ left: Math.max(0, left - 16) })
-    }
-  }, [activeSectionId])
 
   useEffect(() => {
     const itemIds = items.map((item) => item.id)
@@ -150,9 +137,8 @@ export default function SectionAnchorNav({ items, ariaLabel, className }: Sectio
 
   return (
     <nav
-      ref={navRef}
       aria-label={ariaLabel}
-      className={['relative flex min-w-0 items-center gap-1.5 overflow-x-auto [scrollbar-width:thin]', className ?? '']
+      className={['relative flex min-w-0 flex-wrap items-center gap-1.5', className ?? '']
         .join(' ')
         .trim()}
     >

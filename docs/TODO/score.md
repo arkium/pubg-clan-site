@@ -64,6 +64,10 @@ apparaît dans un bloc séparé « En qualification » avec sa progression (par 
   n'a pas les places par partie ou le nombre de parties, ne pas improviser : me le signaler.
 - Mettre à jour le texte d'explication du Power Score affiché sur la page, les tests
   (clan-league.test.ts) et docs/features/ligue-clans.md.
+- Intégrer la séparation par type de partie :
+  - Ajouter `competitive` (Ranked) à `ClanMatchTypeFilter` (src/types/squad-matches.ts).
+  - Adapter `loadLeagueRows` (src/lib/clan-league-service.ts) pour qu'il accepte un filtre `matchType` au lieu de `WHERE sm.matchType = 'official'` en dur, et modifier la clé de cache (`cache.get`) en conséquence.
+  - Ajouter un sélecteur de type de match (Normal, Ranked, Casual, Tournois/Custom) sur la page `/clans-leaderboard` et dans son API, pour permettre de visualiser le classement selon le type de partie.
 
 ## Vérification attendue
 
@@ -78,6 +82,9 @@ Avant de considérer le travail terminé, à partir des données réelles :
 3. Ajouter des tests couvrant au minimum : un clan à 1 partie gagnée n'est pas classé ; à
    performance égale, le clan qui a le plus de parties est le moins tiré vers la moyenne ;
    une 2e place rapporte des points alors qu'elle ne comptait pas avant.
+4. Contrôle E2E et Tests d'intégration :
+   - S'assurer que le sélecteur de type de partie (Normal, Ranked, etc.) dans l'UI rafraîchit correctement le classement.
+   - S'assurer par des tests que le filtre `matchType` récupère bien les parties correspondantes (notamment `competitive` pour Ranked) en ignorant les autres.
 
 ## Hors périmètre
 

@@ -18,7 +18,7 @@
 | Chicken Dinner | Carrousel des **3 derniers Top 1** du site : « #1 / N équipes », carte, date, durée, clan, kills, dégâts, kill le plus long, équipe (armes, MVP), lien vers le débriefing |
 | Rejoindre | Trois étapes, « Demander à rejoindre » (`/join`), puis `/clans` : « Voir les clans » pour un connecté, « Parcourir en visiteur » en mode visiteur, rien sinon |
 | Pourquoi atterrir ici (ajouté le 2026-09-27) | « Toute la scène PUBG francophone, dans la même zone » : trois cartes — Ligue des clans (`/clans-leaderboard`), Tournois, carte sombre « Zéro inscription » (`/tournaments`), Comparateur (`/clans/comparator`). Mêmes pages que la navigation du héros, mêmes droits d'accès |
-| Pied de page | `chickendinner.fr · © Arkium`, mention KRAFTON. Remplace le pied de page du layout, masqué sur cette page |
+| Pied de page | `chickendinner.fr · © Arkium`, les trois liens légaux (mentions légales, confidentialité, à propos) et la mention KRAFTON complète (`src/lib/legal/legal-info.ts`, [pages-legales.md](pages-legales.md)). Remplace le pied de page du layout, masqué sur cette page |
 
 La vitrine est **plein écran pour tous**, connectés compris : pas de menu latéral. Un membre connecté y trouve
 « Mon espace » (son tableau de bord `/members/<id>/dashboard`, `/members` sans membre actif) à la place de
@@ -110,7 +110,7 @@ couleurs dans les deux thèmes. Le reste passe par les jetons (`--page-surface`,
 |---|---|
 | `src/lib/home-showcase.test.ts` | Formatage (cm → m, durée, fond de carte), clan de l'équipe, MVP, armes, note des kills (poêle ≠ Panzerfaust), dédoublonnage, ordre et plafond du feed, victimes jamais nommées |
 | `src/lib/home-showcase-route-contracts.test.ts` | Route sans session : compteurs, Top 1 (équipe mixte, clan technique écarté), durée, lien de débriefing, tags des victimes, aucun `account.` dans la réponse, 500 en erreur ; cache (une lecture par période, appels simultanés, échec non gardé) |
-| `e2e/home.spec.ts` | Plein écran sans shell ni pied de page commun, pas de défilement horizontal, carrousel dans les deux sens, feed sans nom de victime, liens `/join` `/login` `/clans` `/clans-leaderboard`, compteurs et navigation sur ordinateur, menu sur mobile et tablette, entrée « Accueil » du menu latéral. **Non couvert** : le rendu pour un membre connecté (« Mon espace »), qui exige une session en base |
+| `e2e/home.spec.ts` | Plein écran sans shell ni pied de page commun, pas de défilement horizontal, carrousel dans les deux sens, feed sans nom de victime, liens `/join` `/login` `/clans` `/clans-leaderboard`, liens légaux du pied de page, compteurs et navigation sur ordinateur, menu sur mobile et tablette, entrée « Accueil » du menu latéral. **Non couvert** : le rendu pour un membre connecté (« Mon espace »), qui exige une session en base |
 
 ---
 

@@ -8,6 +8,7 @@ import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { useHomeShowcase } from '@/hooks/useHomeShowcase'
 import { formatMatchDuration, type ShowcaseDinner, type ShowcaseFeedEntry } from '@/lib/home-showcase'
+import { KRAFTON_DISCLAIMER, LEGAL_LINKS } from '@/lib/legal/legal-info'
 import { getPeriodStart } from '@/lib/period'
 
 /**
@@ -624,11 +625,25 @@ export default function HomeShowcase({
 
       <WhyLandSection />
 
-      <footer className="home-footer flex flex-wrap items-center justify-between gap-x-6 gap-y-2.5 px-4 py-[22px] text-[13px] text-gray-500 md:px-8 lg:px-14">
-        <span>
-          <b className="home-footer-brand">chickendinner.fr</b> · © {year} Arkium
-        </span>
-        <span>PUBG: BATTLEGROUNDS est une marque de KRAFTON, Inc. Site communautaire non officiel.</span>
+      {/* Mêmes liens que le footer du site (SiteFooter), que la vitrine masque : docs/features/pages-legales.md. */}
+      <footer className="home-footer flex flex-col gap-2.5 px-4 py-[22px] text-[13px] text-gray-500 md:px-8 lg:px-14">
+        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
+          <span>
+            <b className="home-footer-brand">chickendinner.fr</b> · © {year} Arkium
+          </span>
+          <nav aria-label="Informations légales">
+            <ul className="flex flex-wrap gap-x-4 gap-y-1">
+              {LEGAL_LINKS.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="home-link">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        </div>
+        <span>{KRAFTON_DISCLAIMER}</span>
       </footer>
     </div>
   )

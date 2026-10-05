@@ -308,6 +308,36 @@ export async function notifyClanCreationRequest(
   }
 }
 
+/** Demande « Retirer mes données » (docs/features/pages-legales.md) : à traiter à la main par un SuperUser. */
+export async function notifyPrivacyRequest(request: {
+  id: number
+  title: string
+  message: string
+  data: Prisma.InputJsonValue
+}) {
+  try {
+    const superUsers = await prisma.userAccount.findMany({
+      where: { isSuperUser: true },
+      include: { identities: { select: { memberId: true } } },
+    })
+    const memberIds = superUsers.flatMap((su) => su.identities.map((id) => id.memberId))
+
+    await Promise.all(
+      memberIds.map((memberId) =>
+        createNotificationForMember({
+          memberId,
+          type: 'privacy_request',
+          title: request.title,
+          message: request.message,
+          data: request.data,
+        })
+      )
+    )
+  } catch (error) {
+    console.error(`[notification] Failed to notify superusers about privacy request ${request.id}:`, error)
+  }
+}
+
 export async function notifyInviteReminder(memberId: number) {
   const now = new Date()
   const twelveHoursAgo = new Date(now.getTime() - 12 * 60 * 60 * 1000)

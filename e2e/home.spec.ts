@@ -24,10 +24,18 @@ test('la vitrine s’affiche en plein écran, sans le shell ni son pied de page'
   await expect(page.locator('aside')).toHaveCount(0)
   await expect(page.locator('.app-footer')).toBeHidden()
   await expect(page.getByText('29 clans suivis · PC')).toBeVisible()
-  await expect(page.getByText(/KRAFTON, Inc\. Site communautaire non officiel/)).toBeVisible()
+  await expect(page.locator('.home-footer').getByText(/KRAFTON, Inc\. Ce site est un projet communautaire non officiel/)).toBeVisible()
 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
   expect(overflow).toBeLessThanOrEqual(0)
+})
+
+test('le pied de page de la vitrine mène aux pages légales', async ({ page }) => {
+  const legal = page.locator('.home-footer').getByRole('navigation', { name: 'Informations légales' })
+  await expect(legal.getByRole('link')).toHaveCount(3)
+  await expect(legal.getByRole('link', { name: 'Mentions légales' })).toHaveAttribute('href', '/mentions-legales')
+  await expect(legal.getByRole('link', { name: 'Confidentialité' })).toHaveAttribute('href', '/confidentialite')
+  await expect(legal.getByRole('link', { name: 'À propos' })).toHaveAttribute('href', '/a-propos')
 })
 
 test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async ({ page }) => {

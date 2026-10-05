@@ -1662,3 +1662,18 @@ model ResourceVehicleMapStat {
   windowDays      Int
   computedAt      DateTime
 }
+
+/// Demandes « Retirer mes données » déposées sur /confidentialite/demande (docs/features/pages-legales.md). Simple
+/// registre : le traitement (masquage, purge, correction) est manuel, aucune donnée n'est modifiée automatiquement.
+model PrivacyRequest {
+  id        Int       @id @default(autoincrement())
+  pubgName  String    @db.VarChar(32)
+  kind      String    @db.VarChar(10) // hide | purge | correct | other
+  reason    String?   @db.Text
+  email     String    @db.VarChar(190)
+  status    String    @default("pending") @db.VarChar(10) // pending | done | rejected
+  createdAt DateTime  @default(now())
+  handledAt DateTime?
+
+  @@index([status, createdAt])
+}

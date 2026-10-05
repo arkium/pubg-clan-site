@@ -5,6 +5,7 @@ export const NOTIFICATION_TYPES = [
   'invite_reminder',
   'join_request',
   'clan_creation_request',
+  'privacy_request',
 ] as const
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]

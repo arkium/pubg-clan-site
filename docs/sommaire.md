@@ -24,6 +24,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 | Document | Contenu |
 |---|---|
+| [Pages légales et footer](features/pages-legales.md) | `/mentions-legales`, `/confidentialite`, `/confidentialite/demande`, `/a-propos`, publiques ; les trois premières liées depuis le footer (site et vitrine), le formulaire depuis la confidentialité ; formulaire « Retirer mes données » (table `PrivacyRequest`, alerte SuperUser, traitement manuel) ; ce que les pages affirment, vérifié contre le code |
 | [Accueil](features/accueil.md) | Vitrine publique de `/` (visiteurs sans session) : compteurs, kill feed, 3 derniers Top 1, appel à rejoindre ; route publique `GET /api/home/showcase` et son cache |
 | [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre, SuperUser, flux /join |
 | [Clans](features/clans.md) | Structure clan, hiérarchie rôles + matrice permissions, flux /join et membres pending, sync PUBG, overview, crons |

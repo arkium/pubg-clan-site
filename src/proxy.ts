@@ -7,11 +7,13 @@ import {
   readSubdomainRoot,
   subdomainRedirectLocation,
 } from '@/lib/clan-subdomain-host'
+import { LEGAL_PATHS } from '@/lib/legal/legal-info'
 
 const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
-const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/', '/activate', '/login', '/reset-password', '/join'])
+const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/', '/activate', '/login', '/reset-password', '/join', ...LEGAL_PATHS])
 // '/' : vitrine publique de l'accueil (docs/features/accueil.md), visible sans session même hors mode visiteur.
-const PUBLIC_PATHS = new Set(['/', '/login', '/activate', '/reset-password', '/join'])
+// Pages légales (docs/features/pages-legales.md) : liées depuis tous les footers, donc lisibles par tous.
+const PUBLIC_PATHS = new Set(['/', '/login', '/activate', '/reset-password', '/join', ...LEGAL_PATHS])
 const SESSION_COOKIE_NAME = 'pubg_clan_session'
 const AUTH_DISABLED = process.env.DISABLE_AUTH_PERMISSIONS === 'true'
 

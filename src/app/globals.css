@@ -525,25 +525,6 @@ html[data-app-theme='light'] {
   box-shadow: 0 10px 34px -26px rgba(15, 23, 42, 0.45);
 }
 
-.footer-toggle-summary,
-.footer-toggle-summary * {
-  user-select: none;
-}
-
-.footer-toggle-summary {
-  -webkit-tap-highlight-color: transparent;
-}
-
-.footer-toggle-summary:focus-visible {
-  outline: 2px solid rgb(100 116 139 / 0.85);
-  outline-offset: 3px;
-  border-radius: 0.75rem;
-}
-
-html[data-app-theme='dark'] .footer-toggle-summary:focus-visible {
-  outline-color: rgb(148 163 184 / 0.9);
-}
-
 .shell-app-bg {
   --shell-bg-top: #eff6ff;
   --shell-bg-mid: #f8fafc;

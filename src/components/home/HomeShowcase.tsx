@@ -2,13 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, LogIn, Menu, Plane, Swords, Trophy, User, X } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Crosshair, LogIn, MapPin, Menu, Plane, Swords, Trophy, User, X } from 'lucide-react'
 
+import { LegalFooterContent } from '@/components/SiteFooter'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { useHomeShowcase } from '@/hooks/useHomeShowcase'
 import { formatMatchDuration, type ShowcaseDinner, type ShowcaseFeedEntry } from '@/lib/home-showcase'
-import { KRAFTON_DISCLAIMER, LEGAL_LINKS } from '@/lib/legal/legal-info'
 import { getPeriodStart } from '@/lib/period'
 
 /**
@@ -418,6 +418,90 @@ function WhyLandSection() {
   )
 }
 
+/** Nouveautés du site, en grandes cartes photo (illustrations générées par IA, signalées dans les mentions légales). */
+const NEWS = [
+  {
+    id: 'mortier',
+    image: '/nouveaute-mortier.jpg',
+    icon: Crosshair,
+    eyebrow: 'Mortier',
+    title: 'Règle ton mortier.',
+    accent: 'Pas ton squad.',
+    text: 'Mesure à la grille, règle la distance, tire : 10 cibles par série, trois difficultés, du dénivelé en Difficile. Grimpe au classement des artilleurs du clan, et arrête d’arroser le compound où se planque ton duo.',
+    href: '/mortier',
+    link: 'S’entraîner au mortier',
+  },
+  {
+    id: 'ressources',
+    image: '/nouveaute-carte-ressources.jpg',
+    icon: MapPin,
+    eyebrow: 'Carte des ressources',
+    title: 'La zone ferme ?',
+    accent: 'Ta caisse t’attend.',
+    text: 'Véhicules repérés dans vos vraies parties, stations-service, garages, pontons et salles secrètes : toute la map, annotée par la communauté. Plus jamais de sprint dans la zone bleue faute de bagnole.',
+    href: '/carte-des-ressources',
+    link: 'Ouvrir la carte',
+  },
+] as const
+
+function NewsSection() {
+  return (
+    <section className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20" aria-labelledby="home-news-title">
+      <div className="mx-auto flex max-w-[1200px] flex-col gap-5">
+        <div className="flex flex-col gap-1.5">
+          <span className="home-gold text-xs font-bold uppercase tracking-[0.14em]">Nouveautés</span>
+          <h2 id="home-news-title" className="home-display m-0 text-[38px] font-semibold uppercase leading-[0.95] [text-wrap:balance] lg:text-[56px]">
+            Fraîchement largué :
+            <br />
+            deux nouveaux outils.
+          </h2>
+        </div>
+        <div className="grid gap-3.5 lg:grid-cols-2">
+          {NEWS.map((item) => {
+            const Icon = item.icon
+            return (
+              // Carte sombre sur photo, comme Tournois ; le lien couvre toute la carte (after:inset-0).
+              <article
+                key={item.id}
+                aria-labelledby={`news-${item.id}`}
+                className="home-join group relative flex min-h-[380px] flex-col gap-3 overflow-hidden rounded-[18px] border border-amber-400/50 p-5 text-white lg:min-h-[440px] lg:p-7"
+              >
+                <div
+                  className="absolute inset-0 bg-cover bg-no-repeat transition-transform duration-300 group-hover:scale-[1.03] motion-reduce:transition-none motion-reduce:group-hover:scale-100"
+                  style={{ backgroundImage: `url(${item.image})`, backgroundPosition: '75% 40%' }}
+                  aria-hidden="true"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-[rgb(20_13_5/0.97)] via-[rgb(20_13_5/0.7)] to-[rgb(20_13_5/0.05)]" aria-hidden="true" />
+                <div className="relative flex items-center justify-between gap-2.5">
+                  <span className="inline-flex h-11 w-11 items-center justify-center rounded-xl bg-amber-400 text-amber-950">
+                    <Icon className="h-[22px] w-[22px]" aria-hidden="true" />
+                  </span>
+                  <span className="-rotate-3 rounded-[5px] bg-amber-400 px-2.5 py-1 text-[11px] font-black tracking-[0.06em] text-amber-950">NOUVEAU</span>
+                </div>
+                <div className="relative mt-auto flex flex-col gap-3">
+                  <span className="text-xs font-bold uppercase tracking-[0.12em] text-amber-200">{item.eyebrow}</span>
+                  <h3 id={`news-${item.id}`} className="home-display m-0 text-[32px] font-semibold uppercase leading-[0.92] lg:text-[40px]">
+                    {item.title}
+                    <br />
+                    <span className="text-amber-400">{item.accent}</span>
+                  </h3>
+                  <p className="m-0 max-w-[34rem] text-[15px] leading-normal text-white/85">{item.text}</p>
+                  <Link
+                    href={item.href}
+                    className="self-start text-sm font-bold text-amber-200 after:absolute after:inset-0 after:content-[''] hover:underline focus-visible:outline-none focus-visible:after:rounded-[18px] focus-visible:after:outline focus-visible:after:outline-2 focus-visible:after:outline-amber-400"
+                  >
+                    {item.link} →
+                  </Link>
+                </div>
+              </article>
+            )
+          })}
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function HomeShowcase({
   visitorMode,
   accountHref,
@@ -625,25 +709,11 @@ export default function HomeShowcase({
 
       <WhyLandSection />
 
-      {/* Mêmes liens que le footer du site (SiteFooter), que la vitrine masque : docs/features/pages-legales.md. */}
-      <footer className="home-footer flex flex-col gap-2.5 px-4 py-[22px] text-[13px] text-gray-500 md:px-8 lg:px-14">
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-1.5">
-          <span>
-            <b className="home-footer-brand">chickendinner.fr</b> · © {year} Arkium
-          </span>
-          <nav aria-label="Informations légales">
-            <ul className="flex flex-wrap gap-x-4 gap-y-1">
-              {LEGAL_LINKS.map((link) => (
-                <li key={link.href}>
-                  <Link href={link.href} className="home-link">
-                    {link.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-          </nav>
-        </div>
-        <span>{KRAFTON_DISCLAIMER}</span>
+      <NewsSection />
+
+      {/* Même contenu que le footer du site (masqué ici), aux marges de la vitrine : docs/features/pages-legales.md. */}
+      <footer className="home-footer px-4 py-5 md:px-8 lg:px-14">
+        <LegalFooterContent year={year} />
       </footer>
     </div>
   )

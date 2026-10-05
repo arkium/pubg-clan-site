@@ -41,7 +41,7 @@ const SECTIONS: LegalSection[] = [
           <ul className="m-0 list-none p-0">
             {DATA_ROWS.map((row) => (
               <li key={row.data} className={`app-table-row grid gap-0.5 px-3.5 py-2.5 last:border-b-0 ${COLUMNS}`}>
-                <span className="t-body font-semibold text-gray-900">{row.data}</span>
+                <span className="t-body t-strong text-gray-900">{row.data}</span>
                 <span className="t-body text-gray-500">
                   <span className="md:sr-only">Source : </span>
                   {row.source}

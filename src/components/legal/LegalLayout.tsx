@@ -112,7 +112,7 @@ export function LegalFacts({ rows }: { rows: Array<{ label: string; value: React
       {rows.map((row) => (
         <div key={row.label} className="flex flex-col sm:contents">
           <dt className="t-body text-gray-500">{row.label}</dt>
-          <dd className="t-body m-0 font-semibold text-gray-900">{row.value}</dd>
+          <dd className="t-body t-strong m-0 text-gray-900">{row.value}</dd>
         </div>
       ))}
     </dl>

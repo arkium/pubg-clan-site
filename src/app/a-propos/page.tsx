@@ -49,7 +49,7 @@ const SECTIONS: LegalSection[] = [
           ))}
         </ul>
         {/* Pas de promesse « aucun risque de bannissement » : le site ne peut pas la garantir (docs/features/pages-legales.md). */}
-        <p className="t-body m-0 flex items-center gap-2 rounded-[10px] bg-[var(--game-pos-soft)] px-3 py-2.5 font-semibold text-gray-900">
+        <p className="t-body t-strong m-0 flex items-center gap-2 rounded-[10px] bg-[var(--game-pos-soft)] px-3 py-2.5 text-gray-900">
           <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--game-pos)]" aria-hidden="true" />
           Le site ne touche pas au jeu : il n’entre dans aucun des cas interdits par les règles de KRAFTON.
         </p>

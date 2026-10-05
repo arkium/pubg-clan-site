@@ -42,6 +42,12 @@ for (const entry of PAGES) {
   })
 }
 
+test('footer : « © Arkium » mène à arkium.eu, le logo chickendinner.fr à l’accueil', async ({ page }) => {
+  await page.goto('/a-propos')
+  await expect(footer(page).getByRole('link', { name: /© \d{4} Arkium/ })).toHaveAttribute('href', 'https://arkium.eu')
+  await expect(footer(page).getByRole('link', { name: 'chickendinner.fr, accueil' })).toHaveAttribute('href', '/')
+})
+
 test('le footer mène d’une page légale à l’autre', async ({ page }) => {
   await page.goto('/mentions-legales')
   await footer(page).getByRole('link', { name: 'À propos' }).click()

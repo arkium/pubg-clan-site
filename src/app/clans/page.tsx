@@ -173,7 +173,7 @@ export default function ClansPage() {
     <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter flex flex-col gap-3">
         <MatchesBanner
-          image="/banner-frenchchicken-gg.jpg"
+          image="/chickendinnerfr.jpg"
           icon={Users}
           iconColor="var(--theme-ui-accent)"
           title="Les clans"

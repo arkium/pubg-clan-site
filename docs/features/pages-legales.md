@@ -24,9 +24,11 @@ en base avec alerte aux SuperUsers, adresse de contact `contact@chickendinner.fr
 - **Pages** : `src/app/mentions-legales`, `src/app/confidentialite`, `src/app/a-propos` (composants serveur, titre
   d'onglet par `metadata`) ; gabarit commun `src/components/legal/LegalLayout.tsx` (bandeau d'image, sommaire,
   sections en `.app-panel`).
-- **Footer** : `src/components/SiteFooter.tsx` (client, pour marquer la page courante en accent). La vitrine `/` masque
-  ce footer et garde le sien (`.home-footer`, `HomeShowcase.tsx`), avec les mêmes liens et la même mention.
-- **Images générées par IA** : les photos des bandeaux (`public/*.jpg`) sont générées avec Gemini (Google). Les mentions
+- **Footer** : `src/components/SiteFooter.tsx` (client, pour marquer la page courante en accent). Son contenu,
+  `LegalFooterContent`, est aussi celui du footer de la vitrine `/` (`.home-footer`, `HomeShowcase.tsx`), qui masque le
+  footer du site : un seul rendu, seules les marges diffèrent pour suivre chaque page.
+- **Images générées par IA** : les photos des bandeaux et des cartes « Nouveautés » de l'accueil (`public/*.jpg`) sont
+  générées avec Gemini (Google). Les mentions
   légales le signalent (section « Marques et affiliation »), par transparence (AI Act, art. 50) : à garder tant que
   ces images sont en ligne.
 - **Accès sans session** : `LEGAL_PATHS` est ajouté à `PUBLIC_PATHS` et `PENDING_ACTIVATION_ALLOWED_PATHS` de

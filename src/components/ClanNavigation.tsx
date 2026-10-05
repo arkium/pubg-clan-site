@@ -7,7 +7,7 @@ import { usePathname, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useRef, useState } from 'react'
 
 import NavIcon from '@/components/ui/NavIcon'
-import { ChevronsUpDown, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
+import { ChevronsUpDown, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { ClanSwitchModal } from '@/components/clan/ClanSwitchModal'
 import { PlayerSwitchModal } from '@/components/clan/PlayerSwitchModal'
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -1119,27 +1119,24 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                     ref={menuButtonRef}
                     type="button"
                     onClick={openMobileDrawer}
-                    className="inline-flex h-12 w-12 items-center justify-center rounded-full bg-white text-slate-700 shadow-sm transition hover:bg-slate-50 hover:text-slate-900 lg:hidden"
+                    // Même bouton que la vitrine (carré rayon 10, icône Menu) ; 48 px gardés : c'est lui qui fixe la hauteur du header.
+                    className="inline-flex h-12 w-12 items-center justify-center rounded-[10px] border border-gray-200 bg-white text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ui-accent-ring)] lg:hidden"
                     aria-expanded={mobileOpen}
                     aria-controls="mobile-clan-nav"
                     aria-label="Ouvrir la navigation"
                     title="Ouvrir la navigation"
                   >
-                    <svg viewBox="0 0 20 20" className="h-6 w-6" aria-hidden="true">
-                      <path
-                        fill="currentColor"
-                        d="M3 5.5A1.5 1.5 0 0 1 4.5 4h11A1.5 1.5 0 0 1 17 5.5v1A1.5 1.5 0 0 1 15.5 8h-11A1.5 1.5 0 0 1 3 6.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 8h11A1.5 1.5 0 0 1 17 9.5v1A1.5 1.5 0 0 1 15.5 12h-11A1.5 1.5 0 0 1 3 10.5v-1Zm0 4A1.5 1.5 0 0 1 4.5 12h11A1.5 1.5 0 0 1 17 13.5v1A1.5 1.5 0 0 1 15.5 16h-11A1.5 1.5 0 0 1 3 14.5v-1Z"
-                      />
-                    </svg>
+                    <Menu className="h-5 w-5" aria-hidden="true" />
                   </button>
 
-                  {/* Bouton / Carte Clan (déclenche la modale de choix de clan) */}
+                  {/* Bouton / Carte Clan (déclenche la modale de choix de clan). Les deux cartes ont la hauteur du bouton de
+                      menu sous 1024 px (48 px) et gardent leurs 46 px au-delà, où il disparaît : hauteurs du header inchangées. */}
                   <button
                     type="button"
                     onClick={() => setIsClanSwitchModalOpen(true)}
                     title="Cliquer pour changer de clan"
                     className={cx(
-                      "group flex min-w-0 items-center gap-2 rounded-xl border px-3 py-1.5 transition-all text-left cursor-pointer",
+                      "group flex h-12 min-w-0 items-center gap-2 rounded-xl border px-3 transition-all text-left cursor-pointer lg:h-[46px]",
                       appTheme === 'dark'
                         ? 'border-slate-800/80 bg-slate-900/50 hover:bg-slate-800 hover:border-slate-700'
                         : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
@@ -1177,7 +1174,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                       onClick={() => setIsPlayerSwitchModalOpen(true)}
                       title={viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId ? "Cliquer pour changer de joueur" : "Cliquer pour sélectionner un joueur"}
                       className={cx(
-                        "group flex items-center gap-2 rounded-xl border px-3 py-1.5 transition-all text-left cursor-pointer",
+                        "group flex h-12 items-center gap-2 rounded-xl border px-3 transition-all text-left cursor-pointer lg:h-[46px]",
                         viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
                           ? appTheme === 'dark' 
                             ? 'border-blue-900 bg-blue-950/50 hover:bg-blue-900/60 hover:border-blue-700' 

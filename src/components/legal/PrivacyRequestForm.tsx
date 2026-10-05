@@ -176,7 +176,7 @@ export default function PrivacyRequestForm() {
                   aria-hidden="true"
                 />
                 <span className="flex min-w-0 flex-col gap-0.5">
-                  <span className={`t-body font-bold ${checked ? 'text-[var(--theme-ui-accent-text)]' : 'text-gray-900'}`}>
+                  <span className={`t-body t-strong ${checked ? 'text-[var(--theme-ui-accent-text)]' : 'text-gray-900'}`}>
                     {PRIVACY_REQUEST_KIND_LABELS[value]}
                   </span>
                   <span className="t-meta">{text}</span>

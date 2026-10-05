@@ -2,8 +2,10 @@
 
 /* eslint-disable @next/next/no-img-element */
 
-import React, { useEffect, useMemo, useRef, useState } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { Check, Search, User, UserX, Users, X } from 'lucide-react'
+
+import { useSwitchModalSearch } from '@/hooks/useSwitchModalSearch'
 
 export interface RosterMemberItem {
   id: number
@@ -33,8 +35,8 @@ export function PlayerSwitchModal({
   const [members, setMembers] = useState<RosterMemberItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
-  const [searchQuery, setSearchQuery] = useState('')
-  const inputRef = useRef<HTMLInputElement | null>(null)
+  const search = useSwitchModalSearch(isOpen)
+  const searchQuery = search.query
 
   // Chargement des membres du clan actuel
   useEffect(() => {
@@ -72,13 +74,8 @@ export function PlayerSwitchModal({
 
     void loadMembers()
 
-    const timer = setTimeout(() => {
-      inputRef.current?.focus()
-    }, 50)
-
     return () => {
       cancelled = true
-      clearTimeout(timer)
     }
   }, [isOpen, clanId])
 
@@ -136,40 +133,55 @@ export function PlayerSwitchModal({
               </p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-            aria-label="Fermer la fenêtre"
-          >
-            <X className="h-5 w-5" />
-          </button>
-        </div>
-
-        {/* Barre de recherche */}
-        <div className="border-b border-slate-200/80 px-6 py-3.5 dark:border-slate-800">
-          <div className="relative">
-            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-            <input
-              ref={inputRef}
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Rechercher par pseudo ou nom de joueur..."
-              className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 py-2 pl-10 pr-10 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-slate-800"
-            />
-            {searchQuery ? (
-              <button
-                type="button"
-                onClick={() => setSearchQuery('')}
-                className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                title="Effacer la recherche"
-              >
-                <X className="h-3.5 w-3.5" />
-              </button>
-            ) : null}
+          <div className="flex shrink-0 items-center gap-1">
+            {/* Loupe : la recherche est masquée à l'ouverture, pour ne pas ouvrir le clavier sur mobile. */}
+            <button
+              type="button"
+              onClick={search.toggle}
+              className={`rounded-xl p-2 transition ${search.visible ? 'bg-blue-500/10 text-blue-500' : 'text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200'}`}
+              aria-label={search.visible ? 'Masquer la recherche' : 'Rechercher un joueur'}
+              aria-expanded={search.visible}
+              aria-controls="player-switch-search"
+            >
+              <Search className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl p-2 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
+              aria-label="Fermer la fenêtre"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
         </div>
+
+        {/* Barre de recherche : affichée par la loupe de l'en-tête (useSwitchModalSearch). */}
+        {search.visible ? (
+          <div id="player-switch-search" className="border-b border-slate-200/80 px-6 py-3.5 dark:border-slate-800">
+            <div className="relative">
+              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <input
+                type="text"
+                value={search.query}
+                onChange={(e) => search.setQuery(e.target.value)}
+                autoFocus={search.focusOnShow}
+                placeholder="Rechercher par pseudo ou nom de joueur..."
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50/80 py-2 pl-10 pr-10 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800/80 dark:text-white dark:placeholder:text-slate-500 dark:focus:bg-slate-800"
+              />
+              {search.query ? (
+                <button
+                  type="button"
+                  onClick={() => search.setQuery('')}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
+                  title="Effacer la recherche"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              ) : null}
+            </div>
+          </div>
+        ) : null}
 
         {/* Liste des joueurs */}
         <div className="flex-1 overflow-y-auto px-4 py-3 sm:px-6 space-y-2">

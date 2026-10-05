@@ -2892,10 +2892,6 @@ html[data-app-theme='dark'] .home-showcase {
   border-top: 1px solid var(--theme-ui-border);
 }
 
-.home-footer-brand {
-  color: var(--theme-ui-text);
-}
-
 @keyframes home-kenburns {
   from {
     transform: scale(1) translate(0, 0);
@@ -3594,6 +3590,10 @@ html[data-app-theme='dark'] .charte {
 .t-hero--md { font-size: 28px; }
 .t-hero--lg { font-size: 40px; }
 .t-hero--xl { font-size: 56px; }
+
+/* Graisse forte sur un rôle (`.t-body.t-strong`). Les rôles sont hors calque : `font-semibold` / `font-bold`, utilitaires
+   du calque Tailwind, ne s'appliquent pas sur le même élément — mesuré le 05/10/2026, `t-body font-semibold` rend 500. */
+.t-strong { font-weight: 700; }
 
 /* Couleurs sémantiques du texte. Après les rôles : `.t-label.t-accent` colore un surtitre. */
 .t-pos { color: var(--theme-ui-positive); }

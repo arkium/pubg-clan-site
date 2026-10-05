@@ -77,8 +77,8 @@ const SECTIONS: LegalSection[] = [
         </LegalText>
         {/* AI Act, art. 50 : signalement des images générées — docs/features/pages-legales.md §1. */}
         <LegalText>
-          Les illustrations des bandeaux sont générées par intelligence artificielle (Gemini, de Google). Elles ne
-          représentent aucune personne réelle et ne sont pas des captures du jeu.
+          Les illustrations des bandeaux et des cartes de l’accueil sont générées par intelligence artificielle (Gemini,
+          de Google). Elles ne représentent aucune personne réelle et ne sont pas des captures du jeu.
         </LegalText>
       </>
     ),

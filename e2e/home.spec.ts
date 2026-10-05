@@ -38,6 +38,16 @@ test('le pied de page de la vitrine mène aux pages légales', async ({ page }) 
   await expect(legal.getByRole('link', { name: 'À propos' })).toHaveAttribute('href', '/a-propos')
 })
 
+test('« Nouveautés » : mortier et carte des ressources, chacune vers sa page', async ({ page }) => {
+  const news = page.getByRole('region', { name: /deux nouveaux outils/ })
+  await news.scrollIntoViewIfNeeded()
+  await expect(news.getByRole('article')).toHaveCount(2)
+  await expect(news.getByRole('link', { name: 'S’entraîner au mortier →' })).toHaveAttribute('href', '/mortier')
+  await expect(news.getByRole('link', { name: 'Ouvrir la carte →' })).toHaveAttribute('href', '/carte-des-ressources')
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
+})
+
 test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async ({ page }) => {
   const card = page.getByTestId('home-dinner')
   await expect(page.getByRole('heading', { name: 'Chicken Dinner de la semaine' }).or(page.getByRole('heading', { name: 'Derniers Chicken Dinners' }))).toBeVisible()

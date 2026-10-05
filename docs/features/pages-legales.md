@@ -43,6 +43,7 @@ en base avec alerte aux SuperUsers, adresse de contact `contact@chickendinner.fr
 | Compte du site | `UserAccount` : e-mail, mot de passe (bcrypt), nom affiché, URL d'avatar libre (chargée chez un tiers) |
 | Pas de nom civil ni d'IP liée à un profil | aucun champ nom/prénom/adresse ; aucune IP ni user-agent lus ou stockés par l'application. Les journaux Nginx gardent les IP côté serveur, sans lien avec un profil |
 | Joueurs croisés en partie | `EncounteredPlayer`, `Player`, `KillEvent` : pseudo, account_id, clan ; affichés sur Némésis (publique en mode visiteur) |
+| Résultats publiés sur Discord | si un admin du clan active les webhooks : alerte Top 1 (pseudos de l'escouade, kills, dégâts, survie, carte) et résultats de tournoi (clans, MVP) — [discord-notifications.md](discord-notifications.md). Transfert chez Discord Inc. (États-Unis), signalé ; marque Discord citée dans les mentions légales |
 | Conservation | aucune purge automatique ; sessions 7 jours ; tracés GPS purgés à la main (`/api/superuser/database/purge-telemetry`) |
 
 Toute nouvelle donnée personnelle (champ, cookie, traceur) doit être ajoutée au tableau de `/confidentialite`.

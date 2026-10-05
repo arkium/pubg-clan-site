@@ -1,5 +1,5 @@
 import type { Metadata } from 'next'
-import { cookies } from 'next/headers'
+import { cookies, headers } from 'next/headers'
 import { Inter, Teko } from 'next/font/google'
 
 import ClanNavigation from '@/components/ClanNavigation'
@@ -10,6 +10,8 @@ import { GlobalCommandPalette } from '@/components/ui/GlobalCommandPalette'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
 import { getDatabaseErrorPresentation } from '@/lib/database-error'
+import { buildPageMetadata, PATHNAME_HEADER } from '@/lib/seo/page-seo'
+import { resolvePageSeo } from '@/lib/seo/seo-service'
 import { getSetupState } from '@/lib/setup-service'
 
 import './globals.css'
@@ -30,9 +32,14 @@ const teko = Teko({
 
 export const dynamic = 'force-dynamic'
 
-export const metadata: Metadata = {
-  title: 'PUBG Clan Site',
-  description: 'Gestion et statistiques des clans PUBG',
+/**
+ * Référencement de toutes les pages (docs/features/seo.md) : titre, description, indexation, canonique et aperçus,
+ * calculés depuis le chemin que transmet le proxy. Les pages sont surtout des composants client, qui ne peuvent pas
+ * déclarer leurs métadonnées ; la vitrine `/` garde les siennes.
+ */
+export async function generateMetadata(): Promise<Metadata> {
+  const pathname = (await headers()).get(PATHNAME_HEADER) ?? '/'
+  return buildPageMetadata(pathname, await resolvePageSeo(pathname))
 }
 
 export default async function RootLayout({

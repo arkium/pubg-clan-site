@@ -8,6 +8,7 @@ import {
   subdomainRedirectLocation,
 } from '@/lib/clan-subdomain-host'
 import { LEGAL_PATHS } from '@/lib/legal/legal-info'
+import { PATHNAME_HEADER } from '@/lib/seo/page-seo'
 
 const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
 const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/', '/activate', '/login', '/reset-password', '/join', ...LEGAL_PATHS])
@@ -38,6 +39,16 @@ async function getSetupState(origin: string): Promise<'first_run' | 'pending_act
   } catch {
     return 'completed'
   }
+}
+
+/**
+ * Laisse passer en transmettant le chemin au rendu serveur : le layout racine en tire le titre, la description et
+ * l'indexation de la page (docs/features/seo.md). Un en-tête du même nom envoyé par le navigateur est écrasé.
+ */
+function passThrough(request: NextRequest) {
+  const headers = new Headers(request.headers)
+  headers.set(PATHNAME_HEADER, request.nextUrl.pathname)
+  return NextResponse.next({ request: { headers } })
 }
 
 // Table `sous-domaine → clan`, gardée en mémoire par le process web (docs/TODO/chickendinnerfr.md §4.C).
@@ -72,7 +83,7 @@ export async function proxy(request: NextRequest) {
 
   if (setupState === 'first_run') {
     if (FIRST_RUN_ALLOWED_PATHS.has(pathname)) {
-      return NextResponse.next()
+      return passThrough(request)
     }
 
     const redirectUrl = request.nextUrl.clone()
@@ -84,7 +95,7 @@ export async function proxy(request: NextRequest) {
 
   if (setupState === 'pending_activation') {
     if (PENDING_ACTIVATION_ALLOWED_PATHS.has(pathname)) {
-      return NextResponse.next()
+      return passThrough(request)
     }
 
     const redirectUrl = request.nextUrl.clone()
@@ -104,7 +115,7 @@ export async function proxy(request: NextRequest) {
   if (!sessionToken) {
     const isProtectedWhenAuthDisabled = pathname.startsWith('/account') || pathname.startsWith('/settings')
     if (PUBLIC_PATHS.has(pathname) || (AUTH_DISABLED && !isProtectedWhenAuthDisabled)) {
-      return NextResponse.next()
+      return passThrough(request)
     }
 
     const redirectUrl = request.nextUrl.clone()
@@ -117,10 +128,10 @@ export async function proxy(request: NextRequest) {
   // Keep /login and /join reachable even with a stale/invalid cookie.
   // The client-side session check decides whether to keep the user logged in.
   if (pathname === '/login' || pathname === '/join') {
-    return NextResponse.next()
+    return passThrough(request)
   }
 
-  return NextResponse.next()
+  return passThrough(request)
 }
 
 export const config = {

@@ -49,7 +49,8 @@ calé sur la grille de 100 m du jeu : `public/maps/mortar/sanhok-bootcamp.webp` 
   (8 192 px pour 4 096 m, 0,5 m par pixel ; 75 Mo, **non versionnée**).
 - Reproduire ou changer l'extrait : `npx tsx scripts/build-mortar-map.ts <chemin/Sanhok_Main_High_Res.png>`. Les
   constantes du script doivent rester alignées sur `MORTAR_MAP`.
-- Bandeau de la page : `/cartographie-tactique.jpg`, la même image que la cartographie tactique.
+- Bandeau de la page : `/nouveaute-mortier.jpg` (depuis le 2026-10-05, auparavant `/cartographie-tactique.jpg`), la même
+  image que la carte « Nouveautés » de la vitrine — générée par IA, signalé dans les mentions légales.
 
 ## 3. Enregistrement des séries et classement
 

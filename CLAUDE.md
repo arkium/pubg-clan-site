@@ -333,6 +333,14 @@ pseudo ni le compte d'un joueur extérieur au site — voir [accueil.md](docs/fe
   - `first_run` → `/setup`
   - `pending_activation` → `/activate`
   - `completed` → check session cookie → proceed
+- Pages légales (`LEGAL_PATHS`, `src/lib/legal/legal-info.ts`) ouvertes sans session — [pages-legales.md](docs/features/pages-legales.md).
+- Chaque laissez-passer de page passe par `passThrough()`, qui pose l'en-tête `x-pathname` : **ne jamais revenir à un
+  `NextResponse.next()` nu** pour une page, sinon elle perd son titre, sa description et son indexation.
+
+**SEO :** titres, descriptions, `noindex` et canoniques de **toutes** les pages viennent du layout racine
+(`generateMetadata` → `src/lib/seo/page-seo.ts`), pas des pages (presque toutes client). Nouvelle page publique → une
+entrée dans `STATIC_PAGES` ; page du menu d'un clan → `CLAN_PAGES`. Pages joueur toujours en `noindex`.
+`/sitemap.xml` et `/robots.txt` : `src/app/sitemap.ts`, `src/app/robots.ts` — [seo.md](docs/features/seo.md).
 
 ## Workers & CLI Scripts
 

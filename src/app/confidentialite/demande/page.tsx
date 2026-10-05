@@ -1,16 +1,14 @@
-import type { Metadata } from 'next'
 import { EyeOff } from 'lucide-react'
 
 import { LegalPageShell } from '@/components/legal/LegalLayout'
 import PrivacyRequestForm from '@/components/legal/PrivacyRequestForm'
-import { PRIVACY_REQUEST_PATH, SITE_DOMAIN } from '@/lib/legal/legal-info'
+import { PRIVACY_REQUEST_PATH } from '@/lib/legal/legal-info'
 
 /**
  * Retirer mes données, page publique — docs/features/pages-legales.md. Aucun outil de masquage ni de purge n'existe
  * encore : la demande est enregistrée (`PrivacyRequest`) et traitée à la main, d'où l'étape 2 sans promesse automatique.
  */
 
-export const metadata: Metadata = { title: `Retirer mes données · ${SITE_DOMAIN}` }
 
 const STEPS = [
   'On vérifie que le compte t’appartient. On peut te demander une capture de ton profil en jeu.',

@@ -2,7 +2,21 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
-import { ChevronLeft, ChevronRight, Crosshair, LogIn, MapPin, Menu, Plane, Swords, Trophy, User, X } from 'lucide-react'
+import {
+  ChevronLeft,
+  ChevronRight,
+  Crosshair,
+  LogIn,
+  MapPin,
+  Medal,
+  Menu,
+  Plane,
+  SlidersHorizontal,
+  Swords,
+  Trophy,
+  User,
+  X,
+} from 'lucide-react'
 
 import { LegalFooterContent } from '@/components/SiteFooter'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
@@ -502,6 +516,68 @@ function NewsSection() {
   )
 }
 
+/** Intégration Discord (docs/features/discord-notifications.md) : ce que les webhooks du clan publient. */
+const DISCORD_IMAGE = '/discord-chicken-dinner.jpg'
+const DISCORD_FEATURES = [
+  {
+    icon: Trophy,
+    title: 'Alerte Chicken Dinner',
+    text: 'Chaque Top 1 du clan posté tout seul dans ton canal : escouade, kills, dégâts, carte et lien vers le débrief.',
+  },
+  {
+    icon: Medal,
+    title: 'Résultats de tournoi',
+    text: 'Le classement de chaque manche avec médailles et MVP, puis le classement général, jusqu’au résultat final.',
+  },
+  {
+    icon: SlidersHorizontal,
+    title: 'Réglé comme tu veux',
+    text: 'Modes, types de partie, rôle à mentionner. Un simple webhook : pas de bot à inviter, aucune permission à donner.',
+  },
+] as const
+
+function DiscordSection() {
+  return (
+    <section className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20" aria-labelledby="home-discord-title">
+      {/* Bandeau sombre sur photo, comme « Rejoindre ». */}
+      <div className="home-join relative mx-auto max-w-[1200px] overflow-hidden rounded-[22px] text-white">
+        <div className="home-join-bg absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: `url(${DISCORD_IMAGE})` }} aria-hidden="true" />
+        <div className="home-join-shade absolute inset-0" aria-hidden="true" />
+        <div className="relative flex max-w-[640px] flex-col gap-[22px] p-6 md:p-10 lg:p-14">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-amber-400">Discord</span>
+          <h2 id="home-discord-title" className="home-display m-0 text-[40px] font-semibold uppercase leading-[0.92] lg:text-[64px]">
+            Winner winner ?
+            <br />
+            <span className="text-amber-400">Ton Discord le sait déjà.</span>
+          </h2>
+          <ul className="m-0 flex list-none flex-col gap-3 p-0">
+            {DISCORD_FEATURES.map(({ icon: Icon, title, text }) => (
+              <li key={title} className="flex items-start gap-3.5">
+                <span className="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] border border-amber-400/55 bg-amber-400/10 text-amber-200">
+                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="m-0 text-[15px] font-bold">{title}</p>
+                  <p className="m-0 mt-0.5 text-sm leading-normal text-white/75">{text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col items-start gap-2">
+            <Link
+              href="/join"
+              className="inline-flex h-12 items-center rounded-xl border border-white/25 px-[18px] text-[15px] font-semibold text-white hover:bg-white/10"
+            >
+              Inscrire mon clan →
+            </Link>
+            <p className="m-0 text-[13px] text-white/60">Un admin du clan l’active dans le menu Admin › Notifications Discord.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function HomeShowcase({
   visitorMode,
   accountHref,
@@ -710,6 +786,8 @@ export default function HomeShowcase({
       <WhyLandSection />
 
       <NewsSection />
+
+      <DiscordSection />
 
       {/* Même contenu que le footer du site (masqué ici), aux marges de la vitrine : docs/features/pages-legales.md. */}
       <footer className="home-footer px-4 py-5 md:px-8 lg:px-14">

@@ -1224,7 +1224,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
             </div>
           </header>
 
-          <main className="flex-1">{children}</main>
+          {/* Colonne : le contenu (`flex-1` dans le layout racine) s'étire, le footer reste en bas d'une page courte. */}
+          <main className="flex flex-1 flex-col">{children}</main>
         </div>
       </div>
 

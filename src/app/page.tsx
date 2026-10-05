@@ -1,4 +1,3 @@
-import type { Metadata } from 'next'
 import { cookies } from 'next/headers'
 
 import FirstRunSetup from '@/components/FirstRunSetup'
@@ -6,52 +5,10 @@ import HomeShowcase from '@/components/home/HomeShowcase'
 import PendingActivation from '@/components/PendingActivation'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
+import { homeJsonLd, siteUrl } from '@/lib/seo/page-seo'
 import { getSetupState } from '@/lib/setup-service'
 
 export const dynamic = 'force-dynamic'
-
-const SITE_NAME = 'chickendinner.fr'
-const TITLE = 'chickendinner.fr — stats, classements et Top 1 des clans PUBG'
-const DESCRIPTION =
-  'Le QG des clans PUBG : chaque partie importée, chaque kill compté, chaque top 1 fêté. Classement des clans, ' +
-  'comparateur, tournois et débriefs de parties, au même endroit.'
-// Image dédiée au partage (ratio ≈ 1,91:1 des aperçus Discord, Facebook, X).
-const SHARE_IMAGE = {
-  url: '/chickendinnerfr.jpg',
-  width: 1024,
-  height: 541,
-  alt: 'Une escouade PUBG face au nom chickendinner.fr sculpté dans la roche du désert',
-}
-
-/**
- * Métadonnées de la vitrine (docs/features/accueil.md) : titre, description, aperçu de partage (Open Graph, carte
- * large). L'adresse publique vient de `NEXT_PUBLIC_APP_URL` (liens Discord et e-mails) ; sans elle, chickendinner.fr.
- */
-export async function generateMetadata(): Promise<Metadata> {
-  let base: URL
-  try {
-    base = new URL(process.env.NEXT_PUBLIC_APP_URL?.trim() || 'https://chickendinner.fr')
-  } catch {
-    base = new URL('https://chickendinner.fr')
-  }
-  return {
-    metadataBase: base,
-    title: TITLE,
-    description: DESCRIPTION,
-    applicationName: SITE_NAME,
-    alternates: { canonical: '/' },
-    openGraph: {
-      type: 'website',
-      siteName: SITE_NAME,
-      locale: 'fr_FR',
-      url: '/',
-      title: TITLE,
-      description: DESCRIPTION,
-      images: [SHARE_IMAGE],
-    },
-    twitter: { card: 'summary_large_image', title: TITLE, description: DESCRIPTION, images: [SHARE_IMAGE.url] },
-  }
-}
 
 export default async function Home() {
   const setupState = await getSetupState()
@@ -75,5 +32,11 @@ export default async function Home() {
       : '/members'
     : null
 
-  return <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} />
+  // Titre, description et aperçus : layout racine (src/lib/seo/page-seo.ts) ; ici, les données structurées du site.
+  return (
+    <>
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: homeJsonLd(siteUrl()) }} />
+      <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} />
+    </>
+  )
 }

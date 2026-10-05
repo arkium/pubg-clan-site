@@ -1,4 +1,3 @@
-import type { Metadata } from 'next'
 import { Scale } from 'lucide-react'
 
 import { LegalDocument, LegalFacts, LegalNote, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
@@ -13,7 +12,6 @@ import {
 
 /** Mentions légales et CGU, page publique — docs/features/pages-legales.md (docs/TODO/CU.md, CU_todo.md). */
 
-export const metadata: Metadata = { title: `Mentions légales et CGU · ${SITE_DOMAIN}` }
 
 const TERMS = [
   'Le service est gratuit pour les membres et les clans. Aucune donnée de l’API PUBG n’est vendue ni réservée à un abonnement.',
@@ -74,6 +72,11 @@ const SECTIONS: LegalSection[] = [
         <LegalText>
           Les noms, icônes d’armes et d’objets, cartes et visuels du jeu restent la propriété de leurs ayants droit. Ils sont
           affichés uniquement pour illustrer les statistiques.
+        </LegalText>
+        {/* Notifications Discord (docs/features/discord-notifications.md) : marque citée, pas d'affiliation. */}
+        <LegalText>
+          Discord est une marque de Discord Inc. Le site publie dans les canaux Discord des clans qui l’ont activé, par un
+          simple webhook ; il n’est ni affilié à, ni sponsorisé, ni approuvé par Discord Inc.
         </LegalText>
         {/* AI Act, art. 50 : signalement des images générées — docs/features/pages-legales.md §1. */}
         <LegalText>

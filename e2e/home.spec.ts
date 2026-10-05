@@ -48,6 +48,15 @@ test('« Nouveautés » : mortier et carte des ressources, chacune vers sa page'
   expect(overflow).toBeLessThanOrEqual(0)
 })
 
+test('Discord : alertes Top 1, résultats de tournoi, réglages, et lien d’inscription', async ({ page }) => {
+  const discord = page.getByRole('region', { name: /Ton Discord le sait déjà/ })
+  await discord.scrollIntoViewIfNeeded()
+  await expect(discord.getByRole('listitem')).toHaveCount(3)
+  await expect(discord).toContainText('Alerte Chicken Dinner')
+  await expect(discord).toContainText('Résultats de tournoi')
+  await expect(discord.getByRole('link', { name: 'Inscrire mon clan →' })).toHaveAttribute('href', '/join')
+})
+
 test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async ({ page }) => {
   const card = page.getByTestId('home-dinner')
   await expect(page.getByRole('heading', { name: 'Chicken Dinner de la semaine' }).or(page.getByRole('heading', { name: 'Derniers Chicken Dinners' }))).toBeVisible()

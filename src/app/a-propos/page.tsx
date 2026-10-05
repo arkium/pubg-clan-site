@@ -1,4 +1,3 @@
-import type { Metadata } from 'next'
 import { Ban, ExternalLink, FileLock2, Info, MonitorX, RadioTower, ShieldCheck, type LucideIcon } from 'lucide-react'
 
 import { LegalDocument, LegalNote, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
@@ -13,7 +12,6 @@ import {
 
 /** À propos, page publique — docs/features/pages-legales.md (analyse de conformité : docs/TODO/CU.md). */
 
-export const metadata: Metadata = { title: `À propos · ${SITE_DOMAIN}` }
 
 const NOT_DONE: Array<{ icon: LucideIcon; text: string }> = [
   { icon: MonitorX, text: 'Aucun programme installé sur ton PC.' },

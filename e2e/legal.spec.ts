@@ -14,6 +14,7 @@ const PAGES = [
   { path: '/confidentialite', link: 'Confidentialité', current: 'page', heading: 'Confidentialité' },
   { path: '/confidentialite/demande', link: 'Confidentialité', current: 'true', heading: 'Retirer mes données' },
   { path: '/a-propos', link: 'À propos', current: 'page', heading: 'À propos' },
+  // Le titre de l'onglet vient de src/lib/seo/page-seo.ts (docs/features/seo.md).
 ]
 
 const footer = (page: Page) => page.locator('.app-footer')
@@ -31,6 +32,7 @@ for (const entry of PAGES) {
   test(`${entry.path} : publique, footer complet avec la page courante marquée, sans défilement horizontal`, async ({ page }) => {
     await page.goto(entry.path)
     await expect(page.getByRole('heading', { level: 1, name: entry.heading })).toBeVisible()
+    await expect(page).toHaveTitle(`${entry.path === '/mentions-legales' ? 'Mentions légales et CGU' : entry.heading} · chickendinner.fr`)
 
     const legal = footer(page).getByRole('navigation', { name: 'Informations légales' })
     await expect(legal.getByRole('link')).toHaveCount(3)

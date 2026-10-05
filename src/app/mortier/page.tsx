@@ -77,10 +77,11 @@ function MortarContent() {
         {/* Invisible : inscrit la page dans la pile du fil d'Ariane (retour depuis une page suivante). */}
         <NavigationTrail currentLabel="Mortier" currentHref={tab === 'guide' ? '/mortier?tab=guide' : '/mortier'} fallbackParent={null} hidden />
 
-        {/* Hauteur standard des bandeaux d'image (docs/ui/index.html#en-tetes), image de la cartographie tactique. */}
+        {/* Hauteur standard des bandeaux d'image (docs/ui/index.html#en-tetes) ; même image que la carte « Nouveautés » de la
+            vitrine (pièce de mortier et observateur). */}
         <header
           className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
-          style={{ backgroundImage: `url('/cartographie-tactique.jpg')`, backgroundPosition: 'center 40%' }}
+          style={{ backgroundImage: `url('/nouveaute-mortier.jpg')`, backgroundPosition: 'center 55%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/35 sm:to-transparent" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-3 py-2.5 sm:px-5 sm:py-4">

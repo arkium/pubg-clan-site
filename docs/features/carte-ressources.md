@@ -116,6 +116,8 @@ Migration `20261005090000_add_resource_map` — sept tables, aucune modification
 
 ## 8. Fichiers
 
+- Bandeau de la page : `/nouveaute-carte-ressources.jpg` (depuis le 2026-10-05, auparavant `/cartographie-tactique.jpg`),
+  la même image que la carte « Nouveautés » de la vitrine — générée par IA, signalé dans les mentions légales.
 - Règles et contrat : `src/lib/resources/resource-map.ts`, `src/lib/resources/resource-api.ts`.
 - Serveur : `src/lib/resources/resource-service.ts` (vue joueur, erreurs, noms des contributeurs),
   `resource-service-admin.ts` (file, décisions, cartes, historique, annulation), `resource-history.ts` (pur : états

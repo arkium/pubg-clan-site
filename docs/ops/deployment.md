@@ -29,7 +29,8 @@
 | Variable | Exemple | Requis |
 |---|---|---|
 | `APP_URL` | `https://clan.example.com` | Oui |
-| `NEXT_PUBLIC_APP_URL` | `https://clan.example.com` | Oui |
+| `NEXT_PUBLIC_APP_URL` | `https://chickendinner.fr` | Oui — aussi l'adresse du sitemap, des canoniques et des aperçus de partage ([seo.md](../features/seo.md)) ; lue **au build** (variable `NEXT_PUBLIC_`) |
+| `GOOGLE_SITE_VERIFICATION` | code `content` fourni par Google Search Console | Non — seulement si la propriété est vérifiée par balise HTML plutôt que par DNS |
 | `INTERNAL_APP_URL` | `http://127.0.0.1:3000` | Oui (worker cron ; lecture des sous-domaines par le proxy) |
 | `CLAN_SUBDOMAIN_ROOT` | `chickendinner.fr` | Non — absente, les sous-domaines de clan ne redirigent pas (voir « Sous-domaines de clan ») |
 | `AUTH_BOOTSTRAP_SECRET` | chaîne aléatoire longue | Oui |

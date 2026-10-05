@@ -1,16 +1,14 @@
-import type { Metadata } from 'next'
 import Link from 'next/link'
 import { EyeOff, Mail, Shield, X } from 'lucide-react'
 
 import { LegalDocument, LegalFacts, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
-import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, LEGAL_UPDATED_AT, PRIVACY_REQUEST_PATH, SITE_DOMAIN } from '@/lib/legal/legal-info'
+import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, LEGAL_UPDATED_AT, PRIVACY_REQUEST_PATH } from '@/lib/legal/legal-info'
 
 /**
  * Confidentialité, page publique — docs/features/pages-legales.md. Chaque ligne a été vérifiée contre le code
  * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026 : à revoir quand le site collecte une donnée nouvelle.
  */
 
-export const metadata: Metadata = { title: `Confidentialité · ${SITE_DOMAIN}` }
 
 const DATA_ROWS = [
   { data: 'Pseudo PUBG (IGN), account_id', source: 'API PUBG, public', usage: 'Profil, classements' },
@@ -19,6 +17,7 @@ const DATA_ROWS = [
   { data: 'Compte du site : e-mail, mot de passe chiffré, nom affiché, lien d’avatar', source: 'Toi, à l’inscription', usage: 'Connexion, invitations' },
   { data: 'E-mail de contact d’une demande de clan', source: 'Toi, sur la page Rejoindre', usage: 'Réponse à la demande' },
   { data: 'Commentaires sur la carte des ressources', source: 'Toi', usage: 'Validation des points' },
+  { data: 'Résultats publiés sur Discord : pseudos de l’escouade, kills, dégâts, carte', source: 'Matchs et tournois du clan', usage: 'Canal Discord du clan, si un admin l’active' },
   { data: 'Demande de retrait : pseudo, e-mail, motif', source: 'Toi, par le formulaire', usage: 'Traitement de ta demande' },
 ]
 
@@ -57,6 +56,10 @@ const SECTIONS: LegalSection[] = [
         <LegalText muted>
           L’avatar est l’adresse d’une image que tu choisis : les navigateurs qui l’affichent la chargent depuis le site qui
           l’héberge.
+        </LegalText>
+        <LegalText muted>
+          Les messages Discord partent chez Discord Inc. (États-Unis), qui applique sa propre politique de confidentialité.
+          Un admin du clan peut couper l’envoi à tout moment.
         </LegalText>
       </>
     ),

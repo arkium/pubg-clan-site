@@ -148,7 +148,7 @@ function ZoneReadingContent() {
         {/* Hauteur standard des bandeaux d'image (docs/ui/index.html#en-tetes). Sans l'image, dégradé de repli. */}
         <header
           className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
-          style={{ backgroundImage: `url('/lecture-de-zone.jpg')`, backgroundPosition: 'center 40%' }}
+          style={{ backgroundImage: `url('/lecture-de-zone.jpg')`, backgroundPosition: 'center 58%' }}
         >
           <div className="absolute inset-0 bg-gradient-to-t from-slate-950/90 via-slate-950/30 to-transparent sm:bg-gradient-to-r sm:from-slate-950/90 sm:via-slate-950/35 sm:to-transparent" />
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-3.5 py-3 sm:px-6 sm:py-5">

@@ -59,7 +59,7 @@ npx tsx scripts/measure-zone-reading.ts detail Baltic_Main 3      # contrôle de
   ligne se déplace en plus de tourner.
 - **Exemple « trop peu de parties »** : Rondo dans la maquette, qui a 1 064 parties ; en pratique, Haven (40).
 - **Note « Petites cartes »** retirée : elle commentait l'ancienne thèse.
-- **Image du bandeau** : la maquette reprenait `recall.jpg` (le rappel de coéquipier). Nouvelle image à produire (§8).
+- **Image du bandeau** : la maquette reprenait `recall.jpg` (le rappel de coéquipier) ; nouvelle image dédiée (§8).
 
 ---
 
@@ -81,7 +81,7 @@ journalisée sans faire échouer la synchronisation. Logique : `src/lib/zone-rea
   d'entraînement. Le **type de partie** (`official`, `competitive`) est filtré à la lecture, sur `SquadMatch`, qui peut
   être reclassé après coup : événements, arcades et parties personnalisées sont écartés.
 - `vehicleSamples`, `landingSamples` et `phaseSnapshots` ne sont pas touchés par la purge géographique : le rattrapage
-  couvre **tout l'historique** (environ 24 000 parties le 2026-10-06).
+  couvre **tout l'historique** (23 959 parties écrites le 2026-10-06, §8).
 
 ```bash
 npm run telemetry:zone-reading:backfill               # relançable : les parties déjà écrites sont ignorées
@@ -159,7 +159,7 @@ Aucun nom de joueur dans l'analyse : des lignes de vol et des cercles.
 
 ## 6. Page et composants
 
-`src/app/lecture-de-zone/page.tsx` — bandeau photo (`/lecture-de-zone.jpg`, dégradé de repli tant que l'image manque),
+`src/app/lecture-de-zone/page.tsx` — bandeau photo (`/lecture-de-zone.jpg`, sur le dégradé de repli de la charte),
 bandeau de filtres collant (carte ‹ ›, Squad / Duo, 30 j / 90 j / Tous, « Calculé sur N parties depuis le … »),
 onglets Analyse / Entraînement (`?tab=training`, `replaceState` : l'entraînement reste monté), mention « La zone garde
 une part de hasard… » sous les deux onglets. Docké sur mobile, la ligne reste entière (exception
@@ -190,16 +190,24 @@ suivant, pour que le nom de la carte reste lisible.
 
 ## 8. Mise en production
 
-1. **Migration** `20261006180000_add_zone_reading` (deux tables, aucune modification d'existant) :
-   `npx prisma migrate deploy`. Sans elle, l'analyse et les séries répondent 500 ; la synchronisation de télémétrie,
-   elle, continue (écriture non bloquante).
-2. **Rattrapage** : `npm run telemetry:zone-reading:backfill` (environ 24 000 parties ; 3 000 parties se lisent en
-   7 s lors de la mesure).
-3. **Images** (générées par IA, signalé de façon générale dans les mentions légales) :
-   `public/lecture-de-zone.jpg` (bandeau, 1600 × 900) et `public/vitrine-lecture-de-zone.jpg` (section de la vitrine,
-   1600 × 900, sujet à droite, gauche sombre pour le texte).
-4. Facultatif : une ligne `NavItem` `primary.zone-reading` pour masquer ou renommer l'entrée depuis
-   `/settings/nav-permissions` ; le lien s'affiche sans elle.
+> **Base.** Migration `20261006180000_add_zone_reading` (deux tables, aucune modification d'existant) **appliquée le
+> 2026-10-06** sur la base de `.env` ; `migrate diff` vide ensuite. Sans elle, l'analyse et les séries répondent 500 ;
+> la synchronisation de la télémétrie, elle, continue (écriture non bloquante).
+
+- **Rattrapage du 2026-10-06** : `npm run telemetry:zone-reading:backfill` — 23 991 parties lues, 23 959 lignes
+  écrites en 70 s. Les 32 restantes n'ont ni ligne de vol ni cercle exploitable : elles sont relues à chaque nouveau
+  passage (sans effet).
+- **Mesure sur la page réelle** (`npx tsx scripts/measure-zone-reading.ts analysis`) : Erangel en Squad, « Tous »,
+  8 815 parties, 405 ms au premier chargement puis cache, réponse de 184 Ko avant compression ; les autres cartes
+  entre 150 et 210 ms, 18 à 42 Ko. Même verdict sur toutes les cartes : « L'avion place le premier cercle. Ensuite,
+  c'est le hasard. » et « Vise le centre du cercle, dès le premier. » En Duo sur 30 jours, seule Erangel dépasse le
+  seuil de 300 parties.
+- **Images** (générées par IA, signalé de façon générale dans les mentions légales), ramenées à 1600 × 900 en JPEG
+  progressif comme les autres photos du site : `public/lecture-de-zone.jpg` (bandeau, 142 Ko, cadré à `center 58%`
+  pour montrer le cercle blanc) et `public/vitrine-lecture-de-zone.jpg` (section de la vitrine, 83 Ko). Les originaux
+  (2752 × 1536, 2 à 3 Mo) n'ont pas été gardés dans le dépôt.
+- Facultatif : une ligne `NavItem` `primary.zone-reading` pour masquer ou renommer l'entrée depuis
+  `/settings/nav-permissions` ; le lien s'affiche sans elle.
 
 ---
 

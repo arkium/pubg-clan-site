@@ -442,6 +442,22 @@ Contrat partagé par les routes, la page et les tests e2e : `src/lib/mortar/mort
 
 ---
 
+## Lecture de zone — `/api/zone-reading/*`
+
+| Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
+|---|---|---|---|---|
+| GET | `/api/zone-reading?map=&mode=&period=` | Public | ✅ Pertinent | `ZoneReadingAnalysis` : cartes ayant des parties, compteur, statistiques (ligne de vol / cercles / zone finale), axes compacts, axe par défaut, noms des 64 cases ; cache mémoire 10 min — voir [Lecture de zone](../features/lecture-de-zone.md) |
+| POST | `/api/zone-reading/series` | Public ; série enregistrée si session avec membre actif | ✅ Pertinent | `{ map, mode, period, clanId }` → `ZoneReadingSeriesStart` : dix parties tirées par le serveur (complètes pour un visiteur, ligne de vol une partie sur deux et cercle 1 seulement pour un membre) |
+| POST | `/api/zone-reading/series/[seriesId]/guess` | Session + membre actif, propriétaire de la série | ✅ Pertinent | `{ round, step, x, y }` (m) → `ZoneReadingGuessResult` : cercle suivant, ou zone finale et écarts calculés par le serveur, et bilan après la dixième partie |
+| GET | `/api/zone-reading/leaderboard?clanId=&map=` | Public ; ligne du lecteur si session | ✅ Pertinent | `ZoneReadingLeaderboard` : « Le clan », écart moyen sur toutes les séries de la carte, dix premiers + ligne du lecteur |
+
+Contrat partagé par les routes, la page et les tests e2e : `src/lib/zone-reading/zone-reading-api.ts` ; règles : `zone-reading-game.ts` ; analyse : `zone-reading-analysis.ts` ; service Prisma (tables `ZoneReadingMatch`, `ZoneReadingSeries`) : `zone-reading-service.ts`. Tests : `src/lib/zone-reading/zone-reading-route-contracts.test.ts`.
+
+- **Paramètres :** `mode` = `squad` (défaut) ou `duo` ; `period` = `days-30`, `days-90` ou `all` (défaut) ; `map` inconnue ou sans partie → la carte la plus jouée.
+- **Erreurs de série** (`{ error, code }`) : `409` `not_enough_matches` (moins de dix parties), `401` sans membre actif, `404` `not_found`, `403` `forbidden`, `409` `finished`, `expired` (plus de 2 h) ou `out_of_order` (étape inattendue, ou jouée deux fois : verrou optimiste sur `progress`), `400` `invalid_guess`.
+
+---
+
 ## Carte des ressources — `/api/resources/*`
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |

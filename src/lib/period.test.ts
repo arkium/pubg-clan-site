@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest'
 
 import {
   MATCH_PERIODS,
+  PERIODS,
   PERIOD_LABELS,
+  ROLLING_PERIODS,
   STANDARD_PERIODS,
   getPeriodRange,
   getPeriodStart,
+  isPeriod,
   parsePeriod,
   periodOptions,
   resolvePagePeriod,
@@ -57,6 +60,19 @@ describe('bornes calendaires', () => {
     expect(getPeriodRange('month-2', local(2026, 1, 15))).toEqual({ start: local(2025, 11, 1), end: local(2025, 12, 1) })
   })
 
+  it('30 j et 90 j glissent jusqu’à aujourd’hui inclus, sans dépendre du mois civil', () => {
+    expect(getPeriodRange('days-30', local(2026, 10, 6, 15))).toEqual({ start: local(2026, 9, 6), end: local(2026, 10, 7) })
+    expect(getPeriodRange('days-90', local(2026, 10, 6, 15))).toEqual({ start: local(2026, 7, 8), end: local(2026, 10, 7) })
+    expect(getPeriodStart('days-30', local(2026, 1, 10))).toEqual(local(2025, 12, 11))
+  })
+
+  it('les périodes glissantes restent hors de PERIODS (cron opponent-stats) mais sont des périodes valides', () => {
+    expect(PERIODS).not.toContain('days-30')
+    expect(isPeriod('days-90')).toBe(true)
+    expect(parsePeriod('days-30', ROLLING_PERIODS, 'all')).toBe('days-30')
+    expect(parsePeriod('week', ROLLING_PERIODS, 'all')).toBe('all')
+  })
+
   it('« Tous » n’a pas de borne', () => {
     expect(getPeriodRange('all', local(2026, 9, 24))).toBeNull()
     expect(getPeriodStart('all', local(2026, 9, 24))).toBeNull()
@@ -72,7 +88,10 @@ describe('libellés', () => {
       all: 'Tous',
       'month-1': 'Mois dernier',
       'month-2': 'Il y a 2 mois',
+      'days-30': '30 j',
+      'days-90': '90 j',
     })
+    expect(periodOptions(ROLLING_PERIODS).map((option) => option.label)).toEqual(['30 j', '90 j', 'Tous'])
     expect(periodOptions(STANDARD_PERIODS)).toEqual([
       { value: 'week', label: 'Semaine' },
       { value: 'month', label: 'Mois' },

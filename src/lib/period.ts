@@ -6,11 +6,18 @@
  * les agrégats (classements, awards, comparateur, statistiques de télémétrie, cache des
  * matchs). Heure locale du serveur, comme eux.
  *
+ * Les périodes **glissantes** (`days-30`, `days-90`) servent aux pages qui agrègent beaucoup de
+ * parties et ne doivent pas se vider en début de mois (Lecture de zone). Elles ne font pas partie
+ * de `PERIODS` : la route cron `opponent-stats` parcourt cette liste et écrit une ligne par période.
+ *
  * Module sans dépendance : importable côté client comme côté serveur.
  */
 
 export const PERIODS = ['week', 'month', 'all', 'month-1', 'month-2'] as const
-export type Period = (typeof PERIODS)[number]
+/** Fenêtres glissantes, en jours, jusqu'à aujourd'hui inclus. */
+export const ROLLING_PERIOD_VALUES = ['days-30', 'days-90'] as const
+export type RollingPeriodValue = (typeof ROLLING_PERIOD_VALUES)[number]
+export type Period = (typeof PERIODS)[number] | RollingPeriodValue
 
 /** Semaine, mois, tout l'historique : l'ensemble proposé par la plupart des pages. */
 export const STANDARD_PERIODS = ['week', 'month', 'all'] as const
@@ -20,12 +27,20 @@ export type StandardPeriod = (typeof STANDARD_PERIODS)[number]
 export const MATCH_PERIODS = ['week', 'month', 'month-1', 'month-2'] as const
 export type MatchPeriod = (typeof MATCH_PERIODS)[number]
 
+/** Pages d'agrégats sur beaucoup de parties : 30 et 90 derniers jours, tout l'historique. */
+export const ROLLING_PERIODS = ['days-30', 'days-90', 'all'] as const
+export type RollingPeriod = (typeof ROLLING_PERIODS)[number]
+
+const ROLLING_DAYS: Record<RollingPeriodValue, number> = { 'days-30': 30, 'days-90': 90 }
+
 export const PERIOD_LABELS: Record<Period, string> = {
   week: 'Semaine',
   month: 'Mois',
   all: 'Tous',
   'month-1': 'Mois dernier',
   'month-2': 'Il y a 2 mois',
+  'days-30': '30 j',
+  'days-90': '90 j',
 }
 
 /** Complément de nom : « Duo de la semaine », « Duo du mois ». */
@@ -35,6 +50,8 @@ export const PERIOD_OF_LABELS: Record<Period, string> = {
   all: 'de tous les temps',
   'month-1': 'du mois dernier',
   'month-2': 'd’il y a 2 mois',
+  'days-30': 'des 30 derniers jours',
+  'days-90': 'des 90 derniers jours',
 }
 
 /** Moment de la période : « 25 parties ensemble, cette semaine ». */
@@ -44,6 +61,8 @@ export const PERIOD_WHEN_LABELS: Record<Period, string> = {
   all: 'depuis le début',
   'month-1': 'le mois dernier',
   'month-2': 'il y a 2 mois',
+  'days-30': 'ces 30 derniers jours',
+  'days-90': 'ces 90 derniers jours',
 }
 
 /** Paramètre d'URL qui porte la période d'une page (§4.E). */
@@ -52,7 +71,10 @@ export const PERIOD_QUERY_PARAM = 'period'
 export const PERIOD_STORAGE_KEY = 'pubg-clan-site:period'
 
 export function isPeriod(value: unknown): value is Period {
-  return typeof value === 'string' && (PERIODS as readonly string[]).includes(value)
+  return (
+    typeof value === 'string' &&
+    ((PERIODS as readonly string[]).includes(value) || (ROLLING_PERIOD_VALUES as readonly string[]).includes(value))
+  )
 }
 
 export function periodOptions<P extends Period>(periods: readonly P[]): Array<{ value: P; label: string }> {
@@ -71,8 +93,9 @@ function startOfDay(year: number, month: number, day: number) {
 }
 
 /**
- * Bornes calendaires `[start, end)` d'une période ; `null` pour « Tous ».
- * La semaine commence le lundi (ISO) ; `end` est le début de la période suivante.
+ * Bornes `[start, end)` d'une période ; `null` pour « Tous ».
+ * La semaine commence le lundi (ISO) ; `end` est le début de la période suivante. Une fenêtre
+ * glissante de N jours commence N jours avant aujourd'hui, à minuit, et finit demain à minuit.
  */
 export function getPeriodRange(period: Period, reference: Date = new Date()): PeriodRange | null {
   const year = reference.getFullYear()
@@ -90,6 +113,11 @@ export function getPeriodRange(period: Period, reference: Date = new Date()): Pe
       return { start: startOfDay(year, month - 1, 1), end: startOfDay(year, month, 1) }
     case 'month-2':
       return { start: startOfDay(year, month - 2, 1), end: startOfDay(year, month - 1, 1) }
+    case 'days-30':
+    case 'days-90': {
+      const day = reference.getDate()
+      return { start: startOfDay(year, month, day - ROLLING_DAYS[period]), end: startOfDay(year, month, day + 1) }
+    }
     case 'all':
       return null
   }

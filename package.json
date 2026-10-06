@@ -21,6 +21,7 @@
     "telemetry:position-metrics:backfill": "tsx scripts/backfill-position-metrics.ts",
     "telemetry:safe-zones:backfill": "tsx scripts/backfill-safe-zone-phase-stats.ts",
     "telemetry:zone-closures:backfill": "tsx scripts/backfill-zone-closures.ts",
+    "telemetry:zone-reading:backfill": "tsx scripts/backfill-zone-reading.ts",
     "telemetry:opponents:backfill": "tsx scripts/backfill-opponent-normalization.ts",
     "scores:recalc": "tsx scripts/recalc-scores.ts",
     "make-superuser": "tsx scripts/make-superuser.ts",

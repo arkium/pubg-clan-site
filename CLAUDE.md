@@ -182,7 +182,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Zoom d'une carte interactive `[ − \| ⊙ 1× \| + ]` | `MapZoomControl` + `@/lib/map-zoom` | `src/components/ui/MapZoomControl.tsx` — règles dans `docs/ui/index.html#zoom-carte` |
 | Bandeau de filtres d'une page (collant sous le header) | `DockingToolbar` | `src/components/ui/DockingToolbar.tsx` — règles dans `docs/ui/index.html#sticky-toolbar` |
 | Groupe à intitulé dans ce bandeau (« Période », « Type de match »…, infobulle) | `ToolbarGroup` | `src/components/ui/ToolbarGroup.tsx` |
-| Filtre de période (Semaine / Mois / Tous…) | `PeriodFilter` + `usePagePeriod` | `src/components/ui/PeriodFilter.tsx`, `src/hooks/usePagePeriod.ts`, `src/lib/period.ts` |
+| Filtre de période (Semaine / Mois / Tous… ; 30 j / 90 j glissants : `ROLLING_PERIODS`) | `PeriodFilter` + `usePagePeriod` | `src/components/ui/PeriodFilter.tsx`, `src/hooks/usePagePeriod.ts`, `src/lib/period.ts` |
 | Ancres de section (seconde ligne du bandeau) | `SectionAnchorNav` | `src/components/ui/SectionAnchorNav.tsx` |
 | Rang dans un classement (médailles SVG 1 à 3) | `RankCell` | `src/components/ui/RankCell.tsx` |
 | Tri d'un tableau par ses en-têtes (+ rappel docké) | `SortableTh`, `SortReminder` + `useTableSort` | `src/components/ui/SortableTh.tsx`, `src/hooks/useTableSort.ts` |
@@ -411,6 +411,7 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `npm run make-superuser -- user@example.com` | Grant/revoke SuperUser status |
 | `npm run scores:recalc` | Manually recalculate leaderboard positions & badges |
 | `npm run sync:pubg-assets` | Fetch weapon/map/phase labels from PUBG API (seeds `Label` table) |
+| `npm run telemetry:zone-reading:backfill` | Lecture de zone : ligne de vol et cercles de chaque partie déjà analysée (`ZoneReadingMatch`, relançable) |
 
 ## Environment & Known Issues
 

@@ -17,6 +17,7 @@ import { persistItemUseStatsForMatch } from '@/lib/item-use-persistence'
 import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
 import { persistSafeZonePhaseStatsForMatch } from '@/lib/safe-zone-phase-stats'
 import { persistZoneClosurePositionsForMatch } from '@/lib/zone-closure-positions'
+import { persistZoneReadingMatchForMatch } from '@/lib/zone-reading/zone-reading-match'
 import { buildClanMemberKeys } from '@/lib/pubg-telemetry/clan-member-keys'
 
 export type SyncTelemetryForSquadMatchInput = {
@@ -292,6 +293,7 @@ export async function syncTelemetryForSquadMatch(
     await persistPositionMetricCellsForMatch(input.squadMatchId, parsed)
     await persistSafeZonePhaseStatsForMatch(input.squadMatchId, parsed.phaseSnapshots)
     await persistZoneClosurePositionsForMatch(input.squadMatchId, parsed)
+    await persistZoneReadingMatchForMatch(input.squadMatchId, parsed)
 
     logTelemetryStep({
       step: 'complete',

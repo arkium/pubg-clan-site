@@ -89,6 +89,7 @@ const TOOLBAR_PAGES = [
   'src/app/tournaments/page.tsx',
   'src/app/tournaments/[tournamentId]/page.tsx',
   'src/app/tournaments/[tournamentId]/matches/[matchId]/page.tsx',
+  'src/app/lecture-de-zone/page.tsx',
 ]
 
 /** Composants partagés qui rendent le bandeau pour la page qui les importe. */
@@ -133,6 +134,7 @@ const MOBILE_DOCKED_EXTRA_CONTROLS: Record<string, string> = {
   'src/app/members/[id]/nemesis/page.tsx': 'pastille d’arme, sur une ligne avec la période',
   'src/app/members/[id]/weapons/page.tsx': 'onglet Site / PUBG et pastille de catégorie, sur une ligne avec la période (ou la synchro)',
   'src/app/members/[id]/matches/page.tsx': 'pastille de mode, sur une ligne avec la période',
+  'src/app/lecture-de-zone/page.tsx': 'carte ‹ › et mode (Squad / Duo), sur une ligne avec la période (06/10/2026)',
 }
 
 /** Composants autorisés à écouter le défilement de la fenêtre — jamais pour se docker. */

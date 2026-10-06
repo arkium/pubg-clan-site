@@ -23,6 +23,7 @@ import { persistItemUseStatsForMatch } from '@/lib/item-use-persistence'
 import { persistPositionMetricCellsForMatch } from '@/lib/position-metric-cells'
 import { persistSafeZonePhaseStatsForMatch } from '@/lib/safe-zone-phase-stats'
 import { persistZoneClosurePositionsForMatch } from '@/lib/zone-closure-positions'
+import { persistZoneReadingMatchForMatch } from '@/lib/zone-reading/zone-reading-match'
 import { buildClanMemberKeys } from '@/lib/pubg-telemetry/clan-member-keys'
 
 export type ManualTelemetrySyncItemResult = {
@@ -249,6 +250,7 @@ export async function syncTelemetryForSquadMatchFromStream(
     await persistPositionMetricCellsForMatch(match.id, parsed)
     await persistSafeZonePhaseStatsForMatch(match.id, parsed.phaseSnapshots)
     await persistZoneClosurePositionsForMatch(match.id, parsed)
+    await persistZoneReadingMatchForMatch(match.id, parsed)
 
     console.info('[TelemetrySync] persist-json-done', { squadMatchId: match.id })
 
@@ -639,6 +641,7 @@ export async function syncTelemetryForSelectedSquadMatches(
       await persistPositionMetricCellsForMatch(match.id, parsed)
       await persistSafeZonePhaseStatsForMatch(match.id, parsed.phaseSnapshots)
       await persistZoneClosurePositionsForMatch(match.id, parsed)
+      await persistZoneReadingMatchForMatch(match.id, parsed)
 
       results.push({
         squadMatchId: match.id,

@@ -421,6 +421,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       { navKey: 'primary.mortar', label: 'Mortier', href: '/mortier', tone: 'brand' },
       // Carte des ressources (docs/features/carte-ressources.md) : icône carte épinglée (NavIcon, libellé « Carte des ressources »).
       { navKey: 'primary.resources', label: 'Carte des ressources', href: '/carte-des-ressources', tone: 'brand' },
+      // Lecture de zone (docs/features/lecture-de-zone.md) : icône cercle pointé (NavIcon, libellé « Lecture de zone »).
+      { navKey: 'primary.zone-reading', label: 'Lecture de zone', href: '/lecture-de-zone', tone: 'brand' },
       !isVisitor
         ? { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' }
         : { navKey: 'primary.login', label: 'Se connecter', href: '/login', tone: 'neutral' },

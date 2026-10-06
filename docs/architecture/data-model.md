@@ -1,6 +1,6 @@
 # Modèle de données
 
-Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust in-process). 54 modèles au total (les sections ci-dessous ne détaillent que les principaux).
+Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust in-process). 66 modèles au total (les sections ci-dessous ne détaillent que les principaux).
 
 ## Vue d'ensemble par domaine
 
@@ -46,6 +46,14 @@ Schéma Prisma : `prisma/schema.prisma`. Provider `mysql`, engine library (Rust 
 | `MemberWeaponMastery` | Maîtrise des armes (niveau, XP, stats lifetime PUBG) |
 | `MemberLifetimeStats` | Stats lifetime agrégées par catégorie (combat, victoire, soutien, véhicule, mouvement) |
 | `ClanSynergyTelemetryStats` | Synergies entre paires de membres (revives mutuels, co-kills, dégâts partagés) |
+| `ZoneReadingMatch` | Lecture de zone : ligne de vol du C-130 et cercles stables d'une partie, une ligne par `SquadMatch`, écrite au parsing ([lecture-de-zone.md](../features/lecture-de-zone.md)) |
+
+### Entraînements
+
+| Modèle | Rôle |
+|---|---|
+| `MortarSeries` | Série d'entraînement au mortier d'un membre : graine, réglages, score recalculé par le serveur ([mortier.md](../features/mortier.md)) |
+| `ZoneReadingSeries` | Série « Où finit la zone ? » d'un membre : dix parties tirées par le serveur, positions reçues étape par étape, score ([lecture-de-zone.md](../features/lecture-de-zone.md)) |
 
 ### Rapports, challenges et récompenses
 

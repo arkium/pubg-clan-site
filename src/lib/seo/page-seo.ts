@@ -85,6 +85,13 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
     index: true,
     sitemap: { priority: 0.7, changeFrequency: 'weekly' },
   },
+  '/lecture-de-zone': {
+    title: 'Lecture de zone PUBG — avion, cercles et zone finale',
+    description:
+      'Ce que la ligne de vol du C-130 dit vraiment des cercles PUBG, mesuré sur des milliers de parties, et un entraînement pour deviner la zone finale.',
+    index: true,
+    sitemap: { priority: 0.7, changeFrequency: 'weekly' },
+  },
   '/join': {
     title: 'Inscrire ou rejoindre son clan PUBG',
     description:

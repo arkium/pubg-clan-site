@@ -111,7 +111,7 @@ describe('sitemapEntries', () => {
 
   it('liste l’accueil, les pages publiques et les pages légales, sans les pages hors index ni le formulaire', () => {
     expect(urls[0]).toBe('https://chickendinner.fr/')
-    for (const path of ['/clans', '/clans-leaderboard', '/clans/comparator', '/tournaments', '/mortier', '/carte-des-ressources', '/join', '/mentions-legales', '/confidentialite', '/a-propos']) {
+    for (const path of ['/clans', '/clans-leaderboard', '/clans/comparator', '/tournaments', '/mortier', '/carte-des-ressources', '/lecture-de-zone', '/join', '/mentions-legales', '/confidentialite', '/a-propos']) {
       expect(urls, path).toContain(`https://chickendinner.fr${path}`)
     }
     for (const path of ['/login', '/account', '/members', '/clans/mutations', '/confidentialite/demande']) {

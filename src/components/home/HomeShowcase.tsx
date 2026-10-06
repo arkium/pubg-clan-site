@@ -5,6 +5,7 @@ import Link from 'next/link'
 import {
   ChevronLeft,
   ChevronRight,
+  CircleDot,
   Crosshair,
   LogIn,
   MapPin,
@@ -578,6 +579,71 @@ function DiscordSection() {
   )
 }
 
+/**
+ * Lecture de zone (docs/features/lecture-de-zone.md) : ce que la ligne de vol dit vraiment des cercles, mesuré sur les
+ * parties du site, et l'entraînement « Où finit la zone ? ». Textes fixes : la vitrine ne charge pas l'analyse.
+ */
+const ZONE_READING_IMAGE = '/vitrine-lecture-de-zone.jpg'
+const ZONE_READING_POINTS = [
+  {
+    icon: Plane,
+    title: 'L’avion place le premier cercle',
+    text: 'La ligne de vol traverse le premier cercle dans presque toutes les parties. Ensuite, chaque cercle se déplace au hasard.',
+  },
+  {
+    icon: CircleDot,
+    title: 'Vise le centre, pas la ligne',
+    text: 'Mesuré sur des milliers de vraies parties : le centre du cercle rapproche toujours plus de la zone finale que la ligne de vol.',
+  },
+  {
+    icon: Crosshair,
+    title: 'Entraîne-toi sur tes parties',
+    text: 'Dix parties de ton clan rejouées cercle par cercle : pose ton marqueur, dévoile la zone, grimpe au classement du clan.',
+  },
+] as const
+
+function ZoneReadingSection() {
+  return (
+    <section className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20" aria-labelledby="home-zone-reading-title">
+      {/* Même bandeau sombre sur photo que Discord et « Rejoindre ». */}
+      <div className="home-join relative mx-auto max-w-[1200px] overflow-hidden rounded-[22px] text-white">
+        <div className="home-join-bg absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: `url(${ZONE_READING_IMAGE})` }} aria-hidden="true" />
+        <div className="home-join-shade absolute inset-0" aria-hidden="true" />
+        <div className="relative flex max-w-[640px] flex-col gap-[22px] p-6 md:p-10 lg:p-14">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-amber-400">Lecture de zone</span>
+          <h2 id="home-zone-reading-title" className="home-display m-0 text-[40px] font-semibold uppercase leading-[0.92] lg:text-[64px]">
+            L’avion donne le premier cercle.
+            <br />
+            <span className="text-amber-400">Pas la zone finale.</span>
+          </h2>
+          <ul className="m-0 flex list-none flex-col gap-3 p-0">
+            {ZONE_READING_POINTS.map(({ icon: Icon, title, text }) => (
+              <li key={title} className="flex items-start gap-3.5">
+                <span className="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] border border-amber-400/55 bg-amber-400/10 text-amber-200">
+                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+                </span>
+                <div>
+                  <p className="m-0 text-[15px] font-bold">{title}</p>
+                  <p className="m-0 mt-0.5 text-sm leading-normal text-white/75">{text}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+          <div className="flex flex-col items-start gap-2">
+            <Link
+              href="/lecture-de-zone"
+              className="inline-flex h-12 items-center rounded-xl border border-white/25 px-[18px] text-[15px] font-semibold text-white hover:bg-white/10"
+            >
+              Lire la zone →
+            </Link>
+            <p className="m-0 text-[13px] text-white/60">Analyse ouverte à tous ; séries enregistrées pour les membres d’un clan.</p>
+          </div>
+        </div>
+      </div>
+    </section>
+  )
+}
+
 export default function HomeShowcase({
   visitorMode,
   accountHref,
@@ -788,6 +854,8 @@ export default function HomeShowcase({
       <NewsSection />
 
       <DiscordSection />
+
+      <ZoneReadingSection />
 
       {/* Même contenu que le footer du site (masqué ici), aux marges de la vitrine : docs/features/pages-legales.md. */}
       <footer className="home-footer px-4 py-5 md:px-8 lg:px-14">

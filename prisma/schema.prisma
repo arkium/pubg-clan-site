@@ -122,6 +122,7 @@ model ClanMember {
   activeSessions            UserSession[]               @relation("SessionActiveMember")
   clanChanges               PlayerClanChange[]
   mortarSeries              MortarSeries[]
+  zoneReadingSeries         ZoneReadingSeries[]
 
   @@unique([pubgPlayerName, platformShard])
   @@index([clanId, lastMatchAt])
@@ -830,6 +831,7 @@ model SquadMatch {
   safeZonePhaseStats  SafeZonePhaseStat[]
   itemUseStats        MemberItemUseStat[]
   zoneClosurePositions ZoneClosurePosition[]
+  zoneReadingMatch    ZoneReadingMatch?
   killEvents          KillEvent[]
   throwableStats      MemberThrowableStat[]
 
@@ -1093,6 +1095,54 @@ model MortarSeries {
   @@index([memberId, difficulty, status])
   @@index([difficulty, status])
   @@map("MortarSeries")
+}
+
+/// Lecture de zone (docs/features/lecture-de-zone.md) : ligne de vol du C-130 et cercles stables d'une partie, une
+/// ligne par `SquadMatch`, écrite au parsing. Coordonnées en centimètres (repère de la télémétrie). Le type de partie
+/// (officielle, classée…) se lit sur `SquadMatch`, qui peut être reclassé après coup.
+model ZoneReadingMatch {
+  squadMatchId String     @id
+  squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
+  mapName      String     @db.VarChar(64)
+  matchDate    DateTime
+  teamMode     String     @db.VarChar(8) // 'solo' | 'duo' | 'squad'
+  flightSource String     @db.VarChar(10) // 'jumps' | 'landings'
+  lineStartX   Int
+  lineStartY   Int
+  lineEndX     Int
+  lineEndY     Int
+  circles      Json // [{ x, y, r }] — C1..Cn
+  circleCount  Int
+  finalX       Int
+  finalY       Int
+  createdAt    DateTime   @default(now())
+
+  @@index([mapName, teamMode, matchDate])
+  @@map("ZoneReadingMatch")
+}
+
+/// Série d'entraînement « Où finit la zone ? » d'un membre (docs/features/lecture-de-zone.md) : les dix parties tirées
+/// au départ et les positions reçues étape par étape ; le serveur ne dévoile un cercle qu'après la position précédente.
+model ZoneReadingSeries {
+  id                String     @id @default(cuid())
+  memberId          Int
+  member            ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+  mapName           String     @db.VarChar(64)
+  status            String     @default("started") @db.VarChar(10) // 'started' | 'finished'
+  // Positions reçues (0 à 40) : verrou optimiste, deux envois simultanés de la même étape n'en comptent qu'un.
+  progress          Int        @default(0)
+  rounds            Json // ZoneReadingStoredRound[] — parties, géométrie (m) et positions
+  meanError         Float?
+  betterThanCenter  Int?
+  betterThanLine    Int?
+  withPlaneError    Float?
+  withoutPlaneError Float?
+  startedAt         DateTime   @default(now())
+  finishedAt        DateTime?
+
+  @@index([memberId, mapName, status])
+  @@index([mapName, status])
+  @@map("ZoneReadingSeries")
 }
 
 model MemberThrowableStat {

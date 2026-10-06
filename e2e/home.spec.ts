@@ -57,6 +57,23 @@ test('Discord : alertes Top 1, résultats de tournoi, réglages, et lien d’ins
   await expect(discord.getByRole('link', { name: 'Inscrire mon clan →' })).toHaveAttribute('href', '/join')
 })
 
+test('Lecture de zone, sous Discord : trois points et le lien vers la page', async ({ page }) => {
+  const zone = page.getByRole('region', { name: /Pas la zone finale/ })
+  await zone.scrollIntoViewIfNeeded()
+  await expect(zone.getByRole('listitem')).toHaveCount(3)
+  await expect(zone).toContainText('L’avion place le premier cercle')
+  await expect(zone).toContainText('Vise le centre, pas la ligne')
+  await expect(zone.getByRole('link', { name: 'Lire la zone →' })).toHaveAttribute('href', '/lecture-de-zone')
+  // Juste après la section Discord, avant le pied de page.
+  const order = await page.evaluate(() => {
+    const ids = [...document.querySelectorAll('section[aria-labelledby]')].map((section) => section.getAttribute('aria-labelledby'))
+    return ids.indexOf('home-zone-reading-title') - ids.indexOf('home-discord-title')
+  })
+  expect(order).toBe(1)
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
+})
+
 test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async ({ page }) => {
   const card = page.getByTestId('home-dinner')
   await expect(page.getByRole('heading', { name: 'Chicken Dinner de la semaine' }).or(page.getByRole('heading', { name: 'Derniers Chicken Dinners' }))).toBeVisible()

@@ -139,6 +139,7 @@ export function sessionDateParts(date: string): { day: string; weekday: string; 
 export function periodChipLabel(period: Period, reference: Date = new Date()): string {
   const range = getPeriodRange(period, reference)
   if (!range) return 'Tout l’historique'
+  if (period === 'days-30' || period === 'days-90') return period === 'days-30' ? '30 derniers jours' : '90 derniers jours'
   if (period === 'week') {
     return `Semaine du ${range.start.toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })}`
   }

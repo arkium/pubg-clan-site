@@ -110,6 +110,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'none',
     description: 'Carte des ressources : véhicules repérés dans les parties suivies, et stations-service, garages, pontons et salles secrètes placés par les joueurs.',
   },
+  {
+    navKey: 'primary.zone-reading',
+    section: 'nav-primary',
+    label: 'Lecture de zone',
+    hrefTemplate: '/lecture-de-zone',
+    defaultRole: 'none',
+    description: 'Lecture de zone : ce que la ligne de vol du C-130 dit des cercles (analyse de toutes les parties du site) et entraînement « Où finit la zone ? » avec classement du clan.',
+  },
 
   // --- Clan section nav ---
   {

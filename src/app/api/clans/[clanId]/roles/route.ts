@@ -1,8 +1,8 @@
 import { NextRequest } from 'next/server'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
 import { initializeDefaultRoles } from '@/lib/role-service'
-import { requirePermission } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -21,9 +21,8 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const permissionError = await requirePermission('manage_roles')(request, {
-      clanId: parsedClanId,
-    })
+    // Lu par la page des membres : même fonctionnalité qu'elle
+    const permissionError = await requireClanFeature(request, parsedClanId, 'clan-members')
     if (permissionError) {
       return permissionError
     }

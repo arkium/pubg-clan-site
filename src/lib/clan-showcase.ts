@@ -165,12 +165,10 @@ const INTENT_BY_NAV_KEY: Record<string, ExploreIntent> = {
   'clan.stats-weapons': 'improve',
   'clan.drop-zones': 'improve',
   'clan.positions': 'improve',
-  'clan.items': 'improve',
   'clan.zone-closures': 'improve',
   'clan.heatmap-kills': 'improve',
   'clan.leaderboard': 'compete',
   'clan.awards': 'compete',
-  'clan.reports': 'compete',
 }
 
 /** Répartit les pages du clan en trois intentions ; une page inconnue va dans « Progresser », jamais perdue. */

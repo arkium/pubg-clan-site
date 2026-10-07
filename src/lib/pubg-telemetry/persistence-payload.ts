@@ -93,7 +93,7 @@ export function buildTelemetrySuccessPayloadWithJson(
 ) {
   return {
     ...basePayload,
-    // `summary` reste en clair : cinq routes l'interrogent en SQL par JSON_EXTRACT.
+    // `summary` reste en clair : telemetry/heatmap l'interroge en SQL par JSON_EXTRACT.
     summary: sanitizeJsonForPrisma(parsed.summary),
     // Tout le reste part compressé (~7 à 9×), les colonnes en clair à NULL. Aucune lecture ne doit
     // les toucher directement : `decodeTelemetryRow` s'en charge, et accepte encore l'ancien

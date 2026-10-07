@@ -248,7 +248,7 @@ export async function notifyJoinRequest(
       isActive: true,
       roles: {
         some: {
-          role: { name: { in: ['Owner', 'Admin'] } },
+          role: { name: 'Owner' },
         },
       },
     },

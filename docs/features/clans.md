@@ -60,67 +60,48 @@ model ClanMember {
 
 ## 3. Rôles et hiérarchie
 
-### Hiérarchie complète
+> Réécrit le 2026-10-07 : **quatre profils** (visiteur, membre, Owner, SuperUser). Les rôles Admin et Moderator sont
+> supprimés — aucun n'était attribué, et les permissions du Moderator n'étaient vérifiées nulle part. Décisions et
+> historique : [administration.md](../TODO/administration.md) §5.3.
 
-```
-SuperUser (rôle plateforme, cumulable avec un rôle clan)
-  ├── Accès total à TOUS les clans
-  ├── Seul à pouvoir changer de clan actif dans l'UI
-  ├── Gère les triggers manuels cross-clan
-  ├── Peut créer / archiver des clans
-  ├── Peut être simultanément Owner d'un clan
-  └── Géré via script CLI (voir docs/ops/superuser-bootstrap.md)
+### Les quatre profils
 
-Owner (par clan)
-  ├── Accès total à SON clan uniquement
-  ├── Gère membres, rôles, sync, config et cron de son clan
-  └── Ne peut pas agir sur un autre clan
+| Profil | Défini par | Accès |
+|---|---|---|
+| Visiteur | pas de session | pages publiques ; en mode visiteur (`DISABLE_AUTH_PERMISSIONS=true`), lecture de tous les clans |
+| Membre | rôle `Member` du clan (`ClanMemberRole`) | son clan, en lecture |
+| Owner | rôle `Owner` du clan (permission `*`) | « Mon clan » de **son** clan : membres, invitations, demandes, ajout, Discord, accueil login, tournois — sauf ce que le SuperUser lui ferme |
+| SuperUser | `UserAccount.isSuperUser` | tout, sur tous les clans, avec ou sans membre actif |
 
-Admin (par clan)
-  ├── Gestion opérationnelle de SON clan uniquement
-  ├── Invitations, promotion Member ↔ Admin
-  ├── Sync des matchs
-  └── Ne peut pas promouvoir au rôle Owner ni accéder aux crons
+Un clan peut avoir **plusieurs Owners** : c'est la réponse au besoin d'un second administrateur. Nommer ou retirer un
+Owner est réservé au SuperUser ; un Owner n'a donc aucun rôle à attribuer.
 
-Moderator (par clan)
-  ├── Animation du clan : défis, annonces, notifications
-  ├── Peut inviter des membres (pas les retirer)
-  ├── Accès rapports + export
-  └── Aucune gestion de rôles, aucun accès sync/cron
+### Délégation aux Owners
 
-Member (par clan)
-  ├── Accès lecture seul à SON clan
-  └── Aucune action de gestion
-```
+Le SuperUser choisit les outils de clan ouverts aux Owners (réglage commun à tous les Owners, `AppConfig`
+`owner_feature_access`, catalogue `src/lib/auth/owner-features.ts`) :
 
-### Matrice des permissions
+| Fonctionnalité | Contenu | Par défaut |
+|---|---|---|
+| `clan-members` | membres, invitations, demandes, ajout de joueurs | ouverte |
+| `clan-announcements` | Discord, écran d'accueil login | ouverte |
+| `clan-competition` | tournois | ouverte |
+| `clan-telemetry-tools` | état de la télémétrie, erreurs, synchronisation manuelle, récupérations | **verrouillée** au SuperUser |
 
-| Action | SuperUser | Owner | Admin | Moderator | Member |
-|---|---|---|---|---|---|
-| Voir toutes les pages d'un clan | ✅ tous clans | ✅ sien | ✅ sien | ✅ sien | ✅ sien |
-| Changer de clan actif | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Créer / archiver un clan | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Gérer les membres (inviter) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Retirer / archiver un membre | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Promouvoir Member ↔ Admin | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Promouvoir / révoquer Owner | ✅ | ❌ | ❌ | ❌ | ❌ |
-| Gérer défis (créer, modifier) | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Sync matchs manuel | ✅ | ✅ | ✅ | ❌ | ❌ |
-| Sync stats manuel | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Voir / piloter cron de son clan | ✅ | ✅ | ❌ | ❌ | ❌ |
-| Voir rapports | ✅ | ✅ | ✅ | ✅ | ✅ |
-| Exporter rapports | ✅ | ✅ | ❌ | ✅ | ❌ |
-| Gérer notifications / annonces | ✅ | ✅ | ✅ | ✅ | ❌ |
-| Gérer config clan (settings) | ✅ | ✅ | ❌ | ❌ | ❌ |
+Jamais délégables (toute la plateforme) : navigation, email d'envoi, base, crons, file commune, référentiels, cycle de
+vie des clans, joueurs, quota PUBG.
 
 ### Implémentation
 
-- Les rôles clan sont stockés dans `ClanRole` / `ClanMemberRole`.
-- Le statut SuperUser est sur `UserAccount.isSuperUser` (booléen).
-- Les routes API vérifient via `requireRole(['Owner'])`, `requireRole(['Owner', 'Admin'])` ou `requireSuperUser()`.
-- Le bypass SuperUser est automatique : `ensureMemberInClan()` laisse passer si `isSuperUser = true`.
-- Un Owner du clan A ne peut pas agir sur le clan B (isolation garantie par `ensureMemberInClan()`).
-- La promotion/révocation du rôle Owner est réservée au SuperUser.
+- Rôles de clan : `ClanRole` / `ClanMemberRole` ; `PREDEFINED_ROLES` (`src/lib/role-service.ts`) ne contient plus
+  que `Owner` et `Member`. Les lignes `ClanRole` Admin et Moderator restantes sont ignorées, puis supprimées par
+  `scripts/remove-admin-moderator-roles.ts` (après déploiement du code).
+- Gardes d'administration : `requirePlatformAdmin`, `requireClanFeature`, `requireClanAccess`
+  (`src/lib/auth/admin-guards.ts`). Jamais ouvertes par le mode visiteur ; l'accès se juge sur le membre **actif** de
+  la session, qui doit appartenir au clan de l'adresse.
+- Gardes historiques (`requireRole`, `requirePermission`, `requireNavPermission`) : le SuperUser passe en premier.
+- Rôles de menu (`NavItem`) : `none`, `member`, `owner`, `superuser`, `hidden`. Un ancien `admin` lu en base vaut
+  `owner` (`normalizeNavRole`).
 
 ---
 
@@ -193,7 +174,7 @@ Ses particularités, toutes assumées :
 
 ### Ajout d'un membre — flux manuel (invitation)
 
-Les membres peuvent être ajoutés manuellement par un Owner/Admin. L'ajout crée un enregistrement `ClanMember` avec le `pubgPlayerName`. Le `pubgAccountId` est résolu au premier appel API (sync matchs ou lifetime stats).
+Les membres peuvent être ajoutés manuellement par un Owner (dans son clan, sans faire suivre un nouveau clan PUBG) ou par le SuperUser. L'ajout crée un enregistrement `ClanMember` avec le `pubgPlayerName`. Le `pubgAccountId` est résolu au premier appel API (sync matchs ou lifetime stats).
 
 **Endpoint invitation :** `POST /api/clans/[clanId]/members/[memberId]/invite`  
 **Permission requise :** `manage_members`
@@ -217,7 +198,7 @@ Un nouveau joueur peut rejoindre ou créer un clan via la page `/join` sans inte
 **Cas 1 — Le clan PUBG existe déjà en DB :**
 - Crée un `ClanMember` avec `isActive: false`, `joinStatus: 'pending'`.
 - Lie le membre au `UserAccount` courant via `MemberIdentity`.
-- Le joueur attend la validation d'un Owner/Admin.
+- Le joueur attend la validation d'un Owner du clan (ou du SuperUser).
 
 **Cas 2 — Le clan PUBG est inconnu :**
 - Crée un nouveau `Clan` + un `ClanMember` actif.
@@ -234,7 +215,7 @@ Un nouveau joueur peut rejoindre ou créer un clan via la page `/join` sans inte
 **Page :** `/clans/[clanId]/members/pending`  
 **Endpoint approbation :** `POST /api/clans/[clanId]/members/[memberId]/approve`  
 **Endpoint rejet :** `POST /api/clans/[clanId]/members/[memberId]/reject`  
-**Permission requise :** Owner ou Admin
+**Permission requise :** Owner du clan (fonctionnalité `clan-members`) ou SuperUser
 
 L'approbation active le membre (`isActive: true`, `joinStatus: 'active'`) et lui assigne le rôle Member par défaut.
 
@@ -251,7 +232,7 @@ La route `GET /api/clans/[clanId]/members?status=pending` retourne uniquement le
 ### Changement de rôle
 
 **Endpoint :** `PUT /api/clans/[clanId]/members/[memberId]/role`  
-**Permission requise :** Owner ou Admin selon la cible. Promouvoir/révoquer Owner requiert SuperUser.
+**Permission requise :** Owner du clan ; seuls les rôles `Owner` et `Member` existent, et promouvoir/révoquer Owner requiert le SuperUser.
 
 ### Archivage
 
@@ -422,15 +403,15 @@ Les routes sensibles vérifient l'appartenance au clan ET le rôle. Le SuperUser
 
 | Route | Permission requise |
 |---|---|
-| `GET /api/clans/[clanId]/members` | Session active (lecture) |
-| `PUT /api/clans/[clanId]/members/[memberId]/role` | Owner ou Admin du clan (promotion Owner : SuperUser uniquement) |
-| `POST /api/clans/[clanId]/members/[memberId]/invite` | Permission `manage_members` |
-| `POST /api/clans/[clanId]/members/[memberId]/approve` | Owner ou Admin du clan |
-| `POST /api/clans/[clanId]/members/[memberId]/reject` | Owner ou Admin du clan |
+| `GET /api/clans/[clanId]/members` | `requireClanFeature('clan-members')` |
+| `PUT /api/clans/[clanId]/members/[memberId]/role` | Owner du clan, rôles `Owner`/`Member` seulement (promotion Owner : SuperUser uniquement) |
+| `POST /api/clans/[clanId]/members/[memberId]/invite` | `requireClanFeature('clan-members')` |
+| `POST /api/clans/[clanId]/members/[memberId]/approve` | `requireClanFeature('clan-members')` |
+| `POST /api/clans/[clanId]/members/[memberId]/reject` | `requireClanFeature('clan-members')` |
 | `POST /api/clans/[clanId]/sync-matches` | Owner du clan ou SuperUser |
-| `POST /api/clans/[clanId]/sync-stats` | Owner du clan ou SuperUser |
-| `GET /api/clans/[clanId]/cron-control` | Owner du clan ou SuperUser |
-| `POST /api/clans/[clanId]/cron-control` | Owner du clan ou SuperUser |
+| `POST /api/clans/[clanId]/sync-stats` | SuperUser (ou appel cron interne) |
+| `GET /api/clans/[clanId]/cron-control` | SuperUser |
+| `POST /api/clans/[clanId]/cron-control` | SuperUser |
 | `POST /api/join` | Utilisateur connecté sans identité membre existante |
 
 ---

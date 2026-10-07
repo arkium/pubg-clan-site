@@ -124,13 +124,13 @@ export default function PhaseLabelSettingsPage() {
       <NavigationTrail
         currentLabel="Alias des phases PUBG"
         currentHref="/settings/phase-labels"
-        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
       />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Permissions</p>
           <h1 className="mt-2 text-2xl font-bold text-slate-900">Accès restreint</h1>
           <p className="mt-3 text-sm text-slate-600">
-            Cette page est réservée au Owner ou aux membres disposant de la permission manage_settings.
+            Cette page est réservée au SuperUser : les alias de phases sont communs à toute la plateforme.
           </p>
           <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
             Retour à l&apos;accueil
@@ -145,7 +145,7 @@ export default function PhaseLabelSettingsPage() {
       <NavigationTrail
         currentLabel="Alias des phases PUBG"
         currentHref="/settings/phase-labels"
-        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
       />
 
       <header

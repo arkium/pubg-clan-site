@@ -65,14 +65,11 @@ import {
 } from '@/app/api/clans/[clanId]/cron-control/route'
 import { GET as getRuntimeStatus } from '@/app/api/clans/[clanId]/dev/runtime-status/route'
 import { POST as postSyncStats } from '@/app/api/clans/[clanId]/sync-stats/route'
-import { GET as getQueueCleanup, POST as postQueueCleanup } from '@/app/api/clans/[clanId]/telemetry/queue-cleanup/route'
-import {
-  GET as getRecalcBatch,
-  POST as postRecalcBatch,
-} from '@/app/api/clans/[clanId]/telemetry/recalc-aggregates-batch/route'
+import { POST as postQueueCleanup } from '@/app/api/clans/[clanId]/telemetry/queue-cleanup/route'
+import { POST as postRecalcBatch } from '@/app/api/clans/[clanId]/telemetry/recalc-aggregates-batch/route'
 import { POST as postBackfillNullJson } from '@/app/api/clans/[clanId]/telemetry/backfill-null-json/route'
 import { POST as postClearSelected } from '@/app/api/clans/[clanId]/telemetry/clear-selected/route'
-import { GET as getDeadLetter, POST as postDeadLetter } from '@/app/api/clans/[clanId]/telemetry/dead-letter/route'
+import { POST as postDeadLetter } from '@/app/api/clans/[clanId]/telemetry/dead-letter/route'
 import { POST as postFetchFilesSelected } from '@/app/api/clans/[clanId]/telemetry/fetch-files-selected/route'
 import { POST as postImportFile } from '@/app/api/clans/[clanId]/telemetry/import-file/route'
 import { GET as getMetrics } from '@/app/api/clans/[clanId]/telemetry/metrics/route'
@@ -145,9 +142,7 @@ const PLATFORM_ROUTES: Array<[string, Handler]> = [
   ['DELETE cron-control', () => deleteCronControl(req('/api/clans/7/cron-control', 'DELETE'), clan)],
   ['GET dev/runtime-status', () => getRuntimeStatus(req('/api/clans/7/dev/runtime-status'), clan)],
   ['POST sync-stats', () => postSyncStats(req('/api/clans/7/sync-stats', 'POST') as never, clan)],
-  ['GET queue-cleanup', () => getQueueCleanup(req(`${T}/queue-cleanup`) as never, clan)],
   ['POST queue-cleanup', () => postQueueCleanup(req(`${T}/queue-cleanup`, 'POST', { action: 'reorder-priority' }) as never, clan)],
-  ['GET recalc-aggregates-batch', () => getRecalcBatch(req(`${T}/recalc-aggregates-batch`) as never, clan)],
   ['POST recalc-aggregates-batch', () => postRecalcBatch(req(`${T}/recalc-aggregates-batch`, 'POST', { scope: 'all-clans' }) as never, clan)],
 ]
 
@@ -155,7 +150,6 @@ const PLATFORM_ROUTES: Array<[string, Handler]> = [
 const TELEMETRY_TOOL_ROUTES: Array<[string, Handler]> = [
   ['POST backfill-null-json', () => postBackfillNullJson(req(`${T}/backfill-null-json`, 'POST') as never, clan)],
   ['POST clear-selected', () => postClearSelected(req(`${T}/clear-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
-  ['GET dead-letter', () => getDeadLetter(req(`${T}/dead-letter`) as never, clan)],
   ['POST dead-letter', () => postDeadLetter(req(`${T}/dead-letter`, 'POST') as never, clan)],
   ['POST fetch-files-selected', () => postFetchFilesSelected(req(`${T}/fetch-files-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['POST import-file', () => postImportFile(req(`${T}/import-file`, 'POST') as never, clan)],

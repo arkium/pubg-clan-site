@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
-import { assignRole, initializeDefaultRoles, PREDEFINED_ROLES, revokeRole } from '@/lib/role-service'
+import { assignRole, initializeDefaultRoles, isPredefinedRoleName, PREDEFINED_ROLES, revokeRole } from '@/lib/role-service'
 import { getActorMemberId, isSuperUserSession, requirePermission } from '@/middleware/auth-permission'
 
 function parsePositiveInt(value: string) {
@@ -64,7 +64,8 @@ export async function PATCH(
       select: { id: true, name: true, clanId: true },
     })
 
-    if (!nextRole || nextRole.clanId !== parsedClanId) {
+    // Les anciens rôles Admin et Moderator ne s'attribuent plus (quatre profils)
+    if (!nextRole || nextRole.clanId !== parsedClanId || !isPredefinedRoleName(nextRole.name)) {
       return Response.json({ error: 'Role not found in clan' }, { status: 404 })
     }
 

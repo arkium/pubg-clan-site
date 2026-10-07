@@ -22,12 +22,11 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const ROLES: NavRole[] = ['none', 'member', 'admin', 'owner', 'superuser', 'hidden']
+const ROLES: NavRole[] = ['none', 'member', 'owner', 'superuser', 'hidden']
 
 const ROLE_META: Record<NavRole, { label: string; color: string; bg: string; border: string; dot: string }> = {
   none:      { label: 'Tous',      color: 'text-slate-600',  bg: 'bg-slate-100',  border: 'border-slate-300',  dot: 'bg-slate-400'  },
   member:    { label: 'Membre',    color: 'text-sky-700',    bg: 'bg-sky-50',     border: 'border-sky-300',    dot: 'bg-sky-500'    },
-  admin:     { label: 'Admin',     color: 'text-red-700',    bg: 'bg-red-50',     border: 'border-red-300',    dot: 'bg-red-500'    },
   owner:     { label: 'Owner',     color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-400',  dot: 'bg-amber-500'  },
   superuser: { label: 'SuperUser', color: 'text-violet-700', bg: 'bg-violet-50',  border: 'border-violet-400', dot: 'bg-violet-500' },
   hidden:    { label: 'Masqué',    color: 'text-slate-500',  bg: 'bg-slate-200',  border: 'border-slate-400',  dot: 'bg-slate-500'  },
@@ -36,7 +35,6 @@ const ROLE_META: Record<NavRole, { label: string; color: string; bg: string; bor
 const SECTION_ORDER: NavSection[] = ['nav-primary', 'clan-section', 'member-section', 'admin-menu', 'owner-menu', 'superuser-menu']
 
 const ROLE_TO_TARGET_SECTION: Partial<Record<NavRole, NavSection>> = {
-  admin: 'admin-menu',
   owner: 'owner-menu',
   superuser: 'superuser-menu',
 }
@@ -425,7 +423,7 @@ function SectionCard({
   onDelete: (navKey: string) => void
   onEdit: (navKey: string) => void
 }) {
-  const counts: Record<NavRole, number> = { owner: 0, admin: 0, member: 0, none: 0, superuser: 0, hidden: 0 }
+  const counts: Record<NavRole, number> = { owner: 0, member: 0, none: 0, superuser: 0, hidden: 0 }
   items.forEach((item) => { counts[permissions[item.navKey] ?? item.defaultRole]++ })
 
   return (
@@ -444,7 +442,7 @@ function SectionCard({
           {positionSaveState === 'saving' && <span className="text-xs text-slate-400 italic">Sauvegarde…</span>}
           {positionSaveState === 'saved' && <span className="text-xs text-emerald-600">✓ Ordre sauvegardé</span>}
           {positionSaveState === 'error' && <span className="text-xs text-red-600">✗ Erreur ordre</span>}
-          {(['superuser', 'owner', 'admin', 'member', 'none', 'hidden'] as NavRole[]).map((role) =>
+          {(['superuser', 'owner', 'member', 'none', 'hidden'] as NavRole[]).map((role) =>
             counts[role] > 0 ? (
               <span key={role} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${ROLE_META[role].color} ${ROLE_META[role].bg} ${ROLE_META[role].border}`}>
                 <span className={`h-1.5 w-1.5 rounded-full ${ROLE_META[role].dot}`} />{counts[role]}
@@ -726,9 +724,9 @@ function CreateItemModal({ onClose, onCreate }: {
 
 export default function NavPermissionsPage() {
   const router = useRouter()
-  const { loading, authenticated, permissions, isSuperUser } = useAuthSession()
-  const isOwner = permissions.includes('*')
-  const canAccess = isOwner || isSuperUser
+  const { loading, authenticated, isSuperUser } = useAuthSession()
+  // Les menus servent aussi de gardes d'API : SuperUser seulement, comme PUT /api/settings/nav-permissions
+  const canAccess = isSuperUser
 
   const [allItems, setAllItems] = useState<NavItemDef[]>([])
   const [permissionMap, setPermissionMap] = useState<PermissionMap>({})

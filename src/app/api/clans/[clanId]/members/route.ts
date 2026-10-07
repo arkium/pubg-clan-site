@@ -7,9 +7,7 @@ import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-serv
 type PermissionMap = Record<string, boolean>
 
 const ROLE_PRIORITY: Record<string, number> = {
-  Owner: 4,
-  Admin: 3,
-  Moderator: 2,
+  Owner: 2,
   Member: 1,
 }
 

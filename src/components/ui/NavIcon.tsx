@@ -88,7 +88,6 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Notifications': return <Bell className={className} />
 
       // ── Admin menu ────────────────────────────────────────────────────────────
-      case 'Paramètres admin': return <Shield className={className} />
       case 'Ajouter un joueur': return <User className={className} />
       case 'Joueurs et rôles': return <Users className={className} />
       case 'Alias cartes PUBG': return <Map className={className} />
@@ -98,22 +97,20 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Accueil login': return <Key className={className} />
 
       // ── Owner menu ────────────────────────────────────────────────────────────
-      case 'Paramètres owner': return <Crown className={className} />
-      case 'Dashboard télémétrie': return <Activity className={className} />
+      case 'Paramètres du clan': return <Crown className={className} />
+      case 'État de la télémétrie': return <Activity className={className} />
       case 'Erreurs télémétrie': return <AlertTriangle className={className} />
-      case 'Sync batch manuel': return <Database className={className} />
-      case 'Ouvrir Ops Cron': return <Clock className={className} />
-      case 'Recoveries telemetry': return <Database className={className} />
+      case 'Synchronisation manuelle': return <Database className={className} />
+      case 'Récupérations': return <Database className={className} />
       case 'Télémétrie matchs': return <Activity className={className} />
-      case 'Test email': return <Mail className={className} />
-      case 'Monitoring PUBG API': return <Globe className={className} />
-      case 'Permissions nav': return <Lock className={className} />
-      case 'Changer de clan': return <Search className={className} />
+      case 'Email d’envoi': return <Mail className={className} />
+      case 'API PUBG': return <Globe className={className} />
 
       // ── SuperUser menu ────────────────────────────────────────────────────────
-      case 'Paramètres SuperUser': return <Star className={className} />
-      case 'Tous les clans': return <Users className={className} />
-      case 'Config plateforme': return <Settings className={className} />
+      case 'Plateforme': return <Star className={className} />
+      case 'Menus et navigation': return <Lock className={className} />
+      case 'Tâches planifiées': return <Clock className={className} />
+      case 'Télémétrie, tous les clans': return <Activity className={className} />
 
       default:
         return <CircleDot className={className} />

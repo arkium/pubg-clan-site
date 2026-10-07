@@ -25,6 +25,10 @@ const nextConfig: NextConfig = {
       { source: '/clans/:clanId/tournaments/:tournamentId', destination: '/tournaments/:tournamentId', permanent: false },
       // « Objets consommés » fondu dans « Style de jeu du clan » (2026-09-27) : même période, section `#sec-items`.
       { source: '/clans/:clanId/stats/items', destination: '/clans/:clanId/stats#sec-items', permanent: false },
+      // Quatre profils (docs/TODO/administration.md §5.3, lot 2) : plus de profil Admin, son accueil mène à celui du clan.
+      { source: '/settings/admin', destination: '/settings/owner', permanent: false },
+      // Ancienne redirection côté navigateur vers la page des membres, sans lien depuis le 2026-10-07.
+      { source: '/members/manage', destination: '/members', permanent: false },
     ]
   },
   //allowedDevOrigins: ['smk.arkium.group', 'localhost', '127.0.0.1', '10.1.0.248'],

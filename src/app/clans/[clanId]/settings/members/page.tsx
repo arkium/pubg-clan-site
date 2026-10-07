@@ -79,10 +79,6 @@ function getRoleBadgeClass(roleName: string) {
   switch (normalizedRole) {
     case 'owner':
       return 'member-role-badge member-role-badge--owner'
-    case 'admin':
-      return 'member-role-badge member-role-badge--admin'
-    case 'moderator':
-      return 'member-role-badge member-role-badge--moderator'
     case 'member':
       return 'member-role-badge member-role-badge--member'
     default:
@@ -96,10 +92,6 @@ function getRoleBadgeAbbr(roleName: string) {
   switch (normalizedRole) {
     case 'owner':
       return 'O'
-    case 'admin':
-      return 'A'
-    case 'moderator':
-      return 'MOD'
     case 'member':
       return 'M'
     default:
@@ -1032,12 +1024,6 @@ export default function ClanMembersSettingsPage() {
                 O
               </span>
               <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Owner</span>
-            </div>
-            <div className="flex items-center gap-1.5" title="Admin">
-              <span className="member-role-badge member-role-badge--admin inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1 text-[10px] font-black">
-                A
-              </span>
-              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Admin</span>
             </div>
             <div className="flex items-center gap-1.5" title="Membre">
               <span className="member-role-badge member-role-badge--member inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1 text-[10px] font-black">

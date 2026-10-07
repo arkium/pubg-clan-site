@@ -16,12 +16,14 @@ import {
   Trophy,
   Target
 } from 'lucide-react'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
 export function GlobalCommandPalette() {
   const [open, setOpen] = React.useState(false)
   const router = useRouter()
   const { clanId } = useSelectedClan()
+  const { isSuperUser } = useAuthSession()
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -101,10 +103,11 @@ export function GlobalCommandPalette() {
           </Command.Group>
         )}
 
-        {clanId && (
+        {/* Outils de télémétrie : réservés au SuperUser tant qu'ils restent verrouillés (src/lib/auth/owner-features.ts) */}
+        {clanId && isSuperUser && (
           <Command.Group heading="Télémétrie & Administration">
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/telemetry/dashboard`))}>
-              <Shield className="mr-2 h-4 w-4" /> Dashboard Télémétrie
+              <Shield className="mr-2 h-4 w-4" /> État de la télémétrie
             </Command.Item>
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/telemetry/matches`))}>
               <Swords className="mr-2 h-4 w-4" /> Matchs bruts

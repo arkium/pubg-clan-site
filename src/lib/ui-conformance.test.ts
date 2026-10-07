@@ -44,7 +44,6 @@ const OUT_OF_SCOPE = [
   'src/app/clans/[clanId]/telemetry/recoveries/',
   'src/app/clans/[clanId]/telemetry/sync-batch-manual/',
   'src/app/members/add/',
-  'src/app/members/manage/',
 ]
 
 const ALL_SOURCES = [...listSources('src/app'), ...listSources('src/components'), ...listSources('src/hooks')]
@@ -356,5 +355,26 @@ describe('ui-conformance — refonte UI (docs/TODO/refonte-ui.md §7)', () => {
   it('aucune coquille « Ǹ » (« RǸduire »)', () => {
     // Le caractère lui-même, ou son échappement écrit dans la source (`"R\u01F8duire"`).
     expect(offenders(/\u01F8|\\u01F8/, [])).toEqual([])
+  })
+})
+
+describe('ui-conformance — administration (docs/TODO/administration.md, lot 2)', () => {
+  const ADMIN_SOURCES = [
+    ...ALL_SOURCES.filter((file) => file.startsWith('src/app/settings/') || file.startsWith('src/app/clans/[clanId]/settings/')),
+    'src/lib/nav-permissions-registry.ts',
+    'src/components/ClanNavigation.tsx',
+    'src/components/ui/NavIcon.tsx',
+  ]
+
+  it('aucun caractère de remplacement U+FFFD (fichier mal encodé)', () => {
+    expect(offenders(/\uFFFD/, [], ALL_SOURCES)).toEqual([])
+  })
+
+  it('libellés d’administration en français', () => {
+    // Anciens libellés remplacés au lot 2 : « État de la télémétrie », « Synchronisation manuelle », « Récupérations »,
+    // « Email d’envoi », « API PUBG », « Tâches planifiées », « Télémétrie, tous les clans », « Plateforme »…
+    const english =
+      /Dashboard télémétrie|Sync batch manuel|Recoveries telemetry|'Test email'|Monitoring PUBG API|Permissions nav|Ops Cron|Telemetrie cross-clans|Config plateforme|Paramètres owner|Paramètres SuperUser|Acces restreint/
+    expect(offenders(english, [], ADMIN_SOURCES)).toEqual([])
   })
 })

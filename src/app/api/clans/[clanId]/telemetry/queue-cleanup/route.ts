@@ -1,11 +1,8 @@
 import { NextRequest } from 'next/server'
 import { prisma } from '@/lib/prisma'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
-import { reorderQueueByPriority, getQueuePriority } from '@/lib/pubg-telemetry/queue-priority'
-import {
-  cleanupClanStaleJobs,
-  type StaleCleanupResult,
-} from '@/lib/pubg-telemetry/stale-cleanup'
+import { reorderQueueByPriority } from '@/lib/pubg-telemetry/queue-priority'
+import { cleanupClanStaleJobs } from '@/lib/pubg-telemetry/stale-cleanup'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -123,89 +120,6 @@ export async function POST(
     console.error('Queue cleanup failed:', error)
     return Response.json(
       { error: 'Failed to process queue cleanup' },
-      { status: 500 }
-    )
-  }
-}
-
-export async function GET(
-  request: Request,
-  { params }: { params: Promise<{ clanId: string }> }
-) {
-  try {
-    const { clanId } = await params
-    const parsedClanId = parseClanId(clanId)
-
-    if (!parsedClanId) {
-      return Response.json({ error: 'Invalid clan id' }, { status: 400 })
-    }
-
-    const roleError = await requirePlatformAdmin(request)
-    if (roleError) {
-      return roleError
-    }
-
-    const priority = await getQueuePriority(parsedClanId)
-
-    // Get queue stats
-    const [queued, running, success, failed] = await Promise.all([
-      prisma.cronExecution.count({
-        where: {
-          clanId: parsedClanId,
-          action: 'telemetry_resync_file',
-          status: 'queued',
-        },
-      }),
-      prisma.cronExecution.count({
-        where: {
-          clanId: parsedClanId,
-          action: 'telemetry_resync_file',
-          status: 'running',
-        },
-      }),
-      prisma.cronExecution.count({
-        where: {
-          clanId: parsedClanId,
-          action: 'telemetry_resync_file',
-          status: 'success',
-        },
-      }),
-      prisma.cronExecution.count({
-        where: {
-          clanId: parsedClanId,
-          action: 'telemetry_resync_file',
-          status: 'failed',
-        },
-      }),
-    ])
-
-    return Response.json({
-      ok: true,
-      clanId: parsedClanId,
-      queue: {
-        queued,
-        running,
-        success,
-        failed,
-        total: queued + running + success + failed,
-      },
-      priority: {
-        nextJobId: priority.nextJobId,
-        nextJobMatchId: priority.nextJobMatchId,
-        queuedCount: priority.queuedCount,
-      },
-      availableActions: {
-        'reorder-priority':
-          'Sort queued jobs by match recency (recent matches first)',
-        'cleanup-stale': 'Delete jobs queued for >24h',
-        'cleanup-failed': 'Delete failed jobs older than specified hours',
-        'cancel-old': 'Cancel running jobs older than specified milliseconds',
-      },
-    })
-  } catch (error) {
-    console.error('Queue cleanup GET failed:', error)
-    return Response.json(
-      { error: 'Failed to get queue status' },
       { status: 500 }
     )
   }

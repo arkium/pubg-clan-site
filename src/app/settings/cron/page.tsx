@@ -1035,7 +1035,7 @@ export default function CronSettingsPage() {
     return (
       <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
-        currentLabel="Ops Cron"
+        currentLabel="Tâches planifiées"
         currentHref="/settings/cron"
         fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
@@ -1050,12 +1050,12 @@ export default function CronSettingsPage() {
     return (
       <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
-        currentLabel="Ops Cron"
+        currentLabel="Tâches planifiées"
         currentHref="/settings/cron"
         fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
         <section className="app-panel p-6">
-          <SettingsPageHeader title="Ops Cron (global)" subtitle="Pilotage des tâches cron et statut des workers." />
+          <SettingsPageHeader title="Tâches planifiées (toute la plateforme)" subtitle="Pilotage des tâches cron et statut des workers." />
           <p className="mt-4 text-sm text-slate-600">
             Aucun clan sélectionné. Rendez-vous sur la{' '}
             <Link href="/clans" className="font-semibold text-emerald-700 hover:underline">
@@ -1075,7 +1075,7 @@ export default function CronSettingsPage() {
   return (
     <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
-        currentLabel="Ops Cron"
+        currentLabel="Tâches planifiées"
         currentHref="/settings/cron"
         fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
@@ -1083,7 +1083,7 @@ export default function CronSettingsPage() {
       {/* --- En-tête --- */}
       <section className="app-panel p-4">
         <SettingsPageHeader
-          title="Ops Cron (global)"
+          title="Tâches planifiées (toute la plateforme)"
           subtitle="Pilotage global des tâches cron, statut des workers et historique des exécutions."
         />
         <div className="mt-3 flex flex-wrap items-center gap-2">

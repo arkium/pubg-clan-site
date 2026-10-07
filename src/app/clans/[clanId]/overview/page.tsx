@@ -94,7 +94,8 @@ export default function ClanOverviewPage() {
   )
   const clanNavItems = useSectionNavItems('clan-section', clanId, null)
   // Réglage de l'image du clan (« Accueil login ») : proposé dans la vitrine à qui y a accès, quand l'image manque.
-  const imageSettingsHref = useSectionNavItems('admin-menu', clanId, null).find((item) => item.navKey === 'admin.login-welcome')?.href ?? null
+  // L'entrée « Accueil login » a le rôle owner : elle s'affiche dans le menu Propriétaire
+  const imageSettingsHref = useSectionNavItems('owner-menu', clanId, null).find((item) => item.navKey === 'admin.login-welcome')?.href ?? null
 
   // Vitrine (palmarès, briefing) : indépendante des filtres, lue une fois.
   const [showcase, setShowcase] = useState<ClanShowcase | null>(null)

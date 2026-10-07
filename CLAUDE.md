@@ -517,9 +517,9 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
   `shotSamples`, `damageSamples`, `knockoutSamples`, `reviveSamples`, `vehicleSamples`, `killFeedSamples`,
   `carePackageSamples`. Liste faisant foi : `COMPRESSED_JSON_COLUMNS` dans
   `src/lib/pubg-telemetry/json-codec.ts`.
-- **`summary` reste en clair**, volontairement : cinq routes l'interrogent en SQL par `JSON_EXTRACT`
-  (`telemetry/circles`, `heatmap`, `loot`, `vehicles`). La compresser casserait ces agrégats **sans erreur**,
-  ils tomberaient simplement à zéro.
+- **`summary` reste en clair**, volontairement : `telemetry/heatmap` l'interroge en SQL par `JSON_EXTRACT`
+  (`telemetry/circles`, `loot` et `vehicles` le faisaient aussi, routes sans appelant supprimées le 2026-10-07). La
+  compresser casserait cet agrégat **sans erreur**, il tomberait simplement à zéro.
 - **Règle de lecture:** sélectionner la colonne `*Gz` en plus de celle en clair, puis passer la ligne à
   **`decodeTelemetryRow(row)`** — un seul appel par requête, qui normalise toutes les colonnes présentes. Lire
   la colonne en clair seule rend `null` sur un match compressé, **sans aucune erreur** : la page s'affiche vide.

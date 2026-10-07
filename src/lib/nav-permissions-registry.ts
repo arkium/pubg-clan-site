@@ -1,4 +1,17 @@
-export type NavRole = 'none' | 'member' | 'admin' | 'owner' | 'superuser' | 'hidden'
+// Quatre profils (docs/TODO/administration.md §5.3) : plus de rôle `admin` ; `hidden` désactive une entrée.
+export type NavRole = 'none' | 'member' | 'owner' | 'superuser' | 'hidden'
+
+const NAV_ROLES: readonly NavRole[] = ['none', 'member', 'owner', 'superuser', 'hidden']
+
+/**
+ * Rôle lu en base ou dans une réponse d'API. L'ancien rôle `admin` vaut `owner` tant que
+ * `scripts/remove-admin-moderator-roles.ts` n'a pas réécrit les lignes `NavItem` ; une valeur inconnue
+ * masque l'entrée plutôt que de l'ouvrir à tous.
+ */
+export function normalizeNavRole(value: string | null | undefined): NavRole {
+  if (value === 'admin') return 'owner'
+  return (NAV_ROLES as readonly string[]).includes(value ?? '') ? (value as NavRole) : 'hidden'
+}
 
 export type NavSection =
   | 'nav-primary'
@@ -21,15 +34,14 @@ export const NAV_SECTION_LABELS: Record<NavSection, string> = {
   'nav-primary': 'Navigation principale (sidebar)',
   'clan-section': 'Navigation clan',
   'member-section': 'Navigation membre',
-  'admin-menu': 'Menu Admin (sidebar)',
-  'owner-menu': 'Menu Owner (sidebar)',
-  'superuser-menu': 'Menu SuperUser (sidebar)',
+  'admin-menu': 'Menu Admin (ancien, vide)',
+  'owner-menu': 'Menu Propriétaire (barre latérale)',
+  'superuser-menu': 'Menu Plateforme (barre latérale)',
 }
 
 export const NAV_ROLE_LABELS: Record<NavRole, string> = {
   none: 'Tous',
   member: 'Membre',
-  admin: 'Admin',
   owner: 'Owner',
   superuser: 'SuperUser',
   hidden: 'Masqué',
@@ -125,7 +137,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Gérer les tournois',
     hrefTemplate: '/clans/:clanId/settings/tournaments',
-    defaultRole: 'admin',
+    defaultRole: 'owner',
     description: 'Gestion des tournois organisés par le clan, réservée aux administrateurs.',
   },
   {
@@ -157,7 +169,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'clan-section',
     label: 'Demandes en attente',
     hrefTemplate: '/clans/:clanId/members/pending',
-    defaultRole: 'admin',
+    defaultRole: 'owner',
     description: 'Approuver les demandes d\'adhésion en attente.',
   },
   {
@@ -208,14 +220,6 @@ export const NAV_REGISTRY: NavItemDef[] = [
     hrefTemplate: '/clans/:clanId/stats/positions',
     defaultRole: 'none',
     description: 'Cartographie des événements de combat et d’équipe via télémétrie — API /telemetry/positions.',
-  },
-  {
-    navKey: 'clan.items',
-    section: 'clan-section',
-    label: 'Objets consommés',
-    hrefTemplate: '/clans/:clanId/stats/items',
-    defaultRole: 'none',
-    description: 'Soins, boosts, carburant et gadgets consommés par le clan — API /telemetry/item-use.',
   },
   {
     navKey: 'clan.zone-closures',
@@ -362,7 +366,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'admin-menu',
     label: 'Ajouter un joueur',
     hrefTemplate: '/members/add',
-    defaultRole: 'admin',
+    defaultRole: 'owner',
     description: 'Formulaire pour ajouter un joueur au clan.',
   },
   {
@@ -370,7 +374,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'admin-menu',
     label: 'Joueurs et rôles',
     hrefTemplate: '/clans/:clanId/settings/members',
-    defaultRole: 'admin',
+    defaultRole: 'owner',
     description: 'Gestion des membres et de leurs rôles.',
   },
   {
@@ -378,7 +382,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'admin-menu',
     label: 'Alias cartes PUBG',
     hrefTemplate: '/settings/map-labels',
-    defaultRole: 'admin',
+    defaultRole: 'superuser',
     description: 'Alias des noms de cartes PUBG.',
   },
   {
@@ -386,7 +390,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'admin-menu',
     label: 'Alias armes PUBG',
     hrefTemplate: '/settings/weapon-labels',
-    defaultRole: 'admin',
+    defaultRole: 'superuser',
     description: 'Alias des noms des armes.',
   },
   {
@@ -394,7 +398,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'admin-menu',
     label: 'Alias phases PUBG',
     hrefTemplate: '/settings/phase-labels',
-    defaultRole: 'admin',
+    defaultRole: 'superuser',
     description: 'Alias des phases de jeu PUBG.',
   },
   {
@@ -402,7 +406,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'admin-menu',
     label: 'Accueil login',
     hrefTemplate: '/clans/:clanId/settings/login-welcome',
-    defaultRole: 'admin',
+    defaultRole: 'owner',
     description: "Page d'accueil de connexion — configurable par clan.",
   },
   {
@@ -410,7 +414,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'admin-menu',
     label: 'Notifications Discord',
     hrefTemplate: '/clans/:clanId/settings/discord',
-    defaultRole: 'admin',
+    defaultRole: 'owner',
     description: 'Alertes Top 1 publiées sur un canal Discord via webhook — configurable par clan.',
   },
 
@@ -418,9 +422,9 @@ export const NAV_REGISTRY: NavItemDef[] = [
   {
     navKey: 'owner.telemetry-dashboard',
     section: 'owner-menu',
-    label: 'Dashboard télémétrie',
+    label: 'État de la télémétrie',
     hrefTemplate: '/clans/:clanId/telemetry/dashboard',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: 'Tableau de bord de monitoring de la télémétrie.',
   },
   {
@@ -428,23 +432,23 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'owner-menu',
     label: 'Erreurs télémétrie',
     hrefTemplate: '/clans/:clanId/telemetry/errors',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: 'Erreurs et jobs bloqués de la télémétrie.',
   },
   {
     navKey: 'owner.telemetry-sync-batch',
     section: 'owner-menu',
-    label: 'Sync batch manuel',
+    label: 'Synchronisation manuelle',
     hrefTemplate: '/clans/:clanId/telemetry/sync-batch-manual',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: 'Déclenchement manuel d\'un batch de synchronisation télémétrie.',
   },
   {
     navKey: 'owner.telemetry-recoveries',
     section: 'owner-menu',
-    label: 'Recoveries telemetry',
+    label: 'Récupérations',
     hrefTemplate: '/clans/:clanId/telemetry/recoveries',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: 'Récupération des jobs de télémétrie bloqués.',
   },
   {
@@ -452,7 +456,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'owner-menu',
     label: 'Télémétrie matchs',
     hrefTemplate: '/clans/:clanId/telemetry/matches',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: 'Vue des jobs de télémétrie par match.',
   },
   {
@@ -460,63 +464,39 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'owner-menu',
     label: 'Adversaires rencontrés',
     hrefTemplate: '/clans/:clanId/telemetry/opponents',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: 'Joueurs et clans adverses croisés en match, non trackés.',
   },
   {
     navKey: 'owner.email-delivery',
     section: 'owner-menu',
-    label: 'Test email',
+    label: 'Email d’envoi',
     hrefTemplate: '/settings/email-delivery',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: "Test de l'envoi d'emails.",
   },
   {
     navKey: 'owner.pubg-api',
     section: 'owner-menu',
-    label: 'Monitoring PUBG API',
+    label: 'API PUBG',
     hrefTemplate: '/settings/pubg-api',
-    defaultRole: 'owner',
+    defaultRole: 'superuser',
     description: "Monitoring des appels à l'API PUBG.",
-  },
-  {
-    navKey: 'owner.nav-permissions',
-    section: 'owner-menu',
-    label: 'Permissions nav',
-    hrefTemplate: '/settings/nav-permissions',
-    defaultRole: 'owner',
-    description: "Gestion des niveaux d'accès de la navigation.",
-  },
-  {
-    navKey: 'owner.switch-clan',
-    section: 'owner-menu',
-    label: 'Changer de clan',
-    hrefTemplate: '/clans',
-    defaultRole: 'owner',
-    description: 'Changer de clan actif.',
   },
 
   // --- SuperUser menu (sidebar) ---
   {
     navKey: 'superuser.cron',
     section: 'superuser-menu',
-    label: 'Ops Cron',
+    label: 'Tâches planifiées',
     hrefTemplate: '/settings/cron',
     defaultRole: 'superuser',
     description: 'Pilotage global des tâches cron et statut des workers télémétrie.',
   },
   {
-    navKey: 'superuser.switch-clan',
-    section: 'superuser-menu',
-    label: 'Tous les clans',
-    hrefTemplate: '/clans',
-    defaultRole: 'superuser',
-    description: 'Changer de clan actif — réservé au SuperUser (accès cross-clan).',
-  },
-  {
     navKey: 'superuser.platform-settings',
     section: 'superuser-menu',
-    label: 'Config plateforme',
+    label: 'Menus et navigation',
     hrefTemplate: '/settings/nav-permissions',
     defaultRole: 'superuser',
     description: 'Permissions et ordre de navigation (accès SuperUser et Owner).',
@@ -524,7 +504,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
   {
     navKey: 'superuser.telemetry-recoveries',
     section: 'superuser-menu',
-    label: 'Telemetrie cross-clans',
+    label: 'Télémétrie, tous les clans',
     hrefTemplate: '/settings/telemetry-recoveries',
     defaultRole: 'superuser',
     description: 'Comparaison de la sante du pipeline télémétrie entre tous les clans suivis.',
@@ -574,7 +554,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
 
 /** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */
 export function getItemRole(navKey: string, overrides: Record<string, NavRole>): NavRole {
-  if (navKey in overrides) return overrides[navKey]
+  if (navKey in overrides) return normalizeNavRole(overrides[navKey])
   return NAV_REGISTRY.find((item) => item.navKey === navKey)?.defaultRole ?? 'none'
 }
 
@@ -582,6 +562,5 @@ export function getRoleLinkClass(role: NavRole, active: boolean, variant: 'secti
   const prefix = variant === 'submenu' ? 'clan-submenu-link' : 'clan-section-nav-link'
   if (role === 'superuser') return active ? `${prefix}--superuser-active` : `${prefix}--superuser`
   if (role === 'owner') return active ? `${prefix}--owner-active` : `${prefix}--owner`
-  if (role === 'admin') return active ? `${prefix}--admin-active` : `${prefix}--admin`
   return active ? `${prefix}--active` : ''
 }

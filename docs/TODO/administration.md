@@ -1,9 +1,9 @@
 # Administration du site — audit et réorganisation
 
 > **Étape 1 — analyse, rédigée le 2026-10-06. Étape 2 — décisions du 2026-10-07 (§5.3, §5.4, §7).**
-> **Étape 3 — lots 0 et 1 réalisés le 2026-10-07** (branche `fix/admin-rights`, §6). Lots 2 et 3 :
-> non commencés. Aucune donnée ni entrée de menu n'a été modifiée en base ; la base de `.env` (production) n'a été lue
-> qu'en lecture seule, pendant l'analyse.
+> **Étape 3 — lots 0, 1 et 2 réalisés le 2026-10-07** (branche `fix/admin-rights`, §6). Lot 3 : non commencé.
+> Aucune donnée ni entrée de menu n'a été modifiée en base : les deux scripts du lot 2 n'ont tourné qu'en simulation
+> (lecture seule), à appliquer après le déploiement (§6, lot 2, « Ordre de déploiement »).
 >
 > Décisions du 2026-10-07 : **quatre profils** (visiteur, membre, Owner, SuperUser — Admin et Moderator supprimés) ;
 > le SuperUser **choisit les outils de clan ouverts aux Owners**, par un réglage **commun à tous les Owners** ; le
@@ -541,6 +541,54 @@ Reste à faire :
 - **Tests** : un test qui vérifie que chaque lien du registre mène à une page existante ou à une redirection de
   `next.config.ts` ; ajout à `src/lib/ui-conformance.test.ts` d'une règle « aucun U+FFFD » et d'une liste de libellés
   anglais interdits dans `src/app/settings/` ; test du script en simulation.
+
+**État au 2026-10-07 : code fait (branche `fix/admin-rights`) ; les deux scripts de données sont écrits, simulés sur la
+base de production (lecture seule) et PAS appliqués** — voir « Ordre de déploiement ».
+
+Simulations du 2026-10-07 :
+
+- `cleanup-admin-nav.ts` : 63 entrées ; 5 à supprimer (`owner.nav-permissions`, `owner.switch-clan`,
+  `superuser.switch-clan`, `admin.weapon-categories`, `clan.reports` — `clan.items` n'était pas en base) ; 3 à créer
+  (`primary.mortar`, `primary.resources`, `primary.zone-reading`) ; 9 libellés de base, dont « Stats armes » →
+  « L'armurerie du clan » (surcharge identique effacée).
+- `remove-admin-moderator-roles.ts` : 28 lignes `ClanRole` Admin/Moderator, **aucune attribuée** ; 10 entrées de menu
+  en `admin` (défaut ou surcharge) passent à `owner`, les surcharges `superuser` restent.
+
+Ordre de déploiement :
+
+1. Déployer le code (lots 0, 1 et 2) sur les quatre services.
+2. `npx tsx scripts/cleanup-admin-nav.ts --apply` — avant, les icônes des entrées renommées retombent sur l'icône par
+   défaut (elles sont choisies d'après le libellé, `NavIcon`).
+3. `npx tsx scripts/remove-admin-moderator-roles.ts --apply` — jamais avant l'étape 1 : l'ancien code recréait les
+   rôles Admin et Moderator à chaque appel de `initializeDefaultRoles`.
+
+Écarts au plan :
+
+- **`auth/switch-member` gardée.** La vérification renverse le plan : c'est la seule façon de changer de membre actif,
+  et depuis Q14 l'accès aux pages d'administration se juge sur ce membre. Elle est aussi listée pour l'application
+  mobile. Les autres routes listées sont supprimées ; `getClanSquadAnalysis` (`src/lib/squad-detector.ts`) n'a plus
+  d'appelant mais reste en place, son module en a d'autres.
+- **Accueils : `/settings/admin` supprimé**, redirigé vers `/settings/owner` (`next.config.ts`) : sans profil Admin, ses
+  entrées (rôle `owner`) s'affichent déjà dans l'accueil du clan. Les deux accueils restants partagent
+  `src/components/settings/SettingsHub.tsx` ; la barre latérale ne montre plus « Paramètres admin », et les liens
+  deviennent « Paramètres du clan » et « Plateforme » (allumé sur toutes les pages `/settings/*` hors accueil du clan).
+- **Rôle `admin` en base pendant la transition** : `normalizeNavRole` (registre) le lit comme `owner`, côté serveur
+  comme côté client ; une valeur inconnue masque l'entrée au lieu de l'ouvrir à tous.
+- **Rôles de clan** : `initializeDefaultRoles` ne renvoie plus que `Owner` et `Member` ; `PATCH …/role` refuse un autre
+  rôle ; `GET …/roles` passe sur `clan-members`. La route des distinctions (`awards`) garde `requireRole` (lecture
+  publique en mode visiteur) avec `['Owner', 'Member']`.
+- **Registre aligné sur la production** : rôles par défaut des référentiels et outils de pipeline à `superuser`, ceux de
+  « Mon clan » à `owner` ; libellés francisés. Les titres des pages concernées suivent (« Tâches planifiées »,
+  « API PUBG », « État de la télémétrie »). Le corps des pages `cron`, `pubg-api`, `telemetry-recoveries` garde ses
+  anglicismes : hors périmètre, au lot 3 avec la console Télémétrie.
+- **Lien « Accueil login » de la vue d'ensemble** : cherché dans `owner-menu` (il était cherché dans `admin-menu`, où
+  l'entrée n'apparaissait plus depuis sa surcharge en `owner`).
+- **Palette de commandes (M23)** : le groupe « Télémétrie & Administration » n'apparaît qu'au SuperUser.
+
+Tests : `src/lib/admin-cleanup-plans.test.ts` (plans des deux scripts : suppressions, créations, libellés, blocage
+si un rôle est attribué, idempotence, clés de garde jamais supprimées), `src/lib/nav-registry-links.test.ts` (chaque
+lien du registre mène à une page ou à une redirection), deux règles ajoutées à `ui-conformance.test.ts` (aucun U+FFFD,
+anciens libellés anglais interdits).
 
 ### Lot 3 — Réorganisation
 

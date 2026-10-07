@@ -1,5 +1,7 @@
 /**
- * Ajoute les entrées de navigation « Objets consommés » : `clan.items` et `member.items`. Idempotent.
+ * Ajoute l'entrée de navigation « Objets consommés » du joueur : `member.items`. Idempotent.
+ * `clan.items` n'existe plus : la page du clan est redirigée vers la page Stats, dont la route `telemetry/item-use`
+ * reprend la clé `clan.stats` (docs/TODO/administration.md, lot 2).
  * La source de vérité des permissions est la table `NavItem` ; le registre TypeScript n'est qu'un repli initial.
  *
  * Usage : npx tsx scripts/seed-item-use-nav.ts
@@ -9,17 +11,6 @@ import 'dotenv/config'
 import { prisma } from '@/lib/prisma'
 
 const ITEMS = [
-  {
-    navKey: 'clan.items',
-    after: 'clan.positions',
-    data: {
-      section: 'clan-section',
-      label: 'Objets consommés',
-      hrefTemplate: '/clans/:clanId/stats/items',
-      defaultRole: 'none',
-      description: 'Soins, boosts, carburant et gadgets consommés par le clan — API /telemetry/item-use.',
-    },
-  },
   {
     navKey: 'member.items',
     after: 'member.weapons',

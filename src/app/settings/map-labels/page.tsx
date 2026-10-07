@@ -315,22 +315,21 @@ export default function MapLabelsSettingsPage() {
       <NavigationTrail
         currentLabel="Cartes PUBG"
         currentHref="/settings/map-labels"
-        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
       />
         <section className="app-panel p-6">
           <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">Acces restreint</h1>
+          <h1 className="mt-2 text-2xl font-bold text-gray-900">Accès restreint</h1>
           <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
             <p className="text-sm text-amber-800">
-              Cette page est reservee au Owner ou aux admins disposant de la permission
-              manage_settings.
+              Cette page est réservée au SuperUser : les alias de cartes sont communs à toute la plateforme.
             </p>
           </div>
           <Link
             href="/"
             className="mt-5 app-btn app-btn--md app-btn--secondary"
           >
-            Retour a l&apos;accueil
+            Retour à l&apos;accueil
           </Link>
         </section>
       </main>
@@ -342,7 +341,7 @@ export default function MapLabelsSettingsPage() {
       <NavigationTrail
         currentLabel="Cartes PUBG"
         currentHref="/settings/map-labels"
-        fallbackParent={{ href: '/settings/admin', label: 'Administration' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
       />
       <header
         className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"

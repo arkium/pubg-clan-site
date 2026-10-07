@@ -114,8 +114,7 @@ export async function POST(
       },
       resetBeforeSync,
       recalculateAggregates,
-      wsUrl: `/api/clans/${parsedClanId}/telemetry/sync-batch-ws`,
-      message: `Enqueued ${enqueueResult.queuedCount} matches. Monitor at websocket endpoint.`,
+      message: `Enqueued ${enqueueResult.queuedCount} matches.`,
     })
   } catch (error) {
     console.error('Batch manual sync failed:', error)

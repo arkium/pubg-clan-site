@@ -297,10 +297,10 @@ export default function MatchImportSettingsPage() {
         fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
         <section className="app-panel p-6">
-          <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
-          <p className="mt-2 text-sm text-amber-800">Cette page est reservee au SuperUser.</p>
+          <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
+          <p className="mt-2 text-sm text-amber-800">Cette page est réservée au SuperUser.</p>
           <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour a l&apos;accueil
+            Retour à l&apos;accueil
           </Link>
         </section>
       </main>

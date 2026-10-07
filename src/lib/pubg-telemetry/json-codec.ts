@@ -30,9 +30,9 @@ const GZIP_MAGIC_1 = 0x8b
 /**
  * Colonnes JSON stockées compressées.
  *
- * `summary` en est **volontairement absente** : cinq routes l'interrogent en SQL par
- * `JSON_EXTRACT` (`telemetry/circles`, `heatmap`, `loot`, `vehicles`), ce qu'un blob compressé
- * rendrait impossible. Elle pèse moins de 10 Mo au total : aucun intérêt à y toucher.
+ * `summary` en est **volontairement absente** : `telemetry/heatmap` l'interroge en SQL par
+ * `JSON_EXTRACT` (les routes `circles`, `loot` et `vehicles`, sans appelant, ont été supprimées le 2026-10-07), ce
+ * qu'un blob compressé rendrait impossible. Elle pèse moins de 10 Mo au total : aucun intérêt à y toucher.
  */
 export const COMPRESSED_JSON_COLUMNS = [
   'positionSamples',

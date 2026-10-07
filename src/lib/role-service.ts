@@ -44,21 +44,13 @@ const PERMISSION_CATALOG: PermissionCatalogItem[] = [
   { key: 'manage_integrations', name: 'Manage Integrations', description: 'Manage integrations', category: 'settings' },
 ]
 
+// Quatre profils (docs/TODO/administration.md §5.3) : un clan n'a plus que deux rôles. Les anciennes lignes
+// `ClanRole` Admin et Moderator sont ignorées ici puis supprimées par scripts/remove-admin-moderator-roles.ts.
 export const PREDEFINED_ROLES = {
   OWNER: {
     name: 'Owner',
     description: 'Full control of the clan',
     permissions: ['*'],
-  },
-  ADMIN: {
-    name: 'Admin',
-    description: 'Manage members and settings',
-    permissions: ['edit_clan', 'manage_members', 'manage_roles', 'manage_settings', 'assign_roles', 'revoke_roles', 'invite_members', 'remove_members', 'manage_challenges'],
-  },
-  MODERATOR: {
-    name: 'Moderator',
-    description: 'Clan animation: challenges, announcements, recruitment',
-    permissions: ['invite_members', 'manage_challenges', 'manage_notifications', 'manage_channels', 'moderate_members'],
   },
   MEMBER: {
     name: 'Member',
@@ -66,6 +58,12 @@ export const PREDEFINED_ROLES = {
     permissions: ['view_leaderboard', 'view_notifications'],
   },
 } as const
+
+export const PREDEFINED_ROLE_NAMES: string[] = Object.values(PREDEFINED_ROLES).map((role) => role.name)
+
+export function isPredefinedRoleName(name: string) {
+  return PREDEFINED_ROLE_NAMES.includes(name)
+}
 
 function permissionListToMap(permissionKeys: readonly string[]): Prisma.InputJsonValue {
   return permissionKeys.reduce<PermissionMap>((acc, key) => {
@@ -168,7 +166,7 @@ export async function initializeDefaultRoles(clanId: number) {
   await ensureOwnerBootstrap(clanId)
 
   return prisma.clanRole.findMany({
-    where: { clanId },
+    where: { clanId, name: { in: PREDEFINED_ROLE_NAMES } },
     orderBy: { name: 'asc' },
   })
 }

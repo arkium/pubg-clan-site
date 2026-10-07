@@ -335,20 +335,20 @@ export default function PubgApiSettingsPage() {
     return (
       <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
-        currentLabel="Monitoring PUBG API"
+        currentLabel="API PUBG"
         currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/settings/owner', label: 'Propri�taire' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
       />
         <section className="app-panel p-6">
-          <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
+          <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
           <p className="mt-2 text-sm text-amber-800">
-            Cette page est reservee au SuperUser.
+            Cette page est réservée au SuperUser.
           </p>
           <Link
             href="/"
             className="mt-5 app-btn app-btn--md app-btn--secondary"
           >
-            Retour a l&apos;accueil
+            Retour à l&apos;accueil
           </Link>
         </section>
       </main>
@@ -358,13 +358,13 @@ export default function PubgApiSettingsPage() {
   return (
     <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
-        currentLabel="Monitoring PUBG API"
+        currentLabel="API PUBG"
         currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/settings/owner', label: 'Propri�taire' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader
-          title="Monitoring PUBG API"
+          title="API PUBG"
           subtitle="Suivi en temps réel des appels API, des erreurs 429 et de la latence moyenne."
         />
       </section>

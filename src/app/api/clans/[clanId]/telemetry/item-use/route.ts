@@ -22,7 +22,8 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const permissionError = await requireNavPermission('clan.items')(request, { clanId: parsedClanId })
+    // Section « Objets » de la page Stats : même entrée de menu que la page (l'ancienne page dédiée est redirigée)
+    const permissionError = await requireNavPermission('clan.stats')(request, { clanId: parsedClanId })
     if (permissionError) return permissionError
 
     const period = parsePeriod(new URL(request.url).searchParams.get('period'))

@@ -1,10 +1,9 @@
 import { prisma } from '@/lib/prisma'
-import type { NavRole, NavSection, NavItemDef } from '@/lib/nav-permissions-registry'
+import { normalizeNavRole, type NavRole, type NavSection, type NavItemDef } from '@/lib/nav-permissions-registry'
 
-const VALID_ROLES: NavRole[] = ['none', 'member', 'admin', 'owner', 'superuser', 'hidden']
+const VALID_ROLES: NavRole[] = ['none', 'member', 'owner', 'superuser', 'hidden']
 
 const ROLE_TO_DISPLAY_SECTION: Record<string, string> = {
-  admin: 'admin-menu',
   owner: 'owner-menu',
   superuser: 'superuser-menu',
 }
@@ -15,7 +14,7 @@ function getDisplaySection(row: {
   roleOverride: string | null
   defaultRole: string
 }): string {
-  const effectiveRole = row.roleOverride ?? row.defaultRole
+  const effectiveRole = normalizeNavRole(row.roleOverride ?? row.defaultRole)
   return ROLE_TO_DISPLAY_SECTION[effectiveRole] ?? (row.sectionOverride ?? row.section)
 }
 
@@ -28,7 +27,6 @@ export const NAV_GUARD_KEYS = [
   'clan.challenges',
   'clan.drop-zones',
   'clan.heatmap-kills',
-  'clan.items',
   'clan.leaderboard',
   'clan.matches',
   'clan.members',
@@ -72,7 +70,7 @@ export async function getAllNavItems(): Promise<NavItemDef[]> {
     section: (row.sectionOverride ?? row.section) as NavSection,
     label: row.labelOverride ?? row.label,
     hrefTemplate: row.hrefTemplate,
-    defaultRole: (row.roleOverride ?? row.defaultRole) as NavRole,
+    defaultRole: normalizeNavRole(row.roleOverride ?? row.defaultRole),
     description: row.description,
   }))
 }
@@ -84,14 +82,14 @@ export async function getNavPermissions(): Promise<Array<{ navKey: string; role:
   })
   return rows.map((row) => ({
     navKey: row.navKey,
-    role: (row.roleOverride ?? row.defaultRole) as NavRole,
+    role: normalizeNavRole(row.roleOverride ?? row.defaultRole),
   }))
 }
 
 export async function getNavItemRole(navKey: string): Promise<NavRole> {
   const row = await prisma.navItem.findUnique({ where: { navKey } })
   if (!row) return 'none'
-  return (row.roleOverride ?? row.defaultRole) as NavRole
+  return normalizeNavRole(row.roleOverride ?? row.defaultRole)
 }
 
 export async function getNavPositions(): Promise<Record<string, string[]>> {
@@ -260,8 +258,8 @@ export async function getNavPermissionOverrides(): Promise<Record<string, NavRol
   })
   const result: Record<string, NavRole> = {}
   for (const row of rows) {
-    if (row.roleOverride && isValidRole(row.roleOverride)) {
-      result[row.navKey] = row.roleOverride as NavRole
+    if (row.roleOverride) {
+      result[row.navKey] = normalizeNavRole(row.roleOverride)
     }
   }
   return result

@@ -3,9 +3,7 @@ import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
 import { requireNavPermission } from '@/middleware/auth-permission'
 
 const ROLE_PRIORITY: Record<string, number> = {
-  Owner: 4,
-  Admin: 3,
-  Moderator: 2,
+  Owner: 2,
   Member: 1,
 }
 

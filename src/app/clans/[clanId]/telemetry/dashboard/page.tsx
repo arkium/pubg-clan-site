@@ -135,7 +135,7 @@ export default function TelemetryDashboard() {
 
       <section className="app-panel p-4">
         <SettingsPageHeader
-          title="Dashboard télémétrie"
+          title="État de la télémétrie"
           subtitle="Métriques en temps réel de la queue de traitement télémétrie."
           actions={
             <div className="flex items-center gap-3">

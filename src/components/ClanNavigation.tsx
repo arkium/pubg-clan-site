@@ -42,10 +42,9 @@ type SubmenuItem = {
   href: string
   tone: NavItem['tone'] | 'violet'
   highlightWhenActive?: boolean
-  role?: 'admin' | 'owner' | 'superuser'
+  role?: 'owner' | 'superuser'
 }
 
-type CronAction = 'sync_matches' | 'sync_stats' | 'generate_weekly_report' | 'generate_monthly_report'
 type AppTheme = 'light' | 'dark'
 
 type ClanNavigationProps = {
@@ -109,7 +108,6 @@ function isAppTheme(value: string): value is AppTheme {
 const CTX_EXACT_MATCH_KEYS = new Set(['clan.stats'])
 
 const CTX_ROLE_TO_TARGET: Partial<Record<NavRole, NavSection>> = {
-  admin: 'admin-menu',
   owner: 'owner-menu',
   superuser: 'superuser-menu',
 }
@@ -117,9 +115,8 @@ const CTX_ROLE_TO_TARGET: Partial<Record<NavRole, NavSection>> = {
 const CTX_SECTION_LABELS: Partial<Record<NavSection, string>> = {
   'clan-section': 'Mon clan',
   'member-section': 'Mon profil',
-  'admin-menu': 'Admin',
-  'owner-menu': 'Owner',
-  'superuser-menu': '★ SuperUser',
+  'owner-menu': 'Propriétaire',
+  'superuser-menu': '★ Plateforme',
 }
 
 // Hrefs that must match exactly (not prefix) for section detection
@@ -172,8 +169,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
 
     return 'dark'
   })
-  const [cronPending, setCronPending] = useState<CronAction | null>(null)
-  const [cronMessage, setCronMessage] = useState<string | null>(null)
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
   const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('first_run')
   const [clanImageUrl, setClanImageUrl] = useState('/pubg.png')
@@ -344,14 +339,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const permissionSet = useMemo(() => new Set(permissions), [permissions])
   const hasWildcard = permissionSet.has('*')
 
-  const canManageMembers = hasWildcard || permissionSet.has('manage_members')
-  const canViewLeaderboard =
-    hasWildcard || permissionSet.has('view_leaderboard') || permissionSet.has('view_reports')
-  const canViewReports = hasWildcard || permissionSet.has('view_reports')
-  const canManageRoles = hasWildcard || permissionSet.has('manage_roles')
-  const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
+  // Quatre profils (docs/TODO/administration.md §5.3) : l'Owner porte `*`, plus de profil Admin
   const isOwner = hasWildcard
-  const isAdmin = canManageMembers || canManageRoles || canManageSettings
 
   // Member id to use for nav links: pointing at the currently viewed member
   // (persisted across navigation, e.g. clicking into "Mon clan" and back)
@@ -368,42 +357,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     setViewedMemberId(urlMemberId)
     window.sessionStorage.setItem(VIEWED_MEMBER_STORAGE_KEY, String(urlMemberId))
   }, [urlMemberId, viewedMemberId])
-
-  // Items promoted to another section are no longer visible in their native section
-  const ROLE_TO_TARGET: Partial<Record<string, NavSection>> = {
-    admin: 'admin-menu',
-    owner: 'owner-menu',
-    superuser: 'superuser-menu',
-  }
-
-  function getFirstSectionHref(section: NavSection, fallback: string): string {
-    const items = navPerms.items.filter((i) => {
-      if (i.section !== section) return false
-      if (i.navKey === 'owner.switch-clan') return false
-      const role = getItemRole(i.navKey, navPerms.roles)
-      const target = ROLE_TO_TARGET[role]
-      return !target || target === section
-    })
-    const posOrder = navPerms.positions[section] as string[] | undefined
-    const ordered = posOrder
-      ? [...items].sort((a, b) => {
-          const ai = posOrder.indexOf(a.navKey)
-          const bi = posOrder.indexOf(b.navKey)
-          return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi)
-        })
-      : items
-    const first = ordered.find((i) => {
-      const role = getItemRole(i.navKey, navPerms.roles)
-      if (role === 'hidden') return false
-      if (role === 'superuser') return isSuperUser
-      if (role === 'owner') return isOwner || isSuperUser
-      if (role === 'admin') return isAdmin || isSuperUser
-      return true
-    })
-    return first ? resolveHref(first.hrefTemplate) : fallback
-  }
-
-  const dashboardHref = memberIdForCtx ? `/members/${memberIdForCtx}/dashboard` : '/members'
 
   const primaryLinks: NavItem[] = ([
       // Vitrine du site (docs/features/accueil.md) : plein écran, elle quitte le shell.
@@ -428,12 +381,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         : { navKey: 'primary.login', label: 'Se connecter', href: '/login', tone: 'neutral' },
     ] as (NavItem | null)[]).filter((item): item is NavItem => item !== null && !isNavHidden(item.navKey))
 
-  const adminEntryHref = '/settings/admin'
   const ownerEntryHref = '/settings/owner'
   const superuserEntryHref = '/settings/superuser'
 
   // Le SuperUser accède à toutes les pages d'administration, accueils compris (docs/TODO/administration.md §5.4)
-  const showAdminMenu = isAdmin || isSuperUser
   const showOwnerMenu = Boolean((isOwner || isSuperUser) && clanId)
   const showSuperUserMenu = isSuperUser
 
@@ -463,7 +414,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     if (role === 'hidden') return isSuperUser
     if (role === 'superuser') return isSuperUser
     if (role === 'owner') return isOwner || isSuperUser
-    if (role === 'admin') return isAdmin || isSuperUser
     return true
   }
 
@@ -477,7 +427,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     const sectionsToCheck: Array<{ section: NavSection; canSee: boolean }> = [
       { section: 'superuser-menu', canSee: isSuperUser },
       { section: 'owner-menu', canSee: isOwner || isSuperUser },
-      { section: 'admin-menu', canSee: isAdmin || isSuperUser },
       { section: 'clan-section', canSee: true },
       { section: 'member-section', canSee: true },
     ]
@@ -532,14 +481,14 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       .filter((i) => isValidCtxHref(i.href))
     const regularItems = allItems.filter((i) => i.role === 'none' || i.role === 'member')
     const roleItems = allItems.filter(
-      (i) => i.role === 'admin' || i.role === 'owner' || i.role === 'superuser' || i.role === 'hidden'
+      (i) => i.role === 'owner' || i.role === 'superuser' || i.role === 'hidden'
     )
     return { regularItems, roleItems }
   }
 
   const isViewingOtherMember =
     activeSection === 'member-section' &&
-    (isSuperUser || isOwner || isAdmin) &&
+    (isSuperUser || isOwner) &&
     urlMemberId !== null &&
     activeMemberId !== null &&
     urlMemberId !== activeMemberId
@@ -691,13 +640,11 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     const roleClass =
       item.role === 'owner'
         ? ' sidebar-ctx-nav-item--owner'
-        : item.role === 'admin'
-          ? ' sidebar-ctx-nav-item--admin'
-          : item.role === 'superuser'
-            ? ' sidebar-ctx-nav-item--superuser'
-            : item.role === 'hidden'
-              ? ' sidebar-ctx-nav-item--hidden'
-              : ''
+        : item.role === 'superuser'
+          ? ' sidebar-ctx-nav-item--superuser'
+          : item.role === 'hidden'
+            ? ' sidebar-ctx-nav-item--hidden'
+            : ''
     return (
       <Link
         key={item.navKey}
@@ -749,13 +696,6 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     )
   }
 
-  function renderCtxSection(mobile = false) {
-    if (!activeSection) return null
-    const sectionTitle = CTX_SECTION_LABELS[activeSection]
-    if (!sectionTitle) return null
-    return renderFullCtxSection(activeSection, sectionTitle, 'sidebar-ctx-nav-title', mobile)
-  }
-
   function onMobileDrawerTransitionEnd() {
     if (!mobileOpen) {
       setMobilePanelVisible(false)
@@ -786,81 +726,15 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     await handleLogout()
   }
 
-  async function handleCronAction(action: CronAction) {
-    if (!clanId || cronPending) {
-      return
-    }
-
-    setCronPending(action)
-    setCronMessage(null)
-
-    try {
-      const response = await fetch(`/api/clans/${clanId}/cron-control`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ action }),
-      })
-
-      let payload = null as
-        | {
-          ok?: boolean
-          partial?: boolean
-          message?: string
-          warning?: string
-          error?: string
-        }
-        | null;
-      let rawResponseText = ''
-
-      try {
-        payload = (await response.clone().json()) as {
-          ok?: boolean
-          partial?: boolean
-          message?: string
-          warning?: string
-          error?: string
-        }
-      } catch {
-        rawResponseText = (await response.text().catch(() => '')).trim()
-      }
-
-      if (!response.ok || !payload?.ok) {
-        const fallback = rawResponseText
-          ? `HTTP ${response.status}: ${rawResponseText.slice(0, 140)}`
-          : `HTTP ${response.status}: reponse invalide du serveur`
-        setCronMessage(
-          payload?.error ??
-            payload?.message ??
-            `${fallback}. L action a peut-être ete lancee, verifie la page Ops Cron.`
-        )
-        return
-      }
-
-      const parts = [payload.message ?? 'Action cron lancee']
-      if (payload.warning) {
-        parts.push(payload.warning)
-      }
-
-      setCronMessage(parts.join(' '))
-    } catch {
-      setCronMessage('Reponse non recue. L action a peut-être ete lancee, verifie Ops Cron.')
-    } finally {
-      setCronPending(null)
-    }
-  }
-
   function isActiveLink(href: string) {
     if (href === '/clans') {
       if (pathname === '/clans/comparator' || pathname.startsWith('/clans/comparator/')) return false
       if (pathname.includes('/settings/')) return false
     }
 
-    if (href === '/settings/admin') {
-      if (pathname.includes('/settings/') && !pathname.includes('/settings/owner') && !pathname.includes('/settings/superuser')) {
-        return true
-      }
+    // Les pages Plateforme (/settings/*) gardent allumé le lien « Plateforme », pas celui du clan
+    if (href === '/settings/superuser' && pathname.startsWith('/settings/') && !pathname.startsWith('/settings/owner')) {
+      return true
     }
 
     return pathname === href || pathname.startsWith(`${href}/`)
@@ -1103,12 +977,11 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
               <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item))}</nav>
             </section>
 
-            {(showAdminMenu || showOwnerMenu || showSuperUserMenu) && (
+            {(showOwnerMenu || showSuperUserMenu) && (
               <section className="border-t border-slate-200 dark:border-slate-800/80 pt-4">
                 <div className="grid grid-cols-1 gap-2">
-                  {showAdminMenu && renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' })}
-                  {showOwnerMenu && renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
-                  {showSuperUserMenu && renderSubmenuLink({ navKey: 'superuser.entry', label: 'Paramètres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' })}
+                  {showOwnerMenu && renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres du clan', href: ownerEntryHref, tone: 'emerald', role: 'owner' })}
+                  {showSuperUserMenu && renderSubmenuLink({ navKey: 'superuser.entry', label: 'Plateforme', href: superuserEntryHref, tone: 'violet', role: 'superuser' })}
                 </div>
               </section>
             )}
@@ -1322,12 +1195,11 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 <nav className="grid grid-cols-1 gap-2">{primaryLinks.map((item) => renderLink(item, true))}</nav>
               </section>
 
-              {(showAdminMenu || showOwnerMenu || showSuperUserMenu) && (
+              {(showOwnerMenu || showSuperUserMenu) && (
                 <section className="border-t border-slate-200 dark:border-slate-800/80 pt-4">
                   <div className="grid grid-cols-1 gap-2">
-                    {showAdminMenu && renderSubmenuLink({ navKey: 'admin.entry', label: 'Paramètres admin', href: adminEntryHref, tone: 'brand', role: 'admin' }, true)}
-                    {showOwnerMenu && renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres owner', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
-                    {showSuperUserMenu && renderSubmenuLink({ navKey: 'superuser.entry', label: 'Paramètres SuperUser', href: superuserEntryHref, tone: 'violet', role: 'superuser' }, true)}
+                    {showOwnerMenu && renderSubmenuLink({ navKey: 'owner.entry', label: 'Paramètres du clan', href: ownerEntryHref, tone: 'emerald', role: 'owner' }, true)}
+                    {showSuperUserMenu && renderSubmenuLink({ navKey: 'superuser.entry', label: 'Plateforme', href: superuserEntryHref, tone: 'violet', role: 'superuser' }, true)}
                   </div>
                 </section>
               )}

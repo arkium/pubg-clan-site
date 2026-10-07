@@ -12,10 +12,15 @@ Ce document liste les ~99 routes `src/app/api/**/route.ts` du projet, avec pour 
 | ⚠️ Admin web uniquement | Gestion/settings qui n'a probablement pas sa place sur mobile |
 | ❌ Interne/dev | Jamais appelé depuis un client — routes internes, queue, monitoring worker |
 
+> **Supprimées le 2026-10-07** ([administration.md](../TODO/administration.md), lot 2), aucun appelant : `squad-analysis`,
+> `telemetry/loot`, `telemetry/vehicles`, `telemetry/circles`, `members/[id]/telemetry/circles`, et les GET de
+> `dead-letter`, `queue-cleanup`, `recalc-aggregates-batch`. `auth/switch-member` est gardée : seule façon de changer
+> de membre actif, dont dépend l'accès aux pages d'administration.
+
 **Auth — rappel des mécanismes rencontrés :**
 - `Session (cookie)` : `getSessionFromRequest` — un cookie `pubg_clan_session` valide suffit.
 - `requireSameClanAsMember` : session valide + l'utilisateur doit être lié au membre ciblé ou SuperUser.
-- `requireRole([...])` : rôle clan (`Owner`, `Admin`, `Moderator`, `Member`) sur le clan ciblé.
+- `requireRole([...])` : rôle clan (`Owner` ou `Member` — Admin et Moderator supprimés le 2026-10-07) sur le clan ciblé.
 - `requirePermission(key)` : vérifie une permission fine (`manage_members`, `manage_roles`, `edit_clan`, `view_reports`, `assign_roles`, `manage_settings`) portée par le rôle du membre actif.
 - `requireNavPermission(navKey)` : vérifie le rôle configuré pour une entrée de navigation (table `NavItem`/`NavPermission`, éditable depuis `/settings/nav-permissions`) — plus souple qu'un rôle fixe.
 - `requireSuperUser` / `isSuperUserSession` : réservé au(x) compte(s) SuperUser (cross-clan).
@@ -112,10 +117,9 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 | GET | `/api/clans/[clanId]/dev/runtime-status` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Infos process Node (pid, uptime, hostname) — détail ci-dessous |
 | GET | `/api/clans/[clanId]/lifetime-stats` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Carrière PUBG (lifetime) de tous les membres, sans période — détail ci-dessous |
 | GET | `/api/clans/[clanId]/leaderboard` | `requireNavPermission('clan.leaderboard')` | ✅ Pertinent | Classement clan par période/tri — voir [Leaderboard](../features/leaderboard.md) |
-| GET | `/api/clans/[clanId]/squad-analysis` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Analyse des compositions squad récurrentes — détail ci-dessous |
 | GET | `/api/clans/[clanId]/awards` | `requireRole(['Owner','Admin','Member'])` | ✅ Pertinent | 11 awards fun calculés par période — voir [Awards](../features/awards.md) |
 
-> **Historique :** `leaderboard`, `lifetime-stats`, `squad-analysis` et `matches` (voir domaine Matchs) n'appliquaient auparavant aucun contrôle de rôle (seul un `clanId` numérique valide était vérifié). Un `requireNavPermission` a été ajouté sur chacune (2026-07-05, décision : accès configurable par rôle plutôt qu'un rôle figé, voir [Plan application mobile](mobile-app-plan.md)) — `clan.leaderboard`/`clan.matches` réutilisent les clés nav existantes des pages web correspondantes ; `squad-analysis` et `lifetime-stats` réutilisent `clan.stats` (aucune page dédiée à `squad-analysis` ne consomme encore cette route).
+> **Historique :** `leaderboard`, `lifetime-stats`, `squad-analysis` (supprimée le 2026-10-07, sans appelant) et `matches` (voir domaine Matchs) n'appliquaient auparavant aucun contrôle de rôle (seul un `clanId` numérique valide était vérifié). Un `requireNavPermission` a été ajouté sur chacune (2026-07-05, décision : accès configurable par rôle plutôt qu'un rôle figé, voir [Plan application mobile](mobile-app-plan.md)) — `clan.leaderboard`/`clan.matches` réutilisent les clés nav existantes des pages web correspondantes ; `squad-analysis` et `lifetime-stats` réutilisent `clan.stats` (aucune page dédiée à `squad-analysis` ne consomme encore cette route).
 
 ### Détail — `GET /api/clans/[clanId]/roles`
 
@@ -135,11 +139,6 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 
 - **Query :** aucun (la période a été retirée le 2026-09-27 : une carrière n'en dépend pas).
 - **Réponse :** `{ clan: { id, name, tag }, members: Array<{ memberId, displayName, lastRefreshedAt, stats: LifetimeStats }>, activeMemberCount, lifetimeSync: { expression, timezone, runsPerDay } }` où `LifetimeStats` a la même forme que celle documentée dans [Dashboard membre](../features/member-dashboard.md) (`combat`, `victory`, `support`, `vehicle`, `movement`, `other`). Vue agrégée clan entier (vs la route membre qui ne renvoie qu'un joueur). `stats.other` porte aussi `timeSurvived`, `roundsPlayed` et `daysPlayed` pour les lignes synchronisées depuis le 2026-09-27. `lifetimeSync` décrit la planification de `daily_lifetime_stats_sync`. Page : « Carrière PUBG du clan » — [Statistiques](../features/statistiques.md).
-
-### Détail — `GET /api/clans/[clanId]/squad-analysis`
-
-- **Query :** aucun.
-- **Réponse :** `{ clanId, clanName, ...analysis }` où `analysis` provient de `getClanSquadAnalysis()` (`src/lib/squad-detector.ts`) — compositions squad détectées, fréquence, performance par groupe.
 
 ---
 
@@ -359,11 +358,8 @@ Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/a
 | GET | `/weapons` | `requireNavPermission('clan.stats-weapons')` | ✅ Pertinent | Stats armes agrégées par membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/synergies` | `requireRole(['Owner'])` | ✅ Pertinent | Revives/co-kills/dégâts partagés par paire — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/playstyle` | `requireRole(['Owner'])` | ✅ Pertinent | Scores agressivité/soutien/discipline de zone — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/circles` | `requireRole(['Owner'])` | ✅ Pertinent | Métriques de gestion des cercles — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/positions` | `requireNavPermission('clan.positions')` | ✅ Pertinent | Échantillons de positions sur carte — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/heatmap` | `requireNavPermission('clan.heatmap-kills')` | ✅ Pertinent | Densité de kills par cellule de carte — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/loot` | `requireRole(['Owner'])` | ✅ Pertinent | Économie de loot (pickups/drops/équipements) — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/vehicles` | `requireRole(['Owner'])` | ✅ Pertinent | Stats véhicules par membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/drop-zones` | `requireNavPermission('clan.drop-zones')` | ✅ Pertinent | Points d'atterrissage + heatmap 40×40 — voir [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) |
 | GET | `/item-use` | `requireNavPermission('clan.items')` | ✅ Pertinent | Objets consommés par le clan, par famille, par objet et par membre (`?period=week\|month\|all`) — voir [Objets consommés](../features/objets-consommes.md) |
 | GET | `/zone-closures` | `requireNavPermission('clan.zone-closures')` | ✅ Pertinent | Positions d'arrivée à chaque fermeture de cercle (`?period=`, `?map=`, `?memberId=`, `?phase=`) — voir [Fin de zone](../features/fin-de-zone.md) |
@@ -383,14 +379,11 @@ En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 | POST | `/fetch-files-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Télécharge/capture les fichiers CDN sans parser — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/sync-selected-enqueue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Poll de progression du mode "Direct Sync" — non documenté ailleurs, détail ci-dessous |
 | POST | `/sync-selected-enqueue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Enqueue des matchs pour sync live — détail ci-dessous |
-| GET | `/dead-letter` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Jobs en échec définitif — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/dead-letter` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Remet des jobs en queue depuis la dead-letter — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/queue-cleanup` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | État de la queue + priorités — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/queue-cleanup` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Actions de maintenance (reorder/cleanup/cancel) — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/metrics` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Métriques queue (JSON ou Prometheus) — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/observability` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Totaux, p95, taux d'échec, alertes — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/recoveries` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Stats de récupération de jobs bloqués — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/recalc-aggregates-batch` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Compte les agrégats existants (`memberTelemetryRows`, `clanSynergyRows`) avant recalcul — absent de [Télémétrie API](../telemetry/api.md) (seul le POST y est documenté) |
 | POST | `/recalc-aggregates-batch` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Recalcule les agrégats périodiques — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/import-file` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/backfill-null-json` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
@@ -414,7 +407,6 @@ Non documenté dans [Télémétrie API](../telemetry/api.md) (absent de la liste
 |---|---|---|---|---|
 | GET | `/api/members/[id]/telemetry/weapons` | `requireSameClanAsMember` | ✅ Pertinent | Stats armes du membre — voir [Télémétrie API](../telemetry/api.md) et [Armes](../features/weapons.md) |
 | GET | `/api/members/[id]/telemetry/playstyle` | `requireSameClanAsMember` | ✅ Pertinent | Profil de jeu du membre — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/api/members/[id]/telemetry/circles` | `requireSameClanAsMember` | ✅ Pertinent | Métriques cercles du membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/api/members/[id]/telemetry/drop-zones` | `requireSameClanAsMember` | ✅ Pertinent | Points d'atterrissage du membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/api/members/[id]/item-use` | `requireSameClanAsMember` | ✅ Pertinent | Objets consommés du membre — voir [Objets consommés](../features/objets-consommes.md) |
 | GET | `/api/members/[id]/city-insights` | `requireSameClanAsMember` | ✅ Pertinent | Villes du membre et comparaison avec le clan — voir [Positions et villes](../features/positions-villes.md) |

@@ -237,17 +237,6 @@ export function requireNavPermission(navKey: string) {
       return null
     }
 
-    if (role === 'admin') {
-      const isAdmin = await hasPermission(actorMemberId, '*')
-        || await hasPermission(actorMemberId, 'manage_members')
-        || await hasPermission(actorMemberId, 'manage_roles')
-        || await hasPermission(actorMemberId, 'manage_settings')
-      if (!isAdmin) {
-        return Response.json({ error: 'Forbidden' }, { status: 403 })
-      }
-      return null
-    }
-
     if (role === 'superuser') {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }

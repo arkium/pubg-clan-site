@@ -75,18 +75,19 @@ type NavItemDef = {
 
 ---
 
-## Les six rôles
+## Les cinq rôles
 
 | Rôle | Qui peut voir | Redirige vers |
 |---|---|---|
 | `none` | Tous les utilisateurs | — |
 | `member` | Utilisateurs avec session valide | — |
-| `admin` | Permission `manage_*` ou `*` | `admin-menu` |
 | `owner` | Permission wildcard `*` | `owner-menu` |
 | `superuser` | Flag `isSuperUser` uniquement | `superuser-menu` |
 | `hidden` | Fonctionnalité désactivée : seul le SuperUser voit encore l'entrée (barre latérale, marquée « masquée ») et passe la garde d'API | — |
 
-Les rôles `admin`, `owner` et `superuser` déplacent automatiquement l'item vers le menu latéral correspondant.
+Les rôles `owner` et `superuser` déplacent automatiquement l'item vers le menu latéral correspondant. Le rôle
+`admin` n'existe plus (quatre profils, 2026-10-07) : une valeur `admin` encore en base est lue comme `owner`
+(`normalizeNavRole`) jusqu'au passage de `scripts/remove-admin-moderator-roles.ts`, et la section `admin-menu` reste vide.
 
 > **Menus et gardes d'API (2026-10-07, [administration.md](../TODO/administration.md)).** Ces rôles décident de
 > l'affichage, et servent de garde d'API **seulement** aux routes de lecture qui appellent `requireNavPermission`

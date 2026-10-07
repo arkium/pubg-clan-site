@@ -10,7 +10,7 @@ export type MobileDropdownNavItem = {
   onSelect?: () => void
   active?: boolean
   icon?: ReactNode
-  role?: 'admin' | 'owner'
+  role?: 'owner'
 }
 
 export type MobileDropdownNavVariant = 'default' | 'compact' | 'minimal' | 'danger'
@@ -112,11 +112,7 @@ export default function MobileDropdownNav({
         {open ? (
           <div id={`${id}-menu`} className="member-section-nav-mobile-menu" role="menu">
             {items.map((item) => {
-              const roleClass = item.role === 'admin'
-                ? 'border border-red-400/70'
-                : item.role === 'owner'
-                  ? 'border border-amber-400/70'
-                  : ''
+              const roleClass = item.role === 'owner' ? 'border border-amber-400/70' : ''
               const itemClass = [
                 'member-section-nav-mobile-item',
                 item.active ? 'member-section-nav-mobile-item-active' : '',

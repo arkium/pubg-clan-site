@@ -295,7 +295,7 @@ export default function EmailDeliverySettingsPage() {
             Cette page est réservée au SuperUser.
           </p>
           <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour a l&apos;accueil
+            Retour à l&apos;accueil
           </Link>
         </section>
       </main>
@@ -478,7 +478,7 @@ export default function EmailDeliverySettingsPage() {
               className="app-btn app-btn--md app-btn--danger gap-1.5"
             >
               <ShieldOff className="h-4 w-4" aria-hidden="true" />
-              {revoking ? 'Revocation...' : 'Revoquer la validation'}
+              {revoking ? 'Révocation…' : 'Révoquer la validation'}
             </button>
             <button
               type="button"

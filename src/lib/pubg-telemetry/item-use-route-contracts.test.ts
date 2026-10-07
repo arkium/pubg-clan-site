@@ -63,7 +63,7 @@ describe('item use route contracts', () => {
 
     expect(response.status).toBe(200)
     await expect(response.json()).resolves.toEqual({ data: STATS })
-    expect(mocks.requireNavPermission).toHaveBeenCalledWith('clan.items')
+    expect(mocks.requireNavPermission).toHaveBeenCalledWith('clan.stats')
     expect(mocks.loadItemUseStats).toHaveBeenCalledWith(expect.objectContaining({ clanId: 7, period: 'month' }))
   })
 

@@ -16,7 +16,6 @@ export type SettingsHubItem = {
 }
 
 const ROLE_TO_TARGET: Partial<Record<NavRole, NavSection>> = {
-  admin: 'admin-menu',
   owner: 'owner-menu',
   superuser: 'superuser-menu',
 }
@@ -32,19 +31,13 @@ export function useSettingsHubItems(
     const permissionSet = new Set(permissions || [])
     const hasWildcard = permissionSet.has('*')
 
-    const canManageMembers = hasWildcard || permissionSet.has('manage_members')
-    const canManageRoles = hasWildcard || permissionSet.has('manage_roles')
-    const canManageSettings = hasWildcard || permissionSet.has('manage_settings')
-
     const isOwner = hasWildcard
-    const isAdmin = canManageMembers || canManageRoles || canManageSettings
 
     function canAccessRole(role: NavRole): boolean {
       // `hidden` = fonctionnalité désactivée : seul le SuperUser la voit encore (Q18)
       if (role === 'hidden') return isSuperUser
       if (role === 'superuser') return isSuperUser
       if (role === 'owner') return isOwner || isSuperUser
-      if (role === 'admin') return isAdmin || isSuperUser
       return true
     }
 

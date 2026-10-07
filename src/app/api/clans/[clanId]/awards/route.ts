@@ -34,7 +34,7 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner', 'Admin', 'Member'])(request, {
+    const roleError = await requireRole(['Owner', 'Member'])(request, {
       clanId: parsedClanId,
       readOnly: true,
     })

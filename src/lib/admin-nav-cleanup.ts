@@ -56,6 +56,8 @@ export const NAV_KEYS_HREF_FROM_REGISTRY = [
   'owner.telemetry-errors',
   'owner.telemetry-sync-batch',
   'owner.telemetry-recoveries',
+  // Lot 3b : soirées de télémétrie (panneau d'exploitation) sous « Données »
+  'owner.telemetry-matches',
 ] as const
 
 /**
@@ -67,6 +69,7 @@ export const NAV_KEYS_RESET_FROM_REGISTRY = ['owner.encountered-opponents'] as c
 /** Libellés de base alignés sur le registre (libellés francisés, et « Stats armes » resté en base). */
 export const NAV_KEYS_LABEL_FROM_REGISTRY = [
   'owner.telemetry-dashboard',
+  'owner.telemetry-matches',
   'owner.telemetry-sync-batch',
   'owner.telemetry-recoveries',
   'owner.email-delivery',

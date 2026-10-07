@@ -116,9 +116,9 @@ Même principe qu'en 8.1 (hub avec cartes → détail, retour vers la page d'app
 | 9 | `/clans/[clanId]/settings/data/errors` | ▸ Erreurs | Owner | ✱ (dashboard n'a aucun lien sortant) |
 | 10 | `/clans/[clanId]/settings/data/sync` | ▸ Sync batch manuel | Owner | ✱ |
 | 11 | `/clans/[clanId]/settings/data/recoveries` | ▸ Recoveries | Owner | ✱ |
-| 12 | `/clans/[clanId]/telemetry/matches` | ▸ Matchs (liste jobs) | Owner | ✱ |
+| 12 | `/clans/[clanId]/settings/data/sessions` | ▸ Soirées de télémétrie (ex-`telemetry/matches`, redirigée vers `/clans/[clanId]/matches`) | Owner | ✱ |
 | 13 | `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ▸▸ Détail | Owner | ✱ (page confirmée ; lien sortant explicite à standardiser) |
-| 14 | `/clans/[clanId]/telemetry/matches/session/[date]` | ▸▸ Session (par date) | Owner | ✓ (lien réel matches → session) |
+| 14 | `/clans/[clanId]/settings/data/sessions/[date]` | ▸▸ Soirée et panneau d'exploitation (ex-`telemetry/matches/session/[date]`, redirigée vers la soirée joueur) | Owner | ✓ (lien réel liste → soirée) |
 | 15 | `/clans/[clanId]/stats/opponents` | ▸ Adversaires rencontrés | Owner | ✱ |
 | 16 | `/members` | Liste des membres (accès direct, hors clan) | Admin | — |
 | 17 | `/members/add` | ▸ Ajouter un joueur | Admin | ✱ (retour add→members existe, mais pas l'aller) |
@@ -175,7 +175,7 @@ Remplace les anciennes listes d'état courant (Pages transverses, Espace Clan, E
 | Erreurs télémétrie | `/clans/[clanId]/settings/data/errors` | 8.2 #9 |
 | Sync batch manuel | `/clans/[clanId]/settings/data/sync` | 8.2 #10 |
 | Recoveries télémétrie | `/clans/[clanId]/settings/data/recoveries` | 8.2 #11 |
-| Télémétrie matchs | `/clans/[clanId]/telemetry/matches` | 8.2 #12 |
+| Soirées de télémétrie | `/clans/[clanId]/settings/data/sessions` | 8.2 #12 |
 | Adversaires rencontrés | `/clans/[clanId]/stats/opponents` | 8.2 #15 |
 | Changer de clan | `/clans` | 8.1 #2 (action différente : switch) |
 | Test email | `/settings/email-delivery` | ⚠️ absent du §8 |
@@ -334,9 +334,9 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/clans/[clanId]/settings/data/errors` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/settings/data/sync` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/settings/data/recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/telemetry/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/data/sessions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/telemetry/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/data/sessions/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/members/add` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |

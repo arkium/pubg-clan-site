@@ -44,6 +44,8 @@ describe('liens du registre des menus', () => {
       ['/clans/:clanId/telemetry/errors', '/clans/:clanId/settings/data/errors'],
       ['/clans/:clanId/telemetry/sync-batch-manual', '/clans/:clanId/settings/data/sync'],
       ['/clans/:clanId/telemetry/recoveries', '/clans/:clanId/settings/data/recoveries'],
+      ['/clans/:clanId/telemetry/matches', '/clans/:clanId/matches'],
+      ['/clans/:clanId/telemetry/matches/session/:date', '/clans/:clanId/matches/session/:date'],
       ['/clans/:clanId/telemetry/opponents', '/clans/:clanId/stats/opponents'],
     ]
     for (const [source, destination] of MOVED) {

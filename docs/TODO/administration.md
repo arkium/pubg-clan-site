@@ -629,7 +629,7 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait ; 3b fait (hors soirée de télémétrie) ; 3c non commencé (branche `fix/admin-rights`).**
+**État au 2026-10-07 : 3a fait ; 3b fait ; 3c non commencé (branche `fix/admin-rights`).**
 
 3b-1 — accueil « Mon clan » et délégation :
 
@@ -684,11 +684,21 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
   (surcharges `superuser` effacées). En mode visiteur, l'entrée reste visible d'un anonyme mais la page et l'API le
   renvoient vers la connexion.
 
+3b-5 — soirées de télémétrie :
+
+- Liste et soirée déplacées (`git mv`, code inchangé hors liens) vers **`/clans/[clanId]/settings/data/sessions`** et
+  **`…/sessions/[date]`** : onglet « Soirées » des Données, une seule garde `clan-telemetry-tools` dans le dossier
+  `sessions/` (les deux pages demandent la même fonctionnalité). L'onglet reste actif sur une soirée.
+- Anciennes adresses redirigées vers les **pages joueur** (`/clans/[clanId]/matches`, `…/matches/session/[date]`,
+  période conservée) ; le débriefing et la page « État » d'un match gardent leur adresse sous `telemetry/matches/`. Le
+  retour de la page « État » mène à la soirée des outils (seul endroit qui y renvoie).
+- Menu `owner.telemetry-matches` renommé « Soirées de télémétrie », rattaché à `clan-telemetry-tools` (masqué aux Owners
+  tant que les outils leur sont fermés) ; le script de menus suit son adresse et son libellé. Palette, page « État de la
+  télémétrie » et docs suivis. Test `src/lib/auth/clan-data-gates.test.ts` : chaque dossier d'outil des Données porte
+  sa garde.
+
 Reste du lot 3 :
 
-- **Soirée de télémétrie** (`/clans/[clanId]/telemetry/matches` et `…/session/[date]`) : garde son panneau
-  d'exploitation (actions déjà réservées au SuperUser par l'API) et n'est pas redirigée vers les pages joueur — le
-  panneau doit d'abord devenir un onglet d'outils de « Données ».
 - **3c** : journal des actions d'administration (Q10, migration Prisma), puis ouverture éventuelle de
   `clan-telemetry-tools` aux Owners (plafond par clan et journal).
 

@@ -109,8 +109,8 @@ export function GlobalCommandPalette() {
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/state`))}>
               <Shield className="mr-2 h-4 w-4" /> État de la télémétrie
             </Command.Item>
-            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/telemetry/matches`))}>
-              <Swords className="mr-2 h-4 w-4" /> Matchs bruts
+            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/sessions`))}>
+              <Swords className="mr-2 h-4 w-4" /> Soirées de télémétrie
             </Command.Item>
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/stats/opponents`))}>
               <Target className="mr-2 h-4 w-4" /> Adversaires

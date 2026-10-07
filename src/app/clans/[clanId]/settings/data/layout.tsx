@@ -26,6 +26,7 @@ export default async function ClanDataLayout({
     ...(toolsAllowed
       ? [
           { href: `${base}/state`, label: 'État de la télémétrie' },
+          { href: `${base}/sessions`, label: 'Soirées' },
           { href: `${base}/errors`, label: 'Erreurs' },
           { href: `${base}/sync`, label: 'Synchronisation manuelle' },
           { href: `${base}/recoveries`, label: 'Récupérations' },

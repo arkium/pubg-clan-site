@@ -61,14 +61,14 @@ export default function TelemetryMatchesPage() {
     <div className="app-main-flush flex-1">
       <div className="app-container app-gutter">
         <NavigationTrail
-          currentLabel="Historique Télémétrie"
-          currentHref={`/clans/${clanId}/telemetry/matches`}
-          fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+          currentLabel="Soirées de télémétrie"
+          currentHref={`/clans/${clanId}/settings/data/sessions`}
+          fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données du clan', altHref: '/clans' }}
         />
         <section className="app-panel p-4">
           <SettingsPageHeader
             title="Télémétrie — Soirées"
-            subtitle="Soirées de jeu et état de récupération télémétrie par session."
+            subtitle="Soirées de jeu du clan, état de la télémétrie et panneau d’exploitation de chaque soirée."
           />
         </section>
       </div>
@@ -94,7 +94,7 @@ export default function TelemetryMatchesPage() {
               {sessionsWithTelemetry.map((session) => {
                 const allSynced = session.pendingCount === 0
                 const noneSynced = session.telemetryCount === 0
-                const sessionHref = `/clans/${clanId}/telemetry/matches/session/${session.date}?period=${period}`
+                const sessionHref = `/clans/${clanId}/settings/data/sessions/${session.date}?period=${period}`
 
                 return (
                   <Link

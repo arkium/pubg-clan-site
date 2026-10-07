@@ -48,9 +48,15 @@ export const OWNER_FEATURES = {
   'clan-telemetry-tools': {
     label: 'Outils de télémétrie',
     description:
-      'État de la télémétrie, erreurs, synchronisation manuelle, récupérations, actions de resynchronisation',
+      'État de la télémétrie, soirées et leur panneau d’exploitation, erreurs, synchronisation manuelle, récupérations, actions de resynchronisation',
     defaultAccess: 'superuser',
-    navKeys: ['owner.telemetry-dashboard', 'owner.telemetry-errors', 'owner.telemetry-sync-batch', 'owner.telemetry-recoveries'],
+    navKeys: [
+      'owner.telemetry-dashboard',
+      'owner.telemetry-matches',
+      'owner.telemetry-errors',
+      'owner.telemetry-sync-batch',
+      'owner.telemetry-recoveries',
+    ],
     lockedReason:
       'Ces outils consomment le quota PUBG commun à tous les clans : ils ne s’ouvrent aux Owners qu’avec un plafond par clan et le journal des actions d’administration.',
   },

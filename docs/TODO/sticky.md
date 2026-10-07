@@ -114,7 +114,7 @@ calendrier d'activité. **Types** — une dizaine d'alias pour la même notion (
 implémentations du calcul de la semaine ISO.
 
 **Mois précédents** — « Mois-1 » / « Mois-2 » dans les options de
-[telemetry/matches](../../src/app/clans/[clanId]/telemetry/matches/page.tsx#L75), le libellé de
+[settings/data/sessions](../../src/app/clans/[clanId]/settings/data/sessions/page.tsx#L75), le libellé de
 [clans/[clanId]/matches](../../src/app/clans/[clanId]/matches/page.tsx#L31) et, en minuscules, dans
 [SquadMatchList](../../src/components/SquadMatchList.tsx#L31) : à renommer « Mois dernier » / « Il y a 2 mois ».
 

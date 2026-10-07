@@ -13,8 +13,8 @@ Ce document décrit les pages d'administration et de monitoring du pipeline tél
 |-----|-------------|-------------|
 | `/clans/[clanId]/settings/data/state` | SuperUser | Métriques en temps réel de la queue |
 | `/clans/[clanId]/settings/data/errors` | SuperUser | Liste et retry des jobs échoués |
-| `/clans/[clanId]/telemetry/matches` | Owner | Liste des matchs avec statut télémétrie |
-| `/clans/[clanId]/telemetry/matches/session/[date]` | Owner | Sync télémétrie depuis la vue session |
+| `/clans/[clanId]/settings/data/sessions` | SuperUser | Soirées du clan avec statut télémétrie |
+| `/clans/[clanId]/settings/data/sessions/[date]` | SuperUser | Panneau d'exploitation d'une soirée (sync, file, effacement) |
 | `/clans/[clanId]/settings/data/recoveries` | SuperUser | Console d'observabilité avancée |
 | `/clans/[clanId]/settings/data/sync` | SuperUser | Interface de sync batch manuelle |
 
@@ -142,7 +142,10 @@ Pour un historique durable, il faudrait soit écrire les samples en DB, soit exp
 
 ---
 
-## Page matchs — `/clans/[clanId]/telemetry/matches`
+## Page soirées — `/clans/[clanId]/settings/data/sessions`
+
+Onglet « Soirées » des Données du clan (fonctionnalité `clan-telemetry-tools`, SuperUser par défaut). L'ancienne
+adresse `/clans/[clanId]/telemetry/matches` redirige vers la liste joueur `/clans/[clanId]/matches`.
 
 Liste des matchs du clan avec leur statut de télémétrie. Chaque match affiche :
 
@@ -155,7 +158,10 @@ Liste des matchs du clan avec leur statut de télémétrie. Chaque match affiche
 
 ---
 
-## Page session — `/clans/[clanId]/telemetry/matches/session/[date]`
+## Page soirée — `/clans/[clanId]/settings/data/sessions/[date]`
+
+L'ancienne adresse `/clans/[clanId]/telemetry/matches/session/[date]` redirige vers la soirée joueur
+`/clans/[clanId]/matches/session/[date]`.
 
 Fichier source référencé dans `TELEMETRY_MATCHES_SESSION_INTERFACE.md`.
 

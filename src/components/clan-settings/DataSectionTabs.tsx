@@ -16,8 +16,9 @@ export default function DataSectionTabs({ tabs }: { tabs: DataSectionTab[] }) {
   return (
     <nav className="app-container app-gutter pt-6" aria-label="Données du clan">
       <div className="-mb-px flex gap-6 overflow-x-auto border-b border-slate-200 dark:border-slate-800">
-        {tabs.map((tab) => {
-          const isActive = pathname === tab.href
+        {tabs.map((tab, index) => {
+          // Un onglet d'outil reste actif sur ses sous-pages (une soirée sous « Soirées »), pas l'onglet d'accueil.
+          const isActive = pathname === tab.href || (index > 0 && pathname.startsWith(`${tab.href}/`))
           return (
             <Link
               key={tab.href}

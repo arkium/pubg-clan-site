@@ -918,10 +918,10 @@ export default function TelemetryMatchDetailPage() {
     }
 
     if (fromDate && /^\d{4}-\d{2}-\d{2}$/.test(fromDate)) {
-      return `/clans/${clanId}/telemetry/matches/session/${fromDate}?period=${period}`
+      return `/clans/${clanId}/settings/data/sessions/${fromDate}?period=${period}`
     }
 
-    return `/clans/${clanId}/telemetry/matches?period=${period}`
+    return `/clans/${clanId}/settings/data/sessions?period=${period}`
   }, [clanId, fromDate, period])
 
   if (!clanId || !matchId) {
@@ -929,8 +929,8 @@ export default function TelemetryMatchDetailPage() {
       <div className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Détail du match"
-          currentHref={`/clans/${clanId}/telemetry/matches`}
-          fallbackParent={{ href: `/clans/${clanId}/telemetry/matches`, label: 'Matchs bruts', altHref: '/clans' }}
+          currentHref={`/clans/${clanId}/settings/data/sessions`}
+          fallbackParent={{ href: `/clans/${clanId}/settings/data/sessions`, label: 'Soirées de télémétrie', altHref: '/clans' }}
         />
         <p className="text-sm text-rose-700">Identifiants invalides.</p>
       </div>
@@ -1144,7 +1144,7 @@ export default function TelemetryMatchDetailPage() {
       <NavigationTrail
         currentLabel={`Match ${matchId.slice(0, 8)}...`}
         currentHref={`/clans/${clanId}/telemetry/matches/${matchId}/telemetry`}
-        fallbackParent={{ href: `/clans/${clanId}/telemetry/matches`, label: 'Matchs bruts', altHref: '/clans' }}
+        fallbackParent={{ href: `/clans/${clanId}/settings/data/sessions`, label: 'Soirées de télémétrie', altHref: '/clans' }}
       />
 
       <section className="app-panel p-4 md:p-5">

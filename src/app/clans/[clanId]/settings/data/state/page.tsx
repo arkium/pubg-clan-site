@@ -121,9 +121,9 @@ export default function TelemetryDashboard() {
               <ServerCrash className="w-6 h-6 text-orange-500 mb-2" />
               <span className="text-sm font-semibold text-gray-900 text-center">Recoveries</span>
             </Link>
-            <Link href={`/clans/${clanId}/telemetry/matches`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+            <Link href={`/clans/${clanId}/settings/data/sessions`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
               <FileText className="w-6 h-6 text-emerald-500 mb-2" />
-              <span className="text-sm font-semibold text-gray-900 text-center">Matchs bruts</span>
+              <span className="text-sm font-semibold text-gray-900 text-center">Soirées</span>
             </Link>
             <Link href={`/clans/${clanId}/stats/opponents`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
               <Users className="w-6 h-6 text-purple-500 mb-2" />

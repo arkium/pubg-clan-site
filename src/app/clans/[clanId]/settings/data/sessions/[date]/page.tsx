@@ -561,12 +561,12 @@ export default function TelemetrySessionDatePage() {
 
   const backHref = useMemo(() => {
     if (!clanId) return '/clans'
-    return `/clans/${clanId}/telemetry/matches?period=${period}`
+    return `/clans/${clanId}/settings/data/sessions?period=${period}`
   }, [clanId, period])
 
   const sessionHref = useMemo(() => {
     if (!clanId) return (_: string) => '/clans'
-    return (targetDate: string) => `/clans/${clanId}/telemetry/matches/session/${targetDate}?period=${period}`
+    return (targetDate: string) => `/clans/${clanId}/settings/data/sessions/${targetDate}?period=${period}`
   }, [clanId, period])
 
   async function runManualTelemetrySync() {
@@ -1027,8 +1027,8 @@ export default function TelemetrySessionDatePage() {
     <main className="app-container app-main">
       <NavigationTrail
         currentLabel={`Session du ${date}`}
-        currentHref={`/clans/${clanId}/telemetry/matches/session/${date}`}
-        fallbackParent={{ href: `/clans/${clanId}/telemetry/matches`, label: 'Matchs bruts', altHref: '/clans' }}
+        currentHref={`/clans/${clanId}/settings/data/sessions/${date}`}
+        fallbackParent={{ href: `/clans/${clanId}/settings/data/sessions`, label: 'Soirées de télémétrie', altHref: '/clans' }}
       />
       <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg mt-4">
         <div>

@@ -100,14 +100,14 @@ const FALLBACK_MATRIX: Record<string, FallbackDef> = {
 
   // Sous-pages Télémétrie
   'telemetry.match-detail': {
-    hrefTemplate: '/clans/:clanId/telemetry/matches',
+    hrefTemplate: '/clans/:clanId/settings/data/sessions',
     labelKey: 'owner.telemetry-matches',
-    labelFallback: 'Télémétrie Matchs',
+    labelFallback: 'Soirées de télémétrie',
   },
   'telemetry.match-session': {
-    hrefTemplate: '/clans/:clanId/telemetry/matches',
+    hrefTemplate: '/clans/:clanId/settings/data/sessions',
     labelKey: 'owner.telemetry-matches',
-    labelFallback: 'Télémétrie Matchs',
+    labelFallback: 'Soirées de télémétrie',
   },
 }
 

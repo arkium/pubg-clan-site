@@ -462,10 +462,10 @@ export const NAV_REGISTRY: NavItemDef[] = [
   {
     navKey: 'owner.telemetry-matches',
     section: 'owner-menu',
-    label: 'Télémétrie matchs',
-    hrefTemplate: '/clans/:clanId/telemetry/matches',
+    label: 'Soirées de télémétrie',
+    hrefTemplate: '/clans/:clanId/settings/data/sessions',
     defaultRole: 'superuser',
-    description: 'Vue des jobs de télémétrie par match.',
+    description: 'Soirées du clan et panneau d’exploitation : récupération, file et effacement de la télémétrie.',
   },
   {
     navKey: 'owner.encountered-opponents',

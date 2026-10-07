@@ -31,6 +31,13 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+async function fetchDataHealth(clanId: number): Promise<DataHealth> {
+  const response = await fetch(`/api/clans/${clanId}/settings/data-health`, { cache: 'no-store' })
+  const payload = (await response.json().catch(() => null)) as (DataHealth & { error?: string }) | null
+  if (!response.ok || !payload) throw new Error(payload?.error ?? `HTTP ${response.status}`)
+  return payload
+}
+
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="app-panel-muted p-4">
@@ -52,10 +59,7 @@ export default function ClanDataHealthPage() {
   const load = useCallback(async () => {
     if (!clanId) return
     try {
-      const response = await fetch(`/api/clans/${clanId}/settings/data-health`, { cache: 'no-store' })
-      const payload = (await response.json().catch(() => null)) as (DataHealth & { error?: string }) | null
-      if (!response.ok || !payload) throw new Error(payload?.error ?? `HTTP ${response.status}`)
-      setHealth(payload)
+      setHealth(await fetchDataHealth(clanId))
       setError('')
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Chargement impossible.')
@@ -63,8 +67,22 @@ export default function ClanDataHealthPage() {
   }, [clanId])
 
   useEffect(() => {
-    void load()
-  }, [load])
+    if (!clanId) return
+    let cancelled = false
+    fetchDataHealth(clanId).then(
+      (payload) => {
+        if (cancelled) return
+        setHealth(payload)
+        setError('')
+      },
+      (caught: unknown) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : 'Chargement impossible.')
+      }
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [clanId])
 
   async function requestResync() {
     if (!clanId) return

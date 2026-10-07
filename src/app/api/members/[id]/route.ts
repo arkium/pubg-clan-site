@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { prisma } from '@/lib/prisma'
@@ -79,7 +80,7 @@ export async function GET(
   }
 }
 
-export async function DELETE(
+async function handleDelete(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -180,7 +181,7 @@ export async function DELETE(
   }
 }
 
-export async function PATCH(
+async function handlePatch(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -370,3 +371,6 @@ export async function PATCH(
     return Response.json({ error: 'Failed to move member to clan' }, { status: 500 })
   }
 }
+
+export const PATCH = withAdminActionLog('members/[id]', handlePatch)
+export const DELETE = withAdminActionLog('members/[id]', handleDelete)

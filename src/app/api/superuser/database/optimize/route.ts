@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   MAINTAINABLE_TABLES,
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   const guard = await requireSuperUser(req)
   if (guard.error) return guard.error
 
@@ -109,3 +110,5 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: message }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('superuser/database/optimize', handlePost)

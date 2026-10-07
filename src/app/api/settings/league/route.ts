@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { DEFAULT_LEAGUE_SETTINGS } from '@/lib/clan-league'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { LEAGUE_SETTINGS_BOUNDS, validateLeagueSettings } from '@/lib/league-settings'
@@ -22,7 +23,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+async function handlePut(request: Request) {
   const forbidden = await requireSuperUser(request)
   if (forbidden) return forbidden
   const body = (await request.json().catch(() => null)) as { settings?: unknown } | null
@@ -39,3 +40,5 @@ export async function PUT(request: Request) {
     return Response.json({ error: 'Enregistrement des réglages impossible' }, { status: 500 })
   }
 }
+
+export const PUT = withAdminActionLog('settings/league', handlePut)

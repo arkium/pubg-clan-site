@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { rememberAdminActor } from '@/lib/auth/admin-actor'
 import { getNavItemRole } from '@/lib/nav-permissions-service'
 import { prisma } from '@/lib/prisma'
 import { hasAnyRole, hasPermission } from '@/lib/role-service'
@@ -24,6 +25,8 @@ export async function requireSuperUser(request: Request): Promise<Response | nul
     select: { isSuperUser: true },
   })
   if (!user?.isSuperUser) return Response.json({ error: 'Forbidden' }, { status: 403 })
+  // Acteur admis, pour le journal des actions d'administration (Q10)
+  rememberAdminActor(request, { userId: session.userId, memberId: session.activeMemberId, isSuperUser: true })
   return null
 }
 

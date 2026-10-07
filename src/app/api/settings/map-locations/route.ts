@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import {
   getDefaultMapLocations,
@@ -31,7 +32,7 @@ export async function GET(request: Request) {
   })
 }
 
-export async function PUT(request: Request) {
+async function handlePut(request: Request) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -47,3 +48,5 @@ export async function PUT(request: Request) {
   const locations = await updateMapLocations(validated.data.locations)
   return Response.json({ success: true, locations })
 }
+
+export const PUT = withAdminActionLog('settings/map-locations', handlePut)

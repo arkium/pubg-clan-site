@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import {
   isOwnerFeature,
@@ -36,7 +37,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PUT(request: Request) {
+async function handlePut(request: Request) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -56,3 +57,5 @@ export async function PUT(request: Request) {
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const PUT = withAdminActionLog('settings/owner-features', handlePut)

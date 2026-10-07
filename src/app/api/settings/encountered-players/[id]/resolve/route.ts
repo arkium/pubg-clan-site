@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
@@ -29,7 +30,7 @@ function identityKey(pubgAccountId: string, platformShard: string) {
   return `${platformShard}:${pubgAccountId}`
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
@@ -180,3 +181,5 @@ export async function POST(
     inFlight.delete(key)
   }
 }
+
+export const POST = withAdminActionLog('settings/encountered-players/[id]/resolve', handlePost)

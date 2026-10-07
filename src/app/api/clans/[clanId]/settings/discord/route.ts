@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { getDiscordSettings, updateDiscordSettings } from '@/lib/discord/discord-config-service'
@@ -106,7 +107,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
   }
 }
 
-export async function PUT(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
+async function handlePut(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
   const { clanId: clanIdParam } = await params
   const clanId = parseClanId(clanIdParam)
 
@@ -135,3 +136,5 @@ export async function PUT(request: Request, { params }: { params: Promise<{ clan
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const PUT = withAdminActionLog('clans/[clanId]/settings/discord', handlePut)

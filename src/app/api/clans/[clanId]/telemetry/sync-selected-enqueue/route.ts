@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import {
   getTelemetryLiveSyncQueueStats,
@@ -14,7 +15,7 @@ function parseClanId(clanId: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -119,3 +120,5 @@ export async function GET(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/sync-selected-enqueue', handlePost)

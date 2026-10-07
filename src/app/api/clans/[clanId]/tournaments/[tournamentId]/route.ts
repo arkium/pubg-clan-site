@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
 import {
@@ -75,7 +76,7 @@ export async function GET(
   }
 }
 
-export async function PATCH(
+async function handlePatch(
   request: NextRequest,
   { params }: { params: Promise<{ clanId: string; tournamentId: string }> }
 ) {
@@ -104,7 +105,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function handleDelete(
   request: NextRequest,
   { params }: { params: Promise<{ clanId: string; tournamentId: string }> }
 ) {
@@ -139,3 +140,6 @@ export async function DELETE(
     return Response.json({ error: 'Failed to delete tournament' }, { status: 500 })
   }
 }
+
+export const PATCH = withAdminActionLog('clans/[clanId]/tournaments/[tournamentId]', handlePatch)
+export const DELETE = withAdminActionLog('clans/[clanId]/tournaments/[tournamentId]', handleDelete)

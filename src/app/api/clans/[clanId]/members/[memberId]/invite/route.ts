@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { createMemberInvite, revokeActiveMemberInvite } from '@/lib/auth-service'
 import { prisma } from '@/lib/prisma'
@@ -15,7 +16,7 @@ function parsePositiveInt(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string; memberId: string }> }
 ) {
@@ -96,7 +97,7 @@ export async function POST(
   }
 }
 
-export async function DELETE(
+async function handleDelete(
   request: Request,
   { params }: { params: Promise<{ clanId: string; memberId: string }> }
 ) {
@@ -134,3 +135,6 @@ export async function DELETE(
     return Response.json({ error: 'Failed to revoke invite' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/members/[memberId]/invite', handlePost)
+export const DELETE = withAdminActionLog('clans/[clanId]/members/[memberId]/invite', handleDelete)

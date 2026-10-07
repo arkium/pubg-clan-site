@@ -1727,3 +1727,24 @@ model PrivacyRequest {
 
   @@index([status, createdAt])
 }
+
+/// Journal des actions d'administration (docs/TODO/administration.md Q10) : une ligne par écriture d'une route
+/// d'administration, réussie ou en erreur — les refus (401, 403) ne sont pas notés. Purgé au-delà de 12 mois par la
+/// maintenance nocturne (runDbMaintenance, src/lib/cron-jobs.ts). Sans relation : la ligne survit au compte, au membre ou au clan.
+model AdminActionLog {
+  id          Int      @id @default(autoincrement())
+  createdAt   DateTime @default(now())
+  userId      Int?
+  memberId    Int?
+  isSuperUser Boolean  @default(false)
+  clanId      Int?
+  action      String   @db.VarChar(120) // gabarit de la route, ex. clans/[clanId]/telemetry/sync-selected
+  method      String   @db.VarChar(8)
+  status      Int
+  outcome     String   @db.VarChar(10) // success | error
+  summary     Json?
+
+  @@index([createdAt])
+  @@index([clanId, createdAt])
+  @@index([userId, createdAt])
+}

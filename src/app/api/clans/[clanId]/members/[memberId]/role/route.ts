@@ -1,5 +1,8 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
+import { getSessionFromRequest } from '@/lib/auth-session'
+import { rememberSessionActor } from '@/lib/auth/admin-actor'
 import { prisma } from '@/lib/prisma'
 import { assignRole, initializeDefaultRoles, isPredefinedRoleName, PREDEFINED_ROLES, revokeRole } from '@/lib/role-service'
 import { getActorMemberId, isSuperUserSession, requirePermission } from '@/middleware/auth-permission'
@@ -9,7 +12,7 @@ function parsePositiveInt(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function PATCH(
+async function handlePatch(
   request: Request,
   { params }: { params: Promise<{ clanId: string; memberId: string }> }
 ) {
@@ -38,6 +41,8 @@ export async function PATCH(
     if (!actorMemberId && !isSuperUser) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const actorSession = await getSessionFromRequest(request)
+    if (actorSession) rememberSessionActor(request, actorSession)
 
     const body = (await request.json().catch(() => null)) as { roleId?: number } | null
     if (!body || typeof body.roleId !== 'number' || !Number.isInteger(body.roleId) || body.roleId <= 0) {
@@ -114,7 +119,7 @@ export async function PATCH(
   }
 }
 
-export async function DELETE(
+async function handleDelete(
   request: Request,
   { params }: { params: Promise<{ clanId: string; memberId: string }> }
 ) {
@@ -143,6 +148,8 @@ export async function DELETE(
     if (!actorMemberId && !isSuperUser) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
+    const actorSession = await getSessionFromRequest(request)
+    if (actorSession) rememberSessionActor(request, actorSession)
 
     const member = await prisma.clanMember.findUnique({
       where: { id: parsedMemberId },
@@ -200,3 +207,6 @@ export async function DELETE(
     return Response.json({ error: 'Failed to revoke roles' }, { status: 500 })
   }
 }
+
+export const PATCH = withAdminActionLog('clans/[clanId]/members/[memberId]/role', handlePatch)
+export const DELETE = withAdminActionLog('clans/[clanId]/members/[memberId]/role', handleDelete)

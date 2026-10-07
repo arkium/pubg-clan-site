@@ -1,9 +1,10 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { isPrivacyRequestStatus } from '@/lib/legal/privacy-request'
 import { setPrivacyRequestStatus } from '@/lib/legal/privacy-request-service'
 
 /** Clôt (`done`, `rejected`) ou rouvre (`pending`) une demande ; `handledAt` suit le statut. */
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handlePatch(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -27,3 +28,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const PATCH = withAdminActionLog('settings/privacy-requests/[id]', handlePatch)

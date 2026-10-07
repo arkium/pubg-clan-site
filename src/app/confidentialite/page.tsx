@@ -6,7 +6,8 @@ import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, LEGAL_UPDATED_AT, PRIVACY_REQ
 
 /**
  * Confidentialité, page publique — docs/features/pages-legales.md. Chaque ligne a été vérifiée contre le code
- * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026 : à revoir quand le site collecte une donnée nouvelle.
+ * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026, journal d'administration ajouté le 07/10/2026 : à revoir
+ * quand le site collecte une donnée nouvelle.
  */
 
 
@@ -19,6 +20,7 @@ const DATA_ROWS = [
   { data: 'Commentaires sur la carte des ressources', source: 'Toi', usage: 'Validation des points' },
   { data: 'Résultats publiés sur Discord : pseudos de l’escouade, kills, dégâts, carte', source: 'Matchs et tournois du clan', usage: 'Canal Discord du clan, si un admin l’active' },
   { data: 'Demande de retrait : pseudo, e-mail, motif', source: 'Toi, par le formulaire', usage: 'Traitement de ta demande' },
+  { data: 'Actions d’administration : compte, clan, action, résultat', source: 'Les outils d’administration que tu utilises', usage: 'Suivi des outils partagés, réservé au SuperUser' },
 ]
 
 const NOT_COLLECTED = ['Nom civil ou adresse postale', 'Coordonnées bancaires', 'Adresse IP associée à un profil de jeu']
@@ -98,7 +100,7 @@ const SECTIONS: LegalSection[] = [
           {
             label: 'Conservation',
             value:
-              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. Connexion : 7 jours. Effacement possible à tout moment sur demande.',
+              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
           },
         ]}
       />

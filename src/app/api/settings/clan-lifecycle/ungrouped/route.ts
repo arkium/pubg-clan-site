@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   archiveMembers,
@@ -71,7 +72,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     const permissionError = await requireSuperUser(request)
     if (permissionError) return permissionError
@@ -103,3 +104,5 @@ export async function POST(request: Request) {
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('settings/clan-lifecycle/ungrouped', handlePost)

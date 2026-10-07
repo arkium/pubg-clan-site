@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { sendClanApprovedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
 import { applyPendingPromotionsForClan } from '@/lib/clan-lifecycle/pending-promotions'
@@ -11,7 +12,7 @@ function parsePositiveInt(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -143,3 +144,5 @@ export async function POST(
     return Response.json({ error: 'Erreur lors de la validation du clan' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/approve', handlePost)

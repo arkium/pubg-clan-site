@@ -582,6 +582,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'superuser',
     description: 'Demandes « Retirer mes données » reçues par /confidentialite/demande, à traiter sous un mois.',
   },
+  {
+    navKey: 'superuser.admin-journal',
+    section: 'superuser-menu',
+    label: 'Journal d’administration',
+    hrefTemplate: '/settings/journal',
+    defaultRole: 'superuser',
+    description: 'Qui a fait quoi dans les outils d’administration, sur quel clan, avec quel résultat (12 mois).',
+  },
 ]
 
 /** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */

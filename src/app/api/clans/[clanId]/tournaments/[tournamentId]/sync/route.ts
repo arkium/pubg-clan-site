@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import {
   getTournamentForClan,
@@ -19,7 +20,7 @@ type MatchSyncResult = {
   error?: string
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string; tournamentId: string }> }
 ) {
@@ -113,3 +114,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/tournaments/[tournamentId]/sync', handlePost)

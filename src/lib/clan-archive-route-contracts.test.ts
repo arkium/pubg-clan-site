@@ -56,6 +56,8 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $transaction: mocks.transaction,
+    // Journal des actions d'administration (Q10) : hors du sujet de ces contrats, absorbé.
+    adminActionLog: { create: async () => ({}) },
     clan: {
       findUnique: mocks.clanFindUnique,
       findFirst: mocks.clanFindFirst,

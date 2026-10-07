@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { CLAN_ARCHIVE_REASONS } from '@/lib/clan-archive-state'
 import { sendClanRejectedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
 import { PLAYER_CLAN_CHANGE_STATUSES } from '@/lib/player-clan-change'
@@ -28,7 +29,7 @@ function parsePositiveInt(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
+async function handlePost(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
   try {
     const superUserError = await requireSuperUser(request)
     if (superUserError) return superUserError
@@ -132,3 +133,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
     return Response.json({ error: 'Erreur lors du refus du clan' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/reject', handlePost)

@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireSuperUser } from '@/middleware/auth-permission'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
@@ -12,7 +13,7 @@ import { getEncounteredPlayerResolutionBatchSize } from '@/lib/encountered-playe
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import { prisma } from '@/lib/prisma'
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const permissionError = await requireSuperUser(request)
   if (permissionError) {
     return permissionError
@@ -119,3 +120,5 @@ export async function POST(request: Request) {
     )
   }
 }
+
+export const POST = withAdminActionLog('settings/encountered-player-resolution/run', handlePost)

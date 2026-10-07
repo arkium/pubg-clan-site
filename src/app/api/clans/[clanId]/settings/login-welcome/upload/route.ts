@@ -1,6 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { resolveUploadDirectories, validateImageUpload } from '@/lib/upload-image-validator'
 
@@ -9,7 +10,7 @@ function parseClanId(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -66,3 +67,5 @@ export async function POST(
     return Response.json({ error: "Erreur lors de l'upload de l'image sur le serveur" }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/settings/login-welcome/upload', handlePost)

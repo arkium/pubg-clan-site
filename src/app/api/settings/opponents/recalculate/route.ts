@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireSuperUser } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 
@@ -15,7 +16,7 @@ function getPeriodStart(period: string): Date | null {
   return null
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const permissionError = await requireSuperUser(request)
   if (permissionError) {
     return permissionError
@@ -180,3 +181,5 @@ export async function POST(request: Request) {
     )
   }
 }
+
+export const POST = withAdminActionLog('settings/opponents/recalculate', handlePost)

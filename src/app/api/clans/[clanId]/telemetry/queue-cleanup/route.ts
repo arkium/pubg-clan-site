@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { prisma } from '@/lib/prisma'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { reorderQueueByPriority } from '@/lib/pubg-telemetry/queue-priority'
@@ -11,7 +12,7 @@ function parseClanId(value: string) {
 
 type QueueCleanupAction = 'cleanup-stale' | 'reorder-priority' | 'cancel-old' | 'cleanup-failed'
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -124,3 +125,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/queue-cleanup', handlePost)

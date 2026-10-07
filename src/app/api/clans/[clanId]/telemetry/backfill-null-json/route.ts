@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { syncTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import { prisma } from '@/lib/prisma'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
@@ -32,7 +33,7 @@ function chunk<T>(items: T[], size: number) {
   return chunks
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -144,3 +145,5 @@ export async function POST(
     return Response.json({ error: 'Failed to backfill telemetry null json snapshots' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/backfill-null-json', handlePost)

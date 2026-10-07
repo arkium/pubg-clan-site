@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   syncTelemetryForSquadMatchFromStream,
 } from '@/lib/pubg-telemetry/manual-sync'
@@ -34,7 +35,7 @@ function parseOptionalIsoDate(value: FormDataEntryValue | null) {
   return Number.isNaN(parsed.getTime()) ? null : parsed
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -136,3 +137,5 @@ export async function POST(
     return Response.json({ error: 'Failed to import telemetry file' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/import-file', handlePost)

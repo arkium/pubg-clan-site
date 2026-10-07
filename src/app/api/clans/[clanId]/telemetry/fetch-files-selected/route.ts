@@ -3,6 +3,7 @@ import { readdir } from 'node:fs/promises'
 
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { fetchTelemetryFilesForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 
@@ -46,7 +47,7 @@ async function findAlreadyCapturedMatchIds(squadMatchIds: string[]) {
   }
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -129,3 +130,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/fetch-files-selected', handlePost)

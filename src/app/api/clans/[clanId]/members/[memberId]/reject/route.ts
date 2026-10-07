@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
 
@@ -8,7 +9,7 @@ function parsePositiveInt(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string; memberId: string }> }
 ) {
@@ -70,3 +71,5 @@ export async function POST(
     return Response.json({ error: 'Failed to reject member' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/members/[memberId]/reject', handlePost)

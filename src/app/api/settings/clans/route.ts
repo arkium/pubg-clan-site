@@ -1,6 +1,8 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { rememberSessionActor } from '@/lib/auth/admin-actor'
 import { formatClanLabel, getClanFollowState } from '@/lib/clan-archive-state'
 import { upsertTrackedClanFromPubg } from '@/lib/clan-service'
 import { fetchPubgClanById } from '@/lib/pubg'
@@ -15,12 +17,13 @@ const CreateTrackedClanSchema = z.object({
   message: "Soit pubgClanId soit opponentClanId doit être fourni"
 })
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     const session = await getSessionFromRequest(request)
     if (!session || !session.isSuperUser) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 })
     }
+    rememberSessionActor(request, session)
 
     const body = await request.json().catch(() => null)
     const parsed = CreateTrackedClanSchema.safeParse(body)
@@ -97,3 +100,5 @@ export async function POST(request: Request) {
     )
   }
 }
+
+export const POST = withAdminActionLog('settings/clans', handlePost)

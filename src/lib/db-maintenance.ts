@@ -13,6 +13,9 @@ import { prisma } from '@/lib/prisma'
  * les jobs `queued` (un `telemetry:batch --all-matches` peut légitimement attendre plus de
  * 24 h), ni les fichiers `.telemetry-captured` (seule copie de la télémétrie après les
  * 14 jours de rétention du CDN PUBG) — voir docs/ops/database-performance.md.
+ *
+ * Seule exception, hors de ce module : la tâche de maintenance (`runDbMaintenance`, `src/lib/cron-jobs.ts`) purge le
+ * journal des actions d'administration au-delà de 12 mois, sa durée de conservation (`purgeExpiredAdminActions`).
  */
 
 /**

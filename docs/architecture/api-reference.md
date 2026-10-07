@@ -32,6 +32,10 @@ Ce document liste les ~99 routes `src/app/api/**/route.ts` du projet, avec pour 
   - `requireClanFeature(clanId, feature)` : Owner du clan de l'adresse, si la fonctionnalité est ouverte aux Owners
     (`src/lib/auth/owner-features.ts` : `clan-members`, `clan-announcements`, `clan-competition` ouvertes par défaut ;
     `clan-telemetry-tools` verrouillée au SuperUser).
+- **Journal des actions** (Q10, lot 3c) : chaque écriture d'une route d'administration est exportée enveloppée par
+  `withAdminActionLog('<gabarit de la route>', handler)` (`src/lib/admin-action-log.ts`) — une ligne `AdminActionLog`
+  par réussite ou erreur ; refus (401, 403) et simulations (`validateOnly`, `dryRun`, `mode: 'preview'`) non notés.
+  L'acteur vient de la garde (`src/lib/auth/admin-actor.ts`). Contrôle : `src/lib/admin-action-log-routes.test.ts`.
 - `requirePermission`, `requireRole`, `requireNavPermission` testent désormais le SuperUser **en premier** (accepté sans
   membre actif) ; `requireNavPermission` laisse le SuperUser traverser une entrée `hidden`.
 - `Secret header` : routes internes protégées par un secret partagé (`CRON_BOOTSTRAP_SECRET`, `AUTH_BOOTSTRAP_SECRET`), jamais appelées par un client applicatif.
@@ -316,6 +320,7 @@ Toutes ces routes pilotent des pages `/settings/*` réservées Owner/Admin/Super
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
+| GET | `/api/settings/admin-actions` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Journal des actions d'administration (Q10) : filtres `clanId`, `userId`, `outcome`, `page` (50 par page) ; 503 tant que la migration `add_admin_action_log` n'est pas appliquée — voir [administration.md](../TODO/administration.md) |
 | GET | `/api/settings/cron-schedules` | SuperUser | ⚠️ Admin web uniquement | Valeur effective des 9 plannings cron — voir [Cron](../ops/cron.md) |
 | PUT | `/api/settings/cron-schedules` | SuperUser | ⚠️ Admin web uniquement | Modifie l'expression d'un planning — voir [Cron](../ops/cron.md) |
 | DELETE | `/api/settings/cron-schedules/[key]` | SuperUser | ⚠️ Admin web uniquement | Réinitialise un planning à sa valeur par défaut — voir [Cron](../ops/cron.md) |

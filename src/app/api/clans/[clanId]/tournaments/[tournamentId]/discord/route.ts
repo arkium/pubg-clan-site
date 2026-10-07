@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   broadcastTournamentRound,
   DiscordTournamentError,
@@ -64,7 +65,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string; tournamentId: string }> }
 ) {
@@ -96,3 +97,5 @@ export async function POST(
     return toErrorResponse(error, 'Diffusion de la manche impossible')
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/tournaments/[tournamentId]/discord', handlePost)

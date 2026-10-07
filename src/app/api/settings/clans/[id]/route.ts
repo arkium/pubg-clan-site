@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   ClanFollowActionSchema,
@@ -45,7 +46,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handlePatch(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const permissionError = await requireSuperUser(request)
   if (permissionError) return permissionError
 
@@ -93,3 +94,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return errorResponse(error, 'Changement de suivi impossible')
   }
 }
+
+export const PATCH = withAdminActionLog('settings/clans/[id]', handlePatch)

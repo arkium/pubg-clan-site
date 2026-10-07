@@ -1,7 +1,8 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireSuperUser } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 
-export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handlePatch(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const permissionError = await requireSuperUser(request)
   if (permissionError) {
     return permissionError
@@ -32,3 +33,5 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
     return Response.json({ error: 'Opponent clan not found' }, { status: 404 })
   }
 }
+
+export const PATCH = withAdminActionLog('settings/opponent-clans/[id]', handlePatch)

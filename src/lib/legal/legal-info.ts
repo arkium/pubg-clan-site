@@ -4,7 +4,7 @@
  */
 
 /** Date affichée en tête des mentions légales et de la confidentialité : à changer à chaque modification du texte. */
-export const LEGAL_UPDATED_AT = '5 octobre 2026'
+export const LEGAL_UPDATED_AT = '7 octobre 2026'
 
 export const SITE_DOMAIN = 'chickendinner.fr'
 export const PUBLISHER_NAME = 'Arkium'

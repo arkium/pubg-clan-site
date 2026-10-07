@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   getPubgApiRateLimitBounds,
@@ -39,7 +40,7 @@ export async function GET(request: Request) {
   })
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const auth = await requireSuperUserSession(request)
   if (auth.error) {
     return auth.error
@@ -64,3 +65,5 @@ export async function POST(request: Request) {
     bounds,
   })
 }
+
+export const POST = withAdminActionLog('settings/pubg-api-rate-limit', handlePost)

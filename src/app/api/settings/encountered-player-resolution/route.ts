@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
   ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
@@ -198,7 +199,7 @@ export async function GET(request: Request) {
   })
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const permissionError = await requireSuperUser(request)
   if (permissionError) {
     return permissionError
@@ -225,3 +226,5 @@ export async function POST(request: Request) {
   const quick = await buildQuickPayload()
   return Response.json({ data: quick })
 }
+
+export const POST = withAdminActionLog('settings/encountered-player-resolution', handlePost)

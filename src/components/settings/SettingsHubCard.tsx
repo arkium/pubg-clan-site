@@ -25,6 +25,7 @@ import {
   Search,
   Settings,
   MessageSquare,
+  ScrollText,
 } from 'lucide-react'
 import type { ComponentType } from 'react'
 import type { SettingsHubItem } from '@/hooks/useSettingsHubItems'
@@ -83,6 +84,8 @@ function getCardVisual(navKey: string): {
       return { Icon: RefreshCw, color: 'text-emerald-500' }
     case 'superuser.database':
       return { Icon: Database, color: 'text-cyan-500' }
+    case 'superuser.admin-journal':
+      return { Icon: ScrollText, color: 'text-slate-500' }
     default:
       return { Icon: Settings, color: 'text-blue-500' }
   }

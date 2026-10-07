@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import {
   getClanLabel,
@@ -49,7 +50,7 @@ export async function GET(
   return Response.json({ settings, clanLabel })
 }
 
-export async function PUT(
+async function handlePut(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -78,3 +79,5 @@ export async function PUT(
 
   return Response.json({ success: true, settings: saved })
 }
+
+export const PUT = withAdminActionLog('clans/[clanId]/settings/login-welcome', handlePut)

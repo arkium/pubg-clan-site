@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { prisma } from '@/lib/prisma'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { enqueueTelemetryResyncJobs } from '@/lib/pubg-telemetry/resync-queue'
@@ -17,7 +18,7 @@ function parseBatchSize(value: string | null): number {
   return parsed
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -222,3 +223,5 @@ export async function GET(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/sync-batch-manual', handlePost)

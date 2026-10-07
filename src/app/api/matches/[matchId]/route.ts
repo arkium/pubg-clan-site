@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails } from '@/lib/pubg'
 import { requireSuperUser } from '@/middleware/auth-permission'
@@ -79,7 +80,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function handlePost(
   request: NextRequest,
   { params }: { params: Promise<{ matchId: string }> }
 ) {
@@ -167,3 +168,5 @@ export async function POST(
     return Response.json({ error: message }, { status })
   }
 }
+
+export const POST = withAdminActionLog('matches/[matchId]', handlePost)

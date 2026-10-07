@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { prisma } from '@/lib/prisma'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 
@@ -9,7 +10,7 @@ function parseClanId(value: string) {
 
 const TELEMETRY_RESYNC_QUEUE_ACTION = 'telemetry_resync_file'
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -88,3 +89,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/dead-letter', handlePost)

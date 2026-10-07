@@ -1,11 +1,13 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { rememberSessionActor } from '@/lib/auth/admin-actor'
 import {
   buildTelemetryErrorResponse,
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
 import { enqueueTelemetryBacklog } from '@/lib/telemetry-recoveries-backlog'
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     const session = await getSessionFromRequest(request)
     if (!session) {
@@ -15,6 +17,7 @@ export async function POST(request: Request) {
     if (!session.isSuperUser) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
+    rememberSessionActor(request, session)
 
     const body = (await request.json().catch(() => ({}))) as {
       clanId?: number
@@ -59,3 +62,5 @@ export async function POST(request: Request) {
     )
   }
 }
+
+export const POST = withAdminActionLog('settings/telemetry-recoveries/enqueue-backlog', handlePost)

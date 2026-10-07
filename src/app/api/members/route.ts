@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getActiveMemberClanId, requireClanFeature } from '@/lib/auth/admin-guards'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
@@ -34,7 +35,7 @@ const AddMemberSchema = z
  * POST /api/members
  * Ajoute un nouveau membre du clan
  */
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   try {
     const body = await request.json()
 
@@ -367,3 +368,5 @@ export async function GET(request: Request) {
     )
   }
 }
+
+export const POST = withAdminActionLog('members', handlePost)

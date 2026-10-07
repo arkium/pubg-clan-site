@@ -1,4 +1,5 @@
 import { getSessionFromRequest, type AuthSessionContext } from '@/lib/auth-session'
+import { rememberAdminActor } from '@/lib/auth/admin-actor'
 import { getOwnerFeatureAccess, type OwnerFeature } from '@/lib/auth/owner-features'
 import { prisma } from '@/lib/prisma'
 import { hasAnyRole, PREDEFINED_ROLES } from '@/lib/role-service'
@@ -86,8 +87,25 @@ export function accessDecisionToResponse(decision: AccessDecision): Response | n
   return Response.json({ error: decision.error }, { status: decision.status })
 }
 
+/** Lit la session, décide, et note l'acteur admis pour le journal des actions (Q10). */
+async function guardRequest(
+  request: Request,
+  decide: (session: AuthSessionContext | null) => AccessDecision | Promise<AccessDecision>
+): Promise<Response | null> {
+  const session = await getSessionFromRequest(request)
+  const decision = await decide(session)
+  if (decision.allowed && session) {
+    rememberAdminActor(request, {
+      userId: session.userId,
+      memberId: decision.actorMemberId,
+      isSuperUser: decision.isSuperUser,
+    })
+  }
+  return accessDecisionToResponse(decision)
+}
+
 export async function requirePlatformAdmin(request: Request): Promise<Response | null> {
-  return accessDecisionToResponse(decidePlatformAdmin(await getSessionFromRequest(request)))
+  return guardRequest(request, decidePlatformAdmin)
 }
 
 export async function requireClanAccess(
@@ -95,7 +113,7 @@ export async function requireClanAccess(
   clanId: number,
   level: ClanAccessLevel
 ): Promise<Response | null> {
-  return accessDecisionToResponse(await decideClanAccess(await getSessionFromRequest(request), clanId, level))
+  return guardRequest(request, (session) => decideClanAccess(session, clanId, level))
 }
 
 export async function requireClanFeature(
@@ -103,7 +121,5 @@ export async function requireClanFeature(
   clanId: number,
   feature: OwnerFeature
 ): Promise<Response | null> {
-  return accessDecisionToResponse(
-    await decideClanFeature(await getSessionFromRequest(request), clanId, feature)
-  )
+  return guardRequest(request, (session) => decideClanFeature(session, clanId, feature))
 }

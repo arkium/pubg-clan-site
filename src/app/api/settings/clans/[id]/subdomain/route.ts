@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   ClanSubdomainError,
   getClanSubdomainSummary,
@@ -33,7 +34,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
   }
 }
 
-export async function PUT(request: Request, { params }: { params: Promise<{ id: string }> }) {
+async function handlePut(request: Request, { params }: { params: Promise<{ id: string }> }) {
   const permissionError = await requireSuperUser(request)
   if (permissionError) return permissionError
 
@@ -54,3 +55,5 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const PUT = withAdminActionLog('settings/clans/[id]/subdomain', handlePut)

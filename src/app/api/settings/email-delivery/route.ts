@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   getEmailDeliveryStatus,
   markEmailDeliveryFailure,
@@ -73,7 +74,7 @@ export async function GET(request: Request) {
   })
 }
 
-export async function POST(request: Request) {
+async function handlePost(request: Request) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -134,7 +135,7 @@ export async function POST(request: Request) {
   }
 }
 
-export async function DELETE(request: Request) {
+async function handleDelete(request: Request) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -153,3 +154,6 @@ export async function DELETE(request: Request) {
     env,
   })
 }
+
+export const POST = withAdminActionLog('settings/email-delivery', handlePost)
+export const DELETE = withAdminActionLog('settings/email-delivery', handleDelete)

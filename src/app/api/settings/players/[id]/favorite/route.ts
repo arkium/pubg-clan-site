@@ -1,9 +1,10 @@
 import { Prisma } from '@prisma/client'
 import { NextRequest } from 'next/server'
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
 
-export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+async function handlePatch(req: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   try {
     const permissionError = await requireSuperUser(req)
     if (permissionError) return permissionError
@@ -34,3 +35,5 @@ export async function PATCH(req: NextRequest, { params }: { params: Promise<{ id
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const PATCH = withAdminActionLog('settings/players/[id]/favorite', handlePatch)

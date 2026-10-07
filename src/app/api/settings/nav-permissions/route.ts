@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import {
   getAllNavItems,
@@ -34,7 +35,7 @@ export async function GET() {
 
 // Les menus servent aussi de gardes d'API (requireNavPermission) : réservé au SuperUser,
 // plus jamais à l'Owner d'un clan quelconque.
-export async function PUT(request: Request) {
+async function handlePut(request: Request) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -121,3 +122,5 @@ export async function PUT(request: Request) {
     return Response.json({ error: message }, { status: 400 })
   }
 }
+
+export const PUT = withAdminActionLog('settings/nav-permissions', handlePut)

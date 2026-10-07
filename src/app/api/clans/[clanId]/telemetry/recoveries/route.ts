@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import {
@@ -215,7 +216,7 @@ export async function GET(
   }
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -275,3 +276,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/recoveries', handlePost)

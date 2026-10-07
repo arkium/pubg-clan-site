@@ -1,3 +1,4 @@
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { requestOwnerResync } from '@/lib/clan-data-health'
@@ -11,7 +12,7 @@ function parseClanId(clanId: string) {
  * Demande de resynchronisation de l'Owner (Q17) : met en file, à basse priorité, au plus le quota restant
  * (50 parties par 24 h et par clan). Aucun appel PUBG dans la requête ; 429 quand le quota est épuisé.
  */
-export async function POST(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
+async function handlePost(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
   const { clanId } = await params
   const parsedClanId = parseClanId(clanId)
   if (!parsedClanId) {
@@ -33,3 +34,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/settings/data-health/resync', handlePost)

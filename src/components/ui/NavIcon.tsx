@@ -30,6 +30,7 @@ import {
   Key,
   LogIn,
   Home,
+  ScrollText,
 } from 'lucide-react'
 
 type Props = {
@@ -103,7 +104,8 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Erreurs télémétrie': return <AlertTriangle className={className} />
       case 'Synchronisation manuelle': return <Database className={className} />
       case 'Récupérations': return <Database className={className} />
-      case 'Télémétrie matchs': return <Activity className={className} />
+      case 'Télémétrie matchs':
+      case 'Soirées de télémétrie': return <Calendar className={className} />
       case 'Email d’envoi': return <Mail className={className} />
       case 'API PUBG': return <Globe className={className} />
 
@@ -119,6 +121,7 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Base de données': return <Database className={className} />
       case 'Demandes de confidentialité': return <FileText className={className} />
       case 'Délégation aux Owners': return <Key className={className} />
+      case 'Journal d’administration': return <ScrollText className={className} />
 
       default:
         return <CircleDot className={className} />

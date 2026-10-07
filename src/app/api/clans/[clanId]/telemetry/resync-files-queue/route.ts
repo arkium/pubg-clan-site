@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { enqueueTelemetryResyncJobs } from '@/lib/pubg-telemetry/resync-queue'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 
@@ -8,7 +9,7 @@ function parseClanId(clanId: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -67,3 +68,5 @@ export async function POST(
     return Response.json({ error: 'Failed to queue telemetry resync jobs' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/telemetry/resync-files-queue', handlePost)

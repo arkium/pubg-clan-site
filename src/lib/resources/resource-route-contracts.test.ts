@@ -14,7 +14,8 @@ vi.mock('@/lib/auth-session', () => ({ getSessionFromRequest: mocks.getSession }
 vi.mock('@/middleware/auth-permission', () => ({ requireNavPermission: () => mocks.navGuard }))
 vi.mock('@/lib/prisma', async () => {
   const { resourceTestDb } = await import('./resource-test-db')
-  return { prisma: resourceTestDb.client }
+  // Journal des actions d'administration (docs/TODO/administration.md Q10) : hors du sujet de ces contrats, absorbé.
+  return { prisma: { ...resourceTestDb.client, adminActionLog: { create: async () => ({}) } } }
 })
 
 import { POST as decisionsRoute } from '@/app/api/resources/admin/decisions/route'

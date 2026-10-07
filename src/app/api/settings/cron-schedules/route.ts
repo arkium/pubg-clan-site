@@ -1,12 +1,14 @@
 import 'server-only'
 import cron from 'node-cron'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   getEffectiveCronSchedules,
   rescheduleJob,
   type CronScheduleKey,
 } from '@/lib/cron-jobs'
 import { getSessionFromRequest } from '@/lib/auth-session'
+import { rememberSessionActor } from '@/lib/auth/admin-actor'
 import { isSuperUserSession } from '@/middleware/auth-permission'
 import { prisma } from '@/lib/prisma'
 
@@ -19,7 +21,7 @@ export async function GET(request: Request) {
   return Response.json({ ok: true, schedules })
 }
 
-export async function PUT(request: Request) {
+async function handlePut(request: Request) {
   if (!(await isSuperUserSession(request))) {
     return Response.json({ error: 'Acces reserve au SuperUser' }, { status: 403 })
   }
@@ -41,6 +43,7 @@ export async function PUT(request: Request) {
   }
 
   const session = await getSessionFromRequest(request)
+  if (session) rememberSessionActor(request, session)
 
   await prisma.cronSchedule.upsert({
     where: { key },
@@ -59,3 +62,5 @@ export async function PUT(request: Request) {
   const schedules = await getEffectiveCronSchedules()
   return Response.json({ ok: true, schedules })
 }
+
+export const PUT = withAdminActionLog('settings/cron-schedules', handlePut)

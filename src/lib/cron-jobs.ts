@@ -27,6 +27,7 @@ import { resolveKillFeedAccount, selectUnnamedKillFeedAccounts, type KillFeedCan
 import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import { prisma } from '@/lib/prisma'
 import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
+import { purgeExpiredAdminActions } from '@/lib/admin-action-log'
 import { refreshGeoPurgeCounts } from '@/lib/telemetry-geo-purge'
 import { computeResourceVehicleSpots, formatResourceVehicleMapSummary } from '@/lib/resources/resource-vehicle-spots'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
@@ -1112,6 +1113,15 @@ async function runDbMaintenance() {
     )
   } catch (error) {
     console.error('[Cron] DB maintenance failed', error)
+  }
+
+  // Seule suppression de la maintenance : le journal des actions d'administration au-delà de sa durée de
+  // conservation (12 mois, docs/TODO/administration.md Q10). À part, pour qu'un échec n'empêche pas le reste.
+  try {
+    const purgedAdminActions = await purgeExpiredAdminActions()
+    console.info(`[Cron] DB maintenance — admin action log purged: ${purgedAdminActions} row(s) older than 12 months`)
+  } catch (error) {
+    console.error('[Cron] DB maintenance — admin action log purge failed', error)
   }
 }
 

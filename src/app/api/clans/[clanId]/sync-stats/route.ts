@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { isInternalCronRequest } from '@/lib/internal-api'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
@@ -9,7 +10,7 @@ function parseClanId(clanId: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(
+async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
 ) {
@@ -51,3 +52,5 @@ export async function POST(
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/sync-stats', handlePost)

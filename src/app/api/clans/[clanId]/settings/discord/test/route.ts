@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { sendDiscordTop1TestMessage } from '@/lib/discord/discord-service'
@@ -15,7 +16,7 @@ function parseClanId(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export async function POST(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
+async function handlePost(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
   const { clanId: clanIdParam } = await params
   const clanId = parseClanId(clanIdParam)
 
@@ -56,3 +57,5 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/settings/discord/test', handlePost)

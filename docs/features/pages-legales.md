@@ -7,7 +7,7 @@ et le footer marque alors « Confidentialité » (`aria-current="true"`).
 | Page | Contenu |
 |---|---|
 | `/mentions-legales` | Éditeur, hébergement, marques et affiliation KRAFTON, origine des données, conditions d'utilisation |
-| `/confidentialite` | Données traitées, ce qui n'est pas collecté, finalité et conservation, cookies et stockage, droits |
+| `/confidentialite` | Données traitées (dont le journal des actions d'administration, ajouté le 07/10/2026), ce qui n'est pas collecté, finalité et conservation (journal : 12 mois), cookies et stockage, droits |
 | `/confidentialite/demande` | Formulaire « Retirer mes données » (masquer, purger, corriger, autre) |
 | `/a-propos` | Ce que le site ne fait pas, d'où viennent les données, affiliation et références |
 

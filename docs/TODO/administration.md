@@ -1,9 +1,9 @@
 # Administration du site — audit et réorganisation
 
 > **Étape 1 — analyse, rédigée le 2026-10-06. Étape 2 — décisions du 2026-10-07 (§5.3, §5.4, §7).**
-> **Étape 3 — lots 0, 1 et 2 réalisés le 2026-10-07** (branche `fix/admin-rights`, §6). Lot 3 : non commencé.
+> **Étape 3 — lots 0, 1, 2, 3a, 3b et 3c-1 réalisés le 2026-10-07** (branche `fix/admin-rights`, §6). Reste le 3c-2.
 > Aucune donnée ni entrée de menu n'a été modifiée en base : les deux scripts du lot 2 n'ont tourné qu'en simulation
-> (lecture seule), à appliquer après le déploiement (§6, lot 2, « Ordre de déploiement »).
+> (lecture seule) et la migration du journal (3c-1) n'est pas appliquée (§6, lot 2, « Ordre de déploiement »).
 >
 > Décisions du 2026-10-07 : **quatre profils** (visiteur, membre, Owner, SuperUser — Admin et Moderator supprimés) ;
 > le SuperUser **choisit les outils de clan ouverts aux Owners**, par un réglage **commun à tous les Owners** ; le
@@ -562,6 +562,10 @@ Ordre de déploiement :
 3. `npx tsx scripts/remove-admin-moderator-roles.ts --apply` — jamais avant l'étape 1 : l'ancien code recréait les
    rôles Admin et Moderator à chaque appel de `initializeDefaultRoles`.
 
+Lot 3c-1 : appliquer la migration `20261007200000_add_admin_action_log` (`npx prisma migrate deploy`, une seule
+`CREATE TABLE`) **avant** de déployer le code, sinon le journal reste vide jusque-là (les actions passent, un
+avertissement par écriture dans les journaux du serveur, la page du journal répond 503).
+
 Écarts au plan :
 
 - **`auth/switch-member` gardée.** La vérification renverse le plan : c'est la seule façon de changer de membre actif,
@@ -629,7 +633,8 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait ; 3b fait ; 3c non commencé (branche `fix/admin-rights`).**
+**État au 2026-10-07 : 3a fait ; 3b fait ; 3c-1 (journal) fait, migration écrite et PAS appliquée ; 3c-2 non commencé
+(branche `fix/admin-rights`).**
 
 3b-1 — accueil « Mon clan » et délégation :
 
@@ -697,10 +702,34 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
   télémétrie » et docs suivis. Test `src/lib/auth/clan-data-gates.test.ts` : chaque dossier d'outil des Données porte
   sa garde.
 
+3c-1 — journal des actions d'administration (Q10) :
+
+- **Table `AdminActionLog`** (migration `prisma/migrations/20261007200000_add_admin_action_log`, une seule
+  `CREATE TABLE`, `migrate diff` vérifié sans autre écart) : date, compte, membre actif, SuperUser ou non, clan, action
+  (gabarit de la route), méthode, statut HTTP, résultat (`success` | `error`) et résumé (paramètres d'adresse, champs
+  numériques ou booléens de la réponse, message d'erreur). Pas d'adresse IP, pas de relation.
+- **Écriture** : `withAdminActionLog('<gabarit>', handler)` (`src/lib/admin-action-log.ts`) enveloppe les 65 routes
+  d'écriture d'administration (POST, PUT, PATCH, DELETE). L'acteur vient de la garde qui a laissé passer la requête
+  (`src/lib/auth/admin-actor.ts`, noté par `admin-guards.ts` et `requireSuperUser`) ; les neuf routes qui vérifient
+  le SuperUser elles-mêmes le notent par `rememberSessionActor`. Ne sont pas notés : les refus (401, 403), les
+  simulations (`validateOnly`, `dryRun`, `mode: 'preview'` — la soirée interroge `resync-files-selected` en
+  `validateOnly` à chaque ouverture), les appels internes du cron (sans acteur), `settings/league/preview`. Une erreur
+  d'écriture du journal (table absente, base indisponible) ne bloque jamais l'action.
+- **Lecture** : `/settings/journal` (Plateforme › Site, `superuser.admin-journal`, SuperUser seul), filtres clan,
+  compte, résultat, 50 lignes par page ; `GET /api/settings/admin-actions` (`requirePlatformAdmin`, 503 tant que la
+  migration n'est pas appliquée).
+- **Conservation** : 12 mois, purge par la maintenance nocturne (`runDbMaintenance`, seule suppression de cette
+  tâche). La politique de confidentialité mentionne le journal et sa durée (mise à jour du 7 octobre 2026).
+- **`CronExecution.triggeredBy`** laissé tel quel (identifiant de membre) : le journal note le compte, pas de seconde
+  migration.
+- **Tests** : `src/lib/admin-action-log.test.ts` (enveloppe, résumé, simulations, purge, filtres),
+  `src/lib/admin-action-log-routes.test.ts` (chaque écriture d'une route d'administration est enveloppée avec son
+  gabarit), route de lecture ajoutée à `admin-route-guards.test.ts`.
+
 Reste du lot 3 :
 
-- **3c** : journal des actions d'administration (Q10, migration Prisma), puis ouverture éventuelle de
-  `clan-telemetry-tools` aux Owners (plafond par clan et journal).
+- **3c-2** : plafond par clan des appels PUBG déclenchés par un Owner (le rattrapage `recoveries` est synchrone jusqu'à
+  150 parties), dernière condition (§5.3) avant de pouvoir ouvrir `clan-telemetry-tools` aux Owners.
 
 3a — ce qui est livré :
 
@@ -764,7 +793,8 @@ Reste du lot 3 :
 - **Q7 — Défis** : restent masqués ; `clan.reports` supprimé (script du lot 2).
 - **Q8 — Lectures publiques inter-clans** (rôle `none`) : gardées telles quelles tant que le mode visiteur est actif.
 - **Q10 — Journal des actions d'administration** : au lot 3 (migration Prisma) ; préalable à toute ouverture des
-  outils de télémétrie aux Owners.
+  outils de télémétrie aux Owners. Précisé le 2026-10-07 : écritures seulement (réussites et erreurs, pas les refus),
+  conservation 12 mois, consultation par le SuperUser seul, migration appliquée sur feu vert explicite.
 - **Q11 — `/settings/owner`, `/members/add`** : page serveur qui redirige vers le clan du membre actif.
 - **Q13 — Recalcul « tous les clans »** : ligne de commande seulement ; la route ne recalcule plus que le clan de
   l'adresse.

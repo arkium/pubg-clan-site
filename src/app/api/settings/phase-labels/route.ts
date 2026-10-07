@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { getPhaseLabels, updatePhaseLabels, PHASE_KEYS } from '@/lib/phase-label-service'
 
@@ -15,7 +16,7 @@ const UpdatePhaseLabelsSchema = z.object({
   labels: z.record(z.string(), z.string().max(40)),
 })
 
-export async function PUT(request: Request) {
+async function handlePut(request: Request) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -34,3 +35,5 @@ export async function PUT(request: Request) {
   const labels = await updatePhaseLabels(filteredInput)
   return Response.json({ ok: true, labels })
 }
+
+export const PUT = withAdminActionLog('settings/phase-labels', handlePut)

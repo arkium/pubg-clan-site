@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
 import {
@@ -83,7 +84,7 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
   }
 }
 
-export async function POST(request: NextRequest, { params }: { params: Promise<{ clanId: string }> }) {
+async function handlePost(request: NextRequest, { params }: { params: Promise<{ clanId: string }> }) {
   try {
     const { clanId } = await params
     const parsedClanId = parseClanId(clanId)
@@ -121,3 +122,5 @@ export async function POST(request: NextRequest, { params }: { params: Promise<{
     )
   }
 }
+
+export const POST = withAdminActionLog('clans/[clanId]/tournaments', handlePost)

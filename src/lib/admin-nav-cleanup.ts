@@ -40,6 +40,8 @@ export const NAV_KEYS_TO_CREATE = [
   'superuser.privacy-requests',
   'superuser.delegation',
   'owner.clan-data',
+  // Lot 3c : journal des actions d'administration (Q10)
+  'superuser.admin-journal',
 ] as const
 
 /** Pages Plateforme déplacées au lot 3a : l'adresse en base suit le registre (l'ancienne reste redirigée). */

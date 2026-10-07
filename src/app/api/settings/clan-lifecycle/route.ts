@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   getClanLifecycleSettings,
@@ -95,7 +96,7 @@ export async function GET(request: Request) {
   }
 }
 
-export async function PATCH(request: Request) {
+async function handlePatch(request: Request) {
   try {
     const permissionError = await requireSuperUser(request)
     if (permissionError) return permissionError
@@ -148,3 +149,5 @@ export async function PATCH(request: Request) {
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const PATCH = withAdminActionLog('settings/clan-lifecycle', handlePatch)

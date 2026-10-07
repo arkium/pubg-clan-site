@@ -1,4 +1,5 @@
 import { NextRequest } from 'next/server'
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
 import { getSessionFromRequest } from '@/lib/auth-session'
@@ -8,7 +9,7 @@ import {
 } from '@/lib/player-clan-change'
 import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 
-export async function POST(req: NextRequest) {
+async function handlePost(req: NextRequest) {
   try {
     const permissionError = await requireSuperUser(req)
     if (permissionError) return permissionError
@@ -157,3 +158,5 @@ export async function POST(req: NextRequest) {
     return Response.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }
+
+export const POST = withAdminActionLog('settings/opponents/track', handlePost)

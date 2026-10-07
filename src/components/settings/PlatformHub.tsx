@@ -22,7 +22,13 @@ const PLATFORM_THEMES: HubThemes = [
   },
   {
     title: 'Site',
-    navKeys: ['superuser.platform-settings', 'superuser.delegation', 'owner.email-delivery', 'superuser.privacy-requests'],
+    navKeys: [
+      'superuser.platform-settings',
+      'superuser.delegation',
+      'superuser.admin-journal',
+      'owner.email-delivery',
+      'superuser.privacy-requests',
+    ],
   },
 ]
 

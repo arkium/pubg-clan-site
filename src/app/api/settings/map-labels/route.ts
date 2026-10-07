@@ -1,5 +1,6 @@
 import { z } from 'zod'
 
+import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { getMapLabels, updateMapLabels } from '@/lib/map-label-service'
 
@@ -15,7 +16,7 @@ export async function GET(request: Request) {
   return Response.json({ labels })
 }
 
-export async function PUT(request: Request) {
+async function handlePut(request: Request) {
   const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
@@ -36,3 +37,5 @@ export async function PUT(request: Request) {
     labels,
   })
 }
+
+export const PUT = withAdminActionLog('settings/map-labels', handlePut)

@@ -347,6 +347,10 @@ propre dossier** : un layout parent ne se ré-exécute pas quand on navigue entr
 qu'une session **valide** sans les droits ; sans session valide, la page s'affiche et l'API répond 401 (les tests
 Playwright, qui simulent la session dans le navigateur, en dépendent). Ne jamais écrire
 de contrôle à la main (`getMemberPermissionKeys(...).includes('*')`) ni de `allowMissingActor` sans revérifier la session.
+Toute écriture (POST, PUT, PATCH, DELETE) d'une route d'administration est exportée enveloppée par
+`withAdminActionLog('<gabarit de la route>', handler)` (`src/lib/admin-action-log.ts`, journal des actions, Q10) —
+`src/lib/admin-action-log-routes.test.ts` échoue sinon. Une route qui vérifie la session elle-même note son acteur par
+`rememberSessionActor` (`src/lib/auth/admin-actor.ts`).
 
 **SEO :** titres, descriptions, `noindex` et canoniques de **toutes** les pages viennent du layout racine
 (`generateMetadata` → `src/lib/seo/page-seo.ts`), pas des pages (presque toutes client). Nouvelle page publique → une
@@ -404,7 +408,7 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 0 8 1 * *  →  Monthly report generation
 */30 * * * *  →  Encountered players PUBG clan resolution (two-tier selection, cached ranking) — kill feed names first (« Joueur inconnu »)
 45 1 * * *  →  Clan membership sync (per-player clan check — observe mode by default)
-15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h — never deletes data)
+15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h ; only deletion: admin action log rows > 12 months)
 0 6 * * *  →  Geo-purge count (volume purgeable des tracés GPS, tous seuils, lecture seule — ~247 s)
 30 6 * * *  →  Resource map vehicle spots (véhicules observés de la Carte des ressources, 90 derniers jours — docs/features/carte-ressources.md)
 ```

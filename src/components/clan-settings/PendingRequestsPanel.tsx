@@ -21,6 +21,7 @@ import {
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import MembersSettingsTabs from '@/components/clan-settings/MembersSettingsTabs'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 interface PendingMember {
@@ -51,7 +52,8 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-export default function PendingMembersPage() {
+/** Onglet « Demandes d’adhésion » de /clans/[clanId]/settings/members (ex-/clans/[clanId]/members/pending, lot 3b). */
+export default function PendingRequestsPanel() {
   const params = useParams()
   const router = useRouter()
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
@@ -188,8 +190,8 @@ export default function PendingMembersPage() {
       <div className="mx-auto max-w-6xl px-4 py-6 sm:py-8 space-y-6">
         <NavigationTrail
           currentLabel="Demandes en attente"
-          currentHref={`/clans/${clanId}/members/pending`}
-          fallbackParent={{ href: `/clans/${clanId}/members`, label: 'Membres', altHref: '/clans' }}
+          currentHref={`/clans/${clanId}/settings/members?tab=demandes`}
+          fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres', altHref: '/clans' }}
         />
 
         {/* Hero Header Gaming avec Banner */}
@@ -231,6 +233,8 @@ export default function PendingMembersPage() {
             </div>
           </div>
         </header>
+
+        <MembersSettingsTabs clanId={clanId} active="demandes" />
 
         {/* Notifications d'alerte et de succès */}
         {error && (

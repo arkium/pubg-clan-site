@@ -94,7 +94,7 @@ test.describe('Membres du clan', () => {
 test('Membres : demandes en attente comptées pour qui peut les traiter', async ({ api, page }) => {
   mockClanMembers(api, { pendingCount: 2 })
   await page.goto(`/clans/${CLAN_ID}/members`)
-  await expect(page.getByRole('link', { name: 'Demandes en attente (2)' })).toHaveAttribute('href', `/clans/${CLAN_ID}/members/pending`)
+  await expect(page.getByRole('link', { name: 'Demandes en attente (2)' })).toHaveAttribute('href', `/clans/${CLAN_ID}/settings/members?tab=demandes`)
 })
 
 test.describe('Tableau de bord d’un joueur', () => {

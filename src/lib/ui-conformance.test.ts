@@ -44,6 +44,7 @@ const OUT_OF_SCOPE = [
   'src/app/clans/[clanId]/telemetry/recoveries/',
   'src/app/clans/[clanId]/telemetry/sync-batch-manual/',
   'src/app/members/add/',
+  'src/components/clan-settings/',
 ]
 
 const ALL_SOURCES = [...listSources('src/app'), ...listSources('src/components'), ...listSources('src/hooks')]

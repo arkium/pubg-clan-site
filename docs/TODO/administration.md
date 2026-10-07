@@ -629,7 +629,7 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait ; 3b en cours (3b-1 fait) ; 3c non commencé (branche `fix/admin-rights`).**
+**État au 2026-10-07 : 3a fait ; 3b en cours (3b-1 et 3b-2 faits) ; 3c non commencé (branche `fix/admin-rights`).**
 
 3b-1 — accueil « Mon clan » et délégation :
 
@@ -648,6 +648,18 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
   les accueils masquent aux Owners les entrées d'une fonctionnalité fermée.
 - **Écart** : écran de délégation sur une page à part plutôt qu'un bloc de `/settings/nav-permissions` (déjà
   1 200 lignes) ; il est lié depuis l'accueil Plateforme.
+
+3b-2 — gestion des membres en onglets :
+
+- `/clans/[clanId]/settings/members` : onglets « Membres et invitations », « Demandes d'adhésion » (`?tab=demandes`),
+  « Ajouter un joueur » (`?tab=ajout`). Les trois anciennes pages sont devenues des panneaux
+  (`src/components/clan-settings/`, `git mv`, code inchangé hors en-tête) ; la garde `clan-members` du dossier couvre
+  les trois.
+- `/clans/[clanId]/members/pending` redirigé (`next.config.ts`) ; `/members/add` redirige côté serveur vers l'onglet
+  « Ajout » du clan du membre actif (Q11) ; l'ajout se fait dans le clan de l'adresse (Q15). Menus
+  `clan.members-pending` et `admin.add-player` suivent (registre, script).
+- **Écart** : les invitations restent dans l'onglet « Membres » (elles se gèrent membre par membre dans la même
+  liste) au lieu d'un onglet à part.
 
 3a — ce qui est livré :
 

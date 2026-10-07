@@ -45,6 +45,9 @@ export const NAV_KEYS_HREF_FROM_REGISTRY = [
   'superuser.clan-lifecycle',
   'superuser.database',
   'superuser.telemetry-recoveries',
+  // Lot 3b : gestion des membres en onglets
+  'clan.members-pending',
+  'admin.add-player',
 ] as const
 
 /** Libellés de base alignés sur le registre (libellés francisés, et « Stats armes » resté en base). */

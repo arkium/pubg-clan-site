@@ -39,6 +39,7 @@ describe('liens du registre des menus', () => {
       ['/settings/opponents/triage', '/settings/players/triage'],
       ['/settings/clan-lifecycle', '/settings/clans/lifecycle'],
       ['/settings/telemetry-recoveries', '/settings/telemetry'],
+      ['/clans/:clanId/members/pending', '/clans/:clanId/settings/members?tab=demandes'],
     ]
     for (const [source, destination] of MOVED) {
       expect([source, hasPage(source)]).toEqual([source, false])

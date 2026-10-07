@@ -23,7 +23,7 @@ export type AdminAccessRequirement =
   | { kind: 'platform' }
   | { kind: 'clan-owner'; clanId: string }
   | { kind: 'clan-feature'; clanId: string; feature: OwnerFeature }
-  /** Adresse sans clan (`/members/add`, accueils `/settings/admin|owner`) : clan du membre actif. */
+  /** Adresse sans clan : clan du membre actif. */
   | { kind: 'active-clan-feature'; feature: OwnerFeature }
   | { kind: 'active-clan-owner' }
 

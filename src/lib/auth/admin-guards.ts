@@ -71,7 +71,7 @@ export async function decideClanFeature(
   return (await getOwnerFeatureAccess(feature)) === 'owner' ? decision : FORBIDDEN
 }
 
-/** Clan du membre actif de la session, pour les adresses qui ne portent pas le clan (`/members/add`…). */
+/** Clan du membre actif de la session, pour les adresses qui ne portent pas le clan (`/settings/owner`, `/members/add`). */
 export async function getActiveMemberClanId(session: AuthSessionContext | null): Promise<number | null> {
   if (!session?.activeMemberId) return null
   const member = await prisma.clanMember.findUnique({

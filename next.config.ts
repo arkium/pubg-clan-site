@@ -38,6 +38,8 @@ const nextConfig: NextConfig = {
       { source: '/settings/opponents/triage', destination: '/settings/players/triage', permanent: false },
       { source: '/settings/clan-lifecycle', destination: '/settings/clans/lifecycle', permanent: false },
       { source: '/settings/telemetry-recoveries', destination: '/settings/telemetry', permanent: false },
+      // « Mon clan » (lot 3b) : les demandes d'adhésion sont un onglet de la gestion des membres.
+      { source: '/clans/:clanId/members/pending', destination: '/clans/:clanId/settings/members?tab=demandes', permanent: false },
     ]
   },
   //allowedDevOrigins: ['smk.arkium.group', 'localhost', '127.0.0.1', '10.1.0.248'],

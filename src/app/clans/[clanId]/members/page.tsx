@@ -153,7 +153,7 @@ export default function ClanMembersPage() {
           </div>
           {data && data.pendingCount !== null ? (
             // « En attente » en orange (charte §1.3) dès qu'une demande attend.
-            <Link href={`/clans/${clanId}/members/pending`} className="app-toolbar-btn shrink-0 self-stretch">
+            <Link href={`/clans/${clanId}/settings/members?tab=demandes`} className="app-toolbar-btn shrink-0 self-stretch">
               Demandes en attente <span className={data.pendingCount > 0 ? 't-warn font-extrabold' : ''}>({data.pendingCount})</span>
             </Link>
           ) : null}

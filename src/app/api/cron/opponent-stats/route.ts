@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 import { prisma } from '@/lib/prisma'
+import { requireSuperUser } from '@/middleware/auth-permission'
 
 const PERIODS = ['week', 'month', 'all'] as const
 
@@ -17,13 +18,10 @@ function getPeriodStart(period: string): Date | null {
 }
 
 export async function GET(request: Request) {
-  const url = new URL(request.url)
-  const isCron = request.headers.get('x-vercel-cron') === '1'
-  const isSuperUser = url.searchParams.get('force') === 'true' // In a real app we'd check auth
-
-  if (!isCron && !isSuperUser) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
+  // Ni `?force=true` ni l'en-tête `x-vercel-cron` (falsifiable, et la production ne tourne pas sur
+  // Vercel) : la route efface puis reconstruit le cache des adversaires, elle est réservée au SuperUser.
+  const denied = await requireSuperUser(request)
+  if (denied) return denied
 
   try {
     for (const period of PERIODS) {

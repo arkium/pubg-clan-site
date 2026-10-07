@@ -119,9 +119,9 @@ export async function DELETE(
       return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
+    // Pas d'allowMissingActor : sans session, la révocation était ouverte à tous (M1)
     const permissionError = await requirePermission('manage_members')(request, {
       clanId: parsedClanId,
-      allowMissingActor: true,
     })
     if (permissionError) {
       return permissionError

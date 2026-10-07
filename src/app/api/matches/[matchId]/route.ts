@@ -1,5 +1,6 @@
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails } from '@/lib/pubg'
+import { requireSuperUser } from '@/middleware/auth-permission'
 import { NextRequest } from 'next/server'
 
 function parseMemberId(memberId: unknown) {
@@ -36,6 +37,10 @@ export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ matchId: string }> }
 ) {
+  // Seul appelant : la page SuperUser d'import de matchs (appel PUBG à chaque requête).
+  const denied = await requireSuperUser(request)
+  if (denied) return denied
+
   try {
     const { matchId } = await params
     const shard = request.nextUrl.searchParams.get('shard')
@@ -78,6 +83,9 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ matchId: string }> }
 ) {
+  const denied = await requireSuperUser(request)
+  if (denied) return denied
+
   try {
     const { matchId } = await params
     const body = await request.json()

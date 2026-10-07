@@ -1,8 +1,13 @@
 # Administration du site — audit et réorganisation
 
-> **Étape 1 — analyse, rédigée le 2026-10-06. En attente de validation.**
-> Aucun fichier de code, aucune donnée ni entrée de menu n'a été modifié. La base de `.env` (production) a été lue
-> en lecture seule : table `NavItem`, `CronExecution`, `UserSession`, rôles. Lots 1 à 3 : non commencés.
+> **Étape 1 — analyse, rédigée le 2026-10-06. Étape 2 — décisions du 2026-10-07 (§5.3, §5.4, §7).**
+> **Étape 3 — lots 0 et 1 réalisés le 2026-10-07** (branche `fix/admin-rights`, §6). Lots 2 et 3 :
+> non commencés. Aucune donnée ni entrée de menu n'a été modifiée en base ; la base de `.env` (production) n'a été lue
+> qu'en lecture seule, pendant l'analyse.
+>
+> Décisions du 2026-10-07 : **quatre profils** (visiteur, membre, Owner, SuperUser — Admin et Moderator supprimés) ;
+> le SuperUser **choisit les outils de clan ouverts aux Owners**, par un réglage **commun à tous les Owners** ; le
+> SuperUser doit garder l'accès à **toutes** les pages d'administration (trois trous du plan initial, §5.4).
 
 Abréviations des références : `AP` = `src/middleware/auth-permission.ts`, `reg` = `src/lib/nav-permissions-registry.ts`,
 `CN` = `src/components/ClanNavigation.tsx`, `S/` = `src/app/settings/`, `A/` = `src/app/api/`,
@@ -258,7 +263,8 @@ qu'en pratique seul le SuperUser administre, et que les Owners ne se servent pas
 2. **Pas de « Santé des données » interactive pour l'Owner.** Proposition : un état en **lecture seule** (dernière
    synchronisation, parties sans télémétrie, erreurs) et un seul bouton « Demander une resynchronisation », mis en file
    **à basse priorité**, plafonné par clan (par exemple 50 parties par 24 h), sans appel PUBG direct, sans
-   réordonnancement ni suppression. Les outils actuels passent tous côté Plateforme.
+   réordonnancement ni suppression. Les outils actuels sont réservés au SuperUser **par défaut** ; il peut en ouvrir
+   une partie aux Owners (§5.3).
 3. **La page « État » d'un match reste** pour les joueurs, en lecture ; ses boutons d'action ne s'affichent qu'au
    SuperUser.
 4. **« Soirées » de télémétrie** (`/clans/[clanId]/telemetry/matches` et `…/session/[date]`) font double emploi avec les
@@ -266,10 +272,9 @@ qu'en pratique seul le SuperUser administre, et que les Owners ne se servent pas
    panneau d'exploitation de la soirée rejoint Plateforme › Données › Télémétrie, avec un sélecteur de clan.
 5. **Ajouter à Plateforme › Données la file de validation de la Carte des ressources** (onglet SuperUser de
    `/carte-des-ressources`), qui est aujourd'hui une autre forme d'administration hors des menus.
-6. **Admin et Owner dans « Mon clan »** : aujourd'hui la base réserve « Joueurs et rôles », « Accueil login » et
-   « Tournois » à l'Owner, alors que les API les ouvrent à l'Admin. Il faut trancher (question Q4) ; proposition :
-   l'Admin gère membres, invitations, demandes, ajout, Discord, accueil, tournois ; l'Owner en plus attribue le rôle
-   Admin et voit la santé des données.
+6. **Un seul profil d'administration de clan, l'Owner** (décidé le 2026-10-07, §5.3) : les rôles Admin et Moderator
+   sont supprimés. L'Owner gère membres, invitations, demandes, ajout, Discord, accueil, tournois et voit la santé des
+   données de **son** clan ; seul le SuperUser nomme un Owner (un clan peut en avoir plusieurs).
 7. **« Adversaires rencontrés » rejoint les stats du clan**, mais la question de sa visibilité doit être tranchée
    (noms de joueurs extérieurs au site — Q5).
 
@@ -279,19 +284,19 @@ qu'en pratique seul le SuperUser administre, et que les Owners ne se servent pas
 |---|---|---|---|---|
 | `/settings` (absente) | **créer** l'accueil Plateforme (Clans, Joueurs, Données, Référentiels, Site) | `/settings` | SuperUser | 3 |
 | `/settings/superuser` | **fusionner** dans l'accueil Plateforme | `/settings` | SuperUser | 3 |
-| `/settings/admin`, `/settings/owner` | **supprimer** (redirection vers l'accueil Mon clan du clan du membre actif — Q11) | `/clans/[clanId]/settings` | Admin / Owner du clan | 3 |
-| `/clans/[clanId]/settings` | **garder**, devient l'accueil Mon clan (Membres, Apparence et annonces, Compétition, Santé des données) ; le sous-domaine et l'arrêt de suivi en sortent | même adresse | Admin du clan de l'adresse | 3 |
-| `/clans/[clanId]/settings/members` | **garder**, en onglets : Membres, Rôles, Invitations, Demandes, Ajout | même adresse, `?tab=` | Admin (rôle Admin : Owner) | 3 |
-| `/clans/[clanId]/members/pending` | **fusionner** (onglet Demandes) | `/clans/[clanId]/settings/members?tab=demandes` | Admin | 3 |
-| `/members/add` | **fusionner** (onglet Ajout, dans le clan de l'adresse uniquement ; créer un nouveau clan suivi reste au SuperUser) | `/clans/[clanId]/settings/members?tab=ajout` | Admin | 3 |
+| `/settings/admin`, `/settings/owner` | **supprimer** (redirection vers l'accueil Mon clan du clan du membre actif — Q11) | `/clans/[clanId]/settings` | Owner du clan | 3 |
+| `/clans/[clanId]/settings` | **garder**, devient l'accueil Mon clan (Membres, Apparence et annonces, Compétition, Données) ; le sous-domaine et l'arrêt de suivi en sortent | même adresse | Owner du clan de l'adresse | 3 |
+| `/clans/[clanId]/settings/members` | **garder**, en onglets : Membres, Invitations, Demandes, Ajout (plus d'onglet Rôles : l'Owner n'a aucun rôle à attribuer, §5.3) | même adresse, `?tab=` | Owner (nommer un Owner : SuperUser) | 3 |
+| `/clans/[clanId]/members/pending` | **fusionner** (onglet Demandes) | `/clans/[clanId]/settings/members?tab=demandes` | Owner | 3 |
+| `/members/add` | **fusionner** (onglet Ajout, dans le clan de l'adresse uniquement ; créer un nouveau clan suivi reste au SuperUser) | `/clans/[clanId]/settings/members?tab=ajout` | Owner | 3 |
 | `/members/manage` | **supprimer** (redirection) | `/members` | — | 2 |
-| `/clans/[clanId]/settings/login-welcome`, `…/discord` | **garder** (Apparence et annonces) | mêmes adresses | Admin | 3 |
-| `/clans/[clanId]/settings/tournaments` | **garder** (Compétition) ; défis : Q7 | même adresse | Admin | 3 |
-| Santé des données | **créer** (lecture seule + demande plafonnée) | `/clans/[clanId]/settings/data` | Owner | 3 |
-| `…/telemetry/dashboard`, `errors`, `sync-batch-manual`, `recoveries` | **déplacer** vers la console Télémétrie | `/settings/telemetry?clan=…&tab=…` | SuperUser | 3 |
-| `/settings/telemetry-recoveries` | **fusionner** (vue « tous les clans » de la console) | `/settings/telemetry` | SuperUser | 3 |
-| `…/telemetry/matches`, `…/matches/session/[date]` | **rediriger** vers les pages joueur ; panneau d'exploitation → console | `/clans/[clanId]/matches`, `…/matches/session/[date]` | — | 3 |
-| `…/telemetry/matches/[matchId]/telemetry` | **garder** en lecture ; actions SuperUser | même adresse | public / SuperUser pour les actions | 1 (actions), 3 |
+| `/clans/[clanId]/settings/login-welcome`, `…/discord` | **garder** (Apparence et annonces) | mêmes adresses | Owner | 3 |
+| `/clans/[clanId]/settings/tournaments` | **garder** (Compétition) ; défis : Q7 | même adresse | Owner | 3 |
+| Données du clan | **créer** : santé en lecture seule + demande plafonnée (Owner) ; onglets d'outils (SuperUser, ou Owner si délégué — §5.3) | `/clans/[clanId]/settings/data?tab=…` | Owner (santé) / fonctionnalité `clan-telemetry-tools` (outils) | 3 |
+| `…/telemetry/dashboard`, `errors`, `sync-batch-manual`, `recoveries` | **déplacer** dans les onglets d'outils des Données du clan — **dans l'espace du clan**, sinon la délégation à l'Owner est impossible (le `layout.tsx` de `/settings` est réservé au SuperUser) | `/clans/[clanId]/settings/data?tab=…` | `clan-telemetry-tools` (SuperUser par défaut) | 3 |
+| `/settings/telemetry-recoveries` | **fusionner** : console « tous les clans », qui renvoie vers les Données de chaque clan | `/settings/telemetry` | SuperUser | 3 |
+| `…/telemetry/matches`, `…/matches/session/[date]` | **rediriger** vers les pages joueur ; panneau d'exploitation → onglet d'outils des Données du clan | `/clans/[clanId]/matches`, `…/matches/session/[date]` | — | 3 |
+| `…/telemetry/matches/[matchId]/telemetry` | **garder** en lecture ; actions réservées à `clan-telemetry-tools` | même adresse | public / `clan-telemetry-tools` pour les actions | 1 (actions), 3 |
 | `…/telemetry/matches/[matchId]/debrief` | **garder** | même adresse | public | — |
 | `…/telemetry/opponents` | **déplacer** dans les stats du clan | `/clans/[clanId]/stats/opponents` | Q5 | 3 |
 | `/settings/opponents` + `/settings/clan-lifecycle` + sous-domaine et arrêt de suivi | **fusionner** : Clans (suivis, demandes, archivés, mutations, non groupés ; fiche de clan avec sous-domaine et arrêt de suivi) | `/settings/clans` | SuperUser | 3 |
@@ -299,11 +304,96 @@ qu'en pratique seul le SuperUser administre, et que les Owners ne se servent pas
 | `/settings/cron`, `/settings/match-import`, `/settings/pubg-api` | **garder** (Données) | mêmes adresses | SuperUser | — |
 | `/settings/superuser/database` | **déplacer** (Données) | `/settings/database` | SuperUser | 3 |
 | `/settings/map-labels`, `weapon-labels`, `phase-labels`, `league` | **garder** (Référentiels) | mêmes adresses | SuperUser | 1 (droits) |
-| `/settings/nav-permissions` | **garder** (Site), entrée Owner retirée | même adresse | SuperUser | 1, 2 |
-| `/settings/email-delivery` | **garder** (Site) ; une route de **statut** en lecture seule (« l'email est prêt ») pour les Admins | même adresse | SuperUser (statut : Admin) | 1 |
+| `/settings/nav-permissions` | **garder** (Site), entrée Owner retirée ; accueille le bloc « Délégation aux Owners » (§5.3) | même adresse | SuperUser | 1, 2, 3 |
+| `/settings/email-delivery` | **garder** (Site) ; une route de **statut** en lecture seule (« l'email est prêt ») pour les Owners | même adresse | SuperUser (statut : Owner) | 1 |
 | Demandes de confidentialité | **créer** (liste, traitement, `handledAt`) | `/settings/privacy-requests` | SuperUser | 3 |
 | `/settings/weapon-categories` | redirection **gardée** ; entrée de menu supprimée | → `/settings/weapon-labels` | — | 2 |
-| Espace Moderator | **créer** si Q6 le confirme | Q6 | Moderator | 3 |
+| Espace Moderator | **abandonné** : rôle Moderator supprimé (§5.3) | — | — | — |
+
+### 5.3 Profils et délégation aux Owners (décidé le 2026-10-07)
+
+**Quatre profils.**
+
+| Profil | Défini par | Accès |
+|---|---|---|
+| Visiteur | pas de session | pages publiques (rôle de menu `none`) |
+| Membre | rôle `Member` du clan | son clan |
+| Owner | rôle `Owner` du clan (`*`) | « Mon clan » de **son** clan, plus les outils que le SuperUser lui ouvre |
+| SuperUser | `UserAccount.isSuperUser` | tout, quel que soit le clan, avec ou sans membre actif |
+
+`hidden` n'est pas un profil mais un état (« fonctionnalité désactivée ») — voir Q18 pour le SuperUser.
+
+Aucun Admin ni Moderator n'est attribué en production (§4) : la suppression ne retire de droits à personne (à
+recompter juste avant d'écrire). Conséquences :
+
+- Rôles de menu : `admin` disparaît de `VALID_ROLES` (`nav-permissions-service.ts:4`), du registre et des calculs
+  `isAdmin` côté client (`CN:400,464`, `useSectionNavItems.ts:35`, `useSettingsHubItems.ts:46`) ; les trois entrées
+  encore en `admin` en base (`admin.discord-notifications`, `admin.add-player`, `clan.members-pending`) passent à
+  `owner`.
+- Rôles de clan : Admin et Moderator sortent de `PREDEFINED_ROLES` (`role-service.ts:53-62`) **avant** la suppression
+  des lignes `ClanRole`, sinon `initializeDefaultRoles` les recrée au premier appel.
+- Routes qui nomment les rôles : `['Owner','Admin']` → `['Owner']` (`approve`, `reject`, `encountered-players`,
+  `notification-service.ts:251`) ; `awards/route.ts:37` → `['Owner','Member']` ; tables de rang
+  `A/clans/[clanId]/members/route.ts:12`, `overview/route.ts:8`.
+- Les permissions fines (`manage_members`, `manage_settings`…) reviennent toutes à « est Owner » (seul l'Owner les a,
+  par `*`). Elles restent en place au début ; les nouvelles gardes ne prennent que `'owner' | 'member'`.
+- L'Owner n'a plus de rôle à attribuer : nommer ou retirer un Owner reste au SuperUser
+  (`A/clans/[clanId]/members/[memberId]/role/route.ts:74-82`). Un clan qui veut un second administrateur reçoit un
+  second Owner.
+- Disparaissent : Q4, Q6, le constat 19 (Moderator), M11 (plus d'Admin à qui manquerait le statut email), M13 (une
+  seule règle : Owner), M16 ; M24 devient une réécriture de `docs/features/clans.md` (lot 2).
+
+**Délégation aux Owners — réglage commun à tous les Owners** (pas de réglage par clan).
+
+- **Catalogue dans le code** (`src/lib/auth/owner-features.ts`) : une clé par fonctionnalité, qui regroupe ses pages
+  **et** ses routes (une route sert souvent plusieurs pages : `T/sync-batch-manual` en sert quatre), avec son libellé,
+  sa description et son réglage par défaut.
+- **Garde `requireClanFeature(request, clanId, feature)`** : session valide obligatoire ; SuperUser toujours accepté ;
+  Owner accepté seulement si la fonctionnalité est ouverte aux Owners **et** qu'il est Owner du clan de l'adresse ;
+  **jamais ouverte par le mode visiteur**. Utilisée par les routes, par les `layout.tsx` serveur des pages et par les
+  menus — une seule source de vérité.
+- **Réglage** : `owner` ou `superuser`, rien d'autre (jamais `none` ni `member` pour un outil d'administration).
+  Stocké dans `AppConfig` (clé `owner_feature_access`, JSON `{ clé: 'owner' | 'superuser' }`, valeurs absentes = défaut
+  du catalogue) : pas de migration Prisma. Écran : un bloc « Délégation aux Owners » dans `/settings/nav-permissions`.
+  Les entrées de menu rattachées à une fonctionnalité prennent son réglage et ne sont plus éditables une par une.
+
+| Fonctionnalité | Contenu | Défaut |
+|---|---|---|
+| `clan-members` | membres, invitations, demandes, ajout dans le clan de l'adresse | `owner` |
+| `clan-announcements` | Discord, écran d'accueil login | `owner` |
+| `clan-competition` | tournois | `owner` |
+| `clan-data-health` | santé des données (lecture) + demande de resynchronisation plafonnée | `owner` |
+| `clan-telemetry-tools` | état de la télémétrie, erreurs, synchronisation manuelle, récupérations, panneau d'exploitation des soirées, actions de la page « État » ; routes `T/backfill-null-json`, `clear-selected`, `dead-letter`, `fetch-files-selected`, `import-file`, `metrics`, `observability`, `recoveries`, `resync-files-queue`, `resync-files-selected`, `sync-batch-manual`, `sync-selected`, `sync-selected-enqueue` | `superuser` |
+
+**Jamais délégables** (`requirePlatformAdmin`, agissent sur toute la plateforme) : navigation et délégation, email
+d'envoi (SMTP), base de données, planification des crons et `cron-control` (déclenchements, historique, état du
+worker), `queue-cleanup` (réordonnancement de la file commune, suppressions dans `CronExecution` — M8),
+`recalc-aggregates-batch`, `dev/runtime-status`, référentiels (cartes, armes, phases, lieux, ligue), cycle de vie des
+clans, annuaire et résolution des joueurs, quota et journal de l'API PUBG, import de matchs, demandes de
+confidentialité.
+
+**Conditions avant d'ouvrir `clan-telemetry-tools` aux Owners** : M5 corrigé (lot 1) ; un plafond par clan sur les
+appels PUBG déclenchés par un Owner (le rattrapage `recoveries` est synchrone jusqu'à 150 parties) ; le journal des
+actions d'administration (Q10), pour savoir qui a consommé le quota commun. Tant que ces trois points ne sont pas faits,
+le bloc de délégation affiche cette fonctionnalité verrouillée.
+
+### 5.4 Accès du SuperUser à toutes les pages d'administration
+
+Les nouvelles gardes l'acceptent partout, même sans membre actif. Trois trous du plan initial, ajoutés au lot 1 :
+
+1. **Gardes existantes conservées** (`requirePermission`, `requireRole`, `requireNavPermission`) : le membre actif est
+   contrôlé **avant** le contournement SuperUser (`AP:127-140`, `:164-177`, `:213-223`) → 401 pour un SuperUser sans
+   membre actif (M12). Correctif : tester le SuperUser en premier dans les trois gardes, pas seulement dans les
+   nouvelles.
+2. **`hidden` refuse aussi le SuperUser**, côté API (`AP:205-207`) et dans les menus (`useSettingsHubItems.ts:43`,
+   `CN:397,461`, `useSectionNavItems.ts:32`). Sans effet aujourd'hui (mode visiteur), mais le SuperUser recevrait 403
+   sur les API des défis dès l'authentification réactivée. Décision : Q18.
+3. **`layout.tsx` serveur de `/clans/[clanId]/settings/`** : le contournement SuperUser y est écrit explicitement (il
+   réutilise la même fonction que `requireClanAccess`), sinon le SuperUser, membre d'un seul clan, serait refusé sur
+   les autres.
+
+Le test « SuperUser sans membre actif accepté » couvre **toutes** les routes d'administration, pas seulement celles
+que le lot 1 modifie.
 
 ---
 
@@ -312,31 +402,52 @@ qu'en pratique seul le SuperUser administre, et que les Owners ne se servent pas
 Chaque lot est livré séparément, après accord. À la fin de chaque lot, ce document est mis à jour (fait, reste à faire,
 écarts au plan), ainsi que `docs/architecture/api-reference.md` et `docs/ops/nav-permissions.md`.
 
+### Lot 0 — Correctifs critiques (fait le 2026-10-07, Q19)
+
+Branche `fix/admin-rights`, non commité au moment de la rédaction.
+
+- M1 : DELETE `…/members/[mid]/invite` sans `allowMissingActor` (puis `clan-members` au lot 1).
+- M2 : `matches/[matchId]` GET et POST derrière `requireSuperUser` (seul appelant : la page SuperUser d'import).
+- M3 : `A/fix` et `A/fix2` supprimés (Q12).
+- M4 : `cron/opponent-stats` derrière `requireSuperUser` ; `?force=true` et l'en-tête `x-vercel-cron` ne suffisent plus.
+  Pas de secret cron : aucun cron ne l'appelle (la production n'est pas sur Vercel) et
+  `settings/opponents/recalculate` (SuperUser) fait le même travail.
+- M14 : ancien PUT `settings/login-welcome` supprimé (Q12) ; le GET reste, la barre latérale et `/activate` le lisent.
+
 ### Lot 1 — Droits
 
 Fermer les accès trop larges sans rien déplacer : gardes d'API d'abord, conditions d'accès des pages ensuite.
 
-**Deux gardes partagées** (nouveau module `src/lib/auth/admin-guards.ts`, appelé par les routes) :
+**Trois gardes partagées** (nouveau module `src/lib/auth/admin-guards.ts`, appelé par les routes et les `layout.tsx`) :
 
-- `requireClanAccess(request, clanId, { permission } | { role })` : session valide obligatoire, **jamais ouverte par le
+- `requireClanAccess(request, clanId, 'owner' | 'member')` : session valide obligatoire, **jamais ouverte par le
   mode visiteur** ; SuperUser accepté même sans membre actif ; sinon l'utilisateur doit avoir un membre **actif dans le
-  clan de l'adresse** (Q14 : membre actif seulement, ou n'importe lequel de ses membres liés) qui porte la permission ou
-  le rôle.
+  clan de l'adresse** (Q14 : membre actif seulement, ou n'importe lequel de ses membres liés) qui porte le rôle.
+- `requireClanFeature(request, clanId, feature)` (§5.3) : comme `requireClanAccess(…, 'owner')`, et l'Owner n'est
+  accepté que si la fonctionnalité lui est ouverte. Catalogue `src/lib/auth/owner-features.ts` livré avec ce lot, tous
+  les réglages à leur défaut (aucun outil de pipeline ouvert) ; l'écran de délégation arrive au lot 3.
 - `requirePlatformAdmin(request)` : session valide et SuperUser, rien d'autre.
+
+**Gardes existantes** (§5.4) : le contournement SuperUser passe en tête de `requirePermission`, `requireRole` et
+`requireNavPermission` ; traitement de `hidden` selon Q18.
 
 **Routes à corriger** (une ligne par route dans le plan d'exécution) :
 
 | Garde cible | Routes |
 |---|---|
-| `requirePlatformAdmin` | PUT `settings/nav-permissions` (+ validation : `hrefTemplate` interne uniquement, pas de `//` ; refus de supprimer ou masquer une clé utilisée comme garde ; `defaultRole` non modifiable) ; GET/PUT `settings/map-labels`, `weapon-labels`, `phase-labels`, `map-locations` (écriture ; la lecture reste ouverte aux services) ; GET/POST/DELETE `settings/email-delivery` ; `T/recalc-aggregates-batch` ; `clans/[id]/cron-control` (les trois méthodes) ; `clans/[id]/dev/runtime-status` ; `T/queue-cleanup` ; outils de pipeline `T/backfill-null-json`, `clear-selected`, `dead-letter`, `fetch-files-selected`, `import-file`, `metrics`, `observability`, `recoveries`, `resync-files-queue`, `resync-files-selected`, `sync-batch-manual`, `sync-selected`, `sync-selected-enqueue` (Q1) ; `clans/[id]/sync-stats` ; `matches/[matchId]` GET et POST ; `cron/opponent-stats` (ou secret cron, comme `internal/cron/*`) |
-| `requireClanAccess` | DELETE `…/members/[mid]/invite` (fin de `allowMissingActor`) ; POST `members` (autorisation **avant** tout effet, clan de l'adresse, création de clan réservée au SuperUser) ; `…/members/[mid]/approve`, `reject` et la liste des demandes (une seule règle : `manage_members`) ; `encountered-players` (rôle à fixer, Q5) ; `challenges/[cid]/join` (vérifier `challenge.clanId`) ; nouvelle route GET `settings/email-delivery/status` (Admin du clan) |
+| `requirePlatformAdmin` | PUT `settings/nav-permissions` (+ validation : `hrefTemplate` interne uniquement, pas de `//` ; refus de supprimer ou masquer une clé utilisée comme garde ; `defaultRole` non modifiable) ; GET/PUT `settings/map-labels`, `weapon-labels`, `phase-labels`, `map-locations` (écriture ; la lecture reste ouverte aux services) ; GET/POST/DELETE `settings/email-delivery` ; `T/recalc-aggregates-batch` ; `clans/[id]/cron-control` (les trois méthodes) ; `clans/[id]/dev/runtime-status` ; `T/queue-cleanup` ; `clans/[id]/sync-stats` ; `matches/[matchId]` GET et POST ; `cron/opponent-stats` (ou secret cron, comme `internal/cron/*`) |
+| `requireClanFeature('clan-telemetry-tools')` | outils de pipeline d'un clan : `T/backfill-null-json`, `clear-selected`, `dead-letter`, `fetch-files-selected`, `import-file`, `metrics`, `observability`, `recoveries`, `resync-files-queue`, `resync-files-selected`, `sync-batch-manual`, `sync-selected`, `sync-selected-enqueue` — réglés sur `superuser` : même effet que `requirePlatformAdmin` à la livraison, ouvrables sans code |
+| `requireClanFeature` (autres clés) | DELETE `…/members/[mid]/invite` (fin de `allowMissingActor`) ; POST `members` (autorisation **avant** tout effet, clan de l'adresse, création de clan réservée au SuperUser) ; `…/members/[mid]/approve`, `reject` et la liste des demandes (une seule règle) : `clan-members` · Discord, accueil login : `clan-announcements` · tournois : `clan-competition` |
+| `requireClanAccess` | `encountered-players` (rôle à fixer, Q5) ; `challenges/[cid]/join` (`member`, vérifier `challenge.clanId`) ; nouvelle route GET `settings/email-delivery/status` (`owner`) ; `awards` (`member`) |
 | Contrôle d'appartenance des données | `resetBeforeSync` (route et worker) : ne supprimer que la télémétrie des parties du clan |
 | Supprimer | `A/fix`, `A/fix2` ; ancien PUT `settings/login-welcome` (Q12) |
 
 **Pages** : un `layout.tsx` **serveur** pour `src/app/settings/` (SuperUser, sauf les pages encore ouvertes à l'Owner
-jusqu'au lot 3) et pour `src/app/clans/[clanId]/settings/` (appartenance au clan de l'adresse + rôle) ; ajout de
-`isSuperUser` aux conditions oubliées ; masquage des boutons d'action de la page « État » ; barre latérale : liens des
-accueils pour le SuperUser.
+jusqu'au lot 3) et pour `src/app/clans/[clanId]/settings/` (Owner du clan de l'adresse, **SuperUser toujours
+accepté**, §5.4) ; un `layout.tsx` serveur dans chacun des dossiers d'outils `clans/[clanId]/telemetry/{dashboard,
+errors,sync-batch-manual,recoveries}` (`clan-telemetry-tools`) — pas au niveau de `telemetry/`, qui contient aussi le
+débriefing public ; ajout de `isSuperUser` aux conditions oubliées ; masquage des boutons d'action de la page « État »
+(`clan-telemetry-tools`) ; barre latérale : liens des accueils pour le SuperUser.
 
 **Fichiers touchés** : `src/middleware/auth-permission.ts`, `src/lib/auth/admin-guards.ts` (nouveau), une trentaine de
 routes listées ci-dessus, `src/app/settings/layout.tsx` et `src/app/clans/[clanId]/settings/layout.tsx` (nouveaux),
@@ -346,12 +457,63 @@ routes listées ci-dessus, `src/app/settings/layout.tsx` et `src/app/clans/[clan
 
 **Migrations de données** : aucune. **Redirections** : aucune (rien n'est déplacé).
 
-**Tests** (Vitest, dans `src/lib/` — seul dossier collecté) : `src/lib/auth/admin-guards.test.ts` (les deux gardes,
-mode visiteur compris) et `src/lib/auth/admin-route-guards.test.ts` : **un test par route corrigée**, qui vérifie le
-refus pour **un Owner d'un autre clan** (et, pour les routes Plateforme, pour un Owner de n'importe quel clan),
-l'acceptation pour le SuperUser, y compris sans membre actif, et le refus sans session. Plus : invitation anonyme
-refusée, `members` sans effet avant autorisation, `resetBeforeSync` limité au clan. E2E : un Admin du clan A sur
-`/clans/B/settings` voit le refus serveur.
+**Tests** (Vitest, dans `src/lib/` — seul dossier collecté ; Prisma **entièrement simulé**, la base de `.env` est la
+production) : `src/lib/auth/admin-guards.test.ts` (les trois gardes, mode visiteur compris ; `requireClanFeature` :
+Owner refusé au défaut `superuser`, accepté une fois ouvert, Owner d'un autre clan toujours refusé) et
+`src/lib/auth/admin-route-guards.test.ts` : **un test par route corrigée**, qui vérifie le refus pour **un Owner d'un
+autre clan** (et, pour les routes Plateforme, pour un Owner de n'importe quel clan) et le refus sans session. Le
+SuperUser sans membre actif est vérifié sur **toutes** les routes d'administration, modifiées ou non (§5.4). Plus :
+invitation anonyme refusée, `members` sans effet avant autorisation, `resetBeforeSync` limité au clan. E2E : un Owner
+du clan A sur `/clans/B/settings` voit le refus serveur.
+
+**État au 2026-10-07 : fait (branche `fix/admin-rights`).** Le test e2e « Owner du clan A sur `/clans/B/settings` »
+n'est pas écrit : il demande une vraie session, il est couvert par `admin-access-gate.test.ts` (Q21).
+
+Écarts au plan :
+
+- **Pages : un `layout.tsx` par dossier, pas un layout commun à `src/app/settings/`.** Un layout ne se ré-exécute pas
+  quand on navigue entre ses pages enfants (Partial Rendering, `node_modules/next/dist/docs/01-app/02-guides/authentication.md`) :
+  un Owner entré par `/settings/owner` aurait atteint `/settings/cron` sans nouveau contrôle. La garde est le composant
+  serveur `src/components/settings/AdminAccessGate.tsx` (même décision que l'API, session lue par
+  `getServerComponentSession`), posée dans 12 dossiers Plateforme, `settings/admin|owner` (Owner du clan du membre
+  actif), `clans/[clanId]/settings` (+ `discord`, `login-welcome`, `members`, `tournaments`), `members/pending`,
+  `members/add`, les 4 outils de `telemetry/` et `telemetry/opponents`. Le layout client de `settings/opponents` est
+  devenu `OpponentsShell.tsx`, enveloppé par la garde.
+- **La garde de page ne refuse qu'une session valide sans les droits (Q21).** Sans session valide, la page s'affiche
+  comme avant et le client comme l'API (401) s'en chargent ; les données restent protégées par les gardes d'API.
+  L'Owner du clan A reçoit toujours le refus serveur sur le clan B (constat 7) ; les tests Playwright, qui simulent
+  la session dans le navigateur avec un cookie factice, gardent leurs pages sans code de test dans l'authentification.
+- **`awards` inchangé** : la route est marquée `readOnly` (publique en mode visiteur) ; `requireClanAccess` l'aurait
+  fermée en production. Le retrait du nom `Admin` passe au lot 2 avec les autres noms de rôle.
+- **Statut email** : `GET /api/clans/[clanId]/settings/email-delivery` (`clan-members`, renvoie `{ ready }`) au lieu
+  de `settings/email-delivery/status` : l'adresse porte le clan, la garde de clan s'applique.
+- **`nav-permissions`** : masquer une clé de garde reste permis (depuis Q18 le SuperUser passe `hidden`) ; seule la
+  suppression est refusée (`NAV_GUARD_KEYS`, tenue à jour par `nav-permissions-service.test.ts`).
+- **`POST /api/members`** : pour un Owner, le clan PUBG du joueur est cherché **sans être créé**
+  (`findTrackedClanForPlayer`) ; un joueur d'un autre clan PUBG est refusé (403). Le SuperUser garde
+  `ensureTrackedClanForPlayer`.
+- **`sync-stats`** garde son passage par le secret cron interne ; **`tournaments/[id]/sync`** exige toujours un membre
+  actif (il le transmet à `sync-matches`).
+- **Page « État »** : boutons d'action affichés au seul SuperUser (fonctionnalité verrouillée) ; la page de soirée
+  n'interroge plus `dev/runtime-status` pour les autres. L'exposition des réglages de délégation au client viendra
+  avec l'écran du lot 3.
+- **Barre latérale (Q18)** : une entrée `hidden` apparaît au seul SuperUser avec l'étiquette « masquée »
+  (`.sidebar-ctx-nav-item--hidden`) ; les accueils aussi. Les onglets de section (`useSectionNavItems`) la cachent
+  toujours.
+
+Tests livrés (Prisma simulé, réseau coupé) : `src/lib/auth/owner-features.test.ts`, `admin-guards.test.ts`,
+`legacy-guards-superuser.test.ts`, `admin-access-gate.test.ts`, `admin-route-guards.test.ts` (59 routes × anonyme / Owner d'un autre clan / Owner
+du clan sur les routes Plateforme et outils / mode visiteur), `admin-data-scope.test.ts` (`resetBeforeSync`, défi d'un
+autre clan), `src/lib/nav-permissions-service.test.ts`. Tests existants adaptés : `discord-route-contracts`,
+`login-welcome-upload-routes`, `period-route-contracts`, `pubg-telemetry/route-contracts`. Suite complète verte hors
+les trois fichiers qui écrivent en production (non lancés).
+
+Reste à faire :
+
+- Lancer les specs Playwright des pages gardées (`clan-lifecycle`, `league-settings`, `tournament-admin`) : non lancées
+  le 2026-10-07, attendues vertes avec la règle de Q21.
+- Palette de commandes (M23) : liens vers les outils de télémétrie toujours visibles de tous ; les pages refusent
+  désormais côté serveur.
 
 ### Lot 2 — Doublons et pages mortes
 
@@ -359,6 +521,11 @@ refusée, `members` sans effet avant autorisation, `resetBeforeSync` limité au 
   `owner.nav-permissions`, `owner.switch-clan`, `superuser.switch-clan`, `admin.weapon-categories`, `clan.reports` ;
   corriger les libellés (`label` en base quand il n'y a pas de surcharge) ; ajouter `primary.mortar`,
   `primary.resources`, `primary.zone-reading` ; aligner `reg`.
+- **Quatre profils (§5.3)** : code d'abord (rôle de menu `admin` retiré de `VALID_ROLES`, du registre et des calculs
+  `isAdmin` ; Admin et Moderator retirés de `PREDEFINED_ROLES` ; routes et tables de rang qui nomment ces rôles ;
+  `docs/features/clans.md`), **puis**, une fois ce code en production, `scripts/remove-admin-moderator-roles.ts`
+  (simulation par défaut, `--apply` pour écrire) : recompte des attributions, refus d'écrire s'il y en a, passage à
+  `owner` des trois entrées de menu en `admin`, suppression des lignes `ClanRole` Admin et Moderator.
 - **`clan.items`** : la route `T/item-use` passe sur la clé `clan.stats`, puis l'entrée est retirée du registre et de
   `scripts/seed-item-use-nav.ts`.
 - **Routes sans appelant supprimées** : `T/loot`, `T/vehicles`, `T/circles`, `A/members/[id]/telemetry/circles`,
@@ -378,11 +545,15 @@ refusée, `members` sans effet avant autorisation, `resetBeforeSync` limité au 
 ### Lot 3 — Réorganisation
 
 - **Accueil Plateforme** `/settings` (Clans, Joueurs, Données, Référentiels, Site) et **accueil Mon clan**
-  `/clans/[clanId]/settings` (Membres, Apparence et annonces, Compétition, Santé des données), chacun derrière son
-  `layout.tsx` serveur.
-- **Nouvelles pages** : `/settings/clans`, `/settings/players`, `/settings/telemetry`, `/settings/database`,
-  `/settings/privacy-requests` (+ routes `GET/PATCH /api/settings/privacy-requests`), `/clans/[clanId]/settings/data`,
-  `/clans/[clanId]/stats/opponents` ; onglets de `/clans/[clanId]/settings/members` ; espace Moderator si confirmé.
+  `/clans/[clanId]/settings` (Membres, Apparence et annonces, Compétition, Données), chacun derrière son
+  `layout.tsx` serveur. Les cartes de Mon clan suivent les réglages de délégation (§5.3).
+- **Nouvelles pages** : `/settings/clans`, `/settings/players`, `/settings/telemetry` (vue tous les clans),
+  `/settings/database`, `/settings/privacy-requests` (+ routes `GET/PATCH /api/settings/privacy-requests`),
+  `/clans/[clanId]/settings/data` (santé + onglets d'outils), `/clans/[clanId]/stats/opponents` ; onglets de
+  `/clans/[clanId]/settings/members`.
+- **Délégation aux Owners** : bloc dans `/settings/nav-permissions` (lecture et écriture de `owner_feature_access`,
+  route `GET/PUT /api/settings/owner-features`, `requirePlatformAdmin`) ; `clan-telemetry-tools` verrouillée tant que
+  les conditions du §5.3 ne sont pas remplies.
 - **Menus** : nouvelles clés par section, suppression des anciennes (`admin-menu`, `owner-menu`, `superuser-menu`
   regroupés en `clan-admin` et `platform`), par un script dans `scripts/`.
 - **Redirections `next.config.ts` (308)** :
@@ -394,7 +565,7 @@ refusée, `members` sans effet avant autorisation, `resetBeforeSync` limité au 
   `/settings/clan-lifecycle` → `/settings/clans?tab=demandes` ;
   `/settings/superuser/database` → `/settings/database` ;
   `/settings/telemetry-recoveries` → `/settings/telemetry` ;
-  `/clans/:c/telemetry/{dashboard,errors,sync-batch-manual,recoveries}` → `/settings/telemetry?clan=:c&tab=…` ;
+  `/clans/:c/telemetry/{dashboard,errors,sync-batch-manual,recoveries}` → `/clans/:c/settings/data?tab=…` ;
   `/clans/:c/telemetry/matches` → `/clans/:c/matches` ;
   `/clans/:c/telemetry/matches/session/:date` → `/clans/:c/matches/session/:date` ;
   `/clans/:c/telemetry/opponents` → `/clans/:c/stats/opponents` ;
@@ -411,38 +582,43 @@ refusée, `members` sans effet avant autorisation, `resetBeforeSync` limité au 
 
 ## 7. Questions ouvertes
 
-**À trancher avant le lot 1**
+**Réglées le 2026-10-07**
 
-- **Q1 — Outils de pipeline retirés aux Owners.** Le lot 1 réserve au SuperUser : état de la télémétrie, erreurs,
-  synchronisation manuelle, récupérations, panneau d'exploitation des soirées, actions de la page « État »,
-  déclenchement des crons d'un clan (`cron-control`), réordonnancement de la file. Aucun usage par un Owner observé en
-  60 jours (§4). D'accord ?
-- **Q2 — Référentiels retirés aux Admins** (alias cartes, armes, phases, lieux de carte). Déjà masqués aux Admins dans
-  le menu de production. D'accord ?
-- **Q3 — Retirés aux Owners** : navigation, email d'envoi (test et configuration), carte « API PUBG ». Les Admins
-  gardent un statut en lecture seule pour savoir si les invitations par email marchent. D'accord ?
+- **Q1 — Outils de pipeline** : réservés au SuperUser **par défaut** (`clan-telemetry-tools` = `superuser`),
+  ouvrables à tous les Owners par le SuperUser une fois les conditions du §5.3 remplies. `cron-control` et le
+  réordonnancement de la file : jamais délégables.
+- **Q2 — Référentiels** : sans objet pour les Admins (rôle supprimé) ; jamais délégables.
+- **Q3 — Navigation, email d'envoi, API PUBG** : jamais délégables ; l'Owner garde un statut email en lecture seule.
+- **Q4 — Partage Admin / Owner** : sans objet, quatre profils (§5.3).
+- **Q6 — Moderator** : supprimé.
+- **Délégation** : réglage commun à tous les Owners, pas de réglage par clan.
+- **Q12 — Routes de débogage** : supprimées (lot 0).
+- **Q14 — Utilisateur lié à plusieurs membres** : l'accès se juge sur le membre **actif** de la session.
+- **Q18 — `hidden`** : le SuperUser passe (API et pages) et voit l'entrée marquée « masquée » ; les autres sont refusés.
+- **Q19 — Lot 0** : correctifs critiques livrés seuls, avant le lot 1.
+- **Q20 — Outils de pipeline dans l'espace du clan** : onglets de `/clans/[clanId]/settings/data` ;
+  `/settings/telemetry` ne garde que la vue « tous les clans ».
+- **Q21 — Garde de page et e2e** : option « c-bis ». La garde serveur des pages ne refuse qu'une session valide sans
+  les droits ; sans session valide, elle laisse la page au client et à l'API. Écartées : une session de test reconnue
+  par le serveur (code de test dans l'authentification), des specs qui ne vérifient plus que le refus (perte de
+  couverture), la suppression de la garde de page (le constat 7 revenait à l'affichage).
+
+**Toujours ouverte, ne bloque pas le code**
+
 - **Q9 — Mode visiteur en production.** La documentation dit `DISABLE_AUTH_PERMISSIONS=true` sur le serveur ;
-  confirmes-tu ? Les nouvelles gardes ne seront jamais ouvertes par ce mode.
-- **Q12 — Routes de débogage** `/api/fix`, `/api/fix2`, ancien PUT `settings/login-welcome` : suppression au lot 1
-  (recommandé) ou simple garde SuperUser ?
-- **Q14 — Utilisateur lié à plusieurs membres** : l'accès à un clan se juge sur le membre **actif** de la session (comme
-  aujourd'hui) ou sur n'importe lequel de ses membres liés dans ce clan ?
+  confirmes-tu ? Les nouvelles gardes ne sont jamais ouvertes par ce mode.
 
 **À trancher avant les lots 2 et 3**
 
-- **Q4 — Partage Admin / Owner dans Mon clan.** La base réserve aujourd'hui « Joueurs et rôles », « Accueil login » et
-  « Tournois » à l'Owner ; les API les ouvrent à l'Admin. Proposition au §5.1 (6). Aucun Admin n'est attribué en
-  production aujourd'hui.
-- **Q5 — « Adversaires rencontrés » dans les stats du clan** : visible par qui (Admin, membres du clan, visiteurs) ? La
+- **Q5 — « Adversaires rencontrés » dans les stats du clan** : visible par qui (Owner, membres du clan, visiteurs) ? La
   page nomme des joueurs extérieurs au site.
-- **Q6 — Moderator.** Ses permissions ne sont vérifiées nulle part et il a moins de droits qu'un Member ; aucun n'est
-  attribué. Supprimer le rôle (proposition) ou lui créer un espace (lequel : demandes, défis, annonces Discord) ?
 - **Q7 — Défis et rapports.** `clan.challenges` est masqué en production ; les rapports sont abandonnés. Les défis
   rejoignent-ils « Compétition » ou restent-ils masqués ? On supprime définitivement `clan.reports` ?
 - **Q8 — APIs de lecture des clans en rôle `none`** : publiques et inter-clans même hors mode visiteur. On les garde
   ainsi (cohérent avec le mode visiteur) ou on les limite aux membres du clan quand l'authentification est active ?
 - **Q10 — Journal des actions d'administration** : une table qui enregistre qui a fait quoi (migration Prisma), et la
-  correction de `triggeredBy` (membre ou compte, mais pas les deux) ? Au lot 1 ou plus tard ?
+  correction de `triggeredBy` (membre ou compte, mais pas les deux) ? Au lot 1 ou plus tard ? **Condition** pour ouvrir
+  un jour `clan-telemetry-tools` aux Owners (§5.3).
 - **Q11 — `/settings/admin`, `/settings/owner`, `/members/add`** : leur adresse ne porte pas le clan, une redirection de
   `next.config.ts` ne peut pas le deviner. Une petite page serveur qui lit la session et redirige vers le clan du
   membre actif te convient-elle ?

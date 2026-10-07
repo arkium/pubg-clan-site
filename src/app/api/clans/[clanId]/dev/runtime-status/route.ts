@@ -2,7 +2,7 @@ import os from 'node:os'
 
 import { NextRequest } from 'next/server'
 
-import { requireRole } from '@/middleware/auth-permission'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -23,9 +23,7 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }

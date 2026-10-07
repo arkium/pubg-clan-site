@@ -1,6 +1,6 @@
 import { z } from 'zod'
 
-import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import {
   getClanLabel,
   getLoginWelcomeSettings,
@@ -60,13 +60,8 @@ export async function PUT(
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const permissionError = await requirePermission('manage_settings')(request, { clanId })
+  const permissionError = await requireClanFeature(request, clanId, 'clan-announcements')
   if (permissionError) return permissionError
-
-  const actorMemberId = await getActorMemberId(request)
-  if (!actorMemberId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
 
   const body = (await request.json().catch(() => null)) as unknown
   const validated = UpdateWelcomeSchema.safeParse(body)

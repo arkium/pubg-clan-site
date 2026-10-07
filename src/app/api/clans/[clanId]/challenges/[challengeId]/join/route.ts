@@ -35,12 +35,12 @@ export async function POST(
       return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
-    const participant = await joinChallenge(challengeId, memberId)
+    const participant = await joinChallenge(challengeId, memberId, parsedClanId)
 
     return Response.json({ participant }, { status: 201 })
   } catch (error) {
     const message = error instanceof Error ? error.message : 'Failed to join challenge'
-    const status = message === 'Challenge is not active' ? 400 : 500
+    const status = message === 'Challenge is not active' ? 400 : message === 'Challenge not found' ? 404 : 500
     return Response.json({ error: message }, { status })
   }
 }

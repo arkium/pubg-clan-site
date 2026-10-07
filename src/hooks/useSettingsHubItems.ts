@@ -40,7 +40,8 @@ export function useSettingsHubItems(
     const isAdmin = canManageMembers || canManageRoles || canManageSettings
 
     function canAccessRole(role: NavRole): boolean {
-      if (role === 'hidden') return false
+      // `hidden` = fonctionnalité désactivée : seul le SuperUser la voit encore (Q18)
+      if (role === 'hidden') return isSuperUser
       if (role === 'superuser') return isSuperUser
       if (role === 'owner') return isOwner || isSuperUser
       if (role === 'admin') return isAdmin || isSuperUser

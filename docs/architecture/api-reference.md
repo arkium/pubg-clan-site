@@ -19,6 +19,16 @@ Ce document liste les ~99 routes `src/app/api/**/route.ts` du projet, avec pour 
 - `requirePermission(key)` : vérifie une permission fine (`manage_members`, `manage_roles`, `edit_clan`, `view_reports`, `assign_roles`, `manage_settings`) portée par le rôle du membre actif.
 - `requireNavPermission(navKey)` : vérifie le rôle configuré pour une entrée de navigation (table `NavItem`/`NavPermission`, éditable depuis `/settings/nav-permissions`) — plus souple qu'un rôle fixe.
 - `requireSuperUser` / `isSuperUserSession` : réservé au(x) compte(s) SuperUser (cross-clan).
+- **Gardes d'administration** (`src/lib/auth/admin-guards.ts`, depuis le 2026-10-07 — [administration.md](../TODO/administration.md)) :
+  jamais ouvertes par le mode visiteur ; le SuperUser passe toujours, même sans membre actif ; sinon le membre
+  **actif** doit appartenir au clan de l'adresse. 401 sans session, 403 pour une session refusée.
+  - `requirePlatformAdmin` : SuperUser seulement (outils qui agissent sur toute la plateforme).
+  - `requireClanAccess(clanId, 'owner' | 'member')` : Owner (ou membre) du clan de l'adresse.
+  - `requireClanFeature(clanId, feature)` : Owner du clan de l'adresse, si la fonctionnalité est ouverte aux Owners
+    (`src/lib/auth/owner-features.ts` : `clan-members`, `clan-announcements`, `clan-competition` ouvertes par défaut ;
+    `clan-telemetry-tools` verrouillée au SuperUser).
+- `requirePermission`, `requireRole`, `requireNavPermission` testent désormais le SuperUser **en premier** (accepté sans
+  membre actif) ; `requireNavPermission` laisse le SuperUser traverser une entrée `hidden`.
 - `Secret header` : routes internes protégées par un secret partagé (`CRON_BOOTSTRAP_SECRET`, `AUTH_BOOTSTRAP_SECRET`), jamais appelées par un client applicatif.
 - `Public` : aucune authentification (pages pré-login, health checks).
 
@@ -94,11 +104,12 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 | GET | `/api/clans/[clanId]/pubg-diff` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Diff membres PUBG officiels vs membres trackés — voir [Clans](../features/clans.md) |
 | GET | `/api/clans/[clanId]/roles` | `requirePermission('manage_roles')` | ⚠️ Admin web uniquement | Liste rôles clan + catalogue des permissions — détail ci-dessous |
 | GET | `/api/clans/[clanId]/settings/login-welcome` | Public | ✅ Pertinent | Message d'accueil du clan (bannière login) — détail ci-dessous |
-| PUT | `/api/clans/[clanId]/settings/login-welcome` | `requirePermission('manage_settings')` | ⚠️ Admin web uniquement | Met à jour le message d'accueil du clan |
-| POST | `/api/clans/[clanId]/sync-stats` | `requireRole(['Owner'])` (bypass si appel cron interne) | ⚠️ Admin web uniquement | Recalcule `clanStats` JSON — voir [Clans](../features/clans.md) |
-| GET | `/api/clans/[clanId]/cron-control` | `requireRole(['Owner'])` ou SuperUser | ⚠️ Admin web uniquement | Statut santé cron du clan — voir [Cron](../ops/cron.md) |
-| POST | `/api/clans/[clanId]/cron-control` | `requireRole(['Owner'])` ou SuperUser | ⚠️ Admin web uniquement | Déclenche une action cron manuelle — voir [Cron](../ops/cron.md) |
-| GET | `/api/clans/[clanId]/dev/runtime-status` | `requireRole(['Owner'])` | ❌ Interne/dev | Infos process Node (pid, uptime, hostname) — détail ci-dessous |
+| PUT | `/api/clans/[clanId]/settings/login-welcome` | `requireClanFeature('clan-announcements')` | ⚠️ Admin web uniquement | Met à jour le message d'accueil du clan |
+| GET | `/api/clans/[clanId]/settings/email-delivery` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | `{ ready }` seulement : les invitations par email marchent-elles ? (la configuration SMTP reste au SuperUser) |
+| POST | `/api/clans/[clanId]/sync-stats` | `requirePlatformAdmin` (SuperUser) (bypass si appel cron interne) | ⚠️ Admin web uniquement | Recalcule `clanStats` JSON — voir [Clans](../features/clans.md) |
+| GET | `/api/clans/[clanId]/cron-control` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Statut santé cron du clan — voir [Cron](../ops/cron.md) |
+| POST | `/api/clans/[clanId]/cron-control` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Déclenche une action cron manuelle — voir [Cron](../ops/cron.md) |
+| GET | `/api/clans/[clanId]/dev/runtime-status` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Infos process Node (pid, uptime, hostname) — détail ci-dessous |
 | GET | `/api/clans/[clanId]/lifetime-stats` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Carrière PUBG (lifetime) de tous les membres, sans période — détail ci-dessous |
 | GET | `/api/clans/[clanId]/leaderboard` | `requireNavPermission('clan.leaderboard')` | ✅ Pertinent | Classement clan par période/tri — voir [Leaderboard](../features/leaderboard.md) |
 | GET | `/api/clans/[clanId]/squad-analysis` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Analyse des compositions squad récurrentes — détail ci-dessous |
@@ -147,15 +158,15 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
-| GET | `/api/clans/[clanId]/members` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Roster complet avec rôles/invitations/permissions — voir [Clans](../features/clans.md) |
+| GET | `/api/clans/[clanId]/members` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Roster complet avec rôles/invitations/permissions — voir [Clans](../features/clans.md) |
 | GET | `/api/clans/[clanId]/members/cards` | `requireNavPermission('clan.members')` | ✅ Pertinent | Fiches de l'annuaire : rôle, activité, 30 jours officiels, arme fétiche, médailles ; demandes en attente pour `manage_members` — voir [Membres](../features/membres.md) §2 |
-| POST | `/api/clans/[clanId]/members/[memberId]/approve` | `requireRole(['Owner','Admin'])` | ⚠️ Admin web uniquement | Approuve un membre en attente — voir [Clans](../features/clans.md) |
-| POST | `/api/clans/[clanId]/members/[memberId]/invite` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Crée une invitation d'activation — voir [Clans](../features/clans.md) |
-| DELETE | `/api/clans/[clanId]/members/[memberId]/invite` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Révoque l'invitation active du membre |
-| POST | `/api/clans/[clanId]/members/[memberId]/reject` | `requireRole(['Owner','Admin'])` | ⚠️ Admin web uniquement | Rejette une demande d'adhésion pending — voir [Clans](../features/clans.md) |
+| POST | `/api/clans/[clanId]/members/[memberId]/approve` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Approuve un membre en attente — voir [Clans](../features/clans.md) |
+| POST | `/api/clans/[clanId]/members/[memberId]/invite` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Crée une invitation d'activation — voir [Clans](../features/clans.md) |
+| DELETE | `/api/clans/[clanId]/members/[memberId]/invite` | `requireClanFeature('clan-members')` (session obligatoire depuis le 2026-10-07) | ⚠️ Admin web uniquement | Révoque l'invitation active du membre |
+| POST | `/api/clans/[clanId]/members/[memberId]/reject` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Rejette une demande d'adhésion pending — voir [Clans](../features/clans.md) |
 | PATCH | `/api/clans/[clanId]/members/[memberId]/role` | `requirePermission('assign_roles')` (+ SuperUser si rôle Owner impliqué) | ⚠️ Admin web uniquement | Change le rôle d'un membre — voir [Clans](../features/clans.md) |
 | GET | `/api/members` | Session (cookie) | ✅ Pertinent | Liste tous les membres (filtre `?clanId=`) + médailles (top 3 par métrique lifetime) — détail ci-dessous |
-| POST | `/api/members` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Ajoute un membre (recherche PUBG + détection clan) — détail ci-dessous |
+| POST | `/api/members` | Session ; hors SuperUser : `clanId` requis et `requireClanFeature('clan-members')` sur ce clan, **avant** tout appel PUBG | ⚠️ Admin web uniquement | Ajoute un membre (recherche PUBG + détection clan) — détail ci-dessous |
 | GET | `/api/members/[id]` | `requireSameClanAsMember` | ✅ Pertinent | Profil minimal d'un membre (displayName, avatar, pubgPlayerName, clanId) — détail ci-dessous |
 | DELETE | `/api/members/[id]` | `requirePermission('manage_members')` | ⚠️ Admin web uniquement | Désactive (soft) ou supprime (`?hard=true`) un membre — détail ci-dessous |
 | PATCH | `/api/members/[id]` | `requireSuperUser` | ⚠️ Admin web uniquement | Déplace un membre vers un autre clan — détail ci-dessous |
@@ -224,8 +235,8 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 | GET | `/api/tournaments/[tournamentId]/matches/[matchId]/replay` | Session + match = manche du tournoi | ✅ Pertinent | Replay 2D d'une manche, sans clan mis en avant (escouade choisie côté client) |
 | GET | `/api/tournaments`, `/api/tournaments/[tournamentId]/standings` | Session (depuis le 2026-09-16 ; auparavant **aucune**) | ✅ Pertinent | Liste des tournois, classement et manches. Depuis le 2026-09-18, `/standings` renvoie aussi le classement adapté au mode (`modeStandings`, `squadBreakdown`, `clanTrophy`), les manches numérotées avec vainqueur et MVP (`rounds`), et le MVP du tournoi — voir [Tournois](../features/tournois.md). Depuis le 2026-09-17, `/api/tournaments` renvoie un résumé par tournoi (`src/lib/tournament-overview.ts`) : état affiché dérivé des dates (`live`, `upcoming`, `finished`, `draft`), libellé de carte, nombre de manches, nombre de clans engagés et vainqueur calculé comme sur la page de classement |
 | GET | `/api/members/[id]/matches` | `requireSameClanAsMember` | ✅ Pertinent | Historique matchs membre (`limit=all` : toute la période ; coéquipiers, équipes, état de la télémétrie) ou détection de matchs récents non importés — voir [Matchs d'un joueur](../features/matchs-joueur.md) |
-| GET | `/api/matches/[matchId]` | Aucun (query `shard`/`playerId` requis) | ✅ Pertinent | Détail d'un match PUBG pour import — voir [Matchs](../features/matches.md) |
-| POST | `/api/matches/[matchId]` | Aucun (body `memberId`/`shard`/`playerId`) | ✅ Pertinent | Importe un match en base pour un membre — voir [Matchs](../features/matches.md) |
+| GET | `/api/matches/[matchId]` | `requireSuperUser` (page d’import SuperUser) | ✅ Pertinent | Détail d'un match PUBG pour import — voir [Matchs](../features/matches.md) |
+| POST | `/api/matches/[matchId]` | `requireSuperUser` (page d’import SuperUser) | ✅ Pertinent | Importe un match en base pour un membre — voir [Matchs](../features/matches.md) |
 
 ### Détail — `GET /api/clans/[clanId]/matches/[matchId]/telemetry`
 
@@ -267,7 +278,7 @@ Même payload que la route clan, sans restriction de clan, plus `data.tournament
 | GET | `/api/clans/[clanId]/challenges` | `requireNavPermission('clan.challenges')` | ✅ Pertinent | Liste défis du clan (filtre `?status=`) — voir [Défis](../features/challenges.md) |
 | POST | `/api/clans/[clanId]/challenges` | `requirePermission('edit_clan')` | ⚠️ Admin web uniquement | Crée un défi — voir [Défis](../features/challenges.md) |
 | GET | `/api/clans/[clanId]/challenges/[challengeId]` | `requireNavPermission('clan.challenges')` | ✅ Pertinent | Détail d'un défi + participants — voir [Défis](../features/challenges.md) |
-| POST | `/api/clans/[clanId]/challenges/[challengeId]/join` | Session (via `getActorMemberId`, membre du clan requis) | ✅ Pertinent | Rejoint un défi actif — voir [Défis](../features/challenges.md) |
+| POST | `/api/clans/[clanId]/challenges/[challengeId]/join` | Session (via `getActorMemberId`, membre du clan requis) ; le défi doit appartenir au clan de l’adresse | ✅ Pertinent | Rejoint un défi actif — voir [Défis](../features/challenges.md) |
 | GET | `/api/clans/[clanId]/challenges/[challengeId]/leaderboard` | `requireNavPermission('clan.challenges')` | ✅ Pertinent | Classement des participants d'un défi — voir [Défis](../features/challenges.md) |
 | GET | `/api/clans/[clanId]/reports` | `requirePermission('view_reports')` | ✅ Pertinent | Liste paginée des rapports (filtre `?type=`) — voir [Rapports](../features/reports.md) |
 | GET | `/api/clans/[clanId]/reports/[reportId]` | `requireNavPermission('clan.reports')` | ✅ Pertinent | Détail complet d'un rapport — voir [Rapports](../features/reports.md) |
@@ -310,25 +321,24 @@ Toutes ces routes pilotent des pages `/settings/*` réservées Owner/Admin/Super
 | PUT | `/api/settings/cron-schedules` | SuperUser | ⚠️ Admin web uniquement | Modifie l'expression d'un planning — voir [Cron](../ops/cron.md) |
 | DELETE | `/api/settings/cron-schedules/[key]` | SuperUser | ⚠️ Admin web uniquement | Réinitialise un planning à sa valeur par défaut — voir [Cron](../ops/cron.md) |
 | GET | `/api/settings/cron-workers-status` | SuperUser | ⚠️ Admin web uniquement | Statut des workers télémétrie (lock files + queues) — voir [Cron](../ops/cron.md) |
-| GET | `/api/settings/email-delivery` | Permission `*` | ⚠️ Admin web uniquement | Statut config SMTP — voir [Paramètres admin](../ops/settings.md) |
-| POST | `/api/settings/email-delivery` | Permission `*` | ⚠️ Admin web uniquement | Envoie un email de test — voir [Paramètres admin](../ops/settings.md) |
-| DELETE | `/api/settings/email-delivery` | Permission `*` | ⚠️ Admin web uniquement | Révoque la validation email — non détaillé dans [Paramètres admin](../ops/settings.md), même garde d'accès que GET/POST |
+| GET | `/api/settings/email-delivery` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Statut config SMTP — voir [Paramètres admin](../ops/settings.md) |
+| POST | `/api/settings/email-delivery` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Envoie un email de test — voir [Paramètres admin](../ops/settings.md) |
+| DELETE | `/api/settings/email-delivery` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Révoque la validation email — non détaillé dans [Paramètres admin](../ops/settings.md), même garde d'accès que GET/POST |
 | GET | `/api/settings/login-welcome` | Public | ✅ Pertinent | Message d'accueil global (bannière login) — voir [Paramètres admin](../ops/settings.md) |
-| PUT | `/api/settings/login-welcome` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour le message d'accueil global — voir [Paramètres admin](../ops/settings.md) |
-| GET | `/api/settings/map-labels` | `manage_settings` ou `*` | ✅ Pertinent | Labels lisibles des cartes PUBG — voir [Paramètres admin](../ops/settings.md) |
-| PUT | `/api/settings/map-labels` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les labels de cartes — voir [Paramètres admin](../ops/settings.md) |
-| GET | `/api/settings/map-locations` | `manage_settings` ou `*` | ✅ Pertinent | Villes et périmètres configurés par carte — voir [Paramètres admin](../ops/settings.md) |
-| PUT | `/api/settings/map-locations` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les villes, centres et rayons des cartes — voir [Paramètres admin](../ops/settings.md) |
+| GET | `/api/settings/map-labels` | `requirePlatformAdmin` (SuperUser) | ✅ Pertinent | Labels lisibles des cartes PUBG — voir [Paramètres admin](../ops/settings.md) |
+| PUT | `/api/settings/map-labels` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Met à jour les labels de cartes — voir [Paramètres admin](../ops/settings.md) |
+| GET | `/api/settings/map-locations` | `requirePlatformAdmin` (SuperUser) | ✅ Pertinent | Villes et périmètres configurés par carte — voir [Paramètres admin](../ops/settings.md) |
+| PUT | `/api/settings/map-locations` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Met à jour les villes, centres et rayons des cartes — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/nav-permissions` | Aucun contrôle explicite en lecture | ⚠️ Admin web uniquement | Registre de navigation (items, rôles, positions, labels) — voir [Permissions navigation](../ops/nav-permissions.md) |
-| PUT | `/api/settings/nav-permissions` | SuperUser ou `requireRole(['Owner'])` | ⚠️ Admin web uniquement | Modifie rôle/position/label/CRUD d'une entrée de nav — voir [Permissions navigation](../ops/nav-permissions.md) |
-| GET | `/api/settings/phase-labels` | `manage_settings` ou `*` | ✅ Pertinent | Labels des phases de jeu — voir [Paramètres admin](../ops/settings.md) |
-| PUT | `/api/settings/phase-labels` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les labels de phases — voir [Paramètres admin](../ops/settings.md) |
+| PUT | `/api/settings/nav-permissions` | `requirePlatformAdmin` (SuperUser) ; liens internes seulement, clés de garde non supprimables, `defaultRole` non modifiable | ⚠️ Admin web uniquement | Modifie rôle/position/label/CRUD d'une entrée de nav — voir [Permissions navigation](../ops/nav-permissions.md) |
+| GET | `/api/settings/phase-labels` | `requirePlatformAdmin` (SuperUser) | ✅ Pertinent | Labels des phases de jeu — voir [Paramètres admin](../ops/settings.md) |
+| PUT | `/api/settings/phase-labels` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Met à jour les labels de phases — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/pubg-api-calls` | Permission `*` | ✅ Pertinent | Historique + totaux + agrégats (catégories, top erreurs, tendance 14j) des appels API PUBG — voir [Paramètres admin](../ops/settings.md) |
 | DELETE | `/api/settings/pubg-api-calls` | Permission `*` | ✅ Pertinent | Purge l'historique des appels API PUBG loggés — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/pubg-api-rate-limit` | Permission `*` | ⚠️ Admin web uniquement | Lit le RPM configuré + bornes — non documenté ailleurs, détail ci-dessous |
 | POST | `/api/settings/pubg-api-rate-limit` | Permission `*` | ⚠️ Admin web uniquement | Modifie le RPM (override DB) — détail ci-dessous |
-| GET | `/api/settings/weapon-labels` | `manage_settings` ou `*` | ✅ Pertinent | Labels lisibles des armes — voir [Paramètres admin](../ops/settings.md) |
-| PUT | `/api/settings/weapon-labels` | `manage_settings` ou `*` | ⚠️ Admin web uniquement | Met à jour les labels d'armes — voir [Paramètres admin](../ops/settings.md) |
+| GET | `/api/settings/weapon-labels` | `requirePlatformAdmin` (SuperUser) | ✅ Pertinent | Labels lisibles des armes — voir [Paramètres admin](../ops/settings.md) |
+| PUT | `/api/settings/weapon-labels` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Met à jour les labels d'armes — voir [Paramètres admin](../ops/settings.md) |
 
 ### Détail — `GET` / `POST /api/settings/pubg-api-rate-limit`
 
@@ -357,33 +367,33 @@ Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/a
 | GET | `/drop-zones` | `requireNavPermission('clan.drop-zones')` | ✅ Pertinent | Points d'atterrissage + heatmap 40×40 — voir [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) |
 | GET | `/item-use` | `requireNavPermission('clan.items')` | ✅ Pertinent | Objets consommés par le clan, par famille, par objet et par membre (`?period=week\|month\|all`) — voir [Objets consommés](../features/objets-consommes.md) |
 | GET | `/zone-closures` | `requireNavPermission('clan.zone-closures')` | ✅ Pertinent | Positions d'arrivée à chaque fermeture de cercle (`?period=`, `?map=`, `?memberId=`, `?phase=`) — voir [Fin de zone](../features/fin-de-zone.md) |
-| GET | `/sync-batch-manual` | `requireRole(['Owner'])` | ❌ Interne/dev | État de la queue de traitement — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/sync-batch-manual` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | État de la queue de traitement — voir [Télémétrie API](../telemetry/api.md) |
 
 En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
 | GET | `/api/clans/[clanId]/city-insights` | `requireNavPermission('clan.overview')` | ✅ Pertinent | Villes et zones de combat du clan (Top 5 par métrique, ville favorite, évolution 8 semaines) — `?period=week\|month\|month-1\|month-2\|all`, `?matchType=`, `?mode=`. Lu dans `PositionMetricCell`, voir [Positions et villes](../features/positions-villes.md) |
-| POST | `/sync-batch-manual` | `requireRole(['Owner'])` | ❌ Interne/dev | Enqueue/traite des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/resync-files-queue` | `requireRole(['Owner'])` | ❌ Interne/dev | Liste des jobs de resync fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/resync-files-queue` | `requireRole(['Owner'])` | ❌ Interne/dev | Enqueue des jobs de resync fichiers — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/sync-selected` | `requireRole(['Owner'])` | ❌ Interne/dev | Sync direct des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/resync-files-selected` | `requireRole(['Owner'])` | ❌ Interne/dev | Resync depuis fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/clear-selected` | `requireRole(['Owner'])` | ❌ Interne/dev | Réinitialise la télémétrie des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/fetch-files-selected` | `requireRole(['Owner'])` | ❌ Interne/dev | Télécharge/capture les fichiers CDN sans parser — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/sync-selected-enqueue` | `requireRole(['Owner'])` | ❌ Interne/dev | Poll de progression du mode "Direct Sync" — non documenté ailleurs, détail ci-dessous |
-| POST | `/sync-selected-enqueue` | `requireRole(['Owner'])` | ❌ Interne/dev | Enqueue des matchs pour sync live — détail ci-dessous |
-| GET | `/dead-letter` | `requireRole(['Owner'])` | ❌ Interne/dev | Jobs en échec définitif — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/dead-letter` | `requireRole(['Owner'])` | ❌ Interne/dev | Remet des jobs en queue depuis la dead-letter — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/queue-cleanup` | `requireRole(['Owner'])` | ❌ Interne/dev | État de la queue + priorités — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/queue-cleanup` | `requireRole(['Owner'])` | ❌ Interne/dev | Actions de maintenance (reorder/cleanup/cancel) — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/metrics` | `requireRole(['Owner'])` | ❌ Interne/dev | Métriques queue (JSON ou Prometheus) — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/observability` | `requireRole(['Owner'])` | ❌ Interne/dev | Totaux, p95, taux d'échec, alertes — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/recoveries` | `requireRole(['Owner'])` | ❌ Interne/dev | Stats de récupération de jobs bloqués — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/recalc-aggregates-batch` | `requireRole(['Owner'])` | ❌ Interne/dev | Compte les agrégats existants (`memberTelemetryRows`, `clanSynergyRows`) avant recalcul — absent de [Télémétrie API](../telemetry/api.md) (seul le POST y est documenté) |
-| POST | `/recalc-aggregates-batch` | `requireRole(['Owner'])` | ❌ Interne/dev | Recalcule les agrégats périodiques — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/import-file` | `requireRole(['Owner'])` | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/backfill-null-json` | `requireRole(['Owner'])` | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/sync-batch-manual` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Enqueue/traite des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/resync-files-queue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Liste des jobs de resync fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/resync-files-queue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Enqueue des jobs de resync fichiers — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/sync-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Sync direct des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/resync-files-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Resync depuis fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/clear-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Réinitialise la télémétrie des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/fetch-files-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Télécharge/capture les fichiers CDN sans parser — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/sync-selected-enqueue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Poll de progression du mode "Direct Sync" — non documenté ailleurs, détail ci-dessous |
+| POST | `/sync-selected-enqueue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Enqueue des matchs pour sync live — détail ci-dessous |
+| GET | `/dead-letter` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Jobs en échec définitif — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/dead-letter` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Remet des jobs en queue depuis la dead-letter — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/queue-cleanup` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | État de la queue + priorités — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/queue-cleanup` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Actions de maintenance (reorder/cleanup/cancel) — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/metrics` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Métriques queue (JSON ou Prometheus) — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/observability` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Totaux, p95, taux d'échec, alertes — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/recoveries` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Stats de récupération de jobs bloqués — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/recalc-aggregates-batch` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Compte les agrégats existants (`memberTelemetryRows`, `clanSynergyRows`) avant recalcul — absent de [Télémétrie API](../telemetry/api.md) (seul le POST y est documenté) |
+| POST | `/recalc-aggregates-batch` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Recalcule les agrégats périodiques — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/import-file` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/backfill-null-json` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
 
 > Les 4 routes `weapons`, `positions`, `heatmap` et `drop-zones` utilisent `requireNavPermission(...)`, un contrôle par rôle **configurable** via `/settings/nav-permissions` (clés `clan.stats-weapons`, `clan.positions`, `clan.heatmap-kills`, `clan.drop-zones`) — pas une restriction Owner figée. [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) ont été corrigés en conséquence (2026-07-05).
 

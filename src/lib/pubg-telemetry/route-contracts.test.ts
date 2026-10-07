@@ -6,6 +6,7 @@ const mocks = vi.hoisted(() => ({
   cronExecutionFindMany: vi.fn(),
   squadMatchTelemetryFindMany: vi.fn(),
   requireRole: vi.fn(),
+  requireClanFeature: vi.fn(),
   requireSameClanAsMember: vi.fn(),
 }))
 
@@ -29,6 +30,10 @@ vi.mock('@/middleware/auth-permission', () => ({
   requireSameClanAsMember: mocks.requireSameClanAsMember,
 }))
 
+vi.mock('@/lib/auth/admin-guards', () => ({
+  requireClanFeature: mocks.requireClanFeature,
+}))
+
 vi.mock('@/lib/weapon-label-service', () => ({
   getWeaponLabels: vi.fn(async () => ({ WeapM416_C: 'M416' })),
   weaponDisplayName: (weaponName: string, labels: Record<string, string>) =>
@@ -46,6 +51,8 @@ describe('telemetry route contracts', () => {
     mocks.squadMatchTelemetryFindMany.mockReset().mockResolvedValue([])
     mocks.requireRole.mockReset()
     mocks.requireRole.mockReturnValue(async () => null)
+    mocks.requireClanFeature.mockReset()
+    mocks.requireClanFeature.mockResolvedValue(null)
     mocks.requireSameClanAsMember.mockReset().mockResolvedValue(null)
   })
 
@@ -184,7 +191,7 @@ describe('telemetry route contracts', () => {
     )
 
     expect(response.status).toBe(200)
-    expect(mocks.requireRole).toHaveBeenCalledWith(['Owner'])
+    expect(mocks.requireClanFeature).toHaveBeenCalledWith(expect.any(Request), 7, 'clan-telemetry-tools')
     expect(mocks.cronExecutionFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where: expect.objectContaining({

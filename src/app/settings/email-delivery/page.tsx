@@ -105,7 +105,7 @@ function StatTile({
 
 export default function EmailDeliverySettingsPage() {
   const router = useRouter()
-  const { loading, authenticated, permissions, email } = useAuthSession()
+  const { loading, authenticated, isSuperUser, email } = useAuthSession()
 
   const [status, setStatus] = useState<EmailDeliveryStatus>(INITIAL_STATUS)
   const [statusLoaded, setStatusLoaded] = useState(false)
@@ -117,7 +117,8 @@ export default function EmailDeliverySettingsPage() {
   const [success, setSuccess] = useState('')
   const [lastDelivery, setLastDelivery] = useState<EmailDeliveryMeta | null>(null)
 
-  const isOwner = permissions.includes('*')
+  // Configuration SMTP de toute la plateforme : SuperUser seulement, comme l'API
+  const canManageEmail = isSuperUser
 
   useEffect(() => {
     if (!loading && !authenticated) {
@@ -141,7 +142,7 @@ export default function EmailDeliverySettingsPage() {
       return
     }
 
-    if (!authenticated || !isOwner) {
+    if (!authenticated || !canManageEmail) {
       return
     }
 
@@ -169,9 +170,9 @@ export default function EmailDeliverySettingsPage() {
     return () => {
       cancelled = true
     }
-  }, [authenticated, isOwner, loading])
+  }, [authenticated, canManageEmail, loading])
 
-  const loadingData = authenticated && isOwner && !statusLoaded
+  const loadingData = authenticated && canManageEmail && !statusLoaded
 
   async function handleRefreshStatus() {
     try {
@@ -282,16 +283,16 @@ export default function EmailDeliverySettingsPage() {
     return null
   }
 
-  if (!isOwner) {
+  if (!canManageEmail) {
     return (
       <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
         <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
           <div className="flex items-center gap-2">
             <ShieldOff className="h-5 w-5 text-amber-700" aria-hidden="true" />
-            <h1 className="text-xl font-bold text-amber-900">Acces restreint</h1>
+            <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
           </div>
           <p className="mt-2 text-sm text-amber-800">
-            Cette page est reservee au Owner.
+            Cette page est réservée au SuperUser.
           </p>
           <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
             Retour a l&apos;accueil
@@ -306,7 +307,7 @@ export default function EmailDeliverySettingsPage() {
       <NavigationTrail
         currentLabel="Test de livraison email"
         currentHref="/settings/email-delivery"
-        fallbackParent={{ href: '/settings/owner', label: 'Propri�taire' }}
+        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
       />
       <section className="app-panel p-4">
         <SettingsPageHeader

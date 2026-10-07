@@ -2,10 +2,10 @@ import {
   ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
   ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
 } from '@/lib/encountered-player-resolution-constants'
+import { requireClanAccess } from '@/lib/auth/admin-guards'
 import { deriveEncounteredPlayerStatus } from '@/lib/encountered-player-status'
 import { prisma } from '@/lib/prisma'
 import { getPeriodStart } from '@/lib/period'
-import { requireRole } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -37,9 +37,8 @@ export async function GET(
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const roleError = await requireRole(['Owner', 'Admin'])(request, {
-    clanId: parsedClanId,
-  })
+  // Noms de joueurs extérieurs au site : Owner du clan seulement, en attendant Q5
+  const roleError = await requireClanAccess(request, parsedClanId, 'owner')
 
   if (roleError) {
     return roleError

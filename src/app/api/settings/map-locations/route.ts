@@ -1,12 +1,11 @@
 import { z } from 'zod'
 
-import { getSessionFromRequest } from '@/lib/auth-session'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import {
   getDefaultMapLocations,
   getMapLocations,
   updateMapLocations,
 } from '@/lib/map-location-service'
-import { getMemberPermissionKeys } from '@/lib/role-service'
 
 const MapLocationSchema = z.object({
   id: z.string().min(1).max(80),
@@ -22,27 +21,9 @@ const UpdateMapLocationsSchema = z.object({
   locations: z.record(z.string(), z.array(MapLocationSchema).max(100)),
 })
 
-function hasManageSettings(permissions: string[]) {
-  return permissions.includes('*') || permissions.includes('manage_settings')
-}
-
-async function requireManageSettings(request: Request) {
-  const session = await getSessionFromRequest(request)
-  if (!session?.activeMemberId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const permissions = await getMemberPermissionKeys(session.activeMemberId)
-  if (!hasManageSettings(permissions)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
-
-  return null
-}
-
 export async function GET(request: Request) {
-  const authError = await requireManageSettings(request)
-  if (authError) return authError
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   return Response.json({
     locations: await getMapLocations(),
@@ -51,8 +32,8 @@ export async function GET(request: Request) {
 }
 
 export async function PUT(request: Request) {
-  const authError = await requireManageSettings(request)
-  if (authError) return authError
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as unknown
   const validated = UpdateMapLocationsSchema.safeParse(body)

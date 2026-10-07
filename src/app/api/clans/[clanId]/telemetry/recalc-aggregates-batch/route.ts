@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
-import { requireRole } from '@/middleware/auth-permission'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 
 function parseClanId(value: string) {
@@ -26,9 +26,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }
@@ -143,9 +141,7 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }

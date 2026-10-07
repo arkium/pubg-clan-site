@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
-import { requireRole } from '@/middleware/auth-permission'
 
 function parsePositiveInt(value: string) {
   const parsed = Number(value)
@@ -21,9 +21,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner', 'Admin'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-members')
     if (roleError) {
       return roleError
     }

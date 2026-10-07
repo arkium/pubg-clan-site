@@ -46,6 +46,7 @@ vi.mock('@/middleware/auth-permission', () => ({
   requireRole: () => async () => null,
   requireNavPermission: () => async () => null,
 }))
+vi.mock('@/lib/auth/admin-guards', () => ({ requireClanAccess: async () => null }))
 vi.mock('@/lib/map-label-service', () => ({ getMapLabels: async () => ({}) }))
 vi.mock('@/lib/pubg', () => ({ fetchRecentMatchIds: vi.fn(), searchPlayerByName: vi.fn() }))
 

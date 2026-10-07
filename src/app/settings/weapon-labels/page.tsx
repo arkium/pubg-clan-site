@@ -59,7 +59,7 @@ type WeaponLabels = Record<string, string>
 
 export default function WeaponLabelsSettingsPage() {
   const router = useRouter()
-  const { loading, authenticated, permissions } = useAuthSession()
+  const { loading, authenticated, isSuperUser } = useAuthSession()
 
   const [labels, setLabels] = useState<WeaponLabels>({})
   const [saving, setSaving] = useState(false)
@@ -68,7 +68,8 @@ export default function WeaponLabelsSettingsPage() {
   const [success, setSuccess] = useState('')
   const [searchTerm, setSearchTerm] = useState('')
 
-  const canManageSettings = permissions.includes('*') || permissions.includes('manage_settings')
+  // Référentiel commun à toute la plateforme : SuperUser seulement, comme l'API
+  const canManageSettings = isSuperUser
 
   useEffect(() => {
     if (!loading && !authenticated) {

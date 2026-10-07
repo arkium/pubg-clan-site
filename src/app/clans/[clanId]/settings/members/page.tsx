@@ -311,8 +311,9 @@ export default function ClanMembersSettingsPage() {
     }
   }
 
-  async function fetchEmailDeliveryStatus() {
-    const response = await fetch('/api/settings/email-delivery', { cache: 'no-store' })
+  async function fetchEmailDeliveryStatus(targetClanId: number) {
+    // Statut en lecture seule : la configuration SMTP (/api/settings/email-delivery) est réservée au SuperUser
+    const response = await fetch(`/api/clans/${targetClanId}/settings/email-delivery`, { cache: 'no-store' })
     const payload = (await response.json().catch(() => null)) as EmailDeliveryStatus | null
 
     if (response.status === 401) {
@@ -339,7 +340,7 @@ export default function ClanMembersSettingsPage() {
         setError('')
         const [data, emailReady] = await Promise.all([
           fetchMembersAndRoles(currentClanId),
-          fetchEmailDeliveryStatus(),
+          fetchEmailDeliveryStatus(currentClanId),
         ])
         if (!cancelled) {
           setMembers(data.members)
@@ -1202,11 +1203,17 @@ export default function ClanMembersSettingsPage() {
         {error ? <p className="text-sm text-red-600">{error}</p> : null}
         {!loading && emailStatusLoaded && !isEmailDeliveryReady ? (
           <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
-            Invitations email desactivees. Effectuez d&apos;abord un test réussi dans{' '}
-            <Link href="/settings/email-delivery" className="font-semibold underline">
-              Configuration email
-            </Link>
-            .
+            {isSuperUser ? (
+              <>
+                Invitations email désactivées. Effectuez d&apos;abord un test réussi dans{' '}
+                <Link href="/settings/email-delivery" className="font-semibold underline">
+                  Configuration email
+                </Link>
+                .
+              </>
+            ) : (
+              <>Invitations email désactivées : l&apos;envoi d&apos;emails n&apos;est pas encore configuré sur le site.</>
+            )}
           </div>
         ) : null}
       </div>

@@ -37,7 +37,7 @@ export default function ClanLoginWelcomeSettingsPage() {
   const params = useParams()
   const clanId = parseClanId(params.clanId)
 
-  const { loading, authenticated, permissions } = useAuthSession()
+  const { loading, authenticated, permissions, isSuperUser } = useAuthSession()
 
   const [settings, setSettings] = useState<WelcomeSettings>(DEFAULT_SETTINGS)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
@@ -47,7 +47,7 @@ export default function ClanLoginWelcomeSettingsPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const canManageSettings = permissions.includes('*') || permissions.includes('manage_settings')
+  const canManageSettings = isSuperUser || permissions.includes('*') || permissions.includes('manage_settings')
 
   useEffect(() => {
     if (!loading && !authenticated) {

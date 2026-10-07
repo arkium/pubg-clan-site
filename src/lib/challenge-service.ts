@@ -102,13 +102,17 @@ export async function activateChallenge(challengeId: string) {
   return updated
 }
 
-export async function joinChallenge(challengeId: string, memberId: number) {
+/**
+ * `clanId` : clan de l'adresse. Un défi d'un autre clan est traité comme introuvable — sans ce contrôle,
+ * un membre s'inscrivait au défi de n'importe quel clan (docs/TODO/administration.md M17).
+ */
+export async function joinChallenge(challengeId: string, memberId: number, clanId: number) {
   const challenge = await prisma.challenge.findUnique({
     where: { id: challengeId },
-    select: { id: true, status: true },
+    select: { id: true, status: true, clanId: true },
   })
 
-  if (!challenge) {
+  if (!challenge || challenge.clanId !== clanId) {
     throw new Error('Challenge not found')
   }
 

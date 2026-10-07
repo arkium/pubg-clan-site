@@ -12,7 +12,7 @@ import {
   getTelemetryBacklogSummary,
 } from '@/lib/telemetry-recoveries-backlog'
 import { getTelemetryRecoveriesStatus } from '@/lib/telemetry-recoveries-status'
-import { requireRole } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -42,9 +42,7 @@ export async function GET(
       })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
     if (roleError) {
       return roleError
     }
@@ -231,9 +229,7 @@ export async function POST(
       })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
     if (roleError) {
       return roleError
     }

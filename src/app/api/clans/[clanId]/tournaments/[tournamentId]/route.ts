@@ -1,12 +1,13 @@
 import { NextRequest } from 'next/server'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
 import {
   getTournamentForClan,
   updateTournament,
   type TournamentUpdateInput,
 } from '@/lib/tournament-service'
-import { requireNavPermission, requirePermission } from '@/middleware/auth-permission'
+import { requireNavPermission } from '@/middleware/auth-permission'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -86,7 +87,7 @@ export async function PATCH(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const permissionError = await requirePermission('manage_settings')(request, { clanId: parsedClanId })
+    const permissionError = await requireClanFeature(request, parsedClanId, 'clan-competition')
     if (permissionError) return permissionError
 
     const body = await request.json().catch(() => null)
@@ -115,7 +116,7 @@ export async function DELETE(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const permissionError = await requirePermission('manage_settings')(request, { clanId: parsedClanId })
+    const permissionError = await requireClanFeature(request, parsedClanId, 'clan-competition')
     if (permissionError) return permissionError
 
     const tournament = await prisma.tournament.findUnique({

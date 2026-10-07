@@ -10,7 +10,8 @@ import {
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
-import { getActorMemberId, isSuperUserSession, requireRole } from '@/middleware/auth-permission'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
+import { getActorMemberId } from '@/middleware/auth-permission'
 import { syncClanMatches } from '@/lib/matches-sync-service'
 import { prisma } from '@/lib/prisma'
 
@@ -38,16 +39,6 @@ function parseAction(value: unknown): CronAction | null {
   return null
 }
 
-async function requireCronClanAccess(request: Request, clanId: number) {
-  if (await isSuperUserSession(request)) {
-    return null
-  }
-
-  return requireRole(['Owner'])(request, {
-    clanId,
-  })
-}
-
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ clanId: string }> }
@@ -60,7 +51,7 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireCronClanAccess(request, parsedClanId)
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }
@@ -129,7 +120,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireCronClanAccess(request, parsedClanId)
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }
@@ -408,7 +399,7 @@ export async function DELETE(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireCronClanAccess(request, parsedClanId)
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }

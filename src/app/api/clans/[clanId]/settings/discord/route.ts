@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { getDiscordSettings, updateDiscordSettings } from '@/lib/discord/discord-config-service'
 import { prisma } from '@/lib/prisma'
-import { requirePermission } from '@/middleware/auth-permission'
 
 const MentionSchema = z.object({
   type: z.enum(['none', 'here', 'everyone', 'role']),
@@ -87,7 +87,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const permissionError = await requirePermission('manage_settings')(request, { clanId })
+  const permissionError = await requireClanFeature(request, clanId, 'clan-announcements')
   if (permissionError) return permissionError
 
   try {
@@ -114,7 +114,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ clan
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const permissionError = await requirePermission('manage_settings')(request, { clanId })
+  const permissionError = await requireClanFeature(request, clanId, 'clan-announcements')
   if (permissionError) return permissionError
 
   const body = (await request.json().catch(() => null)) as unknown

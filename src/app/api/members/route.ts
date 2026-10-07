@@ -1,13 +1,18 @@
 import { Prisma } from '@prisma/client'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
-import { ensureTrackedClanForPlayer, getOrCreateUngroupedClan, syncTrackedClanStats } from '@/lib/clan-service'
+import {
+  ensureTrackedClanForPlayer,
+  findTrackedClanForPlayer,
+  getOrCreateUngroupedClan,
+  syncTrackedClanStats,
+} from '@/lib/clan-service'
 import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
-import { getActorMemberId, isSuperUserSession, requirePermission } from '@/middleware/auth-permission'
 import { z } from 'zod'
 
 /**
@@ -32,15 +37,26 @@ const AddMemberSchema = z
  */
 export async function POST(request: Request) {
   try {
-    const permissionError = await requirePermission('manage_members')(request)
-    if (permissionError) {
-      return permissionError
-    }
-
     const body = await request.json()
 
     // Valider l'entrée
     const validated = AddMemberSchema.parse(body)
+
+    // Autorisation AVANT tout effet (appel PUBG, création d'un clan suivi) : un Owner n'ajoute que
+    // dans le clan qu'il désigne et dont il est Owner ; le SuperUser ajoute partout (M6, Q15).
+    const session = await getSessionFromRequest(request)
+    if (!session) {
+      return Response.json({ error: 'Unauthorized' }, { status: 401 })
+    }
+    if (!session.isSuperUser) {
+      if (!validated.clanId) {
+        return Response.json({ error: 'Clan cible requis' }, { status: 400 })
+      }
+      const denied = await requireClanFeature(request, validated.clanId, 'clan-members')
+      if (denied) {
+        return denied
+      }
+    }
 
     // Chercher le joueur sur PUBG
     const pubgPlayer = await searchPlayerByName(
@@ -56,20 +72,30 @@ export async function POST(request: Request) {
       )
     }
 
-    const detectedClan = await ensureTrackedClanForPlayer(
-      pubgPlayer.accountId,
-      validated.platformShard
-    )
+    // Seul le SuperUser peut faire suivre (créer ou réactiver) le clan PUBG du joueur ; pour un Owner,
+    // on se contente de le retrouver, et un joueur d'un autre clan PUBG est refusé.
+    const detectedClan = session.isSuperUser
+      ? await ensureTrackedClanForPlayer(pubgPlayer.accountId, validated.platformShard)
+      : await findTrackedClanForPlayer(pubgPlayer.accountId, validated.platformShard)
+
+    if (!session.isSuperUser && detectedClan && detectedClan.clan?.id !== validated.clanId) {
+      return Response.json(
+        {
+          error: `Ce joueur appartient au clan PUBG « ${detectedClan.pubgClan.name} » : vous ne pouvez ajouter des joueurs qu’à votre propre clan.`,
+        },
+        { status: 403 }
+      )
+    }
 
     console.info('[Members API] Clan detection result', {
       pubgPlayerName: pubgPlayer.playerName,
       platformShard: validated.platformShard,
-      detectedClanId: detectedClan?.clan.id ?? null,
+      detectedClanId: detectedClan?.clan?.id ?? null,
       detectedPubgClanId: detectedClan?.pubgClan.id ?? null,
     })
 
     const resolvedClanId =
-      detectedClan?.clan.id ??
+      detectedClan?.clan?.id ??
       validated.clanId ??
       (await getOrCreateUngroupedClan(validated.platformShard)).id
 
@@ -77,23 +103,8 @@ export async function POST(request: Request) {
       pubgPlayerName: pubgPlayer.playerName,
       platformShard: validated.platformShard,
       resolvedClanId,
-      usedFallbackUngrouped: !detectedClan?.clan.id && !validated.clanId,
+      usedFallbackUngrouped: !detectedClan?.clan?.id && !validated.clanId,
     })
-
-    // Vérifier que l'acteur est dans le clan cible (ou est SuperUser)
-    const actorMemberId = await getActorMemberId(request)
-    if (actorMemberId) {
-      const actorMember = await prisma.clanMember.findUnique({
-        where: { id: actorMemberId },
-        select: { clanId: true },
-      })
-      if (actorMember?.clanId !== resolvedClanId) {
-        const superUser = await isSuperUserSession(request)
-        if (!superUser) {
-          return Response.json({ error: 'Non autorisé : vous ne pouvez ajouter des joueurs qu’à votre propre clan' }, { status: 403 })
-        }
-      }
-    }
 
     // Vérifier si le joueur existe déjà en base
     const existingMember = await prisma.clanMember.findFirst({

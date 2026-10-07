@@ -4,7 +4,7 @@ import {
   syncTelemetryForSquadMatchFromStream,
 } from '@/lib/pubg-telemetry/manual-sync'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
-import { requireRole } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -46,9 +46,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
     if (roleError) {
       return roleError
     }

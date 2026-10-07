@@ -1,42 +1,23 @@
 import { z } from 'zod'
 
-import { getSessionFromRequest } from '@/lib/auth-session'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { getMapLabels, updateMapLabels } from '@/lib/map-label-service'
-import { getMemberPermissionKeys } from '@/lib/role-service'
 
 const UpdateMapLabelsSchema = z.object({
   labels: z.record(z.string(), z.string().max(40)),
 })
 
-function hasManageSettings(permissions: string[]) {
-  return permissions.includes('*') || permissions.includes('manage_settings')
-}
-
 export async function GET(request: Request) {
-  const session = await getSessionFromRequest(request)
-  if (!session?.activeMemberId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const permissions = await getMemberPermissionKeys(session.activeMemberId)
-  if (!hasManageSettings(permissions)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   const labels = await getMapLabels()
   return Response.json({ labels })
 }
 
 export async function PUT(request: Request) {
-  const session = await getSessionFromRequest(request)
-  if (!session?.activeMemberId) {
-    return Response.json({ error: 'Unauthorized' }, { status: 401 })
-  }
-
-  const permissions = await getMemberPermissionKeys(session.activeMemberId)
-  if (!hasManageSettings(permissions)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   const body = (await request.json().catch(() => null)) as unknown
   const validated = UpdateMapLabelsSchema.safeParse(body)

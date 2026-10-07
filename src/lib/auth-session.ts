@@ -164,6 +164,12 @@ export async function getSessionFromRequest(request: Request): Promise<AuthSessi
   return getSessionFromToken(getSessionTokenFromRequest(request))
 }
 
+/** Session des composants serveur (layouts, pages) : cookie de la requête en cours. */
+export async function getServerComponentSession(): Promise<AuthSessionContext | null> {
+  const cookieStore = await cookies()
+  return getSessionFromToken(cookieStore.get(SESSION_COOKIE_NAME)?.value ?? null)
+}
+
 export async function revokeSessionFromRequest(request: Request) {
   const token = getSessionTokenFromRequest(request)
   if (!token) {

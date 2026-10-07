@@ -28,6 +28,7 @@ import {
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge, { teamModeFromMemberCount } from '@/components/ui/TeamModeBadge'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { isGameLabel } from '@/lib/phase-label-service'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
@@ -739,6 +740,10 @@ function toTelemetryMemberStats(value: unknown): TelemetryMemberStat[] {
 
 export default function TelemetryMatchDetailPage() {
   const params = useParams()
+  // Page de diagnostic ouverte aux joueurs ; ses actions consomment le quota PUBG commun et relèvent de la
+  // fonctionnalité « Outils de télémétrie », réservée au SuperUser tant qu'elle reste verrouillée
+  // (src/lib/auth/owner-features.ts) — l'API refuse de toute façon les autres.
+  const { isSuperUser: canRunTelemetryActions } = useAuthSession()
   const searchParams = useSearchParams()
 
   const clanId = useMemo(() => parseId(params.clanId), [params.clanId])
@@ -1214,45 +1219,49 @@ export default function TelemetryMatchDetailPage() {
                   )}
                   {telemetryLabel(telemetry.status)}
                 </span>
-                <button
-                  type="button"
-                  onClick={runResyncMatch}
-                  className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-                  disabled={resyncLoading || fileImportLoading}
-                >
-                  <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-                  {resyncLoading ? 'Resync en cours...' : 'Resync ce match'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-                  disabled={resyncLoading || fileImportLoading}
-                >
-                  <Upload className="h-3.5 w-3.5" aria-hidden />
-                  {fileImportLoading ? 'Import en cours...' : 'Importer fichier telemetry'}
-                </button>
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  accept=".json,.jsonl,application/json,text/plain"
-                  className="hidden"
-                  onChange={(event) => {
-                    const file = event.target.files?.[0]
-                    if (!file) {
-                      return
-                    }
+                {canRunTelemetryActions ? (
+                  <>
+                    <button
+                      type="button"
+                      onClick={runResyncMatch}
+                      className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+                      disabled={resyncLoading || fileImportLoading}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" aria-hidden />
+                      {resyncLoading ? 'Resync en cours...' : 'Resync ce match'}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+                      disabled={resyncLoading || fileImportLoading}
+                    >
+                      <Upload className="h-3.5 w-3.5" aria-hidden />
+                      {fileImportLoading ? 'Import en cours...' : 'Importer fichier telemetry'}
+                    </button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      accept=".json,.jsonl,application/json,text/plain"
+                      className="hidden"
+                      onChange={(event) => {
+                        const file = event.target.files?.[0]
+                        if (!file) {
+                          return
+                        }
 
-                    void runFileImport(file)
-                  }}
-                />
+                        void runFileImport(file)
+                      }}
+                    />
+                  </>
+                ) : null}
               </div>
             </div>
 
             {resyncMessage ? <p className="mt-2 text-sm text-amber-700">{resyncMessage}</p> : null}
             {fileImportMessage ? <p className="mt-2 text-sm text-amber-700">{fileImportMessage}</p> : null}
 
-            {hasMissingPersistedJson ? (
+            {hasMissingPersistedJson && canRunTelemetryActions ? (
               <div className="mt-3 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
                 Snapshot telemetry marque en succès mais JSON detail absent en base.
                 Utilise "Resync ce match" pour reparser et repersister les champs summary/weaponStats/memberStats.

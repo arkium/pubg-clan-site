@@ -318,6 +318,8 @@ async function processOneJob(
           await prisma.squadMatchTelemetry.deleteMany({
             where: {
               squadMatchId: job.details.squadMatchId,
+              // Seulement une partie du clan du job : la file est alimentée depuis des listes client (M5)
+              squadMatch: { members: { some: { member: { clanId: job.clanId } } } },
             },
           })
           console.info('[TelemetryResyncWorker] step reset-db done', { jobId: job.id })

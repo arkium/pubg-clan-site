@@ -54,7 +54,7 @@ const VIEW_OPTIONS: Array<{ value: SettingsView; label: string }> = [
 
 export default function MapLabelsSettingsPage() {
   const router = useRouter()
-  const { loading, authenticated, permissions } = useAuthSession()
+  const { loading, authenticated, isSuperUser } = useAuthSession()
   const mapViewportRef = useRef<DropZoneMapViewportHandle>(null)
 
   const [labels, setLabels] = useState<MapLabels>({})
@@ -68,7 +68,8 @@ export default function MapLabelsSettingsPage() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
 
-  const canManageSettings = permissions.includes('*') || permissions.includes('manage_settings')
+  // Référentiel commun à toute la plateforme : SuperUser seulement, comme l'API
+  const canManageSettings = isSuperUser
 
   useEffect(() => {
     if (!loading && !authenticated) {

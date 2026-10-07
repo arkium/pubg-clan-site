@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { syncTrackedClanStats } from '@/lib/clan-service'
 import { isInternalCronRequest } from '@/lib/internal-api'
-import { requireRole } from '@/middleware/auth-permission'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -22,9 +22,7 @@ export async function POST(
     }
 
     if (!isInternalCronRequest(request)) {
-      const roleError = await requireRole(['Owner'])(request, {
-        clanId: parsedClanId,
-      })
+      const roleError = await requirePlatformAdmin(request)
 
       if (roleError) {
         return roleError

@@ -4,8 +4,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 // route-contracts.test.ts et drop-pressure-route-contracts.test.ts, ce fichier
 // vit dans src/lib et importe les handlers depuis src/app.
 const mocks = vi.hoisted(() => ({
-  requirePermission: vi.fn(),
-  permissionGuard: vi.fn(),
+  requireClanFeature: vi.fn(),
   getDiscordSettings: vi.fn(),
   updateDiscordSettings: vi.fn(),
   clanFindUnique: vi.fn(),
@@ -13,8 +12,8 @@ const mocks = vi.hoisted(() => ({
   sendTournamentTest: vi.fn(),
 }))
 
-vi.mock('@/middleware/auth-permission', () => ({
-  requirePermission: mocks.requirePermission,
+vi.mock('@/lib/auth/admin-guards', () => ({
+  requireClanFeature: mocks.requireClanFeature,
 }))
 
 vi.mock('@/lib/discord/discord-config-service', () => ({
@@ -63,8 +62,7 @@ function validPayload(overrides: Partial<DiscordSettings> = {}): DiscordSettings
 describe('discord settings route contracts', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset())
-    mocks.requirePermission.mockReturnValue(mocks.permissionGuard)
-    mocks.permissionGuard.mockResolvedValue(null)
+    mocks.requireClanFeature.mockResolvedValue(null)
     mocks.getDiscordSettings.mockResolvedValue(DEFAULT_DISCORD_SETTINGS)
     mocks.updateDiscordSettings.mockImplementation(async (_clanId, input) => input)
     mocks.clanFindUnique.mockResolvedValue({ name: 'Les Poulets', tag: 'PLT' })
@@ -80,12 +78,12 @@ describe('discord settings route contracts', () => {
       )
 
       expect(response.status).toBe(400)
-      expect(mocks.requirePermission).not.toHaveBeenCalled()
+      expect(mocks.requireClanFeature).not.toHaveBeenCalled()
       expect(mocks.getDiscordSettings).not.toHaveBeenCalled()
     })
 
-    it('exige manage_settings sur le clan visé et propage le refus', async () => {
-      mocks.permissionGuard.mockResolvedValue(Response.json({ error: 'Forbidden' }, { status: 403 }))
+    it('exige la fonctionnalité « Annonces » sur le clan visé et propage le refus', async () => {
+      mocks.requireClanFeature.mockResolvedValue(Response.json({ error: 'Forbidden' }, { status: 403 }))
 
       const response = await getDiscordSettingsRoute(
         new Request('http://localhost:3000/api/clans/7/settings/discord'),
@@ -93,13 +91,12 @@ describe('discord settings route contracts', () => {
       )
 
       expect(response.status).toBe(403)
-      expect(mocks.requirePermission).toHaveBeenCalledWith('manage_settings')
-      expect(mocks.permissionGuard).toHaveBeenCalledWith(expect.any(Request), { clanId: 7 })
+      expect(mocks.requireClanFeature).toHaveBeenCalledWith(expect.any(Request), 7, 'clan-announcements')
       expect(mocks.getDiscordSettings).not.toHaveBeenCalled()
     })
 
     it('renvoie 401 quand la session est absente', async () => {
-      mocks.permissionGuard.mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }))
+      mocks.requireClanFeature.mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }))
 
       const response = await getDiscordSettingsRoute(
         new Request('http://localhost:3000/api/clans/7/settings/discord'),
@@ -137,7 +134,7 @@ describe('discord settings route contracts', () => {
 
   describe('PUT', () => {
     it('propage le refus de permission sans rien enregistrer', async () => {
-      mocks.permissionGuard.mockResolvedValue(Response.json({ error: 'Forbidden' }, { status: 403 }))
+      mocks.requireClanFeature.mockResolvedValue(Response.json({ error: 'Forbidden' }, { status: 403 }))
 
       const response = await putDiscordSettingsRoute(jsonRequest(validPayload()), params('7'))
 
@@ -260,7 +257,7 @@ describe('discord settings route contracts', () => {
 
   describe('POST /test', () => {
     it('propage le refus de permission sans contacter Discord', async () => {
-      mocks.permissionGuard.mockResolvedValue(Response.json({ error: 'Forbidden' }, { status: 403 }))
+      mocks.requireClanFeature.mockResolvedValue(Response.json({ error: 'Forbidden' }, { status: 403 }))
 
       const response = await postDiscordTestRoute(
         jsonRequest({ webhookUrl: WEBHOOK }, 'POST'),

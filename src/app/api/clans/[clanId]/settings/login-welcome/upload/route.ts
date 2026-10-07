@@ -1,7 +1,7 @@
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
-import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { resolveUploadDirectories, validateImageUpload } from '@/lib/upload-image-validator'
 
 function parseClanId(value: string) {
@@ -20,13 +20,7 @@ export async function POST(
     return Response.json({ error: 'Identifiant de clan invalide' }, { status: 400 })
   }
 
-  const memberId = await getActorMemberId(request)
-  if (!memberId) {
-    return Response.json({ error: 'Non autorisé' }, { status: 401 })
-  }
-
-  const checkPermission = requirePermission('manage_settings')
-  const permissionError = await checkPermission(request, { clanId })
+  const permissionError = await requireClanFeature(request, clanId, 'clan-announcements')
   if (permissionError) {
     return permissionError
   }

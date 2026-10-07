@@ -41,7 +41,7 @@ type AddMemberPreviewResponse = {
 
 export default function AddMemberPage() {
   const { clanId } = useSelectedClan()
-  const { loading: authLoading, permissions } = useAuthSession()
+  const { loading: authLoading, permissions, isSuperUser } = useAuthSession()
   const [submitting, setSubmitting] = useState(false)
   const [checkingPlayer, setCheckingPlayer] = useState(false)
   const [showConfirmModal, setShowConfirmModal] = useState(false)
@@ -53,8 +53,8 @@ export default function AddMemberPage() {
   const [success, setSuccess] = useState('')
 
   const canManageMembers = useMemo(
-    () => permissions.includes('*') || permissions.includes('manage_members'),
-    [permissions]
+    () => isSuperUser || permissions.includes('*') || permissions.includes('manage_members'),
+    [isSuperUser, permissions]
   )
 
   const selectedPlatformLabel =

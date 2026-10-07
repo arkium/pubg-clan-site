@@ -5,7 +5,8 @@ import {
   materializeTournamentCustomMatches,
 } from '@/lib/tournament-service'
 import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
-import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { getActorMemberId } from '@/middleware/auth-permission'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -30,9 +31,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const permissionError = await requirePermission('manage_settings')(request, {
-      clanId: organizerClanId,
-    })
+    const permissionError = await requireClanFeature(request, organizerClanId, 'clan-competition')
     if (permissionError) return permissionError
 
     const tournament = await getTournamentForClan(organizerClanId, tournamentId)

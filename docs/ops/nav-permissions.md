@@ -84,9 +84,15 @@ type NavItemDef = {
 | `admin` | Permission `manage_*` ou `*` | `admin-menu` |
 | `owner` | Permission wildcard `*` | `owner-menu` |
 | `superuser` | Flag `isSuperUser` uniquement | `superuser-menu` |
-| `hidden` | Personne — bouton invisible | — |
+| `hidden` | Fonctionnalité désactivée : seul le SuperUser voit encore l'entrée (barre latérale, marquée « masquée ») et passe la garde d'API | — |
 
 Les rôles `admin`, `owner` et `superuser` déplacent automatiquement l'item vers le menu latéral correspondant.
+
+> **Menus et gardes d'API (2026-10-07, [administration.md](../TODO/administration.md)).** Ces rôles décident de
+> l'affichage, et servent de garde d'API **seulement** aux routes de lecture qui appellent `requireNavPermission`
+> (liste `NAV_GUARD_KEYS` de `src/lib/nav-permissions-service.ts`). Les outils d'administration ont leurs propres
+> gardes (`src/lib/auth/admin-guards.ts`) : passer une entrée d'administration à `owner` ne l'ouvre pas aux Owners.
+> Le SuperUser passe toujours `requireNavPermission`, même sans membre actif et même sur une entrée `hidden`.
 
 ---
 
@@ -141,7 +147,15 @@ Public. Retourne les définitions complètes + états effectifs :
 
 > `positions` contient **tous** les items par section d'affichage réelle (natifs + role-promus), triés par `sortOrder`.
 
-### PUT `/api/settings/nav-permissions` — Owner/SuperUser requis
+### PUT `/api/settings/nav-permissions` — SuperUser seulement (`requirePlatformAdmin`)
+
+Jusqu'au 2026-10-07, l'Owner de n'importe quel clan pouvait modifier les menus — donc les gardes `requireNavPermission`
+de tous les clans. Contrôles du serveur :
+
+- `hrefTemplate` : lien interne uniquement (`/chemin`, jamais `//domaine` ni `/\domaine`), à la création comme à la modification ;
+- `delete` refusé pour une clé de `NAV_GUARD_KEYS` (ligne absente = rôle `none` = routes publiques) ; la masquer reste
+  possible : le SuperUser passe toujours ;
+- `update` ignore `defaultRole` (le rôle se change par l'action `role`, en surcharge).
 
 ```json
 // Changer le rôle effectif (roleOverride)
@@ -183,7 +197,7 @@ Public. Retourne les définitions complètes + états effectifs :
 
 ## Page de gestion `/settings/nav-permissions`
 
-Accès : Owner ou SuperUser.
+Accès : SuperUser (garde serveur dans `src/app/settings/nav-permissions/layout.tsx`).
 
 ### Fonctionnalités
 

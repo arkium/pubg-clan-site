@@ -1,9 +1,9 @@
 import { z } from 'zod'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { sendDiscordTop1TestMessage } from '@/lib/discord/discord-service'
 import { sendDiscordTournamentTestMessage } from '@/lib/discord/discord-tournament-service'
-import { requirePermission } from '@/middleware/auth-permission'
 
 const TestWebhookSchema = z.object({
   webhookUrl: z.string().trim().max(500),
@@ -23,7 +23,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ cla
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const permissionError = await requirePermission('manage_settings')(request, { clanId })
+  const permissionError = await requireClanFeature(request, clanId, 'clan-announcements')
   if (permissionError) return permissionError
 
   const body = (await request.json().catch(() => null)) as unknown

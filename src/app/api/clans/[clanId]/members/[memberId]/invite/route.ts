@@ -1,10 +1,9 @@
-import { NextRequest } from 'next/server'
 import { z } from 'zod'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { createMemberInvite, revokeActiveMemberInvite } from '@/lib/auth-service'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth-session'
-import { getActorMemberId, requirePermission } from '@/middleware/auth-permission'
 
 const InviteSchema = z.object({
   email: z.string().email('Invalid email address').optional(),
@@ -29,10 +28,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
-    const permissionError = await requirePermission('manage_members')(request, {
-      clanId: parsedClanId,
-      allowMissingActor: true,
-    })
+    const permissionError = await requireClanFeature(request, parsedClanId, 'clan-members')
     if (permissionError) {
       return permissionError
     }
@@ -60,21 +56,15 @@ export async function POST(
       return Response.json({ error: 'Invalid email address' }, { status: 400 })
     }
 
-    const [session, actorMemberId] = await Promise.all([
-      getSessionFromRequest(request),
-      getActorMemberId(request),
-    ])
-
-    if (!actorMemberId) {
-      return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
+    // Après la garde : session valide ; un SuperUser peut n'avoir aucun membre actif
+    const session = await getSessionFromRequest(request)
 
     const invite = await createMemberInvite({
       clanId: parsedClanId,
       memberId: parsedMemberId,
       email: resolvedEmail,
       invitedByUserId: session?.userId ?? null,
-      invitedByMemberId: actorMemberId,
+      invitedByMemberId: session?.activeMemberId ?? null,
       sendEmail: validated.data.sendEmail,
     })
 
@@ -119,10 +109,8 @@ export async function DELETE(
       return Response.json({ error: 'Invalid clan or member id' }, { status: 400 })
     }
 
-    // Pas d'allowMissingActor : sans session, la révocation était ouverte à tous (M1)
-    const permissionError = await requirePermission('manage_members')(request, {
-      clanId: parsedClanId,
-    })
+    // Session obligatoire : avec l'ancien allowMissingActor, la révocation était ouverte à tous (M1)
+    const permissionError = await requireClanFeature(request, parsedClanId, 'clan-members')
     if (permissionError) {
       return permissionError
     }

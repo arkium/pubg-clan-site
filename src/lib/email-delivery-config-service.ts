@@ -12,6 +12,17 @@ export type EmailDeliveryStatus = {
   lastError: string | null
 }
 
+export const REQUIRED_EMAIL_ENV_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] as const
+
+export function isEmailEnvComplete() {
+  return REQUIRED_EMAIL_ENV_KEYS.every((key) => (process.env[key] ?? '').trim().length > 0)
+}
+
+/** « L'email est prêt » : configuration complète et dernier test réussi, sans rien exposer d'autre. */
+export async function isEmailDeliveryReady() {
+  return isEmailEnvComplete() && (await getEmailDeliveryStatus()).ready
+}
+
 function normalizeOptionalValue(value: string | undefined) {
   const trimmed = (value ?? '').trim()
   return trimmed.length > 0 ? trimmed : null

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import SquadMatchList from '@/components/SquadMatchList'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import { sessionDateOf } from '@/lib/match-sessions'
@@ -197,6 +198,7 @@ export default function TelemetrySessionDatePage() {
   const searchParams = useSearchParams()
   const router = useRouter()
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
+  const { isSuperUser } = useAuthSession()
 
   const clanId = useMemo(() => parseClanId(params.clanId), [params.clanId])
   const period = useMemo(() => parsePeriod(searchParams.get('period')), [searchParams])
@@ -392,7 +394,8 @@ export default function TelemetrySessionDatePage() {
   }, [clanId, sessionMatchIds])
 
   useEffect(() => {
-    if (!clanId) {
+    // État du serveur (PID, hôte) : réservé au SuperUser, inutile d'interroger la route pour les autres
+    if (!clanId || !isSuperUser) {
       setRuntimeStatus(null)
       setRuntimeStatusError(null)
       return
@@ -427,7 +430,7 @@ export default function TelemetrySessionDatePage() {
     void loadRuntimeStatus()
     const timer = window.setInterval(() => { void loadRuntimeStatus() }, 20000)
     return () => { cancelled = true; window.clearInterval(timer) }
-  }, [clanId])
+  }, [clanId, isSuperUser])
 
   useEffect(() => {
     if (!clanId || telemetrySyncMode !== 'queue') {

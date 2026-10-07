@@ -5,7 +5,7 @@ import { getTelemetryFixtureCaptureMaxBytes } from '@/lib/pubg-telemetry/fixture
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { resolveCaptureDirectory, resyncTelemetryFromCapturedFile } from '@/lib/pubg-telemetry/resync-files'
 import { prisma } from '@/lib/prisma'
-import { requireRole } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -24,9 +24,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
     if (roleError) {
       return roleError
     }
@@ -142,6 +140,8 @@ export async function POST(
           squadMatchId: {
             in: squadMatchIds,
           },
+          // La liste vient du client : ne réinitialiser que les parties du clan de l'adresse (M5)
+          squadMatch: { members: { some: { member: { clanId: parsedClanId } } } },
         },
       })
     }

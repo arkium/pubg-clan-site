@@ -4,25 +4,18 @@ import {
   getEmailDeliveryStatus,
   markEmailDeliveryFailure,
   markEmailDeliverySuccess,
+  REQUIRED_EMAIL_ENV_KEYS,
   revokeEmailDeliveryValidation,
 } from '@/lib/email-delivery-config-service'
 import { sendEmail } from '@/lib/email-service'
-import { getSessionFromRequest } from '@/lib/auth-session'
-import { getMemberPermissionKeys } from '@/lib/role-service'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
+
+// Configuration SMTP de toute la plateforme : réservée au SuperUser. Les Owners lisent seulement
+// « l'email est prêt » par GET /api/clans/[clanId]/settings/email-delivery.
 
 const TestEmailSchema = z.object({
   to: z.string().email('Adresse email invalide'),
 })
-
-function canReadEmailDeliveryStatus(permissions: string[]) {
-  return permissions.includes('*')
-}
-
-function canRunEmailDeliveryTest(permissions: string[]) {
-  return permissions.includes('*')
-}
-
-const REQUIRED_EMAIL_ENV_KEYS = ['SMTP_HOST', 'SMTP_PORT', 'SMTP_USER', 'SMTP_PASS', 'SMTP_FROM'] as const
 
 function maskSensitiveValue(value: string) {
   if (value.length <= 4) {
@@ -63,26 +56,9 @@ function readEmailEnvStatus() {
   }
 }
 
-async function getAuthorizedPermissions(request: Request) {
-  const session = await getSessionFromRequest(request)
-  if (!session?.activeMemberId) {
-    return { error: Response.json({ error: 'Unauthorized' }, { status: 401 }) as Response }
-  }
-
-  const permissions = await getMemberPermissionKeys(session.activeMemberId)
-  return { permissions }
-}
-
 export async function GET(request: Request) {
-  const auth = await getAuthorizedPermissions(request)
-  if (auth.error) {
-    return auth.error
-  }
-
-  const permissions = auth.permissions
-  if (!canReadEmailDeliveryStatus(permissions)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   const status = await getEmailDeliveryStatus()
   const env = readEmailEnvStatus()
@@ -98,15 +74,8 @@ export async function GET(request: Request) {
 }
 
 export async function POST(request: Request) {
-  const auth = await getAuthorizedPermissions(request)
-  if (auth.error) {
-    return auth.error
-  }
-
-  const permissions = auth.permissions
-  if (!canRunEmailDeliveryTest(permissions)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   const env = readEmailEnvStatus()
   if (!env.allRequiredSet) {
@@ -166,15 +135,8 @@ export async function POST(request: Request) {
 }
 
 export async function DELETE(request: Request) {
-  const auth = await getAuthorizedPermissions(request)
-  if (auth.error) {
-    return auth.error
-  }
-
-  const permissions = auth.permissions
-  if (!canRunEmailDeliveryTest(permissions)) {
-    return Response.json({ error: 'Forbidden' }, { status: 403 })
-  }
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   await revokeEmailDeliveryValidation()
   const status = await getEmailDeliveryStatus()

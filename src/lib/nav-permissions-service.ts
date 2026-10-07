@@ -19,6 +19,31 @@ function getDisplaySection(row: {
   return ROLE_TO_DISPLAY_SECTION[effectiveRole] ?? (row.sectionOverride ?? row.section)
 }
 
+/**
+ * Clés de menu qui servent aussi de garde d'API (`requireNavPermission('…')`). Supprimer l'une d'elles
+ * rendrait ses routes publiques (ligne absente = rôle `none`) : la suppression est refusée.
+ * Liste tenue à jour par `nav-permissions-service.test.ts`, qui la compare au code des routes.
+ */
+export const NAV_GUARD_KEYS = [
+  'clan.challenges',
+  'clan.drop-zones',
+  'clan.heatmap-kills',
+  'clan.items',
+  'clan.leaderboard',
+  'clan.matches',
+  'clan.members',
+  'clan.overview',
+  'clan.positions',
+  'clan.stats',
+  'clan.stats-weapons',
+  'clan.zone-closures',
+] as const
+
+/** Lien interne au site uniquement : `/chemin`, jamais `//domaine.tld` ni `/\domaine.tld`. */
+export function isInternalHref(href: string) {
+  return /^\/(?![/\\])/.test(href)
+}
+
 function isValidRole(value: unknown): value is NavRole {
   return typeof value === 'string' && (VALID_ROLES as string[]).includes(value)
 }
@@ -165,7 +190,7 @@ export async function createNavItem(data: {
   if (!data.navKey.trim()) throw new Error('navKey requis')
   if (!isValidSection(data.section)) throw new Error(`Section invalide: ${data.section}`)
   if (!isValidRole(data.defaultRole)) throw new Error(`Rôle invalide: ${data.defaultRole}`)
-  if (!data.hrefTemplate.startsWith('/')) throw new Error('hrefTemplate doit commencer par /')
+  if (!isInternalHref(data.hrefTemplate)) throw new Error('hrefTemplate doit être un lien interne (/chemin)')
 
   const maxOrder = await prisma.navItem.aggregate({
     where: { section: data.section },
@@ -187,29 +212,32 @@ export async function createNavItem(data: {
   })
 }
 
+/**
+ * `defaultRole` n'est pas modifiable ici : il vient du registre, le rôle se change par `setNavPermission`
+ * (surcharge). Les champs inconnus du corps de requête sont ignorés.
+ */
 export async function updateNavItem(
   navKey: string,
-  patch: Partial<Pick<NavItemDef, 'label' | 'hrefTemplate' | 'description'>> & { defaultRole?: NavRole }
+  patch: Partial<Pick<NavItemDef, 'label' | 'hrefTemplate' | 'description'>>
 ): Promise<void> {
   const row = await prisma.navItem.findUnique({ where: { navKey } })
   if (!row) throw new Error(`Unknown navKey: ${navKey}`)
 
   const data: Record<string, unknown> = {}
-  if (patch.label !== undefined) data.label = patch.label
-  if (patch.hrefTemplate !== undefined) {
-    if (!patch.hrefTemplate.startsWith('/')) throw new Error('hrefTemplate doit commencer par /')
+  if (typeof patch.label === 'string') data.label = patch.label
+  if (typeof patch.hrefTemplate === 'string') {
+    if (!isInternalHref(patch.hrefTemplate)) throw new Error('hrefTemplate doit être un lien interne (/chemin)')
     data.hrefTemplate = patch.hrefTemplate
   }
-  if (patch.description !== undefined) data.description = patch.description
-  if (patch.defaultRole !== undefined) {
-    if (!isValidRole(patch.defaultRole)) throw new Error(`Rôle invalide: ${patch.defaultRole}`)
-    data.defaultRole = patch.defaultRole
-  }
+  if (typeof patch.description === 'string') data.description = patch.description
 
   await prisma.navItem.update({ where: { navKey }, data })
 }
 
 export async function deleteNavItem(navKey: string): Promise<void> {
+  if ((NAV_GUARD_KEYS as readonly string[]).includes(navKey)) {
+    throw new Error(`${navKey} protège des routes d'API : la supprimer les rendrait publiques`)
+  }
   const row = await prisma.navItem.findUnique({ where: { navKey } })
   if (!row) throw new Error(`Unknown navKey: ${navKey}`)
   await prisma.navItem.delete({ where: { navKey } })

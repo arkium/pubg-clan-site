@@ -3,13 +3,11 @@ import { promises as fs } from 'node:fs'
 import path from 'node:path'
 
 const mocks = vi.hoisted(() => ({
-  getActorMemberId: vi.fn(),
-  requirePermission: vi.fn(),
+  requireClanFeature: vi.fn(),
 }))
 
-vi.mock('@/middleware/auth-permission', () => ({
-  getActorMemberId: mocks.getActorMemberId,
-  requirePermission: mocks.requirePermission,
+vi.mock('@/lib/auth/admin-guards', () => ({
+  requireClanFeature: mocks.requireClanFeature,
 }))
 
 import { POST as uploadHandler } from '../app/api/clans/[clanId]/settings/login-welcome/upload/route'
@@ -17,8 +15,7 @@ import { GET as getUploadedImage } from '../app/uploads/clans/[fileName]/route'
 
 describe('login-welcome upload routes integration', () => {
   beforeEach(() => {
-    mocks.getActorMemberId.mockReset()
-    mocks.requirePermission.mockReset()
+    mocks.requireClanFeature.mockReset()
   })
 
   afterEach(async () => {
@@ -47,8 +44,8 @@ describe('login-welcome upload routes integration', () => {
     expect(json.error).toContain('Identifiant de clan invalide')
   })
 
-  it('rejette avec 401 si aucun membre actif dans la session', async () => {
-    mocks.getActorMemberId.mockResolvedValue(null)
+  it('rejette avec 401 sans session', async () => {
+    mocks.requireClanFeature.mockResolvedValue(Response.json({ error: 'Unauthorized' }, { status: 401 }))
 
     const request = new Request('http://localhost/api/clans/7/settings/login-welcome/upload', {
       method: 'POST',
@@ -58,9 +55,8 @@ describe('login-welcome upload routes integration', () => {
     expect(response.status).toBe(401)
   })
 
-  it('rejette avec 403 si la permission manage_settings est refusée', async () => {
-    mocks.getActorMemberId.mockResolvedValue(47)
-    mocks.requirePermission.mockReturnValue(async () => Response.json({ error: 'Forbidden' }, { status: 403 }))
+  it('rejette avec 403 si la fonctionnalité « Annonces » est refusée', async () => {
+    mocks.requireClanFeature.mockResolvedValue(Response.json({ error: 'Forbidden' }, { status: 403 }))
 
     const request = new Request('http://localhost/api/clans/7/settings/login-welcome/upload', {
       method: 'POST',
@@ -68,11 +64,11 @@ describe('login-welcome upload routes integration', () => {
     const response = await uploadHandler(request, { params: Promise.resolve({ clanId: '7' }) })
 
     expect(response.status).toBe(403)
+    expect(mocks.requireClanFeature).toHaveBeenCalledWith(expect.any(Request), 7, 'clan-announcements')
   })
 
   it('accepte et sauvegarde une image JPEG valide, puis permet sa lecture via la route GET', async () => {
-    mocks.getActorMemberId.mockResolvedValue(47)
-    mocks.requirePermission.mockReturnValue(async () => null)
+    mocks.requireClanFeature.mockResolvedValue(null)
 
     const jpegBytes = [0xff, 0xd8, 0xff, 0xe0, 0x00, 0x10, 0x4a, 0x46, 0x49, 0x46, 0x00, 0x01]
     const fakeBlob = new Blob([new Uint8Array(jpegBytes)], { type: 'image/jpeg' })

@@ -1,7 +1,7 @@
 import { NextRequest } from 'next/server'
 
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
-import { requireRole } from '@/middleware/auth-permission'
 import { initializeDefaultRoles, PREDEFINED_ROLES } from '@/lib/role-service'
 
 function parsePositiveInt(value: string) {
@@ -23,9 +23,7 @@ export async function POST(
     }
 
     // Only Owner/Admin can approve members
-    const roleError = await requireRole(['Owner', 'Admin'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-members')
     if (roleError) {
       return roleError
     }

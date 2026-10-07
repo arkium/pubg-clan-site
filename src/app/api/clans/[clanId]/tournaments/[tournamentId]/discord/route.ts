@@ -6,7 +6,7 @@ import {
   listTournamentRounds,
   prepareTournamentRoundBroadcast,
 } from '@/lib/discord/discord-tournament-service'
-import { requirePermission } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
 
 const BroadcastSchema = z.object({
   matchId: z.string().trim().min(1).max(191),
@@ -40,7 +40,7 @@ export async function GET(
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const permissionError = await requirePermission('manage_settings')(request, { clanId })
+  const permissionError = await requireClanFeature(request, clanId, 'clan-competition')
   if (permissionError) return permissionError
 
   const matchId = new URL(request.url).searchParams.get('matchId')
@@ -75,7 +75,7 @@ export async function POST(
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const permissionError = await requirePermission('manage_settings')(request, { clanId })
+  const permissionError = await requireClanFeature(request, clanId, 'clan-competition')
   if (permissionError) return permissionError
 
   const body = (await request.json().catch(() => null)) as unknown

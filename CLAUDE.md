@@ -337,6 +337,17 @@ pseudo ni le compte d'un joueur extérieur au site — voir [accueil.md](docs/fe
 - Chaque laissez-passer de page passe par `passThrough()`, qui pose l'en-tête `x-pathname` : **ne jamais revenir à un
   `NextResponse.next()` nu** pour une page, sinon elle perd son titre, sa description et son indexation.
 
+**Administration (depuis le 2026-10-07, [administration.md](docs/TODO/administration.md)) :** quatre profils — visiteur,
+membre, Owner, SuperUser. Toute route d'administration passe par `src/lib/auth/admin-guards.ts` :
+`requirePlatformAdmin` (outil qui touche toute la plateforme), `requireClanFeature(clanId, feature)` (outil d'un clan
+que le SuperUser peut ouvrir ou fermer aux Owners — catalogue `src/lib/auth/owner-features.ts`) ou `requireClanAccess`.
+Ces gardes ne sont **jamais** ouvertes par le mode visiteur et acceptent le SuperUser sans membre actif. Page
+d'administration → `<AdminAccessGate>` (`src/components/settings/AdminAccessGate.tsx`) dans le `layout.tsx` **de son
+propre dossier** : un layout parent ne se ré-exécute pas quand on navigue entre ses pages enfants. Elle ne refuse
+qu'une session **valide** sans les droits ; sans session valide, la page s'affiche et l'API répond 401 (les tests
+Playwright, qui simulent la session dans le navigateur, en dépendent). Ne jamais écrire
+de contrôle à la main (`getMemberPermissionKeys(...).includes('*')`) ni de `allowMissingActor` sans revérifier la session.
+
 **SEO :** titres, descriptions, `noindex` et canoniques de **toutes** les pages viennent du layout racine
 (`generateMetadata` → `src/lib/seo/page-seo.ts`), pas des pages (presque toutes client). Nouvelle page publique → une
 entrée dans `STATIC_PAGES` ; page du menu d'un clan → `CLAN_PAGES`. Pages joueur toujours en `noindex`.

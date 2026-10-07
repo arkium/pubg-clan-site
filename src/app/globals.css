@@ -1779,6 +1779,20 @@ html[data-app-theme='dark'] .app-team-mode-badge--squad {
   color: var(--theme-superuser-nav-active-text);
 }
 
+/* Entrée masquée (rôle `hidden`) : visible du seul SuperUser, pour vérifier la page avant de la rouvrir */
+.sidebar-ctx-nav-item--hidden {
+  color: var(--theme-ui-text-muted);
+}
+
+.sidebar-ctx-nav-tag {
+  margin-left: auto;
+  font-size: 0.625rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--theme-ui-text-muted);
+}
+
 .sidebar-ctx-nav-divider {
   height: 1px;
   background-color: var(--app-border);

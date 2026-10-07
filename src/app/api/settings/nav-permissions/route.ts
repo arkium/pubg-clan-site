@@ -1,4 +1,4 @@
-import { requireRole, isSuperUserSession } from '@/middleware/auth-permission'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import {
   getAllNavItems,
   getNavPermissions,
@@ -32,12 +32,11 @@ export async function GET() {
   }
 }
 
+// Les menus servent aussi de gardes d'API (requireNavPermission) : réservé au SuperUser,
+// plus jamais à l'Owner d'un clan quelconque.
 export async function PUT(request: Request) {
-  const isSU = await isSuperUserSession(request)
-  if (!isSU) {
-    const roleError = await requireRole(['Owner'])(request, {})
-    if (roleError) return roleError
-  }
+  const denied = await requirePlatformAdmin(request)
+  if (denied) return denied
 
   try {
     const body = (await request.json()) as

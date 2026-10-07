@@ -124,6 +124,12 @@ export function requirePermission(permission: string) {
       return null
     }
 
+    // SuperUsers bypass clan membership and permission checks — tested first, so a SuperUser
+    // without an active member is not refused (docs/TODO/administration.md M12)
+    if (await isSuperUserSession(request)) {
+      return null
+    }
+
     const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {
@@ -132,11 +138,6 @@ export function requirePermission(permission: string) {
       }
 
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // SuperUsers bypass clan membership and permission checks
-    if (await isSuperUserSession(request)) {
-      return null
     }
 
     if (options?.clanId) {
@@ -161,6 +162,11 @@ export function requireRole(roleNames: string[]) {
       return null
     }
 
+    // SuperUsers bypass clan membership and role checks — tested first (M12)
+    if (await isSuperUserSession(request)) {
+      return null
+    }
+
     const actorMemberId = await getActorMemberId(request)
 
     if (!actorMemberId) {
@@ -169,11 +175,6 @@ export function requireRole(roleNames: string[]) {
       }
 
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
-    }
-
-    // SuperUsers bypass clan membership and role checks
-    if (await isSuperUserSession(request)) {
-      return null
     }
 
     if (options?.clanId) {
@@ -202,12 +203,18 @@ export function requireNavPermission(navKey: string) {
 
     const role = await getNavItemRole(navKey)
 
-    if (role === 'hidden') {
-      return Response.json({ error: 'Forbidden' }, { status: 403 })
-    }
-
     if (role === 'none') {
       return null
+    }
+
+    // SuperUsers may browse any clan, without an active member (M12), and still reach
+    // a `hidden` feature to check it before reopening it (docs/TODO/administration.md Q18)
+    if (await isSuperUserSession(request)) {
+      return null
+    }
+
+    if (role === 'hidden') {
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     const actorMemberId = await getActorMemberId(request)
@@ -219,10 +226,7 @@ export function requireNavPermission(navKey: string) {
       return Response.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    // SuperUsers bypass clan membership checks (they may browse any clan)
-    const isSU = await isSuperUserSession(request)
-
-    if (!isSU && options?.clanId) {
+    if (options?.clanId) {
       const inClan = await ensureMemberInClan(actorMemberId, options.clanId)
       if (!inClan) {
         return Response.json({ error: 'Forbidden' }, { status: 403 })
@@ -234,9 +238,6 @@ export function requireNavPermission(navKey: string) {
     }
 
     if (role === 'admin') {
-      if (isSU) {
-        return null
-      }
       const isAdmin = await hasPermission(actorMemberId, '*')
         || await hasPermission(actorMemberId, 'manage_members')
         || await hasPermission(actorMemberId, 'manage_roles')
@@ -248,16 +249,10 @@ export function requireNavPermission(navKey: string) {
     }
 
     if (role === 'superuser') {
-      if (!isSU) {
-        return Response.json({ error: 'Forbidden' }, { status: 403 })
-      }
-      return null
+      return Response.json({ error: 'Forbidden' }, { status: 403 })
     }
 
     // role === 'owner'
-    if (isSU) {
-      return null
-    }
     const isOwner = await hasPermission(actorMemberId, '*')
     if (!isOwner) {
       return Response.json({ error: 'Forbidden' }, { status: 403 })

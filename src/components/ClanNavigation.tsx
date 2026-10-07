@@ -432,8 +432,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const ownerEntryHref = '/settings/owner'
   const superuserEntryHref = '/settings/superuser'
 
-  const showAdminMenu = isAdmin
-  const showOwnerMenu = Boolean(isOwner && clanId)
+  // Le SuperUser accède à toutes les pages d'administration, accueils compris (docs/TODO/administration.md §5.4)
+  const showAdminMenu = isAdmin || isSuperUser
+  const showOwnerMenu = Boolean((isOwner || isSuperUser) && clanId)
   const showSuperUserMenu = isSuperUser
 
   // ── Contextual sidebar section ──────────────────────────────────────────
@@ -458,7 +459,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }
 
   function canAccessRole(role: NavRole): boolean {
-    if (role === 'hidden') return false
+    // `hidden` = fonctionnalité désactivée : seul le SuperUser la voit encore, marquée « masquée » (Q18)
+    if (role === 'hidden') return isSuperUser
     if (role === 'superuser') return isSuperUser
     if (role === 'owner') return isOwner || isSuperUser
     if (role === 'admin') return isAdmin || isSuperUser
@@ -529,7 +531,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       }))
       .filter((i) => isValidCtxHref(i.href))
     const regularItems = allItems.filter((i) => i.role === 'none' || i.role === 'member')
-    const roleItems = allItems.filter((i) => i.role === 'admin' || i.role === 'owner' || i.role === 'superuser')
+    const roleItems = allItems.filter(
+      (i) => i.role === 'admin' || i.role === 'owner' || i.role === 'superuser' || i.role === 'hidden'
+    )
     return { regularItems, roleItems }
   }
 
@@ -691,7 +695,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           ? ' sidebar-ctx-nav-item--admin'
           : item.role === 'superuser'
             ? ' sidebar-ctx-nav-item--superuser'
-            : ''
+            : item.role === 'hidden'
+              ? ' sidebar-ctx-nav-item--hidden'
+              : ''
     return (
       <Link
         key={item.navKey}
@@ -704,6 +710,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <NavIcon label={item.label} />
         </span>
         {item.displayLabel}
+        {item.role === 'hidden' ? <span className="sidebar-ctx-nav-tag">masquée</span> : null}
       </Link>
     )
   }

@@ -158,6 +158,34 @@ export async function ensureTrackedClanForPlayer(playerId: string, platformShard
 }
 
 /**
+ * Version en lecture seule de `ensureTrackedClanForPlayer` : clan PUBG du joueur et clan suivi correspondant,
+ * sans rien créer ni réactiver. Sert à l'ajout d'un joueur par un Owner : faire suivre un nouveau clan à la
+ * plateforme reste au SuperUser (docs/TODO/administration.md M6).
+ */
+export async function findTrackedClanForPlayer(playerId: string, platformShard: string) {
+  try {
+    const pubgClan = await fetchPlayerClan(playerId, platformShard)
+    if (!pubgClan) {
+      return null
+    }
+
+    const clan = await prisma.clan.findFirst({
+      where: {
+        platformShard,
+        isSystem: false,
+        OR: [{ pubgClanId: pubgClan.id }, { pubgClanId: null, name: pubgClan.name }],
+      },
+      select: { id: true, name: true, tag: true },
+    })
+
+    return { pubgClan, clan }
+  } catch (error) {
+    console.error('Error finding tracked clan for player:', error)
+    return null
+  }
+}
+
+/**
  * Clan technique du shard : parking des joueurs sans clan qu'on continue de suivre.
  *
  * La recherche porte sur `isSystem`, jamais sur le nom : un clan systeme renomme a

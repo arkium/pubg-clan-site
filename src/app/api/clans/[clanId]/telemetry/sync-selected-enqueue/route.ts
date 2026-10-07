@@ -6,7 +6,8 @@ import {
   TELEMETRY_LIVE_SYNC_QUEUE_ACTION,
 } from '@/lib/pubg-telemetry/live-sync-queue'
 import { prisma } from '@/lib/prisma'
-import { getActorMemberId, requireRole } from '@/middleware/auth-permission'
+import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { getActorMemberId } from '@/middleware/auth-permission'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -25,9 +26,7 @@ export async function POST(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
     if (roleError) {
       return roleError
     }
@@ -82,9 +81,7 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireRole(['Owner'])(request, {
-      clanId: parsedClanId,
-    })
+    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
     if (roleError) {
       return roleError
     }

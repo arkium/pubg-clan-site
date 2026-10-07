@@ -5,7 +5,7 @@
  *   `superuser.switch-clan`, `admin.weapon-categories`, `clan.reports`, `clan.items`) ;
  * - crée `primary.mortar`, `primary.resources`, `primary.zone-reading`, écrits en dur dans la barre latérale ;
  * - aligne les libellés de base francisés sur le registre (et efface une surcharge devenue identique) ;
- * - lot 3a : crée `superuser.players` et `superuser.privacy-requests`, et suit les nouvelles adresses des pages
+ * - lots 3a et 3b : crée `superuser.players`, `superuser.privacy-requests`, `superuser.delegation`, et suit les nouvelles adresses des pages
  *   Plateforme déplacées (`/settings/clans`, `/settings/clans/lifecycle`, `/settings/database`, `/settings/telemetry`).
  *
  * Simulation par défaut : affiche le plan sans rien écrire. Idempotent : relancé, il ne trouve plus rien à faire.

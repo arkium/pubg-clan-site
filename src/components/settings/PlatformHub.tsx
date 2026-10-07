@@ -22,7 +22,7 @@ const PLATFORM_THEMES: HubThemes = [
   },
   {
     title: 'Site',
-    navKeys: ['superuser.platform-settings', 'owner.email-delivery', 'superuser.privacy-requests'],
+    navKeys: ['superuser.platform-settings', 'superuser.delegation', 'owner.email-delivery', 'superuser.privacy-requests'],
   },
 ]
 
@@ -30,7 +30,6 @@ export default function PlatformHub() {
   return (
     <SettingsHub
       section="superuser-menu"
-      audience="superuser"
       trailLabel="Plateforme"
       trailHref="/settings"
       title="Plateforme"

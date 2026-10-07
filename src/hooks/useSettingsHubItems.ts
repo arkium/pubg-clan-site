@@ -3,6 +3,7 @@
 import { useMemo } from 'react'
 import { useNavPermissions } from './useNavPermissions'
 import { useAuthSession } from './useAuthSession'
+import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
 import { type NavSection, getItemRole, type NavRole } from '@/lib/nav-permissions-registry'
 
 export type SettingsHubItem = {
@@ -25,7 +26,7 @@ export function useSettingsHubItems(
   clanId: number | null | undefined
 ) {
   const navPerms = useNavPermissions()
-  const { permissions, isSuperUser } = useAuthSession()
+  const { permissions, isSuperUser, ownerFeatures } = useAuthSession()
 
   return useMemo(() => {
     const permissionSet = new Set(permissions || [])
@@ -90,7 +91,7 @@ export function useSettingsHubItems(
     const visibleItems: SettingsHubItem[] = allCandidateItems
       .filter((i) => {
         const role = getItemRole(i.navKey, navPerms.roles)
-        return canAccessRole(role)
+        return canAccessRole(role) && (isSuperUser || !isNavKeyClosedToOwners(i.navKey, ownerFeatures))
       })
       .map((i) => {
         const role = getItemRole(i.navKey, navPerms.roles)
@@ -115,5 +116,5 @@ export function useSettingsHubItems(
       globalItems,
       allItems: visibleItems,
     }
-  }, [navPerms, permissions, isSuperUser, clanId, section])
+  }, [navPerms, permissions, isSuperUser, ownerFeatures, clanId, section])
 }

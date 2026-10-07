@@ -45,6 +45,7 @@ describe('planNavCleanup', () => {
       ['primary.zone-reading', 7],
       ['superuser.players', 0],
       ['superuser.privacy-requests', 1],
+      ['superuser.delegation', 2],
     ])
     expect(plan.labelUpdates).toEqual([
       { navKey: 'owner.telemetry-dashboard', from: 'Dashboard télémétrie', to: 'État de la télémétrie', clearOverride: false },
@@ -73,6 +74,7 @@ describe('planNavCleanup', () => {
       row('primary.zone-reading'),
       row('superuser.players'),
       row('superuser.privacy-requests'),
+      row('superuser.delegation'),
       row('superuser.opponents'),
       row('owner.pubg-api'),
     ]

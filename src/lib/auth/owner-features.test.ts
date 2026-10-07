@@ -13,6 +13,10 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 import {
+  isNavKeyClosedToOwners,
+  ownerFeatureOfNavKey,
+} from '@/lib/auth/owner-feature-catalog'
+import {
   getOwnerFeatureAccess,
   getOwnerFeatureAccessMap,
   OWNER_FEATURE_ACCESS_CONFIG_KEY,
@@ -28,6 +32,7 @@ describe('parseOwnerFeatureAccess', () => {
       'clan-members': 'owner',
       'clan-announcements': 'owner',
       'clan-competition': 'owner',
+      'clan-data-health': 'owner',
       'clan-telemetry-tools': 'superuser',
     })
   })
@@ -93,5 +98,20 @@ describe('lecture et écriture du réglage', () => {
     const written = JSON.parse(mocks.appConfigUpsert.mock.calls[0][0].update.value)
     expect(written['clan-members']).toBe('superuser')
     expect(await getOwnerFeatureAccess('clan-members')).toBe('superuser')
+  })
+})
+
+describe('menus et fonctionnalités', () => {
+  it('rattache chaque entrée de menu d’administration de clan à sa fonctionnalité', () => {
+    expect(ownerFeatureOfNavKey('admin.discord-notifications')).toBe('clan-announcements')
+    expect(ownerFeatureOfNavKey('owner.telemetry-errors')).toBe('clan-telemetry-tools')
+    expect(ownerFeatureOfNavKey('clan.overview')).toBeNull()
+  })
+
+  it('masque aux Owners une entrée dont la fonctionnalité leur est fermée', () => {
+    expect(isNavKeyClosedToOwners('owner.telemetry-dashboard', null)).toBe(true)
+    expect(isNavKeyClosedToOwners('clan.tournaments', null)).toBe(false)
+    expect(isNavKeyClosedToOwners('clan.tournaments', { 'clan-competition': 'superuser' })).toBe(true)
+    expect(isNavKeyClosedToOwners('clan.overview', { 'clan-competition': 'superuser' })).toBe(false)
   })
 })

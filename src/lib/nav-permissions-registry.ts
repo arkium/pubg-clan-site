@@ -559,6 +559,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Métriques de taille des tables et stockage.',
   },
   {
+    navKey: 'superuser.delegation',
+    section: 'superuser-menu',
+    label: 'Délégation aux Owners',
+    hrefTemplate: '/settings/delegation',
+    defaultRole: 'superuser',
+    description: 'Outils de clan ouverts à tous les Owners (membres, annonces, compétition, données, télémétrie).',
+  },
+  {
     navKey: 'superuser.privacy-requests',
     section: 'superuser-menu',
     label: 'Demandes de confidentialité',

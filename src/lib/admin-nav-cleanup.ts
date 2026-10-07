@@ -36,6 +36,7 @@ export const NAV_KEYS_TO_CREATE = [
   'primary.zone-reading',
   'superuser.players',
   'superuser.privacy-requests',
+  'superuser.delegation',
 ] as const
 
 /** Pages Plateforme déplacées au lot 3a : l'adresse en base suit le registre (l'ancienne reste redirigée). */

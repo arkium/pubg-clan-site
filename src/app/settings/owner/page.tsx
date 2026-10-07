@@ -1,22 +1,12 @@
-'use client'
+import { redirect } from 'next/navigation'
 
-import SettingsHub from '@/components/settings/SettingsHub'
+import { getActiveMemberClanId } from '@/lib/auth/admin-guards'
+import { getServerComponentSession } from '@/lib/auth-session'
 
-export default function OwnerHubPage() {
-  return (
-    <SettingsHub
-      section="owner-menu"
-      audience="owner"
-      trailLabel="Paramètres du clan"
-      trailHref="/settings/owner"
-      title="Paramètres du clan"
-      subtitle="Membres, annonces, tournois et outils de votre clan."
-      clanGroup={{
-        title: 'Clan sélectionné',
-        missingClanHint: 'Sélectionnez un clan pour voir ses outils',
-      }}
-      globalGroup={{ title: 'Autres outils' }}
-      emptyMessage="Aucun outil n’est actuellement ouvert à votre profil."
-    />
-  )
+// Q11 (docs/TODO/administration.md) : l'ancien accueil « Paramètres du clan » ne portait pas le clan dans son adresse.
+// Il mène à l'accueil « Mon clan » du clan du membre actif, sinon à la Plateforme (SuperUser) ou à la liste des clans.
+export default async function OwnerHubRedirect() {
+  const session = await getServerComponentSession()
+  const clanId = await getActiveMemberClanId(session)
+  redirect(clanId ? `/clans/${clanId}/settings` : session?.isSuperUser ? '/settings' : '/clans')
 }

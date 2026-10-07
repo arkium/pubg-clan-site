@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import type { OwnerFeatureAccess } from '@/lib/auth/owner-feature-catalog'
+
 type SessionMember = {
   memberId: number
   displayName: string
@@ -21,6 +23,8 @@ type AuthSessionState = {
   permissions: string[]
   members: SessionMember[]
   isSuperUser: boolean
+  /** Délégation aux Owners (docs/TODO/administration.md §5.3) : fonctionnalité → `owner` | `superuser`. */
+  ownerFeatures: Record<string, OwnerFeatureAccess> | null
   /** DISABLE_AUTH_PERMISSIONS=true côté serveur — mode visiteur (lecture publique). */
   authDisabled: boolean
 }
@@ -33,6 +37,7 @@ const INITIAL_STATE: AuthSessionState = {
   permissions: [],
   members: [],
   isSuperUser: false,
+  ownerFeatures: null,
   authDisabled: false,
 }
 
@@ -76,6 +81,7 @@ export function useAuthSession() {
         permissions?: string[]
         members: SessionMember[]
         isSuperUser?: boolean
+        ownerFeatures?: Record<string, OwnerFeatureAccess>
       }
 
       if (!data.authenticated) {
@@ -91,6 +97,7 @@ export function useAuthSession() {
         permissions: Array.isArray(data.permissions) ? data.permissions : [],
         members: data.members,
         isSuperUser: data.isSuperUser === true,
+        ownerFeatures: data.ownerFeatures ?? null,
         authDisabled,
       })
     } catch {

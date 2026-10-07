@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { useNavPermissions } from './useNavPermissions'
 import { useAuthSession } from './useAuthSession'
+import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
 import { type NavSection, getItemRole, type NavRole } from '@/lib/nav-permissions-registry'
 
 export type SectionNavItem = {
@@ -15,7 +16,7 @@ export function useSectionNavItems(
   memberId: number | null | undefined
 ): SectionNavItem[] {
   const navPerms = useNavPermissions()
-  const { permissions, isSuperUser } = useAuthSession()
+  const { permissions, isSuperUser, ownerFeatures } = useAuthSession()
 
   return useMemo(() => {
     const permissionSet = new Set(permissions || [])
@@ -89,6 +90,7 @@ export function useSectionNavItems(
 
     return allItems
       .filter((i) => canAccessRole(getItemRole(i.navKey, navPerms.roles)))
+      .filter((i) => isSuperUser || !isNavKeyClosedToOwners(i.navKey, ownerFeatures))
       .map((i) => ({
         navKey: i.navKey,
         label: navPerms.labels[i.navKey] ?? i.label,
@@ -96,5 +98,5 @@ export function useSectionNavItems(
       }))
       .filter((i) => isValidHref(i.href))
 
-  }, [navPerms, permissions, isSuperUser, clanId, memberId, section])
+  }, [navPerms, permissions, isSuperUser, ownerFeatures, clanId, memberId, section])
 }

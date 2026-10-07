@@ -19,13 +19,12 @@ export type HubThemes = Array<{ title: string; navKeys: string[] }>
 
 /**
  * Accueil d'administration construit depuis les entrées de menu (`NavItem`) d'une section : cartes du clan
- * sélectionné et cartes globales. Les deux accueils (`/settings/owner`, `/settings`) n'en diffèrent que par
- * leurs textes et l'ordre des groupes. La garde serveur est dans leur `layout.tsx` ; la condition ci-dessous ne
- * fait que renvoyer ailleurs un visiteur sans session.
+ * sélectionné et cartes globales, réparties par thème. Sert l'accueil Plateforme (`/settings`) ; l'accueil « Mon clan »
+ * est une page serveur à part (`/clans/[clanId]/settings`). La garde serveur est dans la page ; la condition
+ * ci-dessous ne fait que renvoyer ailleurs un visiteur sans session.
  */
 export default function SettingsHub({
   section,
-  audience,
   trailLabel,
   trailHref,
   title,
@@ -37,8 +36,6 @@ export default function SettingsHub({
   emptyMessage,
 }: {
   section: NavSection
-  /** `owner` : Owner du clan ou SuperUser ; `superuser` : SuperUser seulement. */
-  audience: 'owner' | 'superuser'
   trailLabel: string
   trailHref: string
   title: string
@@ -52,8 +49,8 @@ export default function SettingsHub({
 }) {
   const router = useRouter()
   const { clanId } = useSelectedClan()
-  const { loading: sessionLoading, authenticated, permissions, isSuperUser } = useAuthSession()
-  const canSee = isSuperUser || (audience === 'owner' && permissions.includes('*'))
+  const { loading: sessionLoading, authenticated, isSuperUser } = useAuthSession()
+  const canSee = isSuperUser
 
   const { clanItems, globalItems } = useSettingsHubItems(section, clanId)
 

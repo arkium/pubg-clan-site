@@ -629,7 +629,25 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait (branche `fix/admin-rights`) ; 3b et 3c non commencés.**
+**État au 2026-10-07 : 3a fait ; 3b en cours (3b-1 fait) ; 3c non commencé (branche `fix/admin-rights`).**
+
+3b-1 — accueil « Mon clan » et délégation :
+
+- **`/clans/[clanId]/settings` en page serveur** : groupes Membres, Apparence et annonces, Compétition ; une carte
+  n'apparaît que si `decideClanFeature` l'autorise (délégation comprise). Sans session : invitation à se connecter.
+  Les réglages de plateforme du clan (sous-domaine, arrêt de suivi) passent sur **`/settings/clans/[clanId]`**
+  (« Fiche du clan », SuperUser), liée depuis l'accueil du clan pour le SuperUser.
+- **Q11** : `/settings/owner` redirige côté serveur vers « Mon clan » du clan du membre actif (sinon `/settings` pour
+  le SuperUser, `/clans` pour les autres) ; le lien « Paramètres du clan » de la barre latérale mène au clan
+  sélectionné. `SettingsHub` ne sert plus qu'à l'accueil Plateforme.
+- **Délégation** : écran `/settings/delegation` (Plateforme › Site, `superuser.delegation`), routes
+  `GET/PUT /api/settings/owner-features` (`requirePlatformAdmin`, 409 sur une fonctionnalité verrouillée). Le catalogue
+  est scindé : `owner-feature-catalog.ts` (pur, lisible par le client) et `owner-features.ts` (base). Nouvelle
+  fonctionnalité `clan-data-health` (ouverte par défaut, pour la page Données du 3b-3). Chaque fonctionnalité liste ses
+  entrées de menu ; `GET /api/auth/session` renvoie `ownerFeatures` et la barre latérale, les onglets de section et
+  les accueils masquent aux Owners les entrées d'une fonctionnalité fermée.
+- **Écart** : écran de délégation sur une page à part plutôt qu'un bloc de `/settings/nav-permissions` (déjà
+  1 200 lignes) ; il est lié depuis l'accueil Plateforme.
 
 3a — ce qui est livré :
 

@@ -15,6 +15,7 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useHeaderHeightPublisher } from '@/hooks/useStickyToolbar'
 import { usePageData } from '@/hooks/usePageData'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
+import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
 import { getItemRole, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
 
 type ClanSummary = {
@@ -140,7 +141,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const pathname = usePathname()
   const router = useRouter()
   const { clanId, clearClanId, setClanId } = useSelectedClan()
-  const { loading, authenticated, email, activeMemberId, permissions, members, isSuperUser, authDisabled, refresh } = useAuthSession()
+  const { loading, authenticated, email, activeMemberId, permissions, members, isSuperUser, ownerFeatures, authDisabled, refresh } = useAuthSession()
   const isVisitor = !authenticated && authDisabled
   const [clan, setClan] = useState<ClanSummary | null>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
@@ -381,7 +382,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         : { navKey: 'primary.login', label: 'Se connecter', href: '/login', tone: 'neutral' },
     ] as (NavItem | null)[]).filter((item): item is NavItem => item !== null && !isNavHidden(item.navKey))
 
-  const ownerEntryHref = '/settings/owner'
+  // Accueil « Mon clan » du clan sélectionné (lot 3b) ; /settings/owner y redirige côté serveur
+  const ownerEntryHref = clanId ? `/clans/${clanId}/settings` : '/settings/owner'
   const superuserEntryHref = '/settings'
 
   // Le SuperUser accède à toutes les pages d'administration, accueils compris (docs/TODO/administration.md §5.4)
@@ -471,6 +473,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       : promoted
     const allItems: CtxItem[] = [...orderedNative, ...orderedPromoted]
       .filter((i) => canAccessRole(getItemRole(i.navKey, navPerms.roles)))
+      // Outil d'un clan fermé aux Owners par le SuperUser (délégation, §5.3)
+      .filter((i) => isSuperUser || !isNavKeyClosedToOwners(i.navKey, ownerFeatures))
       .map((i) => ({
         navKey: i.navKey,
         label: i.label,

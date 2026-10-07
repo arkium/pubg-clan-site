@@ -117,6 +117,7 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Réglages de la ligue': return <Trophy className={className} />
       case 'Base de données': return <Database className={className} />
       case 'Demandes de confidentialité': return <FileText className={className} />
+      case 'Délégation aux Owners': return <Key className={className} />
 
       default:
         return <CircleDot className={className} />

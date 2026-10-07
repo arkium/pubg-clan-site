@@ -37,6 +37,7 @@ export const NAV_KEYS_TO_CREATE = [
   'superuser.players',
   'superuser.privacy-requests',
   'superuser.delegation',
+  'owner.clan-data',
 ] as const
 
 /** Pages Plateforme déplacées au lot 3a : l'adresse en base suit le registre (l'ancienne reste redirigée). */
@@ -48,6 +49,11 @@ export const NAV_KEYS_HREF_FROM_REGISTRY = [
   // Lot 3b : gestion des membres en onglets
   'clan.members-pending',
   'admin.add-player',
+  // Lot 3b : outils de télémétrie sous « Données »
+  'owner.telemetry-dashboard',
+  'owner.telemetry-errors',
+  'owner.telemetry-sync-batch',
+  'owner.telemetry-recoveries',
 ] as const
 
 /** Libellés de base alignés sur le registre (libellés francisés, et « Stats armes » resté en base). */

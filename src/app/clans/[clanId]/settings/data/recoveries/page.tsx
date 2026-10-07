@@ -589,7 +589,7 @@ export default function TelemetryRecoveriesPage() {
 
         if (!response.ok || !data || !('ok' in data) || !data.ok) {
           if (response.status === 401 || response.status === 403) {
-            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/telemetry/recoveries`)}`)
+            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/settings/data/recoveries`)}`)
             return
           }
 
@@ -626,7 +626,7 @@ export default function TelemetryRecoveriesPage() {
 
         if (!response.ok || !data || !data.ok) {
           if (response.status === 401 || response.status === 403) {
-            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/telemetry/recoveries`)}`)
+            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/settings/data/recoveries`)}`)
             return
           }
 
@@ -898,8 +898,8 @@ export default function TelemetryRecoveriesPage() {
       <main className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Récupérations télémétrie"
-          currentHref={`/clans/${clanId}/telemetry/recoveries`}
-          fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+          currentHref={`/clans/${clanId}/settings/data/recoveries`}
+          fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
         />
         <TableSkeleton rows={4} />
       </main>
@@ -913,8 +913,8 @@ export default function TelemetryRecoveriesPage() {
     <main className="app-container app-main flex-1 space-y-6">
       <NavigationTrail
         currentLabel="Récupérations télémétrie"
-        currentHref={`/clans/${clanId}/telemetry/recoveries`}
-        fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+        currentHref={`/clans/${clanId}/settings/data/recoveries`}
+        fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
       />
 
       {/* Header avec sélecteur de clan et actions globales */}
@@ -946,7 +946,7 @@ export default function TelemetryRecoveriesPage() {
                   onChange={(e) => {
                     const target = e.target.value
                     if (target) {
-                      router.push(`/clans/${target}/telemetry/recoveries`)
+                      router.push(`/clans/${target}/settings/data/recoveries`)
                     }
                   }}
                   className="rounded-lg border-0 bg-transparent px-2 py-1 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"

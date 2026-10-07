@@ -782,7 +782,7 @@ export default function TelemetryRecoveriesOverviewPage() {
 
                       {/* Lien détail clan */}
                       <Link
-                        href={`/clans/${clan.clanId}/telemetry/recoveries`}
+                        href={`/clans/${clan.clanId}/settings/data/recoveries`}
                         className="app-btn app-btn--xs app-btn--secondary gap-1"
                       >
                         Détail clan

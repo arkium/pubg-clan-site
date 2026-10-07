@@ -76,7 +76,7 @@ export default function TelemetryDashboard() {
       <main className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Télémétrie"
-          currentHref={`/clans/${clanId}/telemetry/dashboard`}
+          currentHref={`/clans/${clanId}/settings/data/state`}
           fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
         />
         <div className="grid gap-4 sm:grid-cols-3">
@@ -101,7 +101,7 @@ export default function TelemetryDashboard() {
     <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
         currentLabel="Télémétrie"
-        currentHref={`/clans/${clanId}/telemetry/dashboard`}
+        currentHref={`/clans/${clanId}/settings/data/state`}
         fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
       />
       
@@ -109,15 +109,15 @@ export default function TelemetryDashboard() {
         <section className="app-panel p-6 mb-6">
           <h2 className="mb-4 text-lg font-bold text-gray-900">Outils et rapports (Owner)</h2>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-5">
-            <Link href={`/clans/${clanId}/telemetry/errors`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+            <Link href={`/clans/${clanId}/settings/data/errors`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
               <AlertTriangle className="w-6 h-6 text-red-500 mb-2" />
               <span className="text-sm font-semibold text-gray-900 text-center">Erreurs</span>
             </Link>
-            <Link href={`/clans/${clanId}/telemetry/sync-batch-manual`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+            <Link href={`/clans/${clanId}/settings/data/sync`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
               <Activity className="w-6 h-6 text-blue-500 mb-2" />
               <span className="text-sm font-semibold text-gray-900 text-center">Sync batch</span>
             </Link>
-            <Link href={`/clans/${clanId}/telemetry/recoveries`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
+            <Link href={`/clans/${clanId}/settings/data/recoveries`} className="flex flex-col items-center justify-center p-4 rounded-xl border border-gray-100 bg-gray-50 hover:bg-gray-100 transition-colors">
               <ServerCrash className="w-6 h-6 text-orange-500 mb-2" />
               <span className="text-sm font-semibold text-gray-900 text-center">Recoveries</span>
             </Link>

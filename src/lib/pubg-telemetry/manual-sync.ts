@@ -755,7 +755,8 @@ export type ManualTelemetryEnqueueResult = {
 export async function enqueueTelemetryForSelectedSquadMatches(
   clanId: number,
   squadMatchIds: string[],
-  triggeredBy?: number | null
+  triggeredBy?: number | null,
+  options?: { priority?: 'normal' | 'low' }
 ): Promise<ManualTelemetryEnqueueResult> {
   const sanitizedIds = sanitizeSquadMatchIds(squadMatchIds)
 
@@ -837,6 +838,7 @@ export async function enqueueTelemetryForSelectedSquadMatches(
     clanId,
     matches: matchesToQueue,
     triggeredBy,
+    priority: options?.priority,
   })
 
   const pubgMatchIdByQueued = new Map(matchesToQueue.map((match) => [match.squadMatchId, match.pubgMatchId]))

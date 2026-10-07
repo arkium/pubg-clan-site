@@ -1185,7 +1185,7 @@ export default function TelemetrySessionDatePage() {
                   disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0}>
                   Vider sélection
                 </button>
-                <Link href={`/clans/${clanId}/telemetry/recoveries`} className="app-btn app-btn--sm app-btn--secondary">
+                <Link href={`/clans/${clanId}/settings/data/recoveries`} className="app-btn app-btn--sm app-btn--secondary">
                   Suivi récupérations
                 </Link>
               </div>

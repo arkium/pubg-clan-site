@@ -1,4 +1,4 @@
-import { MessageSquare, Monitor, Settings, Trophy, Users } from 'lucide-react'
+import { Database, MessageSquare, Monitor, Settings, Trophy, Users } from 'lucide-react'
 import Link from 'next/link'
 import { redirect } from 'next/navigation'
 import type { ReactNode } from 'react'
@@ -62,6 +62,18 @@ const GROUPS: Array<{ title: string; cards: HubCard[] }> = [
       },
     ],
   },
+  {
+    title: 'Données',
+    cards: [
+      {
+        feature: 'clan-data-health',
+        path: 'settings/data',
+        title: 'Santé des données',
+        description: 'Télémétrie des parties du clan et demande de resynchronisation plafonnée.',
+        icon: <Database className="h-6 w-6" aria-hidden />,
+      },
+    ],
+  },
 ]
 
 function parseClanId(value: string) {
@@ -94,7 +106,7 @@ export default async function ClanSettingsHub({ params }: { params: Promise<{ cl
       />
 
       <section className="app-panel p-6">
-        <SettingsPageHeader title="Paramètres du clan" subtitle="Membres, annonces et compétition de votre clan." />
+        <SettingsPageHeader title="Paramètres du clan" subtitle="Membres, annonces, compétition et données de votre clan." />
 
         {!session ? (
           <p className="mt-6 text-sm text-gray-600">

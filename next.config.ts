@@ -40,6 +40,11 @@ const nextConfig: NextConfig = {
       { source: '/settings/telemetry-recoveries', destination: '/settings/telemetry', permanent: false },
       // « Mon clan » (lot 3b) : les demandes d'adhésion sont un onglet de la gestion des membres.
       { source: '/clans/:clanId/members/pending', destination: '/clans/:clanId/settings/members?tab=demandes', permanent: false },
+      // Outils de télémétrie d'un clan : onglets de « Données » (Q20).
+      { source: '/clans/:clanId/telemetry/dashboard', destination: '/clans/:clanId/settings/data/state', permanent: false },
+      { source: '/clans/:clanId/telemetry/errors', destination: '/clans/:clanId/settings/data/errors', permanent: false },
+      { source: '/clans/:clanId/telemetry/sync-batch-manual', destination: '/clans/:clanId/settings/data/sync', permanent: false },
+      { source: '/clans/:clanId/telemetry/recoveries', destination: '/clans/:clanId/settings/data/recoveries', permanent: false },
     ]
   },
   //allowedDevOrigins: ['smk.arkium.group', 'localhost', '127.0.0.1', '10.1.0.248'],

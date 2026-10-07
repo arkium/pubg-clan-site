@@ -40,6 +40,10 @@ describe('liens du registre des menus', () => {
       ['/settings/clan-lifecycle', '/settings/clans/lifecycle'],
       ['/settings/telemetry-recoveries', '/settings/telemetry'],
       ['/clans/:clanId/members/pending', '/clans/:clanId/settings/members?tab=demandes'],
+      ['/clans/:clanId/telemetry/dashboard', '/clans/:clanId/settings/data/state'],
+      ['/clans/:clanId/telemetry/errors', '/clans/:clanId/settings/data/errors'],
+      ['/clans/:clanId/telemetry/sync-batch-manual', '/clans/:clanId/settings/data/sync'],
+      ['/clans/:clanId/telemetry/recoveries', '/clans/:clanId/settings/data/recoveries'],
     ]
     for (const [source, destination] of MOVED) {
       expect([source, hasPage(source)]).toEqual([source, false])

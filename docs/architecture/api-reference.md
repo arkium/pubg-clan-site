@@ -397,7 +397,7 @@ Non documenté dans [Télémétrie API](../telemetry/api.md) (absent de la liste
 - **Auth :** `requireRole(['Owner'])` sur les deux méthodes.
 - **POST — body :** `{ squadMatchIds: string[] }` → enqueue via `enqueueTelemetryForSelectedSquadMatches()` (queue `telemetry_live_sync`, distincte de la queue resync classique). Réponse : `{ ok: true, clanId, ...result }`.
 - **GET :** renvoie l'état de la queue live-sync pour polling après enqueue : `{ ok: true, clanId, queue: <TelemetryLiveSyncQueueStats>, recentJobs: Array<{ id, status, message, createdAt, finishedAt }> }` (20 derniers jobs `CronExecution` de type `telemetry_live_sync`).
-- Sert le panneau "Direct Sync" de la page `/clans/[clanId]/telemetry/sync-batch-manual` (voir aussi `src/app/clans/[clanId]/telemetry/sync-batch-manual/page.tsx`).
+- Sert le panneau "Direct Sync" de la page `/clans/[clanId]/settings/data/sync` (voir aussi `src/app/clans/[clanId]/settings/data/sync/page.tsx`).
 
 ---
 

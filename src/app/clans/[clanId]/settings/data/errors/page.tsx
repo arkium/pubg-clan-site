@@ -70,8 +70,8 @@ export default function TelemetryErrorsPage() {
       <main className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Erreurs"
-          currentHref={`/clans/${clanId}/telemetry/errors`}
-          fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+          currentHref={`/clans/${clanId}/settings/data/errors`}
+          fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
         />
         <TableSkeleton rows={3} />
       </main>
@@ -82,8 +82,8 @@ export default function TelemetryErrorsPage() {
     <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
         currentLabel="Erreurs"
-        currentHref={`/clans/${clanId}/telemetry/errors`}
-        fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+        currentHref={`/clans/${clanId}/settings/data/errors`}
+        fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
       />
       <section className="app-panel p-4">
         <SettingsPageHeader

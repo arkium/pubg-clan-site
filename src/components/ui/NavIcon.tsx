@@ -99,6 +99,7 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       // ── Owner menu ────────────────────────────────────────────────────────────
       case 'Paramètres du clan': return <Crown className={className} />
       case 'État de la télémétrie': return <Activity className={className} />
+      case 'Données du clan': return <Database className={className} />
       case 'Erreurs télémétrie': return <AlertTriangle className={className} />
       case 'Synchronisation manuelle': return <Database className={className} />
       case 'Récupérations': return <Database className={className} />

@@ -39,10 +39,6 @@ const OUT_OF_SCOPE = [
   'src/app/api/',
   'src/app/settings/',
   'src/app/clans/[clanId]/settings/',
-  'src/app/clans/[clanId]/telemetry/dashboard/',
-  'src/app/clans/[clanId]/telemetry/errors/',
-  'src/app/clans/[clanId]/telemetry/recoveries/',
-  'src/app/clans/[clanId]/telemetry/sync-batch-manual/',
   'src/app/members/add/',
   'src/components/clan-settings/',
 ]

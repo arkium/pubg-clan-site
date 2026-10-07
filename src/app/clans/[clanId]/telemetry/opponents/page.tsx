@@ -367,7 +367,7 @@ export default function EncounteredOpponentsPage() {
         <NavigationTrail
           currentLabel="Adversaires rencontrés"
           currentHref={`/clans/${clanId}/telemetry/opponents`}
-          fallbackParent={{ href: `/clans/${clanId}/telemetry/dashboard`, label: 'Télémétrie' }}
+          fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
         />
         <section className="app-panel p-4">
           <SettingsPageHeader

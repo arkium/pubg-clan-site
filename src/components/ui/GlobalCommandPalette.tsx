@@ -106,7 +106,7 @@ export function GlobalCommandPalette() {
         {/* Outils de télémétrie : réservés au SuperUser tant qu'ils restent verrouillés (src/lib/auth/owner-features.ts) */}
         {clanId && isSuperUser && (
           <Command.Group heading="Télémétrie & Administration">
-            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/telemetry/dashboard`))}>
+            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/state`))}>
               <Shield className="mr-2 h-4 w-4" /> État de la télémétrie
             </Command.Item>
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/telemetry/matches`))}>
@@ -115,7 +115,7 @@ export function GlobalCommandPalette() {
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/telemetry/opponents`))}>
               <Target className="mr-2 h-4 w-4" /> Adversaires
             </Command.Item>
-            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/telemetry/errors`))}>
+            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/errors`))}>
               <Shield className="mr-2 h-4 w-4" /> Erreurs d'analyse
             </Command.Item>
           </Command.Group>

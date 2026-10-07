@@ -629,7 +629,7 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait ; 3b en cours (3b-1 et 3b-2 faits) ; 3c non commencé (branche `fix/admin-rights`).**
+**État au 2026-10-07 : 3a fait ; 3b en cours (3b-1 à 3b-3 faits) ; 3c non commencé (branche `fix/admin-rights`).**
 
 3b-1 — accueil « Mon clan » et délégation :
 
@@ -660,6 +660,24 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
   `clan.members-pending` et `admin.add-player` suivent (registre, script).
 - **Écart** : les invitations restent dans l'onglet « Membres » (elles se gèrent membre par membre dans la même
   liste) au lieu d'un onglet à part.
+
+3b-3 — « Données » du clan :
+
+- **`/clans/[clanId]/settings/data`** (fonctionnalité `clan-data-health`, ouverte aux Owners) : parties des 30 derniers
+  jours avec et sans télémétrie, expirées chez PUBG, dernière télémétrie, file et échecs sur 7 jours
+  (`GET /api/clans/[clanId]/settings/data-health`).
+- **Demande de resynchronisation plafonnée (Q17)** : `POST …/data-health/resync` met en file les parties des 14 derniers
+  jours sans télémétrie, **au plus 50 par 24 h et par clan** (429 au-delà), à **basse priorité** (`startedAt` repoussé de
+  24 h : la file est prise par `startedAt` croissant, ces jobs passent après tous les autres), sans appel PUBG dans la
+  requête ni réordonnancement. Le plafond se compte dans un registre `AppConfig` `owner_resync_ledger:<clanId>` (le
+  worker réécrit `source` et `details` des jobs) qui note aussi l'auteur — `src/lib/clan-data-health.ts`.
+- **Outils de télémétrie (Q20)** : `git mv` vers `…/settings/data/state`, `errors`, `sync`, `recoveries` (gardes
+  `clan-telemetry-tools` de leur dossier conservées) ; onglets calculés côté serveur (un Owner ne voit que « Santé des
+  données » tant que les outils lui sont fermés). Anciennes adresses redirigées, liens internes, palette, registre,
+  script de menus (`owner.clan-data` créé, adresses des `owner.telemetry-*` suivies) et docs suivis.
+- **Reste du 3b** : la page de soirée de télémétrie (`/clans/[clanId]/telemetry/matches` et `…/session/[date]`) garde
+  son panneau d'exploitation et n'est pas encore redirigée vers les pages joueur — le panneau doit d'abord trouver
+  sa place dans les outils ; « Adversaires rencontrés » (Q5) au 3b-4.
 
 3a — ce qui est livré :
 

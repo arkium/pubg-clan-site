@@ -112,10 +112,10 @@ Même principe qu'en 8.1 (hub avec cartes → détail, retour vers la page d'app
 | 5 | `/clans/[clanId]/settings/members` | ▸ Joueurs et rôles | Admin | ✱ (page hub inexistante) |
 | 6 | `/clans/[clanId]/settings/login-welcome` | ▸ Accueil login (branding) | Admin | ✱ (page hub inexistante) |
 | 7 | `/clans/[clanId]/members/pending` | Demandes en attente → à rattacher comme carte sur Membres (8.1 #4) | Admin | ✱ (`/clans/[clanId]/members` ne lie pas vers pending) |
-| 8 | `/clans/[clanId]/telemetry/dashboard` | Télémétrie — Dashboard | Owner | — |
-| 9 | `/clans/[clanId]/telemetry/errors` | ▸ Erreurs | Owner | ✱ (dashboard n'a aucun lien sortant) |
-| 10 | `/clans/[clanId]/telemetry/sync-batch-manual` | ▸ Sync batch manuel | Owner | ✱ |
-| 11 | `/clans/[clanId]/telemetry/recoveries` | ▸ Recoveries | Owner | ✱ |
+| 8 | `/clans/[clanId]/settings/data/state` | Télémétrie — Dashboard | Owner | — |
+| 9 | `/clans/[clanId]/settings/data/errors` | ▸ Erreurs | Owner | ✱ (dashboard n'a aucun lien sortant) |
+| 10 | `/clans/[clanId]/settings/data/sync` | ▸ Sync batch manuel | Owner | ✱ |
+| 11 | `/clans/[clanId]/settings/data/recoveries` | ▸ Recoveries | Owner | ✱ |
 | 12 | `/clans/[clanId]/telemetry/matches` | ▸ Matchs (liste jobs) | Owner | ✱ |
 | 13 | `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ▸▸ Détail | Owner | ✱ (page confirmée ; lien sortant explicite à standardiser) |
 | 14 | `/clans/[clanId]/telemetry/matches/session/[date]` | ▸▸ Session (par date) | Owner | ✓ (lien réel matches → session) |
@@ -171,10 +171,10 @@ Remplace les anciennes listes d'état courant (Pages transverses, Espace Clan, E
 
 | Page | Route | Où dans le §8 |
 |---|---|---|
-| Dashboard télémétrie | `/clans/[clanId]/telemetry/dashboard` | 8.2 #8 |
-| Erreurs télémétrie | `/clans/[clanId]/telemetry/errors` | 8.2 #9 |
-| Sync batch manuel | `/clans/[clanId]/telemetry/sync-batch-manual` | 8.2 #10 |
-| Recoveries télémétrie | `/clans/[clanId]/telemetry/recoveries` | 8.2 #11 |
+| Dashboard télémétrie | `/clans/[clanId]/settings/data/state` | 8.2 #8 |
+| Erreurs télémétrie | `/clans/[clanId]/settings/data/errors` | 8.2 #9 |
+| Sync batch manuel | `/clans/[clanId]/settings/data/sync` | 8.2 #10 |
+| Recoveries télémétrie | `/clans/[clanId]/settings/data/recoveries` | 8.2 #11 |
 | Télémétrie matchs | `/clans/[clanId]/telemetry/matches` | 8.2 #12 |
 | Adversaires rencontrés | `/clans/[clanId]/telemetry/opponents` | 8.2 #15 |
 | Changer de clan | `/clans` | 8.1 #2 (action différente : switch) |
@@ -330,10 +330,10 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/clans/[clanId]/settings/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/settings/login-welcome` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/members/pending` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/telemetry/dashboard` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/telemetry/errors` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/telemetry/sync-batch-manual` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/telemetry/recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/data/state` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/data/errors` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/data/sync` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/settings/data/recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/telemetry/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/telemetry/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
@@ -370,7 +370,7 @@ Chaque ticket doit faire disparaître au moins un `⚠️` du tableau 13.4 et ê
 | ✅ NAV-04 | Hub clan | `/clans/[clanId]/overview` | Page Overview et composant de navigation contextuelle | Les cartes Overview pointent vers Membres, Matchs, Stats, Leaderboard, Awards, Challenges et Drop zones ; chaque détail conserve Overview comme provenance de repli. |
 | ✅ NAV-05 | Hub membres | `/clans/[clanId]/members`, `/clans/[clanId]/members/pending` | Page Membres + page Pending | Un lien visible vers Pending existe pour un Admin ; un membre standard ne voit pas ce lien ; le retour depuis Pending fonctionne. |
 | ✅ NAV-06 | Hub paramètres | `/clans/[clanId]/settings` | Nouvelle page `src/app/clans/[clanId]/settings/page.tsx` | Le hub existe, est protégé par le rôle Admin, et expose les cartes Joueurs et rôles et Accueil login. |
-| ✅ NAV-07 | Hub télémétrie | `/clans/[clanId]/telemetry/dashboard` | Page dashboard télémétrie | Le dashboard expose des liens vers Erreurs, Sync batch manuel, Recoveries, Matchs et Adversaires ; les liens sont masqués hors Owner. |
+| ✅ NAV-07 | Hub télémétrie | `/clans/[clanId]/settings/data/state` | Page dashboard télémétrie | Le dashboard expose des liens vers Erreurs, Sync batch manuel, Recoveries, Matchs et Adversaires ; les liens sont masqués hors Owner. |
 | ✅ NAV-08 | Détails match | Routes telemetry `[matchId]` et `session/[date]` | Pages détail/session + breadcrumb | Chaque détail propose un retour vers la liste ou la session d'origine ; l'accès direct utilise le fallback de §13.2. |
 | ✅ NAV-09 | Sous-pages membre | Stats, Armes, Matchs, Cartes, Némésis, Drop zones, Heatmap, Récompenses | Pages `src/app/members/[id]/**` | Le dashboard membre expose les destinations utiles et chaque sous-page revient au dashboard sans URL codée en dur incorrecte. |
 | ✅ NAV-10 | Entrées inter-clans | `/clans-leaderboard`, `/clans/comparator` | Pages de classement/comparateur | Cliquer sur un clan ouvre son Overview avec le bon `clanId`, puis le retour revient à la page d'origine. |

@@ -165,7 +165,7 @@ export default function TelemetrySyncBatchPage() {
     <main className="app-container app-main flex-1 space-y-4">
       <NavigationTrail
         currentLabel="Synchro manuelle"
-        currentHref={`/clans/${clanId}/telemetry/sync-batch-manual`}
+        currentHref={`/clans/${clanId}/settings/data/sync`}
         fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
       />
       <section className="app-panel p-4">

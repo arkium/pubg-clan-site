@@ -81,10 +81,18 @@ export async function getTelemetryLiveSyncQueueStats(input?: {
   }
 }
 
+/**
+ * Basse priorité (demande d'un Owner, docs/TODO/administration.md Q17) : la file est prise par `startedAt` croissant ;
+ * un départ repoussé de 24 h place ces jobs derrière tous les autres, qui passent d'abord, sans les priver du worker
+ * quand la file est vide.
+ */
+export const TELEMETRY_LIVE_SYNC_LOW_PRIORITY_DELAY_MS = 24 * 60 * 60 * 1000
+
 export async function enqueueTelemetryLiveSyncJobs(input: {
   clanId: number
   matches: { squadMatchId: string; pubgMatchId: string; anyPlayerId: string; shard: string }[]
   triggeredBy?: number | null
+  priority?: 'normal' | 'low'
 }) {
   const sanitized = new Map<string, (typeof input.matches)[number]>()
   for (const match of input.matches) {
@@ -145,8 +153,14 @@ export async function enqueueTelemetryLiveSyncJobs(input: {
         status: 'queued',
         triggeredBy: input.triggeredBy ?? null,
         source: 'scheduler',
-        message: 'Queued for telemetry live-sync worker',
+        message:
+          input.priority === 'low'
+            ? 'Queued for telemetry live-sync worker (low priority)'
+            : 'Queued for telemetry live-sync worker',
         details,
+        ...(input.priority === 'low'
+          ? { startedAt: new Date(Date.now() + TELEMETRY_LIVE_SYNC_LOW_PRIORITY_DELAY_MS) }
+          : {}),
       },
     })
 

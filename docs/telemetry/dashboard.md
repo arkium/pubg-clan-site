@@ -4,20 +4,25 @@ Ce document décrit les pages d'administration et de monitoring du pipeline tél
 
 ## Pages disponibles
 
+> Depuis le 2026-10-07 ([administration.md](../TODO/administration.md), Q20) : les outils sont des onglets de « Données »
+> (`/clans/[clanId]/settings/data`), réservés au SuperUser par la fonctionnalité verrouillée `clan-telemetry-tools`.
+> L'Owner a l'onglet « Santé des données » (lecture seule, resynchronisation plafonnée à 50 parties par 24 h).
+> Les anciennes adresses `/clans/[clanId]/telemetry/…` sont redirigées.
+
 | URL | Rôle requis | Description |
 |-----|-------------|-------------|
-| `/clans/[clanId]/telemetry/dashboard` | Owner | Métriques en temps réel de la queue |
-| `/clans/[clanId]/telemetry/errors` | Owner | Liste et retry des jobs échoués |
+| `/clans/[clanId]/settings/data/state` | SuperUser | Métriques en temps réel de la queue |
+| `/clans/[clanId]/settings/data/errors` | SuperUser | Liste et retry des jobs échoués |
 | `/clans/[clanId]/telemetry/matches` | Owner | Liste des matchs avec statut télémétrie |
 | `/clans/[clanId]/telemetry/matches/session/[date]` | Owner | Sync télémétrie depuis la vue session |
-| `/clans/[clanId]/telemetry/recoveries` | Owner | Console d'observabilité avancée |
-| `/clans/[clanId]/telemetry/sync-batch-manual` | Owner | Interface de sync batch manuelle |
+| `/clans/[clanId]/settings/data/recoveries` | SuperUser | Console d'observabilité avancée |
+| `/clans/[clanId]/settings/data/sync` | SuperUser | Interface de sync batch manuelle |
 
 ---
 
-## Page dashboard — `/clans/[clanId]/telemetry/dashboard`
+## Page dashboard — `/clans/[clanId]/settings/data/state`
 
-Fichier source : `src/app/clans/[clanId]/telemetry/dashboard/page.tsx`
+Fichier source : `src/app/clans/[clanId]/settings/data/state/page.tsx`
 
 ### Métriques affichées
 
@@ -65,9 +70,9 @@ Page accessible exclusivement au rôle Owner. Utilise `SettingsSectionNav` avec 
 
 ---
 
-## Page erreurs — `/clans/[clanId]/telemetry/errors`
+## Page erreurs — `/clans/[clanId]/settings/data/errors`
 
-Fichier source : `src/app/clans/[clanId]/telemetry/errors/page.tsx`
+Fichier source : `src/app/clans/[clanId]/settings/data/errors/page.tsx`
 
 ### Source de données
 
@@ -187,7 +192,7 @@ Affichage du résultat JSON avec compteurs de succès/échec et logs des opérat
 
 ---
 
-## Page recoveries — `/clans/[clanId]/telemetry/recoveries`
+## Page recoveries — `/clans/[clanId]/settings/data/recoveries`
 
 Console d'observabilité officielle du pipeline. Affiche :
 
@@ -200,7 +205,7 @@ Accessible via le menu owner et depuis la page `/clans/[clanId]/settings/cron`.
 
 ---
 
-## Page sync-batch-manual — `/clans/[clanId]/telemetry/sync-batch-manual`
+## Page sync-batch-manual — `/clans/[clanId]/settings/data/sync`
 
 Interface en 4 étapes identique à celle de la vue session, mais sans contexte de date préchargé. Permet d'ajouter des matchIds manuellement via un champ texte, ou de les importer en lot.
 

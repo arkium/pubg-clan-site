@@ -106,6 +106,8 @@ import {
 import { POST as postTournamentDiscord } from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/discord/route'
 import { POST as postTournamentSync } from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/sync/route'
 import { GET as getEncounteredPlayers } from '@/app/api/clans/[clanId]/encountered-players/route'
+import { GET as getDataHealth } from '@/app/api/clans/[clanId]/settings/data-health/route'
+import { POST as postDataHealthResync } from '@/app/api/clans/[clanId]/settings/data-health/resync/route'
 
 type Handler = () => Promise<Response>
 
@@ -192,6 +194,8 @@ const CLAN_OWNER_ROUTES: Array<[string, Handler]> = [
   ['POST tournaments/[id]/discord', () => postTournamentDiscord(req('/api/clans/7/tournaments/t1/discord', 'POST'), clanTournament)],
   ['POST tournaments/[id]/sync', () => postTournamentSync(req('/api/clans/7/tournaments/t1/sync', 'POST'), clanTournament)],
   ['GET encountered-players', () => getEncounteredPlayers(req('/api/clans/7/encountered-players'), clan)],
+  ['GET settings/data-health', () => getDataHealth(req('/api/clans/7/settings/data-health'), clan)],
+  ['POST settings/data-health/resync', () => postDataHealthResync(req('/api/clans/7/settings/data-health/resync', 'POST'), clan)],
   ['POST /api/members (clan 7)', () => postMembers(req('/api/members', 'POST', { pubgPlayerName: 'Joueur', clanId: 7 }))],
 ]
 

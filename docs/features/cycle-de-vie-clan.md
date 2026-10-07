@@ -290,7 +290,7 @@ des trois était tenu à jour.
 |---|---|---|
 | `ClanMember.clanId` → `Clan` | Cycle de vie (§3–§5), transfert manuel, `/join` | Tout le site « clan suivi » |
 | `Player.opponentClanId` → `OpponentClan` | Résolution des joueurs croisés | `/settings/clans`, rejeu, débrief |
-| `EncounteredPlayer.pubgClanId/Tag/Name` | Capture télémétrie + résolution | `/clans/[id]/telemetry/opponents`, némésis, triage |
+| `EncounteredPlayer.pubgClanId/Tag/Name` | Capture télémétrie + résolution | `/clans/[id]/stats/opponents`, némésis, triage |
 
 `Player` et `EncounteredPlayer` décrivent le clan **PUBG** du compte ; `ClanMember`
 décrit le clan **suivi sur le site**. Quand le cycle de vie déplace un membre, il
@@ -396,7 +396,7 @@ Mesure du 2026-09-22 avant correction : **2 `conflict`, 3 `cleared`, 15 `filled`
   §10 (« un mouvement re-parente tout l'historique »).
 - **Les compteurs de rencontre** (`ClanEncounter`, `EncounteredPlayer.encounterCount`)
   ne sont pas réattribués : ils comptent des rencontres passées, pas une appartenance.
-- **`/clans/[clanId]/telemetry/opponents` et la page némésis** lisent `EncounteredPlayer`
+- **`/clans/[clanId]/stats/opponents` et la page némésis** lisent `EncounteredPlayer`
   sans cascade vers `ClanMember`. Elles bénéficient du correctif par ricochet (les
   lignes sont réécrites), mais n'ont pas de repli si le miroir dérive — contrairement
   au rejeu et au débrief, qui appliquent déjà la cascade

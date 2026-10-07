@@ -68,6 +68,28 @@ describe('planNavCleanup', () => {
     ])
   })
 
+  it('déplace « Adversaires rencontrés » dans les statistiques du clan, surcharges effacées (Q5)', () => {
+    const plan = planNavCleanup(
+      [
+        row('owner.encountered-opponents', {
+          section: 'owner-menu',
+          hrefTemplate: '/clans/:clanId/telemetry/opponents',
+          defaultRole: 'owner',
+          roleOverride: 'superuser',
+        }),
+      ],
+      NAV_REGISTRY
+    )
+    expect(plan.resets).toEqual([
+      {
+        navKey: 'owner.encountered-opponents',
+        section: 'clan-section',
+        hrefTemplate: '/clans/:clanId/stats/opponents',
+        defaultRole: 'member',
+      },
+    ])
+  })
+
   it('est idempotent : un second passage ne trouve rien', () => {
     const rows = [
       row('primary.mortar'),
@@ -81,7 +103,7 @@ describe('planNavCleanup', () => {
       row('owner.pubg-api'),
     ]
     const plan = planNavCleanup(rows, NAV_REGISTRY)
-    expect(plan).toEqual({ deletes: [], creates: [], labelUpdates: [], hrefUpdates: [] })
+    expect(plan).toEqual({ deletes: [], creates: [], labelUpdates: [], hrefUpdates: [], resets: [] })
   })
 
   it('ne supprime jamais une clé qui protège des routes d’API', () => {

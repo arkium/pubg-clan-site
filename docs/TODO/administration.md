@@ -629,7 +629,7 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait ; 3b en cours (3b-1 à 3b-3 faits) ; 3c non commencé (branche `fix/admin-rights`).**
+**État au 2026-10-07 : 3a fait ; 3b fait (hors soirée de télémétrie) ; 3c non commencé (branche `fix/admin-rights`).**
 
 3b-1 — accueil « Mon clan » et délégation :
 
@@ -675,9 +675,22 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
   `clan-telemetry-tools` de leur dossier conservées) ; onglets calculés côté serveur (un Owner ne voit que « Santé des
   données » tant que les outils lui sont fermés). Anciennes adresses redirigées, liens internes, palette, registre,
   script de menus (`owner.clan-data` créé, adresses des `owner.telemetry-*` suivies) et docs suivis.
-- **Reste du 3b** : la page de soirée de télémétrie (`/clans/[clanId]/telemetry/matches` et `…/session/[date]`) garde
-  son panneau d'exploitation et n'est pas encore redirigée vers les pages joueur — le panneau doit d'abord trouver
-  sa place dans les outils ; « Adversaires rencontrés » (Q5) au 3b-4.
+3b-4 — « Adversaires rencontrés » (Q5) :
+
+- Page déplacée (`git mv`) vers **`/clans/[clanId]/stats/opponents`**, ancienne adresse redirigée ; garde de page
+  `clan-member` (nouveau cas d'`AdminAccessGate`) et route `encountered-players` en `requireClanAccess(…, 'member')` :
+  membres connectés du clan et SuperUser, **jamais les visiteurs** (ces gardes ne s'ouvrent pas en mode visiteur).
+- Menu `owner.encountered-opponents` : section `clan-section`, rôle `member` ; le script de menus le déplace en base
+  (surcharges `superuser` effacées). En mode visiteur, l'entrée reste visible d'un anonyme mais la page et l'API le
+  renvoient vers la connexion.
+
+Reste du lot 3 :
+
+- **Soirée de télémétrie** (`/clans/[clanId]/telemetry/matches` et `…/session/[date]`) : garde son panneau
+  d'exploitation (actions déjà réservées au SuperUser par l'API) et n'est pas redirigée vers les pages joueur — le
+  panneau doit d'abord devenir un onglet d'outils de « Données ».
+- **3c** : journal des actions d'administration (Q10, migration Prisma), puis ouverture éventuelle de
+  `clan-telemetry-tools` aux Owners (plafond par clan et journal).
 
 3a — ce qui est livré :
 

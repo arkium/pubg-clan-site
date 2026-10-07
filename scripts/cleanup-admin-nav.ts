@@ -6,7 +6,8 @@
  * - crée `primary.mortar`, `primary.resources`, `primary.zone-reading`, écrits en dur dans la barre latérale ;
  * - aligne les libellés de base francisés sur le registre (et efface une surcharge devenue identique) ;
  * - lots 3a et 3b : crée `superuser.players`, `superuser.privacy-requests`, `superuser.delegation`, et suit les nouvelles adresses des pages
- *   Plateforme déplacées (`/settings/clans`, `/settings/clans/lifecycle`, `/settings/database`, `/settings/telemetry`).
+ *   Plateforme déplacées (`/settings/clans`, `/settings/clans/lifecycle`, `/settings/database`, `/settings/telemetry`) ;
+ * - lot 3b : place « Adversaires rencontrés » dans les statistiques du clan (rôle membre, surcharges effacées).
  *
  * Simulation par défaut : affiche le plan sans rien écrire. Idempotent : relancé, il ne trouve plus rien à faire.
  * Les rôles `admin` restants sont traités par scripts/remove-admin-moderator-roles.ts.
@@ -35,6 +36,8 @@ async function main() {
       description: true,
       sortOrder: true,
       labelOverride: true,
+      roleOverride: true,
+      sectionOverride: true,
     },
   })
   const plan = planNavCleanup(rows, NAV_REGISTRY)
@@ -52,6 +55,9 @@ async function main() {
   }
   for (const update of plan.hrefUpdates) {
     console.info(`  Adresse     : ${update.navKey} ${update.from} → ${update.to}`)
+  }
+  for (const reset of plan.resets) {
+    console.info(`  Déplacée    : ${reset.navKey} → ${reset.section}, ${reset.hrefTemplate}, rôle ${reset.defaultRole} (surcharges effacées)`)
   }
 
   if (isEmptyNavCleanupPlan(plan)) {
@@ -87,6 +93,18 @@ async function main() {
     ),
     ...plan.hrefUpdates.map((update) =>
       prisma.navItem.update({ where: { navKey: update.navKey }, data: { hrefTemplate: update.to } })
+    ),
+    ...plan.resets.map((reset) =>
+      prisma.navItem.update({
+        where: { navKey: reset.navKey },
+        data: {
+          section: reset.section,
+          hrefTemplate: reset.hrefTemplate,
+          defaultRole: reset.defaultRole,
+          roleOverride: null,
+          sectionOverride: null,
+        },
+      })
     ),
   ])
   console.info('[cleanup-admin-nav] Écrit.')

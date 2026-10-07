@@ -1,7 +1,7 @@
 import type { Prisma } from '@prisma/client'
 
 // Pure — pas de dépendance server-only, importable côté client (page
-// /clans/[clanId]/telemetry/opponents) comme côté serveur (routes API).
+// /clans/[clanId]/stats/opponents) comme côté serveur (routes API).
 // Une seule source pour dériver le statut de résolution, afin que le panneau
 // SuperUser global (comptages) et l'API par clan (par ligne) ne divergent
 // jamais sur ce qui compte comme "en attente" / "échec" / etc.

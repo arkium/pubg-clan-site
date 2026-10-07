@@ -45,6 +45,8 @@ const nextConfig: NextConfig = {
       { source: '/clans/:clanId/telemetry/errors', destination: '/clans/:clanId/settings/data/errors', permanent: false },
       { source: '/clans/:clanId/telemetry/sync-batch-manual', destination: '/clans/:clanId/settings/data/sync', permanent: false },
       { source: '/clans/:clanId/telemetry/recoveries', destination: '/clans/:clanId/settings/data/recoveries', permanent: false },
+      // « Adversaires rencontrés » rejoint les statistiques du clan (Q5).
+      { source: '/clans/:clanId/telemetry/opponents', destination: '/clans/:clanId/stats/opponents', permanent: false },
     ]
   },
   //allowedDevOrigins: ['smk.arkium.group', 'localhost', '127.0.0.1', '10.1.0.248'],

@@ -60,7 +60,7 @@ const TOOLBAR_PAGES = [
   'src/app/clans/[clanId]/stats/zone-closures/page.tsx',
   'src/app/clans/[clanId]/stats/heatmap-kills/page.tsx',
   'src/app/clans/[clanId]/drop-zones/page.tsx',
-  'src/app/clans/[clanId]/telemetry/opponents/page.tsx',
+  'src/app/clans/[clanId]/stats/opponents/page.tsx',
   'src/app/clans/[clanId]/telemetry/matches/page.tsx',
   'src/app/clans/[clanId]/telemetry/matches/[matchId]/debrief/page.tsx',
   'src/app/clans/[clanId]/awards/page.tsx',

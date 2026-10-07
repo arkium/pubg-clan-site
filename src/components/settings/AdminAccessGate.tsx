@@ -22,6 +22,8 @@ import { getServerComponentSession } from '@/lib/auth-session'
 export type AdminAccessRequirement =
   | { kind: 'platform' }
   | { kind: 'clan-owner'; clanId: string }
+  /** Page de clan réservée à ses membres connectés (jamais aux visiteurs, même en mode visiteur). */
+  | { kind: 'clan-member'; clanId: string }
   | { kind: 'clan-feature'; clanId: string; feature: OwnerFeature }
   /** Adresse sans clan : clan du membre actif. */
   | { kind: 'active-clan-feature'; feature: OwnerFeature }
@@ -30,6 +32,7 @@ export type AdminAccessRequirement =
 const DENIED_MESSAGES: Record<AdminAccessRequirement['kind'], string> = {
   platform: 'Cette page est réservée au SuperUser.',
   'clan-owner': 'Cette page est réservée à l’Owner de ce clan.',
+  'clan-member': 'Cette page est réservée aux membres connectés de ce clan.',
   'clan-feature': 'Cette page est réservée au SuperUser et, quand elle leur est ouverte, à l’Owner de ce clan.',
   'active-clan-feature': 'Cette page est réservée au SuperUser et, quand elle leur est ouverte, aux Owners.',
   'active-clan-owner': 'Cette page est réservée aux Owners de clan.',
@@ -51,12 +54,12 @@ async function decide(requirement: AdminAccessRequirement): Promise<AccessDecisi
 
   switch (requirement.kind) {
     case 'clan-owner':
+    case 'clan-member':
     case 'clan-feature': {
       const clanId = parseClanId(requirement.clanId)
       if (!clanId) return FORBIDDEN
-      return requirement.kind === 'clan-owner'
-        ? decideClanAccess(session, clanId, 'owner')
-        : decideClanFeature(session, clanId, requirement.feature)
+      if (requirement.kind === 'clan-feature') return decideClanFeature(session, clanId, requirement.feature)
+      return decideClanAccess(session, clanId, requirement.kind === 'clan-owner' ? 'owner' : 'member')
     }
     case 'active-clan-feature':
     case 'active-clan-owner': {

@@ -469,11 +469,11 @@ export const NAV_REGISTRY: NavItemDef[] = [
   },
   {
     navKey: 'owner.encountered-opponents',
-    section: 'owner-menu',
+    section: 'clan-section',
     label: 'Adversaires rencontrés',
-    hrefTemplate: '/clans/:clanId/telemetry/opponents',
-    defaultRole: 'superuser',
-    description: 'Joueurs et clans adverses croisés en match, non trackés.',
+    hrefTemplate: '/clans/:clanId/stats/opponents',
+    defaultRole: 'member',
+    description: 'Joueurs et clans adverses croisés en match, non trackés — membres connectés du clan (Q5).',
   },
   {
     navKey: 'owner.email-delivery',

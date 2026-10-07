@@ -37,8 +37,8 @@ export async function GET(
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  // Noms de joueurs extérieurs au site : Owner du clan seulement, en attendant Q5
-  const roleError = await requireClanAccess(request, parsedClanId, 'owner')
+  // Noms de joueurs extérieurs au site (Q5) : membres connectés du clan et SuperUser, jamais les visiteurs
+  const roleError = await requireClanAccess(request, parsedClanId, 'member')
 
   if (roleError) {
     return roleError

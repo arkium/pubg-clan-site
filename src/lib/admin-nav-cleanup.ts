@@ -14,6 +14,8 @@ export type NavItemRow = {
   description: string
   sortOrder: number
   labelOverride: string | null
+  roleOverride?: string | null
+  sectionOverride?: string | null
 }
 
 /** Doublons et liens morts : deux entrées vers `/clans`, deux vers la navigation, pages supprimées. */
@@ -56,6 +58,12 @@ export const NAV_KEYS_HREF_FROM_REGISTRY = [
   'owner.telemetry-recoveries',
 ] as const
 
+/**
+ * Entrées dont la place change (lot 3b, Q5) : section, adresse et rôle repris du registre, surcharges effacées.
+ * « Adversaires rencontrés » quitte le menu Propriétaire pour les statistiques du clan, ouvertes à ses membres.
+ */
+export const NAV_KEYS_RESET_FROM_REGISTRY = ['owner.encountered-opponents'] as const
+
 /** Libellés de base alignés sur le registre (libellés francisés, et « Stats armes » resté en base). */
 export const NAV_KEYS_LABEL_FROM_REGISTRY = [
   'owner.telemetry-dashboard',
@@ -75,6 +83,7 @@ export type NavCleanupPlan = {
   creates: Array<NavItemDef & { sortOrder: number }>
   labelUpdates: Array<{ navKey: string; from: string; to: string; clearOverride: boolean }>
   hrefUpdates: Array<{ navKey: string; from: string; to: string }>
+  resets: Array<{ navKey: string; section: string; hrefTemplate: string; defaultRole: string }>
 }
 
 export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly NavItemDef[]): NavCleanupPlan {
@@ -111,7 +120,33 @@ export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly N
     hrefUpdates.push({ navKey, from: row.hrefTemplate, to: definition.hrefTemplate })
   }
 
-  return { deletes, creates, labelUpdates, hrefUpdates }
+  const resets: NavCleanupPlan['resets'] = []
+  for (const navKey of NAV_KEYS_RESET_FROM_REGISTRY) {
+    const row = byKey.get(navKey)
+    const definition = registryByKey.get(navKey)
+    if (!row || !definition) continue
+    const aligned =
+      row.section === definition.section &&
+      row.hrefTemplate === definition.hrefTemplate &&
+      row.defaultRole === definition.defaultRole &&
+      !row.roleOverride &&
+      !row.sectionOverride
+    if (aligned) continue
+    resets.push({
+      navKey,
+      section: definition.section,
+      hrefTemplate: definition.hrefTemplate,
+      defaultRole: definition.defaultRole,
+    })
+  }
+
+  return {
+    deletes,
+    creates,
+    labelUpdates,
+    hrefUpdates: hrefUpdates.filter((update) => !resets.some((reset) => reset.navKey === update.navKey)),
+    resets,
+  }
 }
 
 export function isEmptyNavCleanupPlan(plan: NavCleanupPlan) {
@@ -119,6 +154,7 @@ export function isEmptyNavCleanupPlan(plan: NavCleanupPlan) {
     plan.deletes.length === 0 &&
     plan.creates.length === 0 &&
     plan.labelUpdates.length === 0 &&
-    plan.hrefUpdates.length === 0
+    plan.hrefUpdates.length === 0 &&
+    plan.resets.length === 0
   )
 }

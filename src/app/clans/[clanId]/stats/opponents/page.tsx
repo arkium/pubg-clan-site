@@ -184,7 +184,7 @@ export default function EncounteredOpponentsPage() {
 
         if (!response.ok || !data?.data) {
           if (response.status === 401 || response.status === 403) {
-            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/telemetry/opponents`)}`)
+            router.replace(`/login?redirect=${encodeURIComponent(`/clans/${currentClanId}/stats/opponents`)}`)
             return
           }
 
@@ -366,7 +366,7 @@ export default function EncounteredOpponentsPage() {
       <div className="app-container app-gutter space-y-6">
         <NavigationTrail
           currentLabel="Adversaires rencontrés"
-          currentHref={`/clans/${clanId}/telemetry/opponents`}
+          currentHref={`/clans/${clanId}/stats/opponents`}
           fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
         />
         <section className="app-panel p-4">

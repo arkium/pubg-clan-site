@@ -692,7 +692,7 @@ Déplacer ce joueur vers ce clan ?`)) {
                               {row.name} <span className="text-slate-500 dark:text-slate-400">[{row.tag}]</span>
                             </button>
                             <Link
-                              href={`/clans/${row.id}/telemetry/opponents`}
+                              href={`/clans/${row.id}/stats/opponents`}
                               title="Voir la page adversaires dédiée à ce clan"
                               className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
                             >

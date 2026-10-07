@@ -119,7 +119,7 @@ Même principe qu'en 8.1 (hub avec cartes → détail, retour vers la page d'app
 | 12 | `/clans/[clanId]/telemetry/matches` | ▸ Matchs (liste jobs) | Owner | ✱ |
 | 13 | `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ▸▸ Détail | Owner | ✱ (page confirmée ; lien sortant explicite à standardiser) |
 | 14 | `/clans/[clanId]/telemetry/matches/session/[date]` | ▸▸ Session (par date) | Owner | ✓ (lien réel matches → session) |
-| 15 | `/clans/[clanId]/telemetry/opponents` | ▸ Adversaires rencontrés | Owner | ✱ |
+| 15 | `/clans/[clanId]/stats/opponents` | ▸ Adversaires rencontrés | Owner | ✱ |
 | 16 | `/members` | Liste des membres (accès direct, hors clan) | Admin | — |
 | 17 | `/members/add` | ▸ Ajouter un joueur | Admin | ✱ (retour add→members existe, mais pas l'aller) |
 | 18 | `/members/manage` | ▸ Gestion des joueurs | Admin | ✱ |
@@ -176,7 +176,7 @@ Remplace les anciennes listes d'état courant (Pages transverses, Espace Clan, E
 | Sync batch manuel | `/clans/[clanId]/settings/data/sync` | 8.2 #10 |
 | Recoveries télémétrie | `/clans/[clanId]/settings/data/recoveries` | 8.2 #11 |
 | Télémétrie matchs | `/clans/[clanId]/telemetry/matches` | 8.2 #12 |
-| Adversaires rencontrés | `/clans/[clanId]/telemetry/opponents` | 8.2 #15 |
+| Adversaires rencontrés | `/clans/[clanId]/stats/opponents` | 8.2 #15 |
 | Changer de clan | `/clans` | 8.1 #2 (action différente : switch) |
 | Test email | `/settings/email-delivery` | ⚠️ absent du §8 |
 | Monitoring PUBG API | `/settings/pubg-api` | ⚠️ absent du §8 |
@@ -337,7 +337,7 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/clans/[clanId]/telemetry/matches` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/telemetry/matches/session/[date]` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/clans/[clanId]/telemetry/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/members` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/members/add` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/members/manage` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |

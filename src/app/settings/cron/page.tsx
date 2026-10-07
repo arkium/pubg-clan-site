@@ -1037,7 +1037,7 @@ export default function CronSettingsPage() {
       <NavigationTrail
         currentLabel="Tâches planifiées"
         currentHref="/settings/cron"
-        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
         <p className="text-sm text-slate-600">Chargement...</p>
       </main>
@@ -1052,7 +1052,7 @@ export default function CronSettingsPage() {
       <NavigationTrail
         currentLabel="Tâches planifiées"
         currentHref="/settings/cron"
-        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
         <section className="app-panel p-6">
           <SettingsPageHeader title="Tâches planifiées (toute la plateforme)" subtitle="Pilotage des tâches cron et statut des workers." />
@@ -1077,7 +1077,7 @@ export default function CronSettingsPage() {
       <NavigationTrail
         currentLabel="Tâches planifiées"
         currentHref="/settings/cron"
-        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
 
       {/* --- En-tête --- */}

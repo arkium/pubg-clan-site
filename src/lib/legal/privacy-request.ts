@@ -170,3 +170,17 @@ export function privacyRequestEmail(request: StoredPrivacyRequest) {
     ].join('\n'),
   }
 }
+
+/** Traitement par le SuperUser (/settings/privacy-requests) : `handledAt` est posé à la clôture, effacé à la réouverture. */
+export const PRIVACY_REQUEST_STATUSES = ['pending', 'done', 'rejected'] as const
+export type PrivacyRequestStatus = (typeof PRIVACY_REQUEST_STATUSES)[number]
+
+export const PRIVACY_REQUEST_STATUS_LABELS: Record<PrivacyRequestStatus, string> = {
+  pending: 'En attente',
+  done: 'Traitée',
+  rejected: 'Refusée',
+}
+
+export function isPrivacyRequestStatus(value: unknown): value is PrivacyRequestStatus {
+  return typeof value === 'string' && (PRIVACY_REQUEST_STATUSES as readonly string[]).includes(value)
+}

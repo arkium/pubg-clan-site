@@ -57,7 +57,9 @@ import {
 } from '@/app/api/settings/email-delivery/route'
 import { GET as getOpponentStatsCron } from '@/app/api/cron/opponent-stats/route'
 import { GET as getMatch, POST as postMatch } from '@/app/api/matches/[matchId]/route'
-import { POST as postMembers } from '@/app/api/members/route'
+import { GET as getMembers, POST as postMembers } from '@/app/api/members/route'
+import { GET as getPrivacyRequests } from '@/app/api/settings/privacy-requests/route'
+import { PATCH as patchPrivacyRequest } from '@/app/api/settings/privacy-requests/[id]/route'
 import {
   DELETE as deleteCronControl,
   GET as getCronControl,
@@ -144,6 +146,8 @@ const PLATFORM_ROUTES: Array<[string, Handler]> = [
   ['POST sync-stats', () => postSyncStats(req('/api/clans/7/sync-stats', 'POST') as never, clan)],
   ['POST queue-cleanup', () => postQueueCleanup(req(`${T}/queue-cleanup`, 'POST', { action: 'reorder-priority' }) as never, clan)],
   ['POST recalc-aggregates-batch', () => postRecalcBatch(req(`${T}/recalc-aggregates-batch`, 'POST', { scope: 'all-clans' }) as never, clan)],
+  ['GET settings/privacy-requests', () => getPrivacyRequests(req('/api/settings/privacy-requests?status=all'))],
+  ['PATCH settings/privacy-requests/[id]', () => patchPrivacyRequest(req('/api/settings/privacy-requests/3', 'PATCH', { status: 'done' }), { params: Promise.resolve({ id: '3' }) })],
 ]
 
 // Outils de télémétrie d'un clan : fonctionnalité verrouillée au SuperUser (clan-telemetry-tools)
@@ -222,6 +226,17 @@ describe('gardes des routes d’administration (lot 1)', () => {
   it.each([...PLATFORM_ROUTES, ...TELEMETRY_TOOL_ROUTES])('%s : 403 même pour l’Owner du clan', async (_name, handler) => {
     state.session = memberSession(100)
     expect(await statusOf(handler)).toBe(403)
+  })
+
+  it('GET /api/members : anonyme refusé (même en mode visiteur), autre clan refusé (Q16)', async () => {
+    process.env.DISABLE_AUTH_PERMISSIONS = 'true'
+    try {
+      expect((await getMembers(req('/api/members'))).status).toBe(401)
+    } finally {
+      delete process.env.DISABLE_AUTH_PERMISSIONS
+    }
+    state.session = memberSession(200)
+    expect((await getMembers(req('/api/members?clanId=7'))).status).toBe(403)
   })
 
   it('mode visiteur : les routes d’administration restent fermées', async () => {

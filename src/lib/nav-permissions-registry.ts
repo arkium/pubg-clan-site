@@ -505,7 +505,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     navKey: 'superuser.telemetry-recoveries',
     section: 'superuser-menu',
     label: 'Télémétrie, tous les clans',
-    hrefTemplate: '/settings/telemetry-recoveries',
+    hrefTemplate: '/settings/telemetry',
     defaultRole: 'superuser',
     description: 'Comparaison de la sante du pipeline télémétrie entre tous les clans suivis.',
   },
@@ -513,7 +513,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     navKey: 'superuser.clan-lifecycle',
     section: 'superuser-menu',
     label: 'Cycle de vie des clans',
-    hrefTemplate: '/settings/clan-lifecycle',
+    hrefTemplate: '/settings/clans/lifecycle',
     defaultRole: 'superuser',
     description:
       "Mutations d'appartenance detectees, clans decouverts a valider, parking des joueurs sans clan et reglages de l'automatisation.",
@@ -521,10 +521,18 @@ export const NAV_REGISTRY: NavItemDef[] = [
   {
     navKey: 'superuser.opponents',
     section: 'superuser-menu',
-    label: 'Adversaires',
-    hrefTemplate: '/settings/opponents',
+    label: 'Clans',
+    hrefTemplate: '/settings/clans',
     defaultRole: 'superuser',
-    description: 'Vue transverse des clans suivis et des clans adverses croisés, tous clans confondus.',
+    description: 'Clans suivis par la plateforme et clans adverses croisés en match, tous clans confondus.',
+  },
+  {
+    navKey: 'superuser.players',
+    section: 'superuser-menu',
+    label: 'Joueurs',
+    hrefTemplate: '/settings/players',
+    defaultRole: 'superuser',
+    description: 'Annuaire de tous les joueurs croisés, résolution de leur clan PUBG et comptes en échec.',
   },
   {
     navKey: 'superuser.match-import',
@@ -546,9 +554,17 @@ export const NAV_REGISTRY: NavItemDef[] = [
     navKey: 'superuser.database',
     section: 'superuser-menu',
     label: 'Base de données',
-    hrefTemplate: '/settings/superuser/database',
+    hrefTemplate: '/settings/database',
     defaultRole: 'superuser',
     description: 'Métriques de taille des tables et stockage.',
+  },
+  {
+    navKey: 'superuser.privacy-requests',
+    section: 'superuser-menu',
+    label: 'Demandes de confidentialité',
+    hrefTemplate: '/settings/privacy-requests',
+    defaultRole: 'superuser',
+    description: 'Demandes « Retirer mes données » reçues par /confidentialite/demande, à traiter sous un mois.',
   },
 ]
 

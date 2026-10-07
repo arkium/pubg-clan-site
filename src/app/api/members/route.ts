@@ -1,7 +1,6 @@
 import { Prisma } from '@prisma/client'
 
-import { requireClanFeature } from '@/lib/auth/admin-guards'
-import { isAuthDisabled } from '@/lib/auth-mode'
+import { getActiveMemberClanId, requireClanFeature } from '@/lib/auth/admin-guards'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import { searchPlayerByName } from '@/lib/pubg'
@@ -231,13 +230,14 @@ export async function POST(request: Request) {
 
 /**
  * GET /api/members
- * Récupère tous les membres du clan
+ * Membres actifs : tous clans pour le SuperUser (page d'import de matchs), sinon ceux du clan du membre actif
+ * seulement — jamais ouvert par le mode visiteur (docs/TODO/administration.md Q16).
  * Query param: clanId (optional) — filtre par clan
  */
 export async function GET(request: Request) {
   try {
     const session = await getSessionFromRequest(request)
-    if (!session && !isAuthDisabled()) {
+    if (!session) {
       return Response.json(
         { error: 'Unauthorized' },
         { status: 401 }
@@ -246,7 +246,15 @@ export async function GET(request: Request) {
 
     const { searchParams } = new URL(request.url)
     const clanIdParam = searchParams.get('clanId')
-    const clanId = clanIdParam ? Number(clanIdParam) : undefined
+    let clanId = clanIdParam ? Number(clanIdParam) : undefined
+
+    if (!session.isSuperUser) {
+      const activeClanId = await getActiveMemberClanId(session)
+      if (!activeClanId || (clanId !== undefined && clanId !== activeClanId)) {
+        return Response.json({ error: 'Forbidden' }, { status: 403 })
+      }
+      clanId = activeClanId
+    }
 
     const members = await prisma.clanMember.findMany({
       where: {

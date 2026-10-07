@@ -5,7 +5,7 @@ import { mockClanLifecycle, withSessionCookie } from './support/clan-lifecycle'
 import { dock } from './support/layout'
 
 /**
- * Cycle de vie des clans — page SuperUser /settings/clan-lifecycle (docs/features/cycle-de-vie-clan.md), selon la
+ * Cycle de vie des clans — page SuperUser /settings/clans/lifecycle (docs/features/cycle-de-vie-clan.md), selon la
  * charte UI (04/10/2026) : bandeau photo, onglets dans le bandeau collant (menu sur mobile), journal des mutations
  * filtré et paginé, clans en attente et archivés (confirmation en modale), parking, réglages (un PATCH par réglage),
  * santé du cron ; erreurs de section, aucun défilement horizontal, refus d'un non-SuperUser. Toutes les API sont
@@ -18,7 +18,7 @@ test.beforeEach(async ({ page, baseURL }) => {
 
 /** Ouvre la page et attend qu'elle soit stable : le shell remonte la page quand la session arrive. */
 async function openLifecycle(page: Page, query = '') {
-  await page.goto(`/settings/clan-lifecycle${query}`)
+  await page.goto(`/settings/clans/lifecycle${query}`)
   await page.waitForLoadState('networkidle')
   await expect(page.getByRole('heading', { level: 1, name: 'Cycle de vie des clans' })).toBeVisible()
 }
@@ -134,7 +134,7 @@ test('clans en attente : valider, refuser après confirmation en modale', async 
   await expect(clans.first()).toContainText('Demande /join')
   await expect(clans.nth(1)).toContainText('Découvert automatiquement')
   await expect(clans.nth(1)).toContainText('3 joueur(s) y seront rattachés')
-  await expect(clans.nth(1).getByRole('link', { name: 'Confrontations' })).toHaveAttribute('href', '/settings/opponents?opponentsQ=BOFS')
+  await expect(clans.nth(1).getByRole('link', { name: 'Confrontations' })).toHaveAttribute('href', '/settings/clans?opponentsQ=BOFS')
 
   await clans.first().getByRole('button', { name: 'Valider' }).click()
   await expect(page.getByTestId('lifecycle-toasts')).toContainText('Clan [SMK] Smoke Squad validé.')
@@ -288,7 +288,7 @@ test('aucun défilement horizontal, quel que soit l’onglet', async ({ api, pag
 
 test('membre sans droits SuperUser : accès refusé, aucune section lue', async ({ api, page }) => {
   mockClanLifecycle(api, { superUser: false })
-  await page.goto('/settings/clan-lifecycle')
+  await page.goto('/settings/clans/lifecycle')
   await page.waitForLoadState('networkidle')
   await expect(page.getByTestId('clan-lifecycle-forbidden')).toContainText('Accès réservé au SuperUser')
   await expect(page.getByRole('tablist')).toHaveCount(0)

@@ -284,7 +284,7 @@ export default function OpponentsResolutionPage() {
               </p>
             </div>
             <Link
-              href="/settings/opponents/triage"
+              href="/settings/players/triage"
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold shadow-xs transition-colors"
             >
               Ouvrir le Triage des joueurs

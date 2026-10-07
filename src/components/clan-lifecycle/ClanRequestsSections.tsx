@@ -96,7 +96,7 @@ export function PendingClansSection({ onChanged, onToast }: { onChanged: () => v
                 <span className="t-meta">{clan.platformShard}</span>
                 {clan.tag ? (
                   <Link
-                    href={`/settings/opponents?opponentsQ=${encodeURIComponent(clan.tag)}`}
+                    href={`/settings/clans?opponentsQ=${encodeURIComponent(clan.tag)}`}
                     className="app-link inline-flex items-center gap-1 text-[13px] font-semibold"
                     title="Historique de confrontations de ce clan dans l’Observatoire, pour décider en connaissance de cause"
                   >

@@ -95,7 +95,7 @@ export default function ClanFollowDangerZone({ clanId }: { clanId: number }) {
             ) : clan.state === 'pending' ? (
               <p>
                 Ce clan attend sa validation.{' '}
-                <Link href="/settings/clan-lifecycle?tab=pending" className="font-semibold text-indigo-600 underline dark:text-indigo-400">
+                <Link href="/settings/clans/lifecycle?tab=pending" className="font-semibold text-indigo-600 underline dark:text-indigo-400">
                   Le valider ou le refuser
                 </Link>
                 .

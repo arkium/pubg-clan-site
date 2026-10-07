@@ -139,7 +139,6 @@ export default function TelemetryRecoveriesOverviewPage() {
 
   // États d'action
   const [enqueuing, setEnqueuing] = useState(false)
-  const [recalculating, setRecalculating] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [actionMessage, setActionMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
 
@@ -148,7 +147,7 @@ export default function TelemetryRecoveriesOverviewPage() {
   // Redirection si non authentifié
   useEffect(() => {
     if (!authLoading && !authenticated) {
-      router.replace('/login?redirect=/settings/telemetry-recoveries')
+      router.replace('/login?redirect=/settings/telemetry')
     }
   }, [authenticated, authLoading, router])
 
@@ -266,37 +265,6 @@ export default function TelemetryRecoveriesOverviewPage() {
     }
   }
 
-  // Action : Recalcul des agrégats
-  const handleRecalculateAggregates = async () => {
-    try {
-      setRecalculating(true)
-      setActionMessage(null)
-
-      const res = await fetch('/api/clans/1/telemetry/recalc-aggregates-batch', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ scope: 'all-clans' }),
-      })
-
-      if (!res.ok) {
-        throw new Error('Échec du recalcul des agrégats')
-      }
-
-      setActionMessage({
-        type: 'success',
-        text: 'Job de recalcul des agrégats envoyé avec succès.',
-      })
-      setReloadToken((prev) => prev + 1)
-    } catch (err) {
-      setActionMessage({
-        type: 'error',
-        text: err instanceof Error ? err.message : 'Erreur lors du recalcul des agrégats',
-      })
-    } finally {
-      setRecalculating(false)
-    }
-  }
-
   // Rendu de sécurité Auth / SuperUser
   if (authLoading) {
     return (
@@ -313,8 +281,8 @@ export default function TelemetryRecoveriesOverviewPage() {
       <main className="app-container app-main flex-1 space-y-4">
         <NavigationTrail
           currentLabel="Recoveries Télémétrie Cross-clans"
-          currentHref="/settings/telemetry-recoveries"
-          fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+          currentHref="/settings/telemetry"
+          fallbackParent={{ href: '/settings', label: 'Plateforme' }}
         />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-800 dark:text-amber-200">Accès restreint</h1>
@@ -336,8 +304,8 @@ export default function TelemetryRecoveriesOverviewPage() {
     <main className="app-container app-main flex-1 space-y-4 pb-12">
       <NavigationTrail
         currentLabel="Recoveries Télémétrie Cross-clans"
-        currentHref="/settings/telemetry-recoveries"
-        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+        currentHref="/settings/telemetry"
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
 
       <section className="app-panel p-4">
@@ -525,22 +493,11 @@ export default function TelemetryRecoveriesOverviewPage() {
                 : 'Tout le backlog est en file'}
             </button>
 
-            {/* Recalculer agrégats */}
-            <button
-              type="button"
-              onClick={handleRecalculateAggregates}
-              disabled={recalculating || refreshing}
-              className="app-btn app-btn--sm app-btn--secondary gap-1.5 font-semibold"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${recalculating ? 'animate-spin' : ''}`} />
-              {recalculating ? 'Recalcul...' : 'Recalculer Agrégats'}
-            </button>
-
             {/* Rafraîchir tout */}
             <button
               type="button"
               onClick={handleRefreshAll}
-              disabled={refreshing || enqueuing || recalculating}
+              disabled={refreshing || enqueuing}
               className="app-btn app-btn--sm app-btn--secondary gap-1.5 font-semibold"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />

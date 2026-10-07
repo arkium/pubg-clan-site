@@ -129,8 +129,8 @@ function ClanLifecycleContent() {
       <div className="app-container app-gutter">
         <NavigationTrail
           currentLabel="Cycle de vie des clans"
-          currentHref="/settings/clan-lifecycle"
-          fallbackParent={{ href: '/settings/superuser', label: 'Espace SuperUser' }}
+          currentHref="/settings/clans/lifecycle"
+          fallbackParent={{ href: '/settings', label: 'Plateforme' }}
         />
         <LifecycleBanner settings={overview?.settings ?? null} />
       </div>

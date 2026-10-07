@@ -382,7 +382,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     ] as (NavItem | null)[]).filter((item): item is NavItem => item !== null && !isNavHidden(item.navKey))
 
   const ownerEntryHref = '/settings/owner'
-  const superuserEntryHref = '/settings/superuser'
+  const superuserEntryHref = '/settings'
 
   // Le SuperUser accède à toutes les pages d'administration, accueils compris (docs/TODO/administration.md §5.4)
   const showOwnerMenu = Boolean((isOwner || isSuperUser) && clanId)
@@ -732,9 +732,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       if (pathname.includes('/settings/')) return false
     }
 
-    // Les pages Plateforme (/settings/*) gardent allumé le lien « Plateforme », pas celui du clan
-    if (href === '/settings/superuser' && pathname.startsWith('/settings/') && !pathname.startsWith('/settings/owner')) {
-      return true
+    // Les pages Plateforme (/settings, /settings/*) allument le lien « Plateforme », sauf l'accueil du clan
+    if (href === '/settings') {
+      return pathname === '/settings' || (pathname.startsWith('/settings/') && !pathname.startsWith('/settings/owner'))
     }
 
     return pathname === href || pathname.startsWith(`${href}/`)

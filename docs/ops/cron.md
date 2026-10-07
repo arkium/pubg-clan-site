@@ -111,7 +111,7 @@ Compare, pour chaque `ClanMember` actif, le clan enregistré sur le site au clan
 - crée en attente de validation un clan détecté mais inconnu ;
 - marque les membres du parking éligibles à l'archivage.
 
-**Trois garde-fous**, tous configurables depuis `/settings/clan-lifecycle` :
+**Trois garde-fous**, tous configurables depuis `/settings/clans/lifecycle` :
 
 | | |
 |---|---|
@@ -150,7 +150,7 @@ sont protégés, pas seulement ceux d'un tournoi déjà créé : un tournoi se d
 sur une fenêtre de dates.
 
 **Purge elle-même :** elle n'est **pas** automatique. Elle se déclenche depuis
-`/settings/superuser/database` et s'exécute côté serveur : son état vit dans `AppConfig`
+`/settings/database` et s'exécute côté serveur : son état vit dans `AppConfig`
 (`telemetry_geo_purge_run`), la page ne fait que le lire, on peut donc la quitter. Un run dont le
 battement de cœur dépasse 10 min est requalifié « interrompu ».
 

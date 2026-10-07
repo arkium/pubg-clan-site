@@ -1,6 +1,5 @@
 import { NextRequest } from 'next/server'
 
-import { prisma } from '@/lib/prisma'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
 
@@ -11,7 +10,6 @@ function parseClanId(value: string) {
 
 type RecalcRequest = {
   scope?: 'clan' | 'all-clans'
-  includeEmpty?: boolean
 }
 
 export async function POST(
@@ -33,7 +31,15 @@ export async function POST(
 
     const body = (await request.json().catch(() => null)) as RecalcRequest | null
     const scope = body?.scope ?? 'clan'
-    const includeEmpty = body?.includeEmpty === true
+
+    // Q13 (docs/TODO/administration.md) : recalculer tous les clans dans une requête HTTP plantait au hasard en
+    // masse ; ce passage se fait désormais en ligne de commande.
+    if (scope === 'all-clans') {
+      return Response.json(
+        { error: 'Recalcul de tous les clans : npm run telemetry:batch -- --all-clans --recalc-aggregates-only' },
+        { status: 400 }
+      )
+    }
 
     if (scope === 'clan') {
       // Recalc single clan
@@ -62,60 +68,6 @@ export async function POST(
           clanSynergyRows: result.summaries.reduce((sum, s) => sum + s.clanSynergyRows, 0),
         },
         message: `Recalculated aggregates for clan ${parsedClanId} in ${(duration / 1000).toFixed(2)}s`,
-      })
-    }
-
-    if (scope === 'all-clans') {
-      // Recalc all clans
-      const allClans = await prisma.clan.findMany({
-        select: { id: true },
-        where: includeEmpty ? {} : { members: { some: {} } },
-      })
-
-      const results = []
-      const startTime = Date.now()
-      let totalRows = 0
-      let totalErrors = 0
-
-      for (const clan of allClans) {
-        try {
-          const result = await recalculateTelemetryPeriodAggregatesForClan(clan.id)
-          const clantotalRows =
-            result.summaries.reduce(
-              (sum, s) => sum + s.memberTelemetryRows + s.memberWeaponRows + s.clanSynergyRows,
-              0
-            ) || 0
-
-          results.push({
-            clanId: clan.id,
-            status: 'success',
-            periodsUpdated: result.summaries.length,
-            rowsUpdated: clantotalRows,
-          })
-
-          totalRows += clantotalRows
-        } catch (error) {
-          totalErrors += 1
-          results.push({
-            clanId: clan.id,
-            status: 'failed',
-            error: error instanceof Error ? error.message : String(error),
-          })
-        }
-      }
-
-      const duration = Date.now() - startTime
-
-      return Response.json({
-        ok: totalErrors === 0,
-        scope: 'all-clans',
-        clansProcessed: allClans.length,
-        clansSuccess: results.filter((r) => r.status === 'success').length,
-        clansFailed: totalErrors,
-        totalRowsUpdated: totalRows,
-        durationMs: duration,
-        results,
-        message: `Recalculated aggregates for ${allClans.length} clans in ${(duration / 1000).toFixed(2)}s (${totalErrors} errors)`,
       })
     }
 

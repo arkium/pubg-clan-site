@@ -10,7 +10,7 @@ import {
 } from '@/lib/table-maintenance'
 
 /**
- * Compactage et statistiques d'index d'une table (page /settings/superuser/database).
+ * Compactage et statistiques d'index d'une table (page /settings/database).
  *
  * `OPTIMIZE TABLE` reconstruit intégralement la table : il dépasse largement une requête HTTP
  * (l'ancienne version rendait un 504 Nginx pendant que MariaDB continuait en silence) et exige

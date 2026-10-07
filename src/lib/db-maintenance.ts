@@ -5,7 +5,7 @@ import { prisma } from '@/lib/prisma'
  *
  * Clôt les exécutions restées « running » alors que leur processus a disparu (redémarrage,
  * déploiement, crash) : sans cela, les tableaux de bord `/settings/cron` et
- * `/settings/opponents/resolution` les affichent en cours indéfiniment. Constaté le
+ * `/settings/players/resolution` les affichent en cours indéfiniment. Constaté le
  * 2026-09-15 : 32 `CronExecution` (la plus ancienne du 2026-05-30) et 21
  * `EncounteredPlayerResolutionRun` (du 2026-08-16 au 2026-09-14).
  *

@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
 
       // Garde-fou : un joueur déjà rattaché ailleurs n'est PAS un « candidat
       // manquant », c'est un conflit. Avant ce contrôle, le bouton « Ajouter à
-      // l'effectif » de `/settings/opponents` le déplaçait sans trace ni
+      // l'effectif » de `/settings/clans` le déplaçait sans trace ni
       // confirmation dès que le miroir adversaire était périmé (incident
       // WESTEN88 du 2026-09-22).
       const movesFromAnotherTrackedClan =

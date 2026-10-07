@@ -122,7 +122,7 @@ function SortHeader<T extends string>({
 }
 
 export default function OpponentsExplorerPage() {
-  // `?opponentsQ=` : lien « Confrontations » des clans en attente de `/settings/clan-lifecycle`.
+  // `?opponentsQ=` : lien « Confrontations » des clans en attente de `/settings/clans/lifecycle`.
   // useSearchParams impose une frontière Suspense (CLAUDE.md, piège n° 5).
   return (
     <Suspense fallback={<p className="p-4 text-sm text-slate-600">Chargement...</p>}>

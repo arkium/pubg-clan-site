@@ -14,9 +14,12 @@ import type { NavSection } from '@/lib/nav-permissions-registry'
 
 type HubGroup = { title: string; missingClanHint?: string }
 
+/** Répartition des cartes globales en thèmes ; une entrée absente de la liste tombe dans « Autres ». */
+export type HubThemes = Array<{ title: string; navKeys: string[] }>
+
 /**
  * Accueil d'administration construit depuis les entrées de menu (`NavItem`) d'une section : cartes du clan
- * sélectionné et cartes globales. Les deux accueils (`/settings/owner`, `/settings/superuser`) n'en diffèrent que par
+ * sélectionné et cartes globales. Les deux accueils (`/settings/owner`, `/settings`) n'en diffèrent que par
  * leurs textes et l'ordre des groupes. La garde serveur est dans leur `layout.tsx` ; la condition ci-dessous ne
  * fait que renvoyer ailleurs un visiteur sans session.
  */
@@ -30,6 +33,7 @@ export default function SettingsHub({
   clanGroup,
   globalGroup,
   globalFirst = false,
+  themes,
   emptyMessage,
 }: {
   section: NavSection
@@ -42,6 +46,8 @@ export default function SettingsHub({
   clanGroup: HubGroup
   globalGroup: HubGroup
   globalFirst?: boolean
+  /** Présent : les cartes globales sont réparties par thème, dans cet ordre, au lieu d'une seule grille. */
+  themes?: HubThemes
   emptyMessage: string
 }) {
   const router = useRouter()
@@ -85,17 +91,31 @@ export default function SettingsHub({
       </div>
     ) : null
 
-  const globalBlock =
-    globalItems.length > 0 ? (
-      <div key="global" className="mt-8">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">{globalGroup.title}</h2>
+  const globalGroups = themes
+    ? [
+        ...themes.map((theme) => ({
+          title: theme.title,
+          items: globalItems.filter((item) => theme.navKeys.includes(item.navKey)),
+        })),
+        {
+          title: 'Autres',
+          items: globalItems.filter((item) => !themes.some((theme) => theme.navKeys.includes(item.navKey))),
+        },
+      ]
+    : [{ title: globalGroup.title, items: globalItems }]
+
+  const globalBlock = globalGroups
+    .filter((group) => group.items.length > 0)
+    .map((group) => (
+      <div key={`global-${group.title}`} className="mt-8">
+        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">{group.title}</h2>
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {globalItems.map((item) => (
+          {group.items.map((item) => (
             <SettingsHubCard key={item.navKey} item={item} />
           ))}
         </div>
       </div>
-    ) : null
+    ))
 
   return (
     <main className="app-container app-main flex-1 space-y-6">

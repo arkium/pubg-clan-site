@@ -4,7 +4,7 @@ import { ARCHIVE_REASON_UNGROUPED_INACTIVE } from '@/lib/clan-lifecycle/ungroupe
 import { prisma } from '@/lib/prisma'
 
 /**
- * Annuaire transverse des joueurs — onglet « Joueurs » de `/settings/opponents`.
+ * Annuaire transverse des joueurs — onglet « Joueurs » de `/settings/clans`.
  *
  * Spécification : docs/TODO/players.md. Une ligne par `Player` (identité PUBG globale),
  * avec son statut de suivi calculé depuis `ClanMember`.

@@ -327,7 +327,7 @@ export async function PATCH(
       })
     })
 
-    // Miroir adversaire : sans ce realignement, `/settings/opponents` continue
+    // Miroir adversaire : sans ce realignement, `/settings/clans` continue
     // de proposer le membre comme candidat de son clan precedent.
     await syncOpponentIdentityForMemberId(member.id)
 

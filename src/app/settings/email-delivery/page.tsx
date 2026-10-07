@@ -307,7 +307,7 @@ export default function EmailDeliverySettingsPage() {
       <NavigationTrail
         currentLabel="Test de livraison email"
         currentHref="/settings/email-delivery"
-        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
       <section className="app-panel p-4">
         <SettingsPageHeader

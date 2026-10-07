@@ -19,7 +19,7 @@ import { prisma } from '@/lib/prisma'
  * rencontre sans que `opponentClanId` soit réécrit, la fenêtre de fraîcheur de
  * 7 jours n'expirait jamais : le décalage devenait permanent. Symptôme constaté le
  * 2026-09-22 : WESTEN88, promu de `UNG` vers `47R`, restait listé comme
- * « candidat détecté » de BOFTEAM sur `/settings/opponents`.
+ * « candidat détecté » de BOFTEAM sur `/settings/clans`.
  *
  * Ce module est le point unique par lequel (2) et (3) sont réalignés sur (1).
  *

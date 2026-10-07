@@ -29,6 +29,15 @@ const nextConfig: NextConfig = {
       { source: '/settings/admin', destination: '/settings/owner', permanent: false },
       // Ancienne redirection côté navigateur vers la page des membres, sans lien depuis le 2026-10-07.
       { source: '/members/manage', destination: '/members', permanent: false },
+      // Plateforme réorganisée (docs/TODO/administration.md, lot 3a) : la requête (`?tab=`, `?opponentsQ=`…) suit.
+      { source: '/settings/superuser', destination: '/settings', permanent: false },
+      { source: '/settings/superuser/database', destination: '/settings/database', permanent: false },
+      { source: '/settings/opponents', destination: '/settings/clans', permanent: false },
+      { source: '/settings/opponents/players', destination: '/settings/players', permanent: false },
+      { source: '/settings/opponents/resolution', destination: '/settings/players/resolution', permanent: false },
+      { source: '/settings/opponents/triage', destination: '/settings/players/triage', permanent: false },
+      { source: '/settings/clan-lifecycle', destination: '/settings/clans/lifecycle', permanent: false },
+      { source: '/settings/telemetry-recoveries', destination: '/settings/telemetry', permanent: false },
     ]
   },
   //allowedDevOrigins: ['smk.arkium.group', 'localhost', '127.0.0.1', '10.1.0.248'],

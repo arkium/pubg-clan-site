@@ -71,10 +71,13 @@ administrateur applique la demande à la main ».
 
 1. Vérifier que le compte appartient au demandeur (capture du profil en jeu).
 2. Appliquer la demande, répondre par e-mail sous un mois (RGPD art. 12).
-3. Passer la ligne à `status = 'done'` (ou `rejected`) et renseigner `handledAt`.
+3. Clore la demande dans **Plateforme › Demandes de confidentialité** (`/settings/privacy-requests`, SuperUser) :
+   « Traitée » ou « Refusée » pose `status` et `handledAt`, « Rouvrir » les efface. La page affiche l'échéance d'un
+   mois (`privacyRequestDeadline`) et signale les demandes en retard. Routes : `GET /api/settings/privacy-requests`
+   (`?status=all`), `PATCH /api/settings/privacy-requests/[id]`.
 
 Chantiers ouverts : outil de masquage d'un pseudo sur toutes les pages publiques, script de purge complète d'un
-account_id, liste des demandes dans l'administration.
+account_id.
 
 ## 4. Points à valider par l'éditeur
 

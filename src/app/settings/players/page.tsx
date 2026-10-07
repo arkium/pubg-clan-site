@@ -611,7 +611,7 @@ function PlayerRow({
           <TrackingBadge row={row} />
           {tracking.status === 'parking' ? (
             <Link
-              href="/settings/clan-lifecycle?tab=ungrouped"
+              href="/settings/clans/lifecycle?tab=ungrouped"
               className="text-sky-600 hover:text-sky-800 dark:text-sky-400 dark:hover:text-sky-200"
               title="Voir le parking Ungrouped dans le cycle de vie des clans"
             >
@@ -621,7 +621,7 @@ function PlayerRow({
           ) : null}
           {row.recentChange ? (
             <Link
-              href="/settings/clan-lifecycle?tab=mutations"
+              href="/settings/clans/lifecycle?tab=mutations"
               className="inline-flex items-center gap-1 rounded-full border border-indigo-200 bg-indigo-50 px-1.5 py-0.5 text-[10px] font-semibold text-indigo-700 hover:bg-indigo-100 dark:border-indigo-800 dark:bg-indigo-950/40 dark:text-indigo-300"
               title={`${CHANGE_STATUS_LABELS[row.recentChange.status] ?? row.recentChange.status} le ${formatDateTime(
                 row.recentChange.detectedAt
@@ -907,7 +907,7 @@ function Legend() {
       </ul>
       <p className="text-[11px]">
         Les mouvements entre clans suivis, le parking et l’archivage sont gérés par le{' '}
-        <Link href="/settings/clan-lifecycle" className="font-semibold text-indigo-600 underline dark:text-indigo-400">
+        <Link href="/settings/clans/lifecycle" className="font-semibold text-indigo-600 underline dark:text-indigo-400">
           cycle de vie des clans
         </Link>
         .

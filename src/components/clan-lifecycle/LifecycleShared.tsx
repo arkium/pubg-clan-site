@@ -4,7 +4,7 @@ import { AlertTriangle, CheckCircle2, ChevronDown, X, type LucideIcon } from 'lu
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 
 /**
- * Briques communes de la page SuperUser « Cycle de vie des clans » (/settings/clan-lifecycle,
+ * Briques communes de la page SuperUser « Cycle de vie des clans » (/settings/clans/lifecycle,
  * docs/features/cycle-de-vie-clan.md), selon la charte UI (docs/ui/index.html) : panneaux `app-panel`, classes de rôle,
  * couleurs par jetons (`--theme-ui-*`, `--game-*` sous `.game-ui`), états vide / erreur / chargement, modale et toasts.
  * Présentation seulement : chaque section garde ses appels API.

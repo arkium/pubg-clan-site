@@ -619,7 +619,7 @@ export async function runMembershipSyncPass(
 
         // Hors transaction, volontairement : le miroir adversaire
         // (Player/EncounteredPlayer) est un cache de lecture, pas une trace.
-        // Sans cet appel, `/settings/opponents` continue de proposer le joueur
+        // Sans cet appel, `/settings/clans` continue de proposer le joueur
         // comme candidat de son ancien clan (voir player-clan-identity.ts).
         await syncOpponentIdentityForMemberId(movement.memberId)
 

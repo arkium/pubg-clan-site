@@ -12,7 +12,7 @@ import {
 } from '@/lib/telemetry-geo-purge'
 
 /**
- * Statut et pilotage de la purge de géolocalisation (page /settings/superuser/database).
+ * Statut et pilotage de la purge de géolocalisation (page /settings/database).
  *
  * Cette route ne compte plus rien elle-même : le comptage coûte 247 s (scan complet de ~22 Go,
  * voir `src/lib/telemetry-geo-purge.ts`) et dépassait le `proxy_read_timeout` de Nginx, ce qui

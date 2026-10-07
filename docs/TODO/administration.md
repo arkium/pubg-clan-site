@@ -626,6 +626,43 @@ anciens libellés anglais interdits).
 - **Documentation** : `docs/navigation-arborescence.md`, `docs/features/clans.md` (rôles), `docs/ops/nav-permissions.md`,
   `docs/features/pages-legales.md` (traitement des demandes).
 
+**Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
+Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
+
+**État au 2026-10-07 : 3a fait (branche `fix/admin-rights`) ; 3b et 3c non commencés.**
+
+3a — ce qui est livré :
+
+- **Accueil Plateforme `/settings`** (page serveur gardée + `PlatformHub`) : cartes `superuser-menu` réparties en
+  Clans, Joueurs, Données, Référentiels, Site (thèmes déclarés dans le code), plus « Dépannage du clan sélectionné ».
+  `/settings/superuser` est redirigé ; le lien « Plateforme » de la barre latérale y mène.
+- **Pages déplacées** (code inchangé, `git mv`) : `/settings/clans` (ex-`opponents`, sous un en-tête à onglets
+  `SettingsTabsShell`), `/settings/clans/lifecycle` (ex-`clan-lifecycle`), `/settings/players`, `…/resolution`,
+  `…/triage` (ex-onglets d'`opponents`), `/settings/database`, `/settings/telemetry` (ex-`telemetry-recoveries`).
+  Liens internes, tests et e2e suivent ; les anciennes adresses sont redirigées (`nav-registry-links.test.ts` le vérifie).
+- **Demandes de confidentialité** : `/settings/privacy-requests` (liste en attente / toutes, échéance d'un mois et
+  retard signalé, « Traitée », « Refusée », « Rouvrir ») ; `GET /api/settings/privacy-requests`,
+  `PATCH /api/settings/privacy-requests/[id]` (`requirePlatformAdmin`) ; `handledAt` suit le statut.
+- **Q13** : `recalc-aggregates-batch` refuse `scope: 'all-clans'` (400, renvoi vers
+  `npm run telemetry:batch -- --all-clans --recalc-aggregates-only`) ; bouton retiré de la console.
+- **Q16** : `GET /api/members` exige une session (même en mode visiteur) ; hors SuperUser, limité au clan du membre actif.
+- **Menus** : `superuser.players` et `superuser.privacy-requests` ajoutés au registre ; `scripts/cleanup-admin-nav.ts`
+  (toujours pas appliqué) les crée en base et suit les nouvelles adresses de `superuser.opponents` (renommé « Clans »),
+  `superuser.clan-lifecycle`, `superuser.database`, `superuser.telemetry-recoveries`.
+
+3a — écarts au plan :
+
+- **Sous-adresses plutôt que `?tab=`** (`/settings/clans/lifecycle`, `/settings/players/triage`…) : chaque page garde
+  son code, son découpage et ses liens profonds ; les onglets sont des liens.
+- **Cycle de vie non fondu visuellement** : la page garde son bandeau photo et ses onglets dockés (charte du
+  04/10/2026, e2e `clan-lifecycle`) ; elle n'est pas enveloppée dans l'en-tête à onglets des Clans, qui y renvoie.
+- **Redirections 307** (`permanent: false`) au lieu de 308 : rien n'est mis en cache par les navigateurs tant que la
+  réorganisation (3b) n'est pas finie.
+- **Sections de menu inchangées** (`superuser-menu`) : les thèmes de l'accueil sont déclarés dans `PlatformHub` plutôt
+  que par de nouvelles sections `NavItem` — pas de migration des menus à ce stade.
+- **Sous-domaine et arrêt de suivi** : restent sur `/clans/[clanId]/settings` (SuperUser seulement) jusqu'au 3b, qui
+  refait cet accueil.
+
 ---
 
 ## 7. Questions ouvertes
@@ -651,10 +688,21 @@ anciens libellés anglais interdits).
   par le serveur (code de test dans l'authentification), des specs qui ne vérifient plus que le refus (perte de
   couverture), la suppression de la garde de page (le constat 7 revenait à l'affichage).
 
-**Toujours ouverte, ne bloque pas le code**
-
-- **Q9 — Mode visiteur en production.** La documentation dit `DISABLE_AUTH_PERMISSIONS=true` sur le serveur ;
-  confirmes-tu ? Les nouvelles gardes ne sont jamais ouvertes par ce mode.
+- **Q5 — « Adversaires rencontrés »** dans les stats du clan : membres connectés du clan (et SuperUser), jamais les
+  visiteurs — la page nomme des joueurs extérieurs au site.
+- **Q7 — Défis** : restent masqués ; `clan.reports` supprimé (script du lot 2).
+- **Q8 — Lectures publiques inter-clans** (rôle `none`) : gardées telles quelles tant que le mode visiteur est actif.
+- **Q10 — Journal des actions d'administration** : au lot 3 (migration Prisma) ; préalable à toute ouverture des
+  outils de télémétrie aux Owners.
+- **Q11 — `/settings/owner`, `/members/add`** : page serveur qui redirige vers le clan du membre actif.
+- **Q13 — Recalcul « tous les clans »** : ligne de commande seulement ; la route ne recalcule plus que le clan de
+  l'adresse.
+- **Q16 — `GET /api/members`** : SuperUser, sinon limité au clan du membre actif.
+- **Q17 — Santé des données pour l'Owner** : lecture seule + demande de resynchronisation plafonnée à 50 parties par
+  24 h et par clan.
+- **Q9 — Mode visiteur en production** : confirmé (`DISABLE_AUTH_PERMISSIONS=true`). Les lectures gardées par
+  `requireNavPermission` ou marquées `readOnly` restent publiques et inter-clans ; les gardes d'administration
+  (`admin-guards.ts`) ne sont jamais ouvertes par ce mode.
 
 **À trancher avant les lots 2 et 3**
 

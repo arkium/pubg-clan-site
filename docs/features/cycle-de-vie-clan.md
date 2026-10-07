@@ -188,7 +188,7 @@ La route renvoie **409** en cas de refus : la requête est bien formée, c'est l
   la page précédente reste affichée, estompée, pendant le chargement). Un visiteur reçoit une invitation à se connecter
   plutôt qu'une erreur (l'API répond 401). Nature et regroupement : `src/lib/clan-mutations-view.ts` (+ test) ; e2e :
   `e2e/clan-mutations.spec.ts`.
-- **Onglet « Mutations » de `/settings/clan-lifecycle`** — SuperUser, **tous statuts**, avec les actions « Annuler » et « Marquer comme vu ». C'est là qu'on comprend *pourquoi* un mouvement n'a pas encore eu lieu.
+- **Onglet « Mutations » de `/settings/clans/lifecycle`** — SuperUser, **tous statuts**, avec les actions « Annuler » et « Marquer comme vu ». C'est là qu'on comprend *pourquoi* un mouvement n'a pas encore eu lieu.
 
 ### Deux actions qu'il ne faut pas confondre
 
@@ -205,7 +205,7 @@ Le compteur « mouvements à relire » en tête de page ne compte que les mouvem
 
 ## 8. Réglages
 
-Tous dans `AppConfig`, éditables depuis l'onglet « Paramètres » de `/settings/clan-lifecycle`, sans redéploiement.
+Tous dans `AppConfig`, éditables depuis l'onglet « Paramètres » de `/settings/clans/lifecycle`, sans redéploiement.
 
 | Clé | Rôle | Défaut |
 |---|---|---|
@@ -275,9 +275,9 @@ Séquence recommandée : `observe` → laisser passer N cycles → **relire les 
 
 Le 2026-09-22, `WESTEN88` apparaît **simultanément** :
 
-- sur `/settings/clan-lifecycle` — promu de `[UNG]` vers `[47R]`, statut `applied` ;
+- sur `/settings/clans/lifecycle` — promu de `[UNG]` vers `[47R]`, statut `applied` ;
 - sur `/clans/12/members` — seul joueur de `47RONIN47`, ce qui est correct ;
-- sur `/settings/opponents` — « candidat détecté » de **BOFTEAM**, avec un bouton
+- sur `/settings/clans` — « candidat détecté » de **BOFTEAM**, avec un bouton
   « Ajouter à l'effectif » actif.
 
 Les trois écrans disent vrai *par rapport à la table qu'ils lisent*. Le problème
@@ -289,7 +289,7 @@ des trois était tenu à jour.
 | Où | Écrit par | Lu par |
 |---|---|---|
 | `ClanMember.clanId` → `Clan` | Cycle de vie (§3–§5), transfert manuel, `/join` | Tout le site « clan suivi » |
-| `Player.opponentClanId` → `OpponentClan` | Résolution des joueurs croisés | `/settings/opponents`, rejeu, débrief |
+| `Player.opponentClanId` → `OpponentClan` | Résolution des joueurs croisés | `/settings/clans`, rejeu, débrief |
 | `EncounteredPlayer.pubgClanId/Tag/Name` | Capture télémétrie + résolution | `/clans/[id]/telemetry/opponents`, némésis, triage |
 
 `Player` et `EncounteredPlayer` décrivent le clan **PUBG** du compte ; `ClanMember`
@@ -367,7 +367,7 @@ reproduire même si le miroir dérive à nouveau :
 - `POST /api/settings/opponents/track` renvoie **409 `member_tracked_elsewhere`**
   avec le clan courant. Le déplacement n'a lieu qu'avec `confirmMove: true`, et il
   écrit alors une ligne `PlayerClanChange` (`source: manual_transfer`) — il
-  apparaît donc dans `/settings/clan-lifecycle` et reste annulable.
+  apparaît donc dans `/settings/clans/lifecycle` et reste annulable.
 
 ### Réparer les décalages déjà en base
 
@@ -473,7 +473,7 @@ sous-domaine unique (`Clan.subdomain`) — `smk.chickendinner.fr` redirige vers 
 
 ## 14. Page de réglages — charte UI (04/10/2026)
 
-`/settings/clan-lifecycle` suit la charte (`docs/ui/index.html`) depuis le 2026-10-04. Mêmes routes, mêmes corps
+`/settings/clans/lifecycle` suit la charte (`docs/ui/index.html`) depuis le 2026-10-04. Mêmes routes, mêmes corps
 envoyés, même lien profond `?tab=` (`mutations`, `pending`, `archived`, `ungrouped`, `settings`, `health`).
 
 - **Structure** : page à bandeau (`app-main-flush game-ui charte`) — fil d'Ariane vers l'espace SuperUser, bandeau photo

@@ -273,7 +273,7 @@ describe("Application différée à l'approbation du clan", () => {
     )
 
     // Regression WESTEN88 (2026-09-22) : sans ce realignement, le promu restait
-    // liste comme « candidat detecte » de son ancien clan sur /settings/opponents.
+    // liste comme « candidat detecte » de son ancien clan sur /settings/clans.
     expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
   })
 

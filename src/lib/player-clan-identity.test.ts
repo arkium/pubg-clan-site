@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
  *
  * Couvre l'incident du 2026-09-22 : WESTEN88, promu de `UNG` vers `47R` par le
  * cycle de vie, restait listé comme « candidat détecté » de BOFTEAM sur
- * `/settings/opponents`, et le bouton « Ajouter à l'effectif » l'aurait déplacé
+ * `/settings/clans`, et le bouton « Ajouter à l'effectif » l'aurait déplacé
  * hors de son clan sans trace.
  *
  * Convention du dépôt : les tests vivent dans `src/lib/`, jamais à côté des routes
@@ -261,7 +261,7 @@ describe('POST /api/settings/opponents/track', () => {
 
     expect(response.status).toBe(200)
     // Le mouvement et sa trace ensemble : un transfert sans ligne de journal
-    // serait invisible dans `/settings/clan-lifecycle`.
+    // serait invisible dans `/settings/clans/lifecycle`.
     expect(mocks.playerClanChangeCreate).toHaveBeenCalledWith(
       expect.objectContaining({
         data: expect.objectContaining({

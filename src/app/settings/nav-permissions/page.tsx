@@ -1104,7 +1104,7 @@ export default function NavPermissionsPage() {
       <NavigationTrail
         currentLabel="Navigation"
         currentHref="/settings/nav-permissions"
-        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
       {showCreateModal && (
         <CreateItemModal

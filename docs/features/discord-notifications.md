@@ -248,7 +248,7 @@ Tout ce qui précède décrit des webhooks **par clan** (`ClanConfig`). Le cycle
 | | Webhooks par clan | Webhook d'administration |
 |---|---|---|
 | Stockage | `ClanConfig` | `AppConfig` |
-| Configuré depuis | Paramètres du clan | `/settings/clan-lifecycle`, onglet « Paramètres » |
+| Configuré depuis | Paramètres du clan | `/settings/clans/lifecycle`, onglet « Paramètres » |
 | Contenu | Top 1, résultats de tournoi | Mouvements de clan détectés automatiquement |
 
 La validation de l'URL est **partagée** (`isValidDiscordWebhookUrl`, `normalizeWebhookUrl`) : pas de seconde règle qui pourrait diverger.

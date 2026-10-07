@@ -89,7 +89,7 @@ export async function applyPendingPromotionsForClan(
 
     // Après la transaction : réaligne Player/EncounteredPlayer sur le nouveau
     // clan, sinon le joueur reste listé comme candidat de son ancien clan sur
-    // `/settings/opponents`.
+    // `/settings/clans`.
     await syncOpponentIdentityForMemberId(member.id)
 
     applied.push({

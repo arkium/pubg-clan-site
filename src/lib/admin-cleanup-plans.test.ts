@@ -43,6 +43,8 @@ describe('planNavCleanup', () => {
       ['primary.mortar', 5],
       ['primary.resources', 6],
       ['primary.zone-reading', 7],
+      ['superuser.players', 0],
+      ['superuser.privacy-requests', 1],
     ])
     expect(plan.labelUpdates).toEqual([
       { navKey: 'owner.telemetry-dashboard', from: 'Dashboard télémétrie', to: 'État de la télémétrie', clearOverride: false },
@@ -50,10 +52,32 @@ describe('planNavCleanup', () => {
     ])
   })
 
+  it('suit les nouvelles adresses des pages Plateforme', () => {
+    const plan = planNavCleanup(
+      [
+        row('superuser.opponents', { label: 'Clans', hrefTemplate: '/settings/opponents' }),
+        row('superuser.database', { hrefTemplate: '/settings/superuser/database' }),
+      ],
+      NAV_REGISTRY
+    )
+    expect(plan.hrefUpdates).toEqual([
+      { navKey: 'superuser.opponents', from: '/settings/opponents', to: '/settings/clans' },
+      { navKey: 'superuser.database', from: '/settings/superuser/database', to: '/settings/database' },
+    ])
+  })
+
   it('est idempotent : un second passage ne trouve rien', () => {
-    const rows = [row('primary.mortar'), row('primary.resources'), row('primary.zone-reading'), row('owner.pubg-api')]
+    const rows = [
+      row('primary.mortar'),
+      row('primary.resources'),
+      row('primary.zone-reading'),
+      row('superuser.players'),
+      row('superuser.privacy-requests'),
+      row('superuser.opponents'),
+      row('owner.pubg-api'),
+    ]
     const plan = planNavCleanup(rows, NAV_REGISTRY)
-    expect(plan).toEqual({ deletes: [], creates: [], labelUpdates: [] })
+    expect(plan).toEqual({ deletes: [], creates: [], labelUpdates: [], hrefUpdates: [] })
   })
 
   it('ne supprime jamais une clé qui protège des routes d’API', () => {

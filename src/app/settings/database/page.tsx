@@ -491,8 +491,8 @@ export default function DatabaseStatsPage() {
     <main className="app-container app-main flex-1 space-y-6 overflow-hidden">
       <NavigationTrail
         currentLabel="Base de données"
-        currentHref="/settings/superuser/database"
-        fallbackParent={{ href: '/settings/superuser', label: 'SuperUser' }}
+        currentHref="/settings/database"
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
 
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">

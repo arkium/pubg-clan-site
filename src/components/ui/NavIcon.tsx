@@ -111,6 +111,12 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Menus et navigation': return <Lock className={className} />
       case 'Tâches planifiées': return <Clock className={className} />
       case 'Télémétrie, tous les clans': return <Activity className={className} />
+      case 'Clans': return <Shield className={className} />
+      case 'Cycle de vie des clans': return <Settings className={className} />
+      case 'Import de matchs PUBG': return <Search className={className} />
+      case 'Réglages de la ligue': return <Trophy className={className} />
+      case 'Base de données': return <Database className={className} />
+      case 'Demandes de confidentialité': return <FileText className={className} />
 
       default:
         return <CircleDot className={className} />

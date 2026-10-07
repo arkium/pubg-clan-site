@@ -488,7 +488,7 @@ Côté API, la route `/matches/[matchId]/telemetry` ne renvoie plus `flightPath`
 | Tueur inconnu sur les morts hors clan | `deathSamples` ne porte pas le tueur ; seul `KillEvent` (clan suivi) le fournit. Le journal affiche « X éliminé ». |
 | Rappel sans mort enregistrée | Si la mort manque dans `deathSamples`, aucune vie n'est fermée : cadavre et avion de rappel restent interpolés comme avant la correction. |
 | Cercle blanc absent sur l'historique | `poisonGasWarningX/Y` n'existe que sur les snapshots parsés après septembre 2026. |
-| Replay indisponible après purge | `/settings/superuser/database` permet de purger `positionSamples` et `trajectorySegments` ; la route renvoie alors `REPLAY_NO_POSITIONS` (404). |
+| Replay indisponible après purge | `/settings/database` permet de purger `positionSamples` et `trajectorySegments` ; la route renvoie alors `REPLAY_NO_POSITIONS` (404). |
 
 ---
 

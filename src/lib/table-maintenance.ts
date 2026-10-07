@@ -2,7 +2,7 @@ import { statfs } from 'node:fs/promises'
 import { prisma } from '@/lib/prisma'
 
 /**
- * Compactage des tables InnoDB (`OPTIMIZE TABLE`) — page /settings/superuser/database.
+ * Compactage des tables InnoDB (`OPTIMIZE TABLE`) — page /settings/database.
  *
  * Trois faits mesurés le 2026-09-24 ont dicté ce module :
  *

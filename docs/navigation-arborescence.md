@@ -189,8 +189,8 @@ Remplace les anciennes listes d'état courant (Pages transverses, Espace Clan, E
 | Tous les clans (switch) | `/clans` | 8.1 #2 |
 | Ops Cron | `/settings/cron` | ⚠️ absent du §8 |
 | Config plateforme | `/settings/nav-permissions` | ⚠️ absent du §8 (doublon avec l'entrée Owner ci-dessus) |
-| Télémétrie cross-clans | `/settings/telemetry-recoveries` | ⚠️ absent du §8 |
-| Adversaires (vue transverse) | `/settings/opponents` | ⚠️ absent du §8 |
+| Télémétrie cross-clans | `/settings/telemetry` | ⚠️ absent du §8 |
+| Adversaires (vue transverse) | `/settings/clans` | ⚠️ absent du §8 |
 | Import de matchs PUBG | `/settings/match-import` | ⚠️ absent du §8 |
 | Réglages de la ligue | `/settings/league` | ⚠️ absent du §8 — barème, coefficients et seuils de la Ligue Inter-Clans (2026-10-04, `scripts/seed-league-settings-nav.ts`) |
 
@@ -353,8 +353,8 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/settings/pubg-api` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/nav-permissions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/cron` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/settings/telemetry-recoveries` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
-| `/settings/opponents` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/telemetry` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/settings/clans` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/match-import` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/settings/league` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 

@@ -26,8 +26,25 @@ export const NAV_KEYS_TO_DELETE = [
   'clan.items',
 ] as const
 
-/** Entrées du registre écrites en dur dans la barre latérale, à créer en base pour pouvoir les masquer ou renommer. */
-export const NAV_KEYS_TO_CREATE = ['primary.mortar', 'primary.resources', 'primary.zone-reading'] as const
+/**
+ * Entrées du registre absentes de la base : liens écrits en dur dans la barre latérale (pour pouvoir les masquer ou
+ * les renommer) et pages Plateforme créées au lot 3a.
+ */
+export const NAV_KEYS_TO_CREATE = [
+  'primary.mortar',
+  'primary.resources',
+  'primary.zone-reading',
+  'superuser.players',
+  'superuser.privacy-requests',
+] as const
+
+/** Pages Plateforme déplacées au lot 3a : l'adresse en base suit le registre (l'ancienne reste redirigée). */
+export const NAV_KEYS_HREF_FROM_REGISTRY = [
+  'superuser.opponents',
+  'superuser.clan-lifecycle',
+  'superuser.database',
+  'superuser.telemetry-recoveries',
+] as const
 
 /** Libellés de base alignés sur le registre (libellés francisés, et « Stats armes » resté en base). */
 export const NAV_KEYS_LABEL_FROM_REGISTRY = [
@@ -39,6 +56,7 @@ export const NAV_KEYS_LABEL_FROM_REGISTRY = [
   'superuser.cron',
   'superuser.telemetry-recoveries',
   'superuser.platform-settings',
+  'superuser.opponents',
   'clan.stats-weapons',
 ] as const
 
@@ -46,6 +64,7 @@ export type NavCleanupPlan = {
   deletes: string[]
   creates: Array<NavItemDef & { sortOrder: number }>
   labelUpdates: Array<{ navKey: string; from: string; to: string; clearOverride: boolean }>
+  hrefUpdates: Array<{ navKey: string; from: string; to: string }>
 }
 
 export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly NavItemDef[]): NavCleanupPlan {
@@ -59,7 +78,8 @@ export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly N
     const definition = registryByKey.get(navKey)
     if (!definition || byKey.has(navKey)) continue
     const inSection = rows.filter((row) => row.section === definition.section).map((row) => row.sortOrder)
-    const nextOrder = Math.max(-1, ...inSection, ...creates.map((item) => item.sortOrder)) + 1
+    const createdInSection = creates.filter((item) => item.section === definition.section).map((item) => item.sortOrder)
+    const nextOrder = Math.max(-1, ...inSection, ...createdInSection) + 1
     creates.push({ ...definition, sortOrder: nextOrder })
   }
 
@@ -73,9 +93,22 @@ export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly N
     labelUpdates.push({ navKey, from: row.label, to: definition.label, clearOverride })
   }
 
-  return { deletes, creates, labelUpdates }
+  const hrefUpdates: NavCleanupPlan['hrefUpdates'] = []
+  for (const navKey of NAV_KEYS_HREF_FROM_REGISTRY) {
+    const row = byKey.get(navKey)
+    const definition = registryByKey.get(navKey)
+    if (!row || !definition || row.hrefTemplate === definition.hrefTemplate) continue
+    hrefUpdates.push({ navKey, from: row.hrefTemplate, to: definition.hrefTemplate })
+  }
+
+  return { deletes, creates, labelUpdates, hrefUpdates }
 }
 
 export function isEmptyNavCleanupPlan(plan: NavCleanupPlan) {
-  return plan.deletes.length === 0 && plan.creates.length === 0 && plan.labelUpdates.length === 0
+  return (
+    plan.deletes.length === 0 &&
+    plan.creates.length === 0 &&
+    plan.labelUpdates.length === 0 &&
+    plan.hrefUpdates.length === 0
+  )
 }

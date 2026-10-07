@@ -2,7 +2,7 @@ import { listPlayersDirectory, parsePlayersDirectoryQuery } from '@/lib/players-
 import { requireSuperUser } from '@/middleware/auth-permission'
 
 /**
- * Annuaire transverse des joueurs — onglet « Joueurs » de `/settings/opponents`.
+ * Annuaire transverse des joueurs — onglet « Joueurs » de `/settings/clans`.
  *
  * Paramètres : `q`, `status` (`all` | `tracked` | `untracked` | `noclan` | `favorites`),
  * `seenByClanId`, `page`, `pageSize`, `sortBy`, `sortOrder`, et `counters=1` pour recevoir

@@ -241,7 +241,7 @@ Préalables, à lire dans le rapport de `scripts/db-server-diagnostic.sh` avant 
 
 `/dev/sda1` (partition unique, porte le datadir) : **48 Go, 92 % utilisés, 4,2 Go libres** au 2026-09-15. `SquadMatchTelemetry.ibd` = 14 Go.
 
-- **Ne pas lancer `OPTIMIZE TABLE SquadMatchTelemetry`** (bouton « compacter » de `/settings/superuser/database`, table ciblée par défaut par `POST /api/superuser/database/optimize`) : InnoDB reconstruit la table dans un nouveau fichier, ce qui exige un espace libre proche de sa taille. Disque plein = MariaDB bloqué pour tous les services de la VM (mail, Dolibarr compris). Même contrainte pour toute migration non `INSTANT` sur cette table.
+- **Ne pas lancer `OPTIMIZE TABLE SquadMatchTelemetry`** (bouton « compacter » de `/settings/database`, table ciblée par défaut par `POST /api/superuser/database/optimize`) : InnoDB reconstruit la table dans un nouveau fichier, ce qui exige un espace libre proche de sa taille. Disque plein = MariaDB bloqué pour tous les services de la VM (mail, Dolibarr compris). Même contrainte pour toute migration non `INSTANT` sur cette table.
 - Une purge (`DELETE`) ne rend pas l'espace au système mais laisse InnoDB **réutiliser** les pages libérées : elle arrête la croissance du fichier sans reconstruction.
 - `data_free` cumulé des 15 plus grosses tables : ~78 Mio — un `OPTIMIZE` ne rendrait presque rien. `ibdata1`, `ibtmp1` et le redo log sont petits ; pas de binlogs (`log_bin=OFF`).
 - **Inventaire du 2026-09-15** : `/var/lib` 18 Go (MariaDB), **`/var/log` 11 Go**, `/home` 4,2 Go (application 1,6 Go), `/usr` 3,3 Go, `/root` 2,8 Go, `/swapfile` 4 Go. Récupérable sans perte de données : **`/var/log/proftpd/sftp.log` 7,4 Go** (jamais tourné, contrairement à `proftpd.log`), **journal systemd 3,3 Go**, **`/root/.npm` 2,5 Go** (cache).
@@ -255,7 +255,7 @@ Préalables, à lire dans le rapport de `scripts/db-server-diagnostic.sh` avant 
   par mois. Au rythme actuel, le disque passe 90 % vers **début octobre** et se remplit vers la mi-octobre. Le rattrapage
   des cellules des 8 172 matchs anciens (~800 Mo) ne pèse que deux jours de croissance ; la vraie question est la
   **rétention du JSON brut**.
-- **Décision en attente — rétention** : `/settings/superuser/database` sait déjà vider `positionSamples` et
+- **Décision en attente — rétention** : `/settings/database` sait déjà vider `positionSamples` et
   `trajectorySegments` au-delà de N jours (`UPDATE … SET NULL`, pages réutilisées par InnoDB sans reconstruction).
   Ces colonnes servent au replay 2D, mais aussi au débriefing (`match-debrief-payload.ts`, `match-teams.ts`,
   `squad-mates.ts`), à la page Positions pour les matchs sans cellules et au rattrapage des cellules : **rattraper les
@@ -271,7 +271,7 @@ Préalables, à lire dans le rapport de `scripts/db-server-diagnostic.sh` avant 
 
 ### 4.6 Index `Player(lastSeenAt)` — annuaire des joueurs (mesuré le 2026-09-25)
 
-L'onglet « Joueurs » de `/settings/opponents` ([players.md](../TODO/players.md)) trie par défaut les 520 913
+L'onglet « Joueurs » de `/settings/clans` ([players.md](../TODO/players.md)) trie par défaut les 520 913
 `Player` par dernière vue. Aucun index ne commence par `lastSeenAt` : `idx_player_resolved_last_seen`
 (`clanResolvedAt, lastSeenAt`) ne sert pas un tri global, d'où un parcours complet suivi d'un tri
 (`EXPLAIN` : `type=index … Using filesort`, 442 000 lignes estimées).
@@ -354,7 +354,7 @@ sous-estime l'espace réellement réutilisable — InnoDB n'y compte que les ext
 | Échéance | Action |
 |---|---|
 | 2026-09-22 (J+7, couvre le lundi 21) | `npx tsx scripts/db-health.ts report --days=7` ; consigner les résultats ici ; décider des index |
-| Au déploiement | vérifier dans les logs `[Cron] DB maintenance — orphaned runs finalized` et la durée des passages de résolution (`/settings/opponents/resolution`) |
+| Au déploiement | vérifier dans les logs `[Cron] DB maintenance — orphaned runs finalized` et la durée des passages de résolution (`/settings/players/resolution`) |
 | Après analyse | `npx tsx scripts/db-health.ts disable --yes` (ou conserver le journal lent à 2 s si son coût est négligeable) |
 
 ## Voir aussi

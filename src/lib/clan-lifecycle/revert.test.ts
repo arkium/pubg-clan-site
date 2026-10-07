@@ -182,7 +182,7 @@ describe('Garde-fou E — ce que l’annulation fait', () => {
     })
 
     // Le miroir adversaire suit l'annulation comme il suit le mouvement : sans
-    // cet appel, `/settings/opponents` resterait sur le clan annule.
+    // cet appel, `/settings/clans` resterait sur le clan annule.
     expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
   })
 })

@@ -977,7 +977,7 @@ export default function TelemetryRecoveriesPage() {
 
             {isSuperUser && (
               <Link
-                href="/settings/telemetry-recoveries"
+                href="/settings/telemetry"
                 className="app-btn app-btn--sm app-btn--secondary gap-1.5 font-semibold text-indigo-600 dark:text-indigo-400"
               >
                 <Server className="h-4 w-4" />

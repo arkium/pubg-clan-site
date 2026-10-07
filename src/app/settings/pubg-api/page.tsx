@@ -337,7 +337,7 @@ export default function PubgApiSettingsPage() {
       <NavigationTrail
         currentLabel="API PUBG"
         currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
         <section className="app-panel p-6">
           <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
@@ -360,7 +360,7 @@ export default function PubgApiSettingsPage() {
       <NavigationTrail
         currentLabel="API PUBG"
         currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/settings/superuser', label: 'Plateforme' }}
+        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
       />
       <section className="app-panel mb-4 p-4">
         <SettingsPageHeader

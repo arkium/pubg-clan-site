@@ -15,7 +15,7 @@ Chaque page utilise la structure standard :
 
 ---
 
-## `/settings/clan-lifecycle` — Cycle de vie des clans
+## `/settings/clans/lifecycle` — Cycle de vie des clans
 
 Accès : SuperUser (`superuser.clan-lifecycle`).
 

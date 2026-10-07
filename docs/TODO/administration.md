@@ -3,7 +3,7 @@
 > **Étape 1 — analyse, rédigée le 2026-10-06. Étape 2 — décisions du 2026-10-07 (§5.3, §5.4, §7).**
 > **Étape 3 — lots 0, 1, 2, 3a, 3b et 3c-1 réalisés le 2026-10-07** (branche `fix/admin-rights`, §6). Reste le 3c-2.
 > Aucune donnée ni entrée de menu n'a été modifiée en base : les deux scripts du lot 2 n'ont tourné qu'en simulation
-> (lecture seule) et la migration du journal (3c-1) n'est pas appliquée (§6, lot 2, « Ordre de déploiement »).
+> (lecture seule). Seule écriture : la migration du journal (3c-1, une table vide), appliquée le 2026-10-07 sur accord.
 >
 > Décisions du 2026-10-07 : **quatre profils** (visiteur, membre, Owner, SuperUser — Admin et Moderator supprimés) ;
 > le SuperUser **choisit les outils de clan ouverts aux Owners**, par un réglage **commun à tous les Owners** ; le
@@ -562,9 +562,8 @@ Ordre de déploiement :
 3. `npx tsx scripts/remove-admin-moderator-roles.ts --apply` — jamais avant l'étape 1 : l'ancien code recréait les
    rôles Admin et Moderator à chaque appel de `initializeDefaultRoles`.
 
-Lot 3c-1 : appliquer la migration `20261007200000_add_admin_action_log` (`npx prisma migrate deploy`, une seule
-`CREATE TABLE`) **avant** de déployer le code, sinon le journal reste vide jusque-là (les actions passent, un
-avertissement par écriture dans les journaux du serveur, la page du journal répond 503).
+Lot 3c-1 : migration `20261007200000_add_admin_action_log` **déjà appliquée** en production le 2026-10-07 (table vide,
+ignorée par le code en place) ; `npx prisma migrate deploy` au déploiement ne trouvera rien à faire.
 
 Écarts au plan :
 
@@ -633,8 +632,8 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait ; 3b fait ; 3c-1 (journal) fait, migration écrite et PAS appliquée ; 3c-2 non commencé
-(branche `fix/admin-rights`).**
+**État au 2026-10-07 : 3a fait ; 3b fait ; 3c-1 (journal) fait, migration appliquée en production le 2026-10-07 ;
+3c-2 non commencé (branche `fix/admin-rights`).**
 
 3b-1 — accueil « Mon clan » et délégation :
 
@@ -705,7 +704,8 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
 3c-1 — journal des actions d'administration (Q10) :
 
 - **Table `AdminActionLog`** (migration `prisma/migrations/20261007200000_add_admin_action_log`, une seule
-  `CREATE TABLE`, `migrate diff` vérifié sans autre écart) : date, compte, membre actif, SuperUser ou non, clan, action
+  `CREATE TABLE`, `migrate diff` vérifié sans autre écart ; **appliquée le 2026-10-07** par `migrate deploy`, sur
+  accord explicite, `migrate diff` vide ensuite) : date, compte, membre actif, SuperUser ou non, clan, action
   (gabarit de la route), méthode, statut HTTP, résultat (`success` | `error`) et résumé (paramètres d'adresse, champs
   numériques ou booléens de la réponse, message d'erreur). Pas d'adresse IP, pas de relation.
 - **Écriture** : `withAdminActionLog('<gabarit>', handler)` (`src/lib/admin-action-log.ts`) enveloppe les 65 routes

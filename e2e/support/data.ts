@@ -1,6 +1,7 @@
 import type { ClansLeaderboardResponse } from '@/app/api/clans-leaderboard/route'
 import { DEFAULT_LEAGUE_SETTINGS, clanPowerScore, clanRawScore, type LeagueMatchType } from '@/lib/clan-league'
 import type { HomeShowcasePayload } from '@/lib/home-showcase'
+import type { HomeLiveTournament, HomeTournament, HomeTournamentsPayload } from '@/lib/home-tournaments'
 import type { ClanMatchesResponse, SquadMatch } from '@/types/squad-matches'
 import { sessionDateOf } from '@/lib/match-sessions'
 import type { ClanOverview } from '@/hooks/useClanOverview'
@@ -597,5 +598,48 @@ export function clanShowcase() {
       streak: { count: 3, atLeast: false, dates: ['2026-09-23', '2026-09-25', '2026-09-26'], weekSessions: 5, weekWins: 7 },
     },
     hints: { activeChallenges: 2, openTournaments: 1, weekGames: 25 },
+  }
+}
+
+/**
+ * Tournois de la vitrine (`GET /api/home/tournaments`), dates relatives à l'exécution : `live` (un direct et trois à
+ * venir), `upcoming` (rien en cours), `none` (aucun tournoi prévu, dernier vainqueur connu).
+ */
+export function homeTournaments(scenario: 'live' | 'upcoming' | 'none' = 'live'): HomeTournamentsPayload {
+  const now = Date.now()
+  const at = (hours: number) => new Date(now + hours * 3_600_000).toISOString()
+  const organizer = (id: number, tag: string, name: string) => ({ id, tag, name })
+  const upcoming: HomeTournament[] = [
+    { id: 'scrims-jeudi', title: 'Scrims du jeudi', mode: 'intra_clan', startDate: at(5), endDate: at(8), gameMode: 'normal-squad', mapName: 'Savage_Main', organizerClan: organizer(2, 'DEMO', 'Clan Démo'), roundCount: 0, participantCount: 0, lastRoundAt: null },
+    { id: 'solo-showdown', title: 'Solo Showdown #4', mode: 'solo_ffa', startDate: at(96), endDate: at(240), gameMode: 'normal-solo', mapName: 'Desert_Main', organizerClan: organizer(3, 'RATZ', 'Les-Ratz'), roundCount: 0, participantCount: 0, lastRoundAt: null },
+    { id: 'mix-match', title: 'Mix & Match #3', mode: 'custom_teams', startDate: at(384), endDate: at(528), gameMode: 'normal-squad', mapName: 'Tiger_Main', organizerClan: organizer(1, 'LMT', 'La Meute'), roundCount: 0, participantCount: 0, lastRoundAt: null },
+    { id: 'coupe-hiver', title: 'Coupe d’hiver', mode: 'inter_clan', startDate: at(720), endDate: at(1400), gameMode: null, mapName: null, organizerClan: organizer(1, 'LMT', 'La Meute'), roundCount: 0, participantCount: 0, lastRoundAt: null },
+  ]
+  const live: HomeLiveTournament = {
+    id: 'coupe-automne',
+    title: 'Coupe d’automne 2026',
+    mode: 'inter_clan',
+    startDate: at(-168),
+    endDate: at(552),
+    gameMode: 'normal-squad',
+    mapName: 'Baltic_Main',
+    organizerClan: organizer(1, 'LMT', 'La Meute'),
+    roundCount: 5,
+    participantCount: 9,
+    lastRoundAt: at(-22 / 60),
+    leaders: [
+      { key: 'clan:1', label: '[LMT] La Meute', points: 412 },
+      { key: 'clan:2', label: '[DEMO] Clan Démo', points: 389 },
+      { key: 'clan:3', label: '[RATZ] Les-Ratz', points: 351 },
+    ],
+  }
+  if (scenario === 'none') {
+    return { live: [], upcoming: [], upcomingCount: 0, lastWinner: { tournamentId: 'coupe-ete', title: 'Coupe d’été 2026', label: '[LMT] La Meute' } }
+  }
+  return {
+    live: scenario === 'live' ? [live] : [],
+    upcoming: upcoming,
+    upcomingCount: 5,
+    lastWinner: { tournamentId: 'coupe-ete', title: 'Coupe d’été 2026', label: '[LMT] La Meute' },
   }
 }

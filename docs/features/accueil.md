@@ -15,6 +15,7 @@
 |---|---|
 | Héros (toujours sombre, photo) | Nom du site (sans logo, retiré le 2026-09-26), navigation publique (Les clans, Ligue des clans, Comparateur, Tournois), « Se connecter » (« Mon espace » pour un connecté), « Rejoindre » ; boussole animée ; compteurs « joueurs » et « kills cette semaine » ; kill feed ; titre, accroche et appels à l'action |
 | Kill feed (sous le héros, sous 1024 px) | Le même feed, en carte |
+| Tournois (ajouté le 2026-10-08) | Maquette Claude Design « Accueil - Tournois », trois points d’accès (`HomeTournaments.tsx`) : **pastille** du lien « Tournois » (« En direct » en rouge, sinon le nombre de tournois à venir, rien sans tournoi prévu), dans la navigation du héros et le menu mobile ; **ticket** en bas à droite du héros dès 1 024 px — le tournoi en direct (manches jouées, 1er, « Suivre », puis « Ensuite : » le prochain) ou le prochain (compte à rebours, « Voir », puis « Puis : » le suivant) —, devenu un **bandeau** juste sous le héros, avant le kill feed, en dessous ; **section** « En ce moment et à venir » (« Prochains tournois » sans direct, « Tournois » sans rien de prévu) avant les Chicken Dinners : le direct en grand sur la photo de sa carte avec son top 3 et « Suivre le classement », puis les trois prochains tournois en **cartes** dès 768 px et en **agenda** en dessous, rappel « pas d’inscription » ; sans tournoi prévu, le dernier vainqueur et « Voir les tournois terminés » |
 | Chicken Dinner | Carrousel des **3 derniers Top 1** du site : « #1 / N équipes », carte, date, durée, clan, kills, dégâts, kill le plus long, équipe (armes, MVP), lien vers le débriefing |
 | Rejoindre | Trois étapes, « Demander à rejoindre » (`/join`), puis `/clans` : « Voir les clans » pour un connecté, « Parcourir en visiteur » en mode visiteur, rien sinon |
 | Pourquoi atterrir ici (ajouté le 2026-09-27) | « Toute la scène PUBG francophone, dans la même zone » : trois cartes — Ligue des clans (`/clans-leaderboard`), Tournois, carte sombre « Zéro inscription » (`/tournaments`), Comparateur (`/clans/comparator`). Mêmes pages que la navigation du héros, mêmes droits d'accès |
@@ -45,6 +46,7 @@ connexion, on arrive toujours sur son tableau de bord, pas sur la vitrine.
 | Sous-domaine inconnu | Redirige vers la **vitrine** `/` (au lieu de `/clans`) ; un sous-domaine connu mène toujours à la vue d'ensemble de son clan (`fd.chickendinner.fr` → `/clans/28/overview`) |
 | Métadonnées | Titre, description, adresse canonique, aperçu de partage Open Graph et carte large (image dédiée `public/chickendinnerfr.jpg`, 1024 × 541, ratio ≈ 1,91:1), adresse de base tirée de `NEXT_PUBLIC_APP_URL` |
 | Textes de « Pourquoi atterrir ici » | Vérifiés contre les pages le 2026-09-27 et corrigés par rapport à la maquette : la Ligue classe au **Power score** (win rate — pas les victoires —, dégâts, kills, knocks) sur la semaine, le mois ou depuis le début ; un tournoi compte ses **parties personnalisées** (pas « tes parties comme d'habitude »), sans inscription, avec le barème de l'organisateur ; le comparateur met des **clans** face à face (win rate, top 10, dégâts et kills par partie, duels, hot drops, survie) — pas deux joueurs, et aucune mesure de précision. « Tous les clans francophones » devient « Les clans francophones » : seuls les clans suivis sont classés |
+| Tournois de la vitrine (2026-10-08) | **Cartes sur ordinateur et tablette, agenda sur mobile** (écrans 1a et 1f de la maquette, choix de l’utilisateur). « En direct » = la règle de `/tournaments` (`resolveTournamentPhase`) : tout un tournoi actif, de sa date de début à la fin de son dernier jour, pas seulement les soirées où l’on joue. La maquette écrivait « Manche 5 / 18 » : aucun total de manches n’existe en base (un tournoi compte ce qui se joue, `bestOfRounds` ne retient que les meilleures), la vitrine écrit « 5 manches ». Les boutons « Suivre », « Voir » et « Voir le tournoi » mènent à `/tournaments/<id>`, « Tous les tournois » et « Voir les tournois terminés » à `/tournaments`. Le reste de la maquette (navigation, compteurs, textes) n’est pas repris |
 | « Kill feed en direct » | Ce n'est pas du temps réel : une rotation des kills remarquables des 8 dernières victoires, relue au plus toutes les 5 minutes |
 
 ---
@@ -79,6 +81,23 @@ Route **publique** (aucune session), servie par `src/lib/home-showcase-service.t
 ajouté. La réponse est gardée **5 minutes** en mémoire du process web, les appels simultanés partagent la même
 lecture, une lecture en échec n'est pas gardée.
 
+### Tournois — `GET /api/home/tournaments` (2026-10-08)
+
+Route à part, servie par `src/lib/home-tournaments-service.ts` (logique pure `src/lib/home-tournaments.ts`) à partir de
+`listTournamentOverviews`, comme la page `/tournaments`. **Mêmes droits que `/api/tournaments`** (décision du
+2026-09-16) : un utilisateur connecté, ou tout le monde en mode visiteur ; sinon 401, et la vitrine ne demande même
+pas la route (`useHomeTournaments` n’est activé que pour une session ou en mode visiteur) ni n’affiche de tournoi.
+
+| Champ | Contenu |
+|---|---|
+| `live` | Tournois en direct, le plus animé d’abord (dernière manche la plus récente) ; trois premiers ayant marqué (`label`, points) — pas le classement complet |
+| `upcoming`, `upcomingCount` | Quatre prochains tournois, le plus proche d’abord (trois affichés, le suivant sert à « Ensuite » / « Puis ») ; total pour la pastille |
+| `lastWinner` | Vainqueur du dernier tournoi terminé, pour l’état « aucun tournoi prévu » |
+
+Brouillons jamais montrés. Les participants sont des clans suivis ou leurs membres (`describeParticipant`) : aucun
+pseudo de joueur extérieur au site. Réponse gardée **5 minutes** en mémoire, comme la vitrine ; les comptes à rebours
+(« dans 5 h », « il y a 22 min ») sont calculés dans le navigateur.
+
 ---
 
 ## 4. Fichiers
@@ -92,6 +111,9 @@ lecture, une lecture en échec n'est pas gardée.
 | `src/app/api/home/showcase/route.ts` | Route publique |
 | `src/lib/home-showcase-service.ts` | Lectures Prisma et cache |
 | `src/lib/home-showcase.ts` | Types et logique pure (clan, MVP, armes, feed, formatage) |
+| `src/components/home/HomeTournaments.tsx` | Tournois de la vitrine : pastille, ticket du héros, bandeau mobile, section (direct, cartes, agenda, état vide) |
+| `src/hooks/useHomeTournaments.ts`, `src/app/api/home/tournaments/route.ts` | Lecture des tournois de la vitrine ; route ouverte comme `/api/tournaments` |
+| `src/lib/home-tournaments-service.ts`, `src/lib/home-tournaments.ts` | Cache de 5 minutes ; sélection pure (direct, à venir, dernier vainqueur) |
 | `src/app/globals.css` (fin) | Classes `home-*`, animations, masquage de `.app-footer` (`body:has(.home-showcase)`) |
 | `src/proxy.ts` | `/` dans `PUBLIC_PATHS` |
 | `src/components/ClanNavigation.tsx` | `/` rendu sans le shell, comme `/login` et `/join` ; entrée « Accueil » (`primary.home`) en tête du menu |
@@ -113,7 +135,8 @@ couleurs dans les deux thèmes. Le reste passe par les jetons (`--page-surface`,
 |---|---|
 | `src/lib/home-showcase.test.ts` | Formatage (cm → m, durée, fond de carte), clan de l'équipe, MVP, armes, note des kills (poêle ≠ Panzerfaust), dédoublonnage, ordre et plafond du feed, victimes jamais nommées |
 | `src/lib/home-showcase-route-contracts.test.ts` | Route sans session : compteurs, Top 1 (équipe mixte, clan technique écarté), durée, lien de débriefing, tags des victimes, aucun `account.` dans la réponse, 500 en erreur ; cache (une lecture par période, appels simultanés, échec non gardé) |
-| `e2e/home.spec.ts` | Plein écran sans shell ni pied de page commun, pas de défilement horizontal, carrousel dans les deux sens, feed sans nom de victime, liens `/join` `/login` `/clans` `/clans-leaderboard`, liens légaux du pied de page, compteurs et navigation sur ordinateur, menu sur mobile et tablette, entrée « Accueil » du menu latéral. **Non couvert** : le rendu pour un membre connecté (« Mon espace »), qui exige une session en base |
+| `src/lib/home-tournaments.test.ts` | Sélection (brouillons et tournois terminés écartés, direct le plus animé d’abord, à venir triés et plafonnés, top 3 ayant marqué, dernier vainqueur), libellé des manches, droits de la route (401 sans session hors mode visiteur), cache |
+| `e2e/home.spec.ts` | Plein écran sans shell ni pied de page commun, pas de défilement horizontal, carrousel dans les deux sens, feed sans nom de victime, liens `/join` `/login` `/clans` `/clans-leaderboard`, liens légaux du pied de page, compteurs et navigation sur ordinateur, menu sur mobile et tablette, entrée « Accueil » du menu latéral ; tournois (2026-10-08) : pastille « En direct » ou nombre de tournois à venir, ticket sur ordinateur et bandeau sous 1 024 px, direct et top 3, cartes dès 768 px et agenda en dessous, section avant les Chicken Dinners, états « rien en cours » et « aucun tournoi prévu ». **Non couvert** : le rendu pour un membre connecté (« Mon espace »), qui exige une session en base |
 
 ---
 

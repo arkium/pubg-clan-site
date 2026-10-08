@@ -10,6 +10,7 @@ import {
   itemUseStats,
   leaderboardResponse,
   homeShowcase,
+  homeTournaments,
   debriefTelemetry,
   clanMatchesResponse,
   DEBRIEF_MATCH_ID,
@@ -63,9 +64,10 @@ export function mockClansLeaderboard(api: ApiMock) {
   }))
 }
 
-/** Vitrine publique de l'accueil : une seule API, publique. */
+/** Vitrine publique de l'accueil : la vitrine (publique) et ses tournois (direct, à venir — scénario « live »). */
 export function mockHomeShowcase(api: ApiMock) {
   api.on('GET', '/api/home/showcase', { body: homeShowcase() })
+  api.on('GET', '/api/home/tournaments', { body: homeTournaments('live') })
 }
 
 /** Débriefing : l'équipe demandée (`?teamId=`) est renvoyée comme escouade analysée ; le replay est indisponible. */

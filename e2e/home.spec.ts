@@ -1,6 +1,7 @@
 import type { TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { homeTournaments } from './support/data'
 import { mockClanLeaderboard, mockHomeShowcase } from './support/pages'
 
 /**
@@ -155,4 +156,100 @@ test('ordinateur : l’entrée « Accueil » du menu latéral ramène à la vitr
   await home.click()
   await expect(page.getByTestId('home-dinner')).toBeVisible()
   await expect(page.locator('aside')).toHaveCount(0)
+})
+
+// ── Tournois (maquette « Accueil - Tournois », 2026-10-08) ─────────────────────────────────────────────
+
+const isUnder768 = (testInfo: TestInfo) => isMobile(testInfo)
+
+async function overflowOf(page: import('@playwright/test').Page) {
+  return page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+}
+
+test('tournois : pastille « En direct » sur le lien et ticket du direct, avec le suivant', async ({ page }, testInfo) => {
+  if (isNarrow(testInfo)) {
+    const banner = page.getByTestId('home-tournament-banner')
+    await expect(banner).toContainText('Tournoi en direct')
+    await expect(banner).toContainText('Coupe d’automne 2026')
+    await expect(banner).toContainText('5 manches')
+    await expect(banner.getByRole('link', { name: /Suivre/ })).toHaveAttribute('href', '/tournaments/coupe-automne')
+    await expect(page.getByTestId('home-tournament-ticket')).toBeHidden()
+    await page.getByRole('button', { name: 'Ouvrir le menu' }).click()
+    await expect(page.locator('#home-mobile-menu').getByRole('link', { name: /Tournois/ })).toContainText('En direct')
+  } else {
+    await expect(page.getByRole('navigation', { name: 'Navigation publique' }).getByRole('link', { name: /Tournois/ })).toContainText('En direct')
+    const ticket = page.getByTestId('home-tournament-ticket')
+    await expect(ticket).toContainText('Tournoi en direct')
+    await expect(ticket).toContainText('1er [LMT] La Meute')
+    await expect(ticket).toContainText('5 manches')
+    await expect(ticket).toContainText('Ensuite : Scrims du jeudi · dans 5 h')
+    await expect(ticket.getByRole('link', { name: /Suivre/ })).toHaveAttribute('href', '/tournaments/coupe-automne')
+    await expect(page.getByTestId('home-tournament-banner')).toBeHidden()
+  }
+  expect(await overflowOf(page)).toBeLessThanOrEqual(0)
+})
+
+test('tournois : le direct et son top 3, puis les trois prochains, avant les Chicken Dinners', async ({ page }, testInfo) => {
+  const section = page.getByTestId('home-tournaments')
+  await section.scrollIntoViewIfNeeded()
+  await expect(section.getByRole('heading', { name: 'En ce moment et à venir' })).toBeVisible()
+  await expect(section.getByRole('link', { name: 'Tous les tournois' })).toHaveAttribute('href', '/tournaments')
+
+  const live = page.getByTestId('home-tournament-live')
+  await expect(live).toContainText('Coupe d’automne 2026')
+  await expect(live).toContainText('9 clans en lice')
+  await expect(live).toContainText('dernière manche il y a 22 min')
+  await expect(live.getByRole('listitem')).toHaveCount(3)
+  await expect(live.getByRole('listitem').first()).toContainText('[LMT] La Meute')
+  await expect(live.getByRole('link', { name: 'Suivre le classement' })).toHaveAttribute('href', '/tournaments/coupe-automne')
+
+  // Cartes à partir de 768 px, agenda en dessous ; trois tournois au plus, le quatrième reste dans « Tous les tournois ».
+  const shown = isUnder768(testInfo) ? page.getByTestId('home-tournament-row') : page.getByTestId('home-tournament-card')
+  const hidden = isUnder768(testInfo) ? page.getByTestId('home-tournament-card') : page.getByTestId('home-tournament-row')
+  await expect(shown.filter({ visible: true })).toHaveCount(3)
+  await expect(hidden.filter({ visible: true })).toHaveCount(0)
+  await expect(shown.first()).toContainText('Scrims du jeudi')
+  await expect(shown.first()).toContainText('dans 5 h')
+  await expect(section).not.toContainText('Coupe d’hiver')
+  await expect(section).toContainText('Pas d’inscription')
+
+  const order = await page.evaluate(() => {
+    const ids = [...document.querySelectorAll('section[aria-labelledby]')].map((element) => element.getAttribute('aria-labelledby'))
+    return ids.indexOf('home-dinner-title') - ids.indexOf('home-tournaments-title')
+  })
+  expect(order).toBe(1)
+  expect(await overflowOf(page)).toBeLessThanOrEqual(0)
+})
+
+test('tournois : rien en cours, le prochain tournoi et le nombre de tournois à venir', async ({ api, page }, testInfo) => {
+  api.on('GET', '/api/home/tournaments', { body: homeTournaments('upcoming') })
+  await page.reload()
+  await expect(page.getByTestId('home-dinner')).toBeVisible()
+  await expect(page.getByTestId('home-tournaments').getByRole('heading', { name: 'Prochains tournois' })).toBeVisible()
+  await expect(page.getByTestId('home-tournament-live')).toHaveCount(0)
+  if (isNarrow(testInfo)) {
+    const banner = page.getByTestId('home-tournament-banner')
+    await expect(banner).toContainText('Prochain tournoi')
+    await expect(banner).toContainText('dans 5 h')
+    await expect(banner.getByRole('link', { name: /Voir/ })).toHaveAttribute('href', '/tournaments/scrims-jeudi')
+  } else {
+    await expect(page.getByRole('navigation', { name: 'Navigation publique' }).getByLabel('5 tournois à venir')).toBeVisible()
+    const ticket = page.getByTestId('home-tournament-ticket')
+    await expect(ticket).toContainText('Prochain tournoi')
+    await expect(ticket).toContainText('Scrims du jeudi')
+    await expect(ticket).toContainText('Puis : Solo Showdown #4 · dans 4 j')
+  }
+})
+
+test('tournois : aucun prévu, le dernier vainqueur, sans pastille ni ticket', async ({ api, page }) => {
+  api.on('GET', '/api/home/tournaments', { body: homeTournaments('none') })
+  await page.reload()
+  await expect(page.getByTestId('home-dinner')).toBeVisible()
+  const empty = page.getByTestId('home-tournaments-empty')
+  await expect(empty).toContainText('Aucun tournoi prévu pour l’instant.')
+  await expect(empty).toContainText('Dernier vainqueur : [LMT] La Meute, Coupe d’été 2026.')
+  await expect(empty.getByRole('link', { name: 'Voir les tournois terminés →' })).toHaveAttribute('href', '/tournaments')
+  await expect(page.getByTestId('home-tournaments').getByRole('heading', { name: 'Tournois', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-tournament-ticket')).toHaveCount(0)
+  await expect(page.getByTestId('home-tournament-banner')).toHaveCount(0)
 })

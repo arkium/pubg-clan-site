@@ -20,9 +20,16 @@ import {
 } from 'lucide-react'
 
 import { LegalFooterContent } from '@/components/SiteFooter'
+import {
+  HeroTournamentTicket,
+  HomeTournamentsSection,
+  MobileTournamentBanner,
+  TournamentsNavBadge,
+} from '@/components/home/HomeTournaments'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { useHomeShowcase } from '@/hooks/useHomeShowcase'
+import { useHomeTournaments } from '@/hooks/useHomeTournaments'
 import { formatMatchDuration, type ShowcaseDinner, type ShowcaseFeedEntry } from '@/lib/home-showcase'
 import { getPeriodStart } from '@/lib/period'
 
@@ -653,6 +660,9 @@ export default function HomeShowcase({
   accountHref: string | null
 }) {
   const { data, loading, error } = useHomeShowcase()
+  // Tournois : mêmes droits que la liste `/tournaments` (session ou mode visiteur), maquette « Accueil - Tournois ».
+  const { data: tournaments, loading: tournamentsLoading } = useHomeTournaments(visitorMode || accountHref !== null)
+  const [now] = useState(() => new Date())
   const reducedMotion = usePrefersReducedMotion()
   const [menuOpen, setMenuOpen] = useState(false)
   const feed = data?.killFeed ?? []
@@ -678,8 +688,9 @@ export default function HomeShowcase({
           </Link>
           <nav className="ml-6 hidden gap-1 lg:flex" aria-label="Navigation publique">
             {NAV_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="home-hero-link rounded-lg px-3 py-2 text-sm font-medium">
+              <Link key={link.href} href={link.href} className="home-hero-link inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium">
                 {link.label}
+                {link.href === '/tournaments' ? <TournamentsNavBadge data={tournaments} /> : null}
               </Link>
             ))}
           </nav>
@@ -724,8 +735,9 @@ export default function HomeShowcase({
             className="absolute inset-x-4 top-[62px] z-[4] flex flex-col gap-1 rounded-xl bg-slate-950/90 p-2 backdrop-blur lg:hidden"
           >
             {NAV_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="home-hero-link rounded-lg px-3 py-2.5 text-sm font-medium">
+              <Link key={link.href} href={link.href} className="home-hero-link inline-flex items-center rounded-lg px-3 py-2.5 text-sm font-medium">
                 {link.label}
+                {link.href === '/tournaments' ? <TournamentsNavBadge data={tournaments} /> : null}
               </Link>
             ))}
             <a href="#rejoindre" onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-bold text-amber-300">
@@ -777,7 +789,12 @@ export default function HomeShowcase({
             </Link>
           </div>
         </div>
+
+        <HeroTournamentTicket data={tournaments} now={now} />
       </section>
+
+      {/* TOURNOI — bandeau sous le héros, mobile et tablette */}
+      <MobileTournamentBanner data={tournaments} now={now} />
 
       {/* KILL FEED — mobile et tablette */}
       <section className="px-4 pt-4 md:px-8 lg:hidden" aria-label="Kill feed">
@@ -795,6 +812,8 @@ export default function HomeShowcase({
           )}
         </div>
       </section>
+
+      <HomeTournamentsSection data={tournaments} loading={tournamentsLoading} now={now} />
 
       <DinnerSection
         dinners={data?.dinners ?? []}

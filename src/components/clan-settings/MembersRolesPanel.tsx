@@ -4,15 +4,39 @@
 
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { AlertTriangle, ArrowRightLeft, ChevronDown, Loader2, LogOut, Search, Swords, Users, UserX, X } from 'lucide-react'
+import { type ReactNode, useEffect, useMemo, useRef, useState } from 'react'
+import {
+  AlertTriangle,
+  ArrowRightLeft,
+  ChevronDown,
+  Loader2,
+  LogOut,
+  type LucideIcon,
+  Mail,
+  MessageSquare,
+  Search,
+  Swords,
+  Users,
+  UserX,
+  X,
+} from 'lucide-react'
 
 import RoleAssignment from '@/components/RoleAssignment'
-import SegmentedControl from '@/components/ui/SegmentedControl'
-import MembersSettingsTabs from '@/components/clan-settings/MembersSettingsTabs'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { MembersSectionHeader } from '@/components/clan-settings/MembersSettingsTabs'
 import ClanSyncPanel from '@/components/settings/ClanSyncPanel'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import {
+  Callout,
+  ChoiceMenu,
+  EmptyState,
+  ErrorState,
+  IconTile,
+  ListSkeleton,
+  Tag,
+  ToastStack,
+  toneStyle,
+  type Toast,
+  type Tone,
+} from '@/components/ui/CharteKit'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanOverview } from '@/hooks/useClanOverview'
@@ -74,31 +98,6 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function getRoleBadgeClass(roleName: string) {
-  const normalizedRole = roleName.trim().toLowerCase()
-
-  switch (normalizedRole) {
-    case 'owner':
-      return 'member-role-badge member-role-badge--owner'
-    case 'member':
-      return 'member-role-badge member-role-badge--member'
-    default:
-      return 'member-role-badge member-role-badge--default'
-  }
-}
-
-function getRoleBadgeAbbr(roleName: string) {
-  const normalizedRole = roleName.trim().toLowerCase()
-
-  switch (normalizedRole) {
-    case 'owner':
-      return 'O'
-    case 'member':
-      return 'M'
-    default:
-      return roleName.trim().slice(0, 2).toUpperCase()
-  }
-}
 
 function isTechnicalInviteEmail(email: string) {
   return email.trim().toLowerCase().endsWith('@local.invalid')
@@ -175,7 +174,6 @@ export default function MembersRolesPanel() {
   const memberInlineToastTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const [expandedMemberIds, setExpandedMemberIds] = useState<Set<number>>(new Set())
   const [searchQuery, setSearchQuery] = useState('')
-  const [isSearchOpen, setIsSearchOpen] = useState(false)
   const [isPubgDiffModalOpen, setIsPubgDiffModalOpen] = useState(false)
   const [memberToRemove, setMemberToRemove] = useState<ClanMemberWithRole | null>(null)
   const [memberToTransfer, setMemberToTransfer] = useState<ClanMemberWithRole | null>(null)
@@ -726,184 +724,175 @@ export default function MembersRolesPanel() {
   }
 
   function renderMemberAccess(member: ClanMemberWithRole) {
-    if (member.hasAccount) {
-      return (
-        <span className="member-access-badge member-access-badge--active inline-flex h-5 items-center justify-center rounded px-1.5 text-[10px] font-bold leading-none">
-          Actif
-        </span>
-      )
-    }
-
-    return (
-      <span className="member-access-badge member-access-badge--inactive inline-flex h-5 items-center justify-center rounded px-1.5 text-[10px] font-bold leading-none">
-        Aucun accès
-      </span>
-    )
+    return member.hasAccount ? <Tag tone="pos">Accès actif</Tag> : <Tag tone="neutral">Aucun accès</Tag>
   }
 
-  function renderMemberActions(
-    member: ClanMemberWithRole,
-    currentRoleOption: ClanRole | undefined
-  ) {
+  function renderMemberActions(member: ClanMemberWithRole, currentRoleOption: ClanRole | undefined) {
     const isMemberBusy = memberActionLoading?.memberId === member.id
     // Clan technique du shard de ce membre — absent tant qu'aucun joueur sans clan
-    // n'a été parque, auquel cas le bouton de sortie ne s'affiche pas.
+    // n'a été parqué, auquel cas le bouton de sortie ne s'affiche pas.
     const systemClanForMember = availableClans.find(
       (c) => c.isSystem && (!member.platformShard || c.platformShard === member.platformShard)
     )
     const isEmailBusy = isMemberBusy && memberActionLoading?.action === 'email'
     const isDiscordBusy = isMemberBusy && memberActionLoading?.action === 'discord'
     const canResetInvitation = member.recentInvites.length > 0 || Boolean(member.pendingInvite)
-    const hasInvitationHistory = canResetInvitation
-    const canShowInviteControls = isEmailDeliveryReady && (!member.hasAccount || hasInvitationHistory)
+    const canShowInviteControls = isEmailDeliveryReady && (!member.hasAccount || canResetInvitation)
     const latestInvitationEmail = getLatestInvitationEmail(member)
+    const isOwner = member.role.toLowerCase() === 'owner'
 
     return (
-      <div className="flex flex-wrap items-center gap-2">
+      <div className="flex flex-col gap-3">
         {memberInlineToast?.memberId === member.id ? (
-          <div
-            className={`w-full rounded border px-2 py-1 text-xs font-medium ${
-              memberInlineToast.tone === 'success'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-800'
-                : 'border-rose-300 bg-rose-50 text-rose-800'
-            }`}
+          <p
+            className={`t-body m-0 rounded-[10px] px-3 py-2 ${memberInlineToast.tone === 'success' ? 't-pos' : 't-neg'}`}
+            style={toneStyle(memberInlineToast.tone === 'success' ? 'pos' : 'neg')}
             role="status"
             aria-live="polite"
           >
             {memberInlineToast.message}
-          </div>
+          </p>
         ) : null}
 
-        {currentRoleOption ? (
-          <RoleAssignment
-            member={{ id: member.id, name: member.name }}
-            currentRole={currentRoleOption}
-            availableRoles={roles}
-            onAssign={(roleId) => handleAssign(member.id, roleId)}
-            onRevokeOwner={() => handleRevokeOwner(member.id)}
-            isSuperUser={isSuperUser}
-          />
-        ) : (
-          <span className="text-xs text-gray-500">Aucun rôle</span>
-        )}
+        <div className="flex flex-col gap-1.5">
+          <span className="t-label">Rôle</span>
+          {currentRoleOption ? (
+            <RoleAssignment
+              member={{ id: member.id, name: member.name }}
+              currentRole={currentRoleOption}
+              availableRoles={roles}
+              onAssign={(roleId) => handleAssign(member.id, roleId)}
+              onRevokeOwner={() => handleRevokeOwner(member.id)}
+              isSuperUser={isSuperUser}
+            />
+          ) : (
+            <span className="t-meta">Aucun rôle</span>
+          )}
+        </div>
 
         {canShowInviteControls ? (
-          inviteDraftMemberId === member.id ? (
-            <div className="flex flex-wrap items-center gap-2">
-              <input
-                type="email"
-                value={inviteEmailDraft}
-                onChange={(event) => setInviteEmailDraft(event.target.value)}
-                placeholder="email@exemple.com"
-                className="rounded border border-gray-300 px-2 py-1 text-xs"
-                disabled={isMemberBusy}
-              />
-              <button
-                type="button"
-                onClick={() => void handleInvite(member, inviteEmailDraft)}
-                disabled={isMemberBusy}
-                title="Envoie une invitation email avec le lien d activation"
-                className="app-btn app-btn--xs app-btn--primary"
-              >
-                {isEmailBusy ? 'Envoi...' : 'Envoyer'}
-              </button>
-              {canResetInvitation ? (
+          <div className="flex flex-col gap-1.5">
+            <span className="t-label">Invitation au site</span>
+            {inviteDraftMemberId === member.id ? (
+              <div className="flex flex-col gap-2">
+                <input
+                  type="email"
+                  value={inviteEmailDraft}
+                  onChange={(event) => setInviteEmailDraft(event.target.value)}
+                  placeholder="email@exemple.com"
+                  aria-label={`E-mail d’invitation de ${member.name}`}
+                  className="app-input"
+                  disabled={isMemberBusy}
+                />
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={() => void handleInvite(member, inviteEmailDraft)}
+                    disabled={isMemberBusy}
+                    title="Envoie une invitation par e-mail avec le lien d’activation"
+                    className="app-btn app-btn--xs app-btn--primary gap-1"
+                  >
+                    <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                    {isEmailBusy ? 'Envoi…' : 'Envoyer'}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => void handleInviteAndCopyDiscord(member, inviteEmailDraft)}
+                    disabled={isMemberBusy}
+                    title="Génère un nouveau lien et copie un message prêt pour Discord, sans e-mail"
+                    className="app-btn app-btn--xs app-btn--secondary gap-1"
+                  >
+                    <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                    {isDiscordBusy ? 'Génération…' : 'Discord'}
+                  </button>
+                  {canResetInvitation ? (
+                    <button
+                      type="button"
+                      onClick={() => void resetInviteFlow(member)}
+                      disabled={isMemberBusy}
+                      className="app-btn app-btn--xs app-btn--danger"
+                    >
+                      Réinitialiser
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setInviteDraftMemberId(null)
+                      setInviteEmailDraft('')
+                    }}
+                    disabled={isMemberBusy}
+                    className="app-btn app-btn--xs app-btn--secondary"
+                  >
+                    Annuler
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {!member.hasAccount ? (
+                  <button
+                    type="button"
+                    onClick={() => openInviteDraft(member, getDisplayInviteEmail(latestInvitationEmail))}
+                    disabled={isMemberBusy}
+                    title="Saisir ou modifier l’adresse e-mail d’invitation"
+                    className="app-btn app-btn--xs app-btn--primary gap-1"
+                  >
+                    <Mail className="h-3.5 w-3.5" aria-hidden="true" />
+                    Inviter
+                  </button>
+                ) : null}
                 <button
                   type="button"
-                  onClick={() => void resetInviteFlow(member)}
+                  onClick={() => void handleRegenerateAndCopyDiscord(member)}
                   disabled={isMemberBusy}
-                  className="app-btn app-btn--xs app-btn--danger"
+                  title="Copie un message prêt pour Discord dans le presse-papiers"
+                  className="app-btn app-btn--xs app-btn--secondary gap-1"
                 >
-                  Reinitialiser invitation
+                  <MessageSquare className="h-3.5 w-3.5" aria-hidden="true" />
+                  Discord
                 </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => {
-                  setInviteDraftMemberId(null)
-                  setInviteEmailDraft('')
-                }}
-                disabled={isMemberBusy}
-                className="app-btn app-btn--xs app-btn--secondary"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleInviteAndCopyDiscord(member, inviteEmailDraft)}
-                disabled={isMemberBusy}
-                title="Genere un nouveau token et copie un message pret pour Discord (sans envoi email)"
-                className="app-btn app-btn--xs app-btn--secondary"
-              >
-                {isDiscordBusy ? 'Generation...' : 'Discord'}
-              </button>
-            </div>
-          ) : (
-            <>
-              {!member.hasAccount ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    openInviteDraft(member, getDisplayInviteEmail(latestInvitationEmail))
-                  }}
-                  disabled={isMemberBusy}
-                  title="Ouvre le formulaire pour saisir ou modifier l adresse email d invitation"
-                  className="app-btn app-btn--xs app-btn--primary"
-                >
-                  Inviter
-                </button>
-              ) : null}
-              <button
-                type="button"
-                onClick={() => void handleRegenerateAndCopyDiscord(member)}
-                disabled={isMemberBusy}
-                title="Genere un message Discord pret a copier dans le presse-papiers"
-                className="app-btn app-btn--xs app-btn--secondary"
-              >
-                Discord
-              </button>
-              {canResetInvitation ? (
-                <button
-                  type="button"
-                  onClick={() => void resetInviteFlow(member)}
-                  disabled={isMemberBusy}
-                  className="app-btn app-btn--xs app-btn--danger"
-                >
-                  Reinit invitation
-                </button>
-              ) : null}
-            </>
-          )
+                {canResetInvitation ? (
+                  <button
+                    type="button"
+                    onClick={() => void resetInviteFlow(member)}
+                    disabled={isMemberBusy}
+                    className="app-btn app-btn--xs app-btn--danger"
+                  >
+                    Réinitialiser l’invitation
+                  </button>
+                ) : null}
+              </div>
+            )}
+          </div>
         ) : null}
 
         {member.recentInvites.length > 0 ? (
-          <div className="w-full rounded border border-gray-200 bg-white p-2 text-xs text-gray-600 dark:border-slate-800 dark:bg-slate-800/80 dark:text-slate-300">
-            <p className="font-semibold text-gray-700 dark:text-slate-200">5 dernieres invitations</p>
-            <div className="mt-1 space-y-1">
+          <div className="app-panel-muted flex flex-col gap-1 px-3 py-2">
+            <span className="t-label">Dernières invitations</span>
+            <ul className="m-0 flex list-none flex-col gap-0.5 p-0">
               {member.recentInvites.slice(0, 5).map((invite) => {
-                const status = invite.acceptedAt
-                  ? 'Acceptee'
+                const [label, tone]: [string, Tone] = invite.acceptedAt
+                  ? ['Acceptée', 'pos']
                   : invite.revokedAt
-                    ? 'Revoquee'
+                    ? ['Révoquée', 'neutral']
                     : new Date(invite.expiresAt) < new Date()
-                      ? 'Expiree'
-                      : 'En attente'
-
+                      ? ['Expirée', 'warn']
+                      : ['En attente', 'sky']
                 return (
-                  <p key={invite.id}>
-                    {new Date(invite.createdAt).toLocaleDateString()} - {invite.email || 'Invitation Discord'} - {status}
-                  </p>
+                  <li key={invite.id} className="t-meta flex flex-wrap items-center gap-1.5">
+                    <Tag tone={tone}>{label}</Tag>
+                    {new Date(invite.createdAt).toLocaleDateString('fr-FR')} · {invite.email || 'Invitation Discord'}
+                  </li>
                 )
               })}
-            </div>
+            </ul>
           </div>
         ) : null}
 
-        <div className="mt-3 flex w-full flex-wrap items-center justify-between gap-2 border-t border-slate-100 pt-3 dark:border-slate-800">
-          <span className="text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-            Gestion du membre
-          </span>
-          <div className="flex flex-wrap items-center gap-2">
+        <div className="flex flex-col gap-1.5 border-t border-gray-200 pt-3">
+          <span className="t-label">Gestion du membre</span>
+          <div className="flex flex-wrap gap-2">
             {isSuperUser ? (
               <button
                 type="button"
@@ -914,65 +903,50 @@ export default function MembersRolesPanel() {
                   setSelectedTargetClanId(compatible[0]?.id ?? null)
                   setMemberToTransfer(member)
                 }}
-                disabled={isMemberBusy || member.role.toLowerCase() === 'owner'}
+                disabled={isMemberBusy || isOwner}
                 title={
-                  member.role.toLowerCase() === 'owner'
-                    ? 'Le propriétaire (Owner) ne peut pas être transféré directement. Réassignez d’abord son rôle.'
+                  isOwner
+                    ? 'Un Owner ne peut pas être transféré : changez d’abord son rôle.'
                     : 'Transférer ce joueur vers un autre clan compatible'
                 }
-                className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                  member.role.toLowerCase() === 'owner'
-                    ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-                    : 'border border-blue-200 bg-blue-50 text-blue-700 hover:bg-blue-100 active:scale-95 dark:border-blue-800/60 dark:bg-blue-950/40 dark:text-blue-300 dark:hover:bg-blue-900/50'
-                }`}
+                className="app-btn app-btn--xs app-btn--secondary gap-1"
               >
                 <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Changer de clan</span>
+                Changer de clan
               </button>
             ) : null}
-
-            {/* Chantier 3 : seule action de sortie ouverte a un Owner. Le joueur reste
-                suivi, son historique reste consultable, et la bascule est tracee. */}
+            {/* Seule action de sortie ouverte à un Owner : le joueur reste suivi, la bascule est tracée. */}
             {systemClanForMember ? (
               <button
                 type="button"
                 onClick={() => setMemberToDemote(member)}
-                disabled={isMemberBusy || member.role.toLowerCase() === 'owner'}
+                disabled={isMemberBusy || isOwner}
                 title={
-                  member.role.toLowerCase() === 'owner'
-                    ? 'Le propriétaire (Owner) ne peut pas être basculé. Réassignez d’abord son rôle.'
+                  isOwner
+                    ? 'Un Owner ne peut pas sortir du clan : changez d’abord son rôle.'
                     : `Sortir ce joueur du clan sans arrêter son suivi — il rejoint [${systemClanForMember.tag}] ${systemClanForMember.name}`
                 }
-                className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                  member.role.toLowerCase() === 'owner'
-                    ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-                    : 'border border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100 active:scale-95 dark:border-amber-800/60 dark:bg-amber-950/40 dark:text-amber-300 dark:hover:bg-amber-900/50'
-                }`}
+                className="app-btn app-btn--xs app-btn--secondary gap-1"
               >
-                <LogOut className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Sortir du clan</span>
+                <LogOut className="h-3.5 w-3.5" style={{ color: 'var(--game-warn)' }} aria-hidden="true" />
+                Sortir du clan
               </button>
             ) : null}
-
-            {/* Chantier 3 : l'arret de suivi coupe la synchronisation PUBG — SuperUser only. */}
+            {/* L'arrêt de suivi coupe la synchronisation PUBG : SuperUser seulement. */}
             {isSuperUser ? (
               <button
                 type="button"
                 onClick={() => setMemberToRemove(member)}
-                disabled={isMemberBusy || member.role.toLowerCase() === 'owner'}
+                disabled={isMemberBusy || isOwner}
                 title={
-                  member.role.toLowerCase() === 'owner'
-                    ? 'Le propriétaire (Owner) ne peut pas être retiré sans réassigner son rôle d’abord.'
-                    : 'Arrêter le suivi de ce joueur — la synchronisation PUBG s’arrête'
+                  isOwner
+                    ? 'Un Owner ne peut pas être retiré : changez d’abord son rôle.'
+                    : 'Arrêter le suivi de ce joueur : la synchronisation PUBG s’arrête'
                 }
-                className={`inline-flex items-center gap-1.5 rounded-xl px-2.5 py-1.5 text-xs font-semibold transition-all ${
-                  member.role.toLowerCase() === 'owner'
-                    ? 'cursor-not-allowed bg-slate-100 text-slate-400 dark:bg-slate-800 dark:text-slate-600'
-                    : 'border border-rose-200 bg-rose-50 text-rose-700 hover:bg-rose-100 active:scale-95 dark:border-rose-800/60 dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-900/50'
-                }`}
+                className="app-btn app-btn--xs app-btn--danger gap-1"
               >
                 <UserX className="h-3.5 w-3.5" aria-hidden="true" />
-                <span>Arrêter le suivi</span>
+                Arrêter le suivi
               </button>
             ) : null}
           </div>
@@ -981,860 +955,506 @@ export default function MembersRolesPanel() {
     )
   }
 
-  function renderToolbarContent() {
-    return (
-      <>
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex flex-wrap items-center gap-2.5">
-            <p className="text-xs font-semibold uppercase tracking-[0.18em] text-slate-500 dark:text-slate-400">
-              {searchQuery.trim()
-                ? `${sortedMembers.length} / ${members.length} membre${members.length > 1 ? 's' : ''}`
-                : `${members.length} membre${members.length > 1 ? 's' : ''} du clan`}
-            </p>
-            {overviewData?.clanStats?.pubg?.memberCount !== null && overviewData?.clanStats?.pubg?.memberCount !== undefined ? (
-              <button
-                type="button"
-                onClick={() => setIsPubgDiffModalOpen(true)}
-                title="Cliquer pour afficher la comparaison avec le clan officiel PUBG"
-                className="inline-flex items-center gap-1 rounded-full border border-amber-500/30 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-600 transition hover:bg-amber-500/20 dark:border-amber-500/40 dark:bg-amber-500/15 dark:text-amber-300"
-              >
-                <span>{overviewData.clanStats.pubg.memberCount} dans PUBG</span>
-              </button>
-            ) : null}
-            {sortedMembers.length > 0 ? (
-              <button
-                type="button"
-                onClick={() => {
-                  if (expandedMemberIds.size === sortedMembers.length) {
-                    setExpandedMemberIds(new Set())
-                  } else {
-                    setExpandedMemberIds(new Set(sortedMembers.map((m) => m.id)))
-                  }
-                }}
-                className="rounded-full bg-slate-100 px-2.5 py-0.5 text-xs font-medium text-slate-600 transition-colors hover:bg-slate-200 hover:text-slate-900 dark:bg-slate-800 dark:text-slate-300 dark:hover:bg-slate-700 dark:hover:text-white"
-              >
-                {expandedMemberIds.size === sortedMembers.length ? 'Tout replier' : 'Tout déplier'}
-              </button>
-            ) : null}
-          </div>
-
-          {/* Légende des badges */}
-          <div className="flex flex-wrap items-center gap-3 text-xs">
-            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">Rôles :</span>
-            <div className="flex items-center gap-1.5" title="Owner (Chef de clan)">
-              <span className="member-role-badge member-role-badge--owner inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1 text-[10px] font-black">
-                O
-              </span>
-              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Owner</span>
-            </div>
-            <div className="flex items-center gap-1.5" title="Membre">
-              <span className="member-role-badge member-role-badge--member inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1 text-[10px] font-black">
-                M
-              </span>
-              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">Membre</span>
-            </div>
-            <div className="flex items-center gap-1.5" title="SuperUser (Plateforme)">
-              <span className="inline-flex h-5 items-center justify-center rounded bg-violet-500 px-1 text-[10px] font-bold text-white shadow-sm">
-                ★ S
-              </span>
-              <span className="text-[11px] font-medium text-slate-600 dark:text-slate-300">SuperUser</span>
-            </div>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {overviewData?.clan?.pubgClanId ? (
-              <button
-                type="button"
-                onClick={() => setIsPubgDiffModalOpen(true)}
-                title="Comparer les membres du site avec l'API officielle PUBG"
-                className="inline-flex items-center gap-1.5 rounded-2xl border border-slate-200 bg-slate-100 px-3 py-1.5 text-xs font-semibold text-slate-700 transition-all hover:bg-slate-200 hover:text-slate-900 dark:border-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700 dark:hover:text-white"
-              >
-                <ArrowRightLeft className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" aria-hidden="true" />
-                <span>Comparer PUBG</span>
-              </button>
-            ) : null}
-
-            <button
-              type="button"
-              onClick={() => {
-                setIsSearchOpen((prev) => !prev)
-                if (isSearchOpen && searchQuery) {
-                  setSearchQuery('')
-                }
-              }}
-              aria-expanded={isSearchOpen}
-              title={isSearchOpen ? 'Fermer la recherche' : 'Rechercher un membre'}
-              className={`inline-flex items-center gap-1.5 rounded-2xl px-3 py-1.5 text-xs font-semibold transition-all ${
-                isSearchOpen || searchQuery
-                  ? 'bg-blue-600 text-white shadow-sm'
-                  : 'bg-slate-100 text-slate-700 hover:bg-slate-200 dark:bg-slate-800 dark:text-slate-200 dark:hover:bg-slate-700'
-              }`}
-            >
-              <Search className="h-3.5 w-3.5" aria-hidden="true" />
-              <span>Rechercher</span>
-            </button>
-
-            <div className="flex items-center gap-1.5">
-              <SegmentedControl
-                options={[
-                  { value: 'date', label: 'Date' },
-                  { value: 'name', label: 'Nom' },
-                ]}
-                value={sortCriteria}
-                onChange={(val) => setSortCriteria(val as SortCriteria)}
-              />
-              <SegmentedControl
-                options={[
-                  { value: 'az', label: 'A-Z' },
-                  { value: 'za', label: 'Z-A' },
-                ]}
-                value={sortDirection}
-                onChange={(val) => setSortDirection(val as SortDirection)}
-              />
-            </div>
-          </div>
-        </div>
-
-        {/* Barre de recherche déroulante */}
-        {isSearchOpen ? (
-          <div className="flex items-center gap-3 border-t border-slate-200/80 pt-3 dark:border-slate-800 animate-in fade-in duration-150">
-            <div className="relative flex-1">
-              <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400 dark:text-slate-500" aria-hidden="true" />
-              <input
-                type="text"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                placeholder="Filtrer par nom de membre..."
-                autoFocus
-                className="w-full rounded-2xl border border-slate-200 bg-white py-2 pl-10 pr-10 text-xs sm:text-sm text-slate-900 placeholder:text-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white dark:placeholder:text-slate-500"
-              />
-              {searchQuery ? (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  className="absolute right-3 top-1/2 -translate-y-1/2 rounded-full p-1 text-slate-400 hover:text-slate-600 dark:text-slate-500 dark:hover:text-slate-300 transition-colors"
-                  title="Effacer la recherche"
-                >
-                  <X className="h-3.5 w-3.5" aria-hidden="true" />
-                </button>
-              ) : null}
-            </div>
-            {searchQuery.trim() ? (
-              <span className="text-xs font-semibold text-slate-500 dark:text-slate-400 whitespace-nowrap">
-                {sortedMembers.length} résultat{sortedMembers.length > 1 ? 's' : ''}
-              </span>
-            ) : null}
-          </div>
-        ) : null}
-      </>
-    )
-  }
+  const pubgMemberCount = overviewData?.clanStats?.pubg?.memberCount ?? null
+  const toasts: Toast[] = [
+    ...(copyToast ? [{ id: 1, text: copyToast.message, tone: copyToast.tone }] : []),
+    ...(inviteToast ? [{ id: 2, text: inviteToast.message, tone: inviteToast.tone }] : []),
+  ]
 
   return (
-    <div className="flex-1 w-full pb-10">
-      <div className="mx-auto w-full max-w-6xl px-4 pt-6 sm:pt-8">
-        <NavigationTrail
-          currentLabel="Joueurs et rôles"
-          currentHref={`/clans/${clanId}/settings/members`}
-          fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres', altHref: '/clans' }}
-        />
-        <header
-          className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-          style={{ backgroundImage: `url('/banner-members.jpg')`, backgroundPosition: 'center 35%' }}
-        >
-          <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-          <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <div className="flex items-center gap-1.5 sm:gap-2">
-                  <Users className="h-4 w-4 text-blue-400 sm:h-6 sm:w-6" aria-hidden="true" />
-                  <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
-                    Membres et rôles
-                  </h1>
-                </div>
-                <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-                  Cartes premium pour les membres du clan, leurs rôles et leurs invitations.
-                </p>
-              </div>
-            </div>
-          </div>
-        </header>
-
-        {clanId ? <MembersSettingsTabs clanId={clanId} active="membres" /> : null}
-
-        {copyToast ? (
-          <div
-            className={`fixed bottom-4 right-4 z-50 rounded-lg border px-4 py-3 text-sm font-semibold shadow-lg ${
-              copyToast.tone === 'success'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                : 'border-rose-300 bg-rose-50 text-rose-900'
-            }`}
-            role="status"
-            aria-live="polite"
-          >
-            {copyToast.message}
-          </div>
-        ) : null}
-        {inviteToast ? (
-          <div
-            className={`fixed bottom-4 left-4 z-50 rounded-lg border px-4 py-3 text-sm font-semibold shadow-lg ${
-              inviteToast.tone === 'success'
-                ? 'border-emerald-300 bg-emerald-50 text-emerald-900'
-                : 'border-rose-300 bg-rose-50 text-rose-900'
-            }`}
-            role="status"
-            aria-live="polite"
-          >
-            {inviteToast.message}
-          </div>
+    // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
+      <div className="app-container app-gutter flex flex-col gap-4">
+        {clanId ? (
+          <MembersSectionHeader
+            clanId={clanId}
+            active="membres"
+            title="Membres et invitations"
+            subtitle="Joueurs suivis du clan, leur rôle, leur accès au site et leurs invitations."
+            icon={Users}
+            pills={[
+              <>
+                <span className="t-num">{members.length}</span> membre{members.length > 1 ? 's' : ''}
+              </>,
+              ...(pubgMemberCount !== null ? [<><span className="t-num">{pubgMemberCount}</span> dans le clan PUBG</>] : []),
+            ]}
+          />
         ) : null}
 
-        {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
+        {loading ? <ListSkeleton rows={4} /> : null}
+        {error ? (
+          <section className="app-panel">
+            <ErrorState message={error} />
+          </section>
+        ) : null}
         {!loading && emailStatusLoaded && !isEmailDeliveryReady ? (
-          <div className="mb-4 rounded border border-amber-200 bg-amber-50 px-3 py-2 text-xs text-amber-800">
+          <Callout tone="warn" icon={Mail} title="Invitations par e-mail désactivées">
             {isSuperUser ? (
               <>
-                Invitations email désactivées. Effectuez d&apos;abord un test réussi dans{' '}
-                <Link href="/settings/email-delivery" className="font-semibold underline">
-                  Configuration email
+                Réussissez d’abord un envoi de test dans{' '}
+                <Link href="/settings/email-delivery" className="app-link font-semibold">
+                  l’e-mail d’envoi
                 </Link>
-                .
+                . Les invitations par Discord restent possibles.
               </>
             ) : (
-              <>Invitations email désactivées : l&apos;envoi d&apos;emails n&apos;est pas encore configuré sur le site.</>
+              <>L’envoi d’e-mails n’est pas encore configuré sur le site. Les invitations par Discord restent possibles.</>
             )}
-          </div>
+          </Callout>
         ) : null}
       </div>
 
       {!loading && !error ? (
         <>
-          {/* Bandeau d'outils adaptatif (Composant réutilisable DockingToolbar) */}
-          {/* Administration : garde la variante `card` (docs/TODO/sticky.md §4.A). */}
-          <DockingToolbar variant="card" ariaLabel="Outils de gestion des membres">
-            {renderToolbarContent()}
+          <DockingToolbar ariaLabel="Outils de gestion des membres">
+            <div className="flex items-center gap-2">
+              <label className="relative min-w-0 flex-1">
+                <span className="sr-only">Filtrer par nom de membre</span>
+                <Search
+                  className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500"
+                  aria-hidden="true"
+                />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(event) => setSearchQuery(event.target.value)}
+                  placeholder="Filtrer par nom…"
+                  className="app-input pl-9"
+                />
+              </label>
+              {/* Un seul menu de tri : le bandeau tient sur une ligne, aussi sur mobile (charte). */}
+              <div className="w-40 shrink-0 sm:w-48">
+                <ChoiceMenu
+                  label="Tri des membres"
+                  value={`${sortCriteria}-${sortDirection}`}
+                  onChange={(value) => {
+                    const [criteria, direction] = value.split('-') as [SortCriteria, SortDirection]
+                    setSortCriteria(criteria)
+                    setSortDirection(direction)
+                  }}
+                  options={[
+                    { value: 'date-az', label: 'Dernier match, récent' },
+                    { value: 'date-za', label: 'Dernier match, ancien' },
+                    { value: 'name-az', label: 'Nom, A → Z' },
+                    { value: 'name-za', label: 'Nom, Z → A' },
+                  ]}
+                />
+              </div>
+            </div>
           </DockingToolbar>
 
-          <div className="mx-auto w-full max-w-6xl px-4 pt-4 space-y-4">
-          <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {sortedMembers.map((member) => {
-              const currentRole =
-                member.roles.find((role) => role.name === member.role) ?? member.roles[0]
-              const currentRoleOption =
-                roles.find((role) => role.id === currentRole?.roleId) ??
-                roles.find((role) => role.name.toLowerCase() === member.role.toLowerCase()) ??
-                roles.find((role) => role.name === 'Member') ??
-                roles[0]
-              const isExpanded =
-                expandedMemberIds.has(member.id) ||
-                inviteDraftMemberId === member.id ||
-                memberActionLoading?.memberId === member.id
-
-              return (
-                <article
-                  key={member.id}
-                  className="flex flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm transition-all duration-200 dark:border-slate-800 dark:bg-slate-900 dark:shadow-[0_18px_50px_-30px_rgba(15,23,42,0.55)]"
-                >
-                  <div
-                    onClick={() => toggleMemberExpanded(member.id)}
-                    className="group flex flex-1 flex-col justify-center cursor-pointer border-b border-slate-200/80 bg-gradient-to-r from-slate-50 via-slate-100/70 to-slate-50 px-5 py-4 text-slate-900 select-none transition-colors hover:from-slate-100 hover:to-slate-100 dark:border-b-0 dark:from-slate-950 dark:via-slate-800 dark:to-slate-700 dark:text-white dark:hover:from-slate-900 dark:hover:to-slate-600"
-                    role="button"
-                    tabIndex={0}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter' || e.key === ' ') {
-                        e.preventDefault()
-                        toggleMemberExpanded(member.id)
-                      }
-                    }}
-                    aria-expanded={isExpanded}
-                    aria-label={`Gestion du membre ${member.name}`}
+          <div className="app-container app-gutter flex flex-col gap-3">
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="t-meta">
+                {searchQuery.trim()
+                  ? `${sortedMembers.length} / ${members.length} membre${members.length > 1 ? 's' : ''}`
+                  : `${members.length} membre${members.length > 1 ? 's' : ''} du clan`}
+              </span>
+              <span className="flex flex-wrap items-center gap-3">
+                {overviewData?.clan?.pubgClanId ? (
+                  <button
+                    type="button"
+                    onClick={() => setIsPubgDiffModalOpen(true)}
+                    title="Comparer les membres du site avec le clan officiel PUBG"
+                    className="app-link inline-flex items-center gap-1 text-xs font-semibold"
                   >
-                    <div className="flex items-center gap-3 sm:gap-4">
+                    <ArrowRightLeft className="h-3.5 w-3.5" aria-hidden="true" />
+                    Comparer avec PUBG
+                  </button>
+                ) : null}
+                {sortedMembers.length > 0 ? (
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setExpandedMemberIds(
+                        expandedMemberIds.size === sortedMembers.length ? new Set() : new Set(sortedMembers.map((m) => m.id))
+                      )
+                    }
+                    className="app-link text-xs font-semibold"
+                  >
+                    {expandedMemberIds.size === sortedMembers.length ? 'Tout replier' : 'Tout déplier'}
+                  </button>
+                ) : null}
+              </span>
+            </div>
+
+            <div className="grid items-start gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {sortedMembers.map((member) => {
+                const currentRole = member.roles.find((role) => role.name === member.role) ?? member.roles[0]
+                const currentRoleOption =
+                  roles.find((role) => role.id === currentRole?.roleId) ??
+                  roles.find((role) => role.name.toLowerCase() === member.role.toLowerCase()) ??
+                  roles.find((role) => role.name === 'Member') ??
+                  roles[0]
+                const isExpanded =
+                  expandedMemberIds.has(member.id) ||
+                  inviteDraftMemberId === member.id ||
+                  memberActionLoading?.memberId === member.id
+                const roleName = member.role.trim().toLowerCase()
+
+                return (
+                  <article key={member.id} className="app-panel flex flex-col overflow-hidden">
+                    <div className="flex items-start gap-3 p-3.5">
                       <Link
                         href={`/members/${member.id}/dashboard`}
-                        onClick={(e) => e.stopPropagation()}
-                        className="app-avatar flex h-14 w-14 shrink-0 overflow-hidden rounded-2xl border border-slate-300/80 bg-slate-200/90 text-slate-800 shadow-sm transition-transform hover:scale-105 dark:border-slate-700/80 dark:bg-slate-800 dark:text-slate-100"
+                        className="app-avatar flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[10px] bg-gray-100 text-gray-700"
                         title={`Voir le profil de ${member.name}`}
                       >
                         {member.avatarUrl ? (
                           <img
                             src={member.avatarUrl}
-                            alt={member.name + ' avatar'}
+                            alt=""
                             className="h-full w-full object-cover"
-                            onError={(e) => {
-                              ;(e.currentTarget as HTMLImageElement).style.display = 'none'
+                            onError={(event) => {
+                              ;(event.currentTarget as HTMLImageElement).style.display = 'none'
                             }}
                           />
                         ) : (
-                          <span className="text-base font-black tracking-wide text-current">
-                            {getAvatarInitials(member.name)}
-                          </span>
+                          <span className="text-sm font-black">{getAvatarInitials(member.name)}</span>
                         )}
                       </Link>
-
-                      <div className="min-w-0 flex-1 flex flex-col justify-center space-y-1">
-                        {/* Ligne 1 : nom player */}
-                        <div className="min-w-0">
-                          <Link
-                            href={`/members/${member.id}/dashboard`}
-                            onClick={(e) => e.stopPropagation()}
-                            className="truncate text-base sm:text-lg font-bold text-slate-900 transition-colors hover:text-blue-600 hover:underline dark:text-white dark:hover:text-blue-300 block"
-                            title={`Voir le profil de ${member.name}`}
-                          >
-                            {member.name}
-                          </Link>
-                        </div>
-
-                        {/* Ligne 2 : dernier match avec icone et sa valeur */}
-                        <div
-                          className="flex items-center gap-1.5 text-xs text-slate-600 dark:text-slate-300"
-                          title={
-                            member.lastMatchAt
-                              ? `Dernier match : ${new Date(member.lastMatchAt).toLocaleString()} (${formatDaysAgo(member.lastMatchAt)}) • Membre depuis le ${new Date(member.joinedAt).toLocaleDateString()}`
-                              : `Aucun match enregistré • Membre depuis le ${new Date(member.joinedAt).toLocaleDateString()}`
-                          }
+                      <div className="flex min-w-0 flex-1 flex-col gap-1">
+                        <Link
+                          href={`/members/${member.id}/dashboard`}
+                          className="t-card-title truncate hover:underline"
+                          title={`Voir le profil de ${member.name}`}
                         >
-                          <Swords className="h-3.5 w-3.5 shrink-0 text-amber-500 dark:text-amber-400" aria-hidden="true" />
-                          <span className="text-slate-500 dark:text-slate-400 text-[11px] font-medium">Dernier match :</span>
-                          <span className="font-semibold text-slate-700 dark:text-slate-200 text-xs">
-                            {formatDaysAgo(member.lastMatchAt)}
-                          </span>
-                        </div>
-
-                        {/* Ligne 3 : ensuite le role, status et le chevron */}
-                        <div className="flex items-center justify-between gap-2 pt-0.5">
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <span
-                              title={`Rôle : ${member.role}`}
-                              className={`inline-flex h-5 min-w-[1.25rem] items-center justify-center rounded px-1.5 text-[10px] font-black tracking-wide ${getRoleBadgeClass(member.role)}`}
-                            >
-                              {getRoleBadgeAbbr(member.role)}
-                            </span>
-
-                            {member.isSuperUser ? (
-                              <span
-                                title="SuperUser (Plateforme)"
-                                className="inline-flex h-5 items-center justify-center gap-0.5 rounded bg-violet-500 px-1.5 text-[10px] font-bold text-white shadow-sm"
-                              >
-                                ★ S
-                              </span>
-                            ) : null}
-
-                            {renderMemberAccess(member)}
-                          </div>
-
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation()
-                              toggleMemberExpanded(member.id)
-                            }}
-                            aria-expanded={isExpanded}
-                            aria-label={
-                              isExpanded
-                                ? `Replier la gestion de ${member.name}`
-                                : `Déployer la gestion de ${member.name}`
-                            }
-                            title={isExpanded ? 'Replier la gestion' : 'Déployer la gestion'}
-                            className="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-lg bg-slate-200/80 text-slate-700 transition-all hover:bg-slate-300 hover:text-slate-900 focus:outline-none focus:ring-2 focus:ring-blue-400 dark:bg-white/10 dark:text-slate-200 dark:hover:bg-white/25 dark:hover:text-white"
+                          {member.name}
+                        </Link>
+                        <span
+                          className="t-meta flex items-center gap-1.5"
+                          title={`Membre depuis le ${new Date(member.joinedAt).toLocaleDateString('fr-FR')}`}
+                        >
+                          <Swords className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--game-gold)' }} aria-hidden="true" />
+                          Dernier match : {formatDaysAgo(member.lastMatchAt)}
+                        </span>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          <span
+                            className={`member-role-badge ${roleName === 'owner' ? 'member-role-badge--owner' : roleName === 'member' ? 'member-role-badge--member' : 'member-role-badge--default'}`}
                           >
-                            <ChevronDown
-                              className={`h-3.5 w-3.5 transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
-                              aria-hidden="true"
-                            />
-                          </button>
-                        </div>
+                            {roleName === 'owner' ? 'Owner' : roleName === 'member' ? 'Membre' : member.role}
+                          </span>
+                          {member.isSuperUser ? (
+                            <span className="member-role-badge member-role-badge--superuser">SuperUser</span>
+                          ) : null}
+                          {renderMemberAccess(member)}
+                        </span>
                       </div>
+                      <button
+                        type="button"
+                        onClick={() => toggleMemberExpanded(member.id)}
+                        aria-expanded={isExpanded}
+                        aria-label={isExpanded ? `Replier la gestion de ${member.name}` : `Gérer ${member.name}`}
+                        className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                      >
+                        <ChevronDown
+                          className={`h-4 w-4 transition-transform duration-150 ${isExpanded ? 'rotate-180' : ''}`}
+                          aria-hidden="true"
+                        />
+                      </button>
                     </div>
-                  </div>
+                    {isExpanded ? (
+                      <div className="border-t border-gray-200 p-3.5">{renderMemberActions(member, currentRoleOption)}</div>
+                    ) : null}
+                  </article>
+                )
+              })}
+            </div>
 
-                  {isExpanded ? (
-                    <div className="border-t border-slate-200 bg-white p-5 transition-all dark:border-slate-800 dark:bg-slate-900/90">
-                      {renderMemberActions(member, currentRoleOption)}
-                    </div>
-                  ) : null}
-                </article>
+            {!sortedMembers.length ? (
+              searchQuery.trim() ? (
+                <EmptyState
+                  icon={Search}
+                  title={`Aucun membre ne correspond à « ${searchQuery.trim()} »`}
+                  text={
+                    <button type="button" onClick={() => setSearchQuery('')} className="app-link font-semibold">
+                      Effacer le filtre
+                    </button>
+                  }
+                />
+              ) : (
+                <EmptyState icon={Users} title="Aucun membre dans ce clan" />
               )
-            })}
+            ) : null}
           </div>
+        </>
+      ) : null}
 
-          {!sortedMembers.length ? (
-            <div className="rounded-3xl border border-slate-200 bg-white px-5 py-8 text-center text-sm text-slate-600 shadow-sm">
-              {searchQuery.trim() ? (
-                <div className="flex flex-col items-center gap-2">
-                  <p className="font-semibold text-slate-800">
-                    Aucun membre ne correspond à « {searchQuery.trim()} »
-                  </p>
+      <ToastStack
+        toasts={toasts}
+        onDismiss={(id) => (id === 1 ? setCopyToast(null) : setInviteToast(null))}
+      />
+
+      {memberToRemove ? (
+        <PanelModal
+          id="remove-member-title"
+          icon={UserX}
+          tone="neg"
+          title={`Arrêter le suivi de ${memberToRemove.name} ?`}
+          subtitle="Retrait du joueur de l’effectif actif du clan"
+          busy={actionSubmitting}
+          onClose={() => setMemberToRemove(null)}
+          footer={
+            <button
+              type="button"
+              onClick={() => void handleConfirmRemoveMember()}
+              disabled={actionSubmitting}
+              className="app-btn app-btn--md app-btn--danger gap-2"
+            >
+              {actionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <UserX className="h-4 w-4" aria-hidden="true" />}
+              Arrêter le suivi
+            </button>
+          }
+        >
+          <dl className="app-panel-muted m-0 grid grid-cols-[auto_1fr] gap-x-4 gap-y-1.5 px-3.5 py-3 text-[13px]">
+            <dt className="text-gray-500">Joueur</dt>
+            <dd className="m-0 font-mono font-bold text-gray-900">{memberToRemove.name}</dd>
+            <dt className="text-gray-500">Rôle</dt>
+            <dd className="m-0 font-semibold text-gray-900">{memberToRemove.role}</dd>
+            <dt className="text-gray-500">Plateforme</dt>
+            <dd className="m-0 font-semibold uppercase text-gray-900">{memberToRemove.platformShard || 'steam'}</dd>
+          </dl>
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            <ConsequenceItem tone="pos" title="Parties passées et télémétrie conservées">
+              Les parties, éliminations et statistiques restent enregistrées : l’historique du clan n’est pas effacé.
+            </ConsequenceItem>
+            <ConsequenceItem tone="warn" title="Effectif et classements recalculés">
+              Le joueur sort de l’effectif actif et des classements ; les totaux du clan sont recalculés sans lui.
+            </ConsequenceItem>
+            <ConsequenceItem tone="neg" title="Collecte PUBG arrêtée">
+              Ses prochaines parties ne sont plus importées pour ce clan, et ses accès au clan sont révoqués.
+            </ConsequenceItem>
+          </ul>
+          <Callout tone="warn" icon={AlertTriangle} title="Irréversible sans nouvelle demande">
+            Pour réintégrer ce joueur, une nouvelle invitation ou demande d’adhésion sera nécessaire.
+          </Callout>
+        </PanelModal>
+      ) : null}
+
+      {memberToDemote
+        ? (() => {
+            const systemClan = availableClans.find(
+              (c) => c.isSystem && (!memberToDemote.platformShard || c.platformShard === memberToDemote.platformShard)
+            )
+            return (
+              <PanelModal
+                id="demote-member-title"
+                icon={LogOut}
+                tone="warn"
+                title={`Sortir ${memberToDemote.name} du clan ?`}
+                subtitle="Le joueur reste suivi : il rejoint le clan technique"
+                busy={actionSubmitting}
+                onClose={() => setMemberToDemote(null)}
+                footer={
                   <button
                     type="button"
-                    onClick={() => setSearchQuery('')}
-                    className="text-xs font-medium text-blue-600 hover:underline cursor-pointer"
+                    onClick={() => void handleConfirmDemoteMember()}
+                    disabled={actionSubmitting || !systemClan}
+                    className="app-btn app-btn--md app-btn--primary gap-2"
                   >
-                    Effacer le filtre de recherche
+                    {actionSubmitting ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <LogOut className="h-4 w-4" aria-hidden="true" />}
+                    Sortir du clan
                   </button>
-                </div>
-              ) : (
-                'Aucun membre dans ce clan.'
-              )}
-            </div>
-          ) : null}
-        </div>
-      </>
-    ) : null}
-
-      {/* Modal Arrêter le suivi */}
-      {memberToRemove ? (
-        <div
-          className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="remove-member-title"
-        >
-          <div className="app-modal-card w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
-            {/* En-tête de la modale */}
-            <div className="flex items-start justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-rose-500/10 text-rose-500 border border-rose-500/20">
-                  <UserX className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 id="remove-member-title" className="text-lg font-black text-slate-900 dark:text-white">
-                    Arrêter le suivi de {memberToRemove.name} ?
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Retrait du joueur de l&apos;effectif actif du clan
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setMemberToRemove(null)}
-                disabled={actionSubmitting}
-                className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                aria-label="Fermer la fenêtre"
+                }
               >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Fiche récapitulative des données du joueur */}
-            <div className="app-modal-inner-card mt-5 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs dark:border-slate-800/80 dark:bg-slate-800/50">
-              <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5 dark:border-slate-700/60">
-                <span className="text-slate-500 dark:text-slate-400">Joueur concerné :</span>
-                <span className="font-mono text-sm font-bold text-slate-900 dark:text-white">
-                  {memberToRemove.name}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5 dark:border-slate-700/60">
-                <span className="text-slate-500 dark:text-slate-400">Rôle actuel :</span>
-                <span className="font-semibold text-slate-800 dark:text-slate-200">
-                  {memberToRemove.role}
-                </span>
-              </div>
-              <div className="flex items-center justify-between border-b border-slate-200/60 pb-2.5 dark:border-slate-700/60">
-                <span className="text-slate-500 dark:text-slate-400">Plateforme :</span>
-                <span className="rounded-md bg-slate-200 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider text-slate-800 dark:bg-slate-700 dark:text-slate-200">
-                  {memberToRemove.platformShard || 'steam'}
-                </span>
-              </div>
-              <div className="flex items-start justify-between pt-0.5">
-                <span className="text-slate-500 dark:text-slate-400">Action à exécuter :</span>
-                <span className="inline-flex items-center rounded-full bg-rose-100 px-2.5 py-0.5 text-xs font-bold text-rose-800 dark:bg-rose-950/60 dark:text-rose-300">
-                  Arrêt de suivi (Désactivation clan)
-                </span>
-              </div>
-            </div>
-
-            {/* Explications contextuelles claires */}
-            <div className="app-modal-callout mt-4 space-y-2.5 rounded-xl border border-slate-200/80 bg-white/60 p-3.5 text-xs leading-relaxed text-slate-600 dark:border-slate-800 dark:bg-slate-900/60 dark:text-slate-300">
-              <div className="flex items-start gap-2.5">
-                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                <div>
-                  <strong className="text-slate-900 dark:text-white">Matchs passés &amp; télémétrie conservés :</strong>
-                  <p className="mt-0.5 text-slate-600 dark:text-slate-400">
-                    Toutes les parties passées jouées en squad, les frags et les statistiques restent intégralement enregistrés en base. L&apos;historique du clan n&apos;est pas effacé.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-                <div>
-                  <strong className="text-slate-900 dark:text-white">Statistiques &amp; effectif du clan :</strong>
-                  <p className="mt-0.5 text-slate-600 dark:text-slate-400">
-                    Le joueur est retiré de l&apos;effectif actif et des classements. Le compteur et les totaux globaux du clan sont immédiatement recalculés sans lui.
-                  </p>
-                </div>
-              </div>
-              <div className="flex items-start gap-2.5">
-                <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-rose-500" />
-                <div>
-                  <strong className="text-slate-900 dark:text-white">Arrêt de la collecte PUBG :</strong>
-                  <p className="mt-0.5 text-slate-600 dark:text-slate-400">
-                    Le robot cessera d&apos;importer les futurs matchs de ce joueur pour ce clan. Ses accès au clan sont révoqués.
-                  </p>
-                </div>
-              </div>
-            </div>
-
-            {/* Avertissement contextuel rouge */}
-            <div className="mt-4 rounded-xl border border-rose-200 bg-rose-50/90 p-3.5 text-xs text-rose-900 dark:border-rose-900/40 dark:bg-rose-950/40 dark:text-rose-200">
-              <p className="font-semibold text-rose-950 dark:text-rose-100">
-                Action irréversible sans nouvelle demande
-              </p>
-              <p className="mt-1 leading-relaxed text-rose-800 dark:text-rose-300">
-                Pour réintégrer ce membre ultérieurement, une nouvelle invitation ou demande d&apos;adhésion sera requise.
-              </p>
-            </div>
-
-            {/* Boutons d'action */}
-            <div className="mt-6 flex items-center justify-end gap-3">
-              <button
-                type="button"
-                onClick={() => setMemberToRemove(null)}
-                disabled={actionSubmitting}
-                className="app-btn app-btn--md app-btn--secondary"
-              >
-                Annuler
-              </button>
-              <button
-                type="button"
-                onClick={() => void handleConfirmRemoveMember()}
-                disabled={actionSubmitting}
-                className="app-btn app-btn--md bg-rose-600 hover:bg-rose-500 text-white font-bold shadow-lg shadow-rose-900/30 inline-flex items-center gap-2"
-              >
-                {actionSubmitting ? (
-                  <>
-                    <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                    <span>Traitement...</span>
-                  </>
-                ) : (
-                  <>
-                    <UserX className="h-4 w-4" aria-hidden="true" />
-                    <span>Confirmer l&apos;arrêt du suivi</span>
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-
-      {/* Modal Sortir du clan (bascule vers le clan systeme) — chantier 3 */}
-      {memberToDemote ? (() => {
-        const systemClan = availableClans.find(
-          (c) => c.isSystem && (!memberToDemote.platformShard || c.platformShard === memberToDemote.platformShard)
-        )
-        return (
-          <div
-            className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="demote-member-title"
-          >
-            <div className="app-modal-card w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-500">
-                    <LogOut className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 id="demote-member-title" className="text-lg font-black text-slate-900 dark:text-white">
-                      Sortir {memberToDemote.name} du clan ?
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Le joueur reste suivi, il rejoint le clan technique
-                    </p>
-                  </div>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => setMemberToDemote(null)}
-                  disabled={actionSubmitting}
-                  className="rounded-xl p-1.5 text-slate-400 transition-colors hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                  aria-label="Fermer"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
-
-              <div className="app-modal-inner-card mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4 dark:border-slate-800 dark:bg-slate-800/50">
-                <p className="text-sm text-slate-700 dark:text-slate-300">
-                  {memberToDemote.name} quitte l&apos;effectif de ce clan et rejoint{' '}
-                  <span className="font-bold text-slate-900 dark:text-white">
+                <p className="t-body m-0 text-gray-700">
+                  {memberToDemote.name} quitte l’effectif de ce clan et rejoint{' '}
+                  <span className="font-bold text-gray-900">
                     [{systemClan?.tag ?? 'UNG'}] {systemClan?.name ?? 'Ungrouped'}
                   </span>
-                  , le clan technique qui regroupe les joueurs sans clan que l&apos;on continue de suivre.
+                  , le clan technique des joueurs sans clan que le site continue de suivre.
                 </p>
-              </div>
-
-              <div className="app-modal-callout mt-4 rounded-2xl border border-slate-200 p-4 dark:border-slate-800">
-                <p className="mb-2 text-[11px] font-bold uppercase tracking-wider text-slate-400 dark:text-slate-500">
-                  Les trois façons de faire sortir un joueur
-                </p>
-                <ul className="space-y-2 text-xs text-slate-600 dark:text-slate-300">
-                  <li className="flex gap-2">
-                    <LogOut className="mt-0.5 h-3.5 w-3.5 shrink-0 text-amber-500" aria-hidden="true" />
-                    <span>
-                      <span className="font-semibold text-slate-900 dark:text-white">Sortir du clan</span> — ce que
-                      vous faites ici. La synchronisation PUBG <span className="font-semibold">continue</span>, le
-                      joueur reste visible, et la bascule est tracée. Réversible.
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <ArrowRightLeft className="mt-0.5 h-3.5 w-3.5 shrink-0 text-blue-500" aria-hidden="true" />
-                    <span>
-                      <span className="font-semibold text-slate-900 dark:text-white">Changer de clan</span> —
-                      réservé au SuperUser : déplace le joueur vers un autre clan suivi.
-                    </span>
-                  </li>
-                  <li className="flex gap-2">
-                    <UserX className="mt-0.5 h-3.5 w-3.5 shrink-0 text-rose-500" aria-hidden="true" />
-                    <span>
-                      <span className="font-semibold text-slate-900 dark:text-white">Arrêter le suivi</span> —
-                      réservé au SuperUser : la synchronisation PUBG <span className="font-semibold">s&apos;arrête</span>
-                      , le joueur disparaît de l&apos;écosystème.
-                    </span>
-                  </li>
-                </ul>
-              </div>
-
-              <div className="app-modal-callout mt-3 rounded-2xl border border-amber-200 bg-amber-50/60 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
-                <p className="text-xs text-amber-800 dark:text-amber-200">
-                  <span className="font-bold">Effet sur les statistiques :</span> ses matchs passés restent en base,
-                  mais ils ne comptent plus dans les totaux, classements et awards de ce clan — comme pour tout
-                  départ.
-                </p>
-              </div>
-
-              <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
-                <button
-                  type="button"
-                  onClick={() => setMemberToDemote(null)}
-                  disabled={actionSubmitting}
-                  className="app-btn app-btn--md app-btn--secondary"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleConfirmDemoteMember()}
-                  disabled={actionSubmitting || !systemClan}
-                  className="app-btn app-btn--md inline-flex items-center gap-2 bg-amber-600 font-bold text-white shadow-lg shadow-amber-900/30 hover:bg-amber-500"
-                >
-                  {actionSubmitting ? (
-                    <>
-                      <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      <span>Traitement...</span>
-                    </>
-                  ) : (
-                    <>
-                      <LogOut className="h-4 w-4" aria-hidden="true" />
-                      <span>Confirmer la sortie</span>
-                    </>
-                  )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })() : null}
-
-      {/* Modal Transférer vers un autre clan */}
-      {memberToTransfer ? (() => {
-        const compatibleClans = availableClans.filter(
-          (c) => c.id !== clanId && (!memberToTransfer.platformShard || c.platformShard === memberToTransfer.platformShard)
-        )
-
-        return (
-          <div
-            className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4 backdrop-blur-sm animate-in fade-in duration-200"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="transfer-member-title"
-          >
-            <div className="app-modal-card w-full max-w-lg rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
-              {/* En-tête de la modale */}
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-sky-500/10 text-sky-500 border border-sky-500/20">
-                    <ArrowRightLeft className="h-6 w-6" />
-                  </div>
-                  <div>
-                    <h3 id="transfer-member-title" className="text-lg font-black text-slate-900 dark:text-white">
-                      Transférer {memberToTransfer.name}
-                    </h3>
-                    <p className="text-xs text-slate-500 dark:text-slate-400">
-                      Déplacement vers un autre clan compatible ({memberToTransfer.platformShard || 'steam'})
-                    </p>
-                  </div>
+                <div className="app-panel-muted flex flex-col gap-2 px-3.5 py-3">
+                  <span className="t-label">Les trois façons de faire sortir un joueur</span>
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                    <ConsequenceItem tone="warn" title="Sortir du clan (ici)">
+                      La synchronisation PUBG continue, le joueur reste visible, la bascule est tracée. Réversible.
+                    </ConsequenceItem>
+                    <ConsequenceItem tone="sky" title="Changer de clan">
+                      Réservé au SuperUser : déplace le joueur vers un autre clan suivi.
+                    </ConsequenceItem>
+                    <ConsequenceItem tone="neg" title="Arrêter le suivi">
+                      Réservé au SuperUser : la synchronisation PUBG s’arrête, le joueur disparaît du site.
+                    </ConsequenceItem>
+                  </ul>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMemberToTransfer(null)
-                    setSelectedTargetClanId(null)
-                  }}
-                  disabled={actionSubmitting}
-                  className="rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                  aria-label="Fermer la fenêtre"
-                >
-                  <X className="h-5 w-5" />
-                </button>
-              </div>
+                <Callout tone="warn" icon={AlertTriangle} title="Effet sur les statistiques">
+                  Ses parties passées restent en base mais ne comptent plus dans les totaux, classements et récompenses de ce
+                  clan, comme pour tout départ.
+                </Callout>
+              </PanelModal>
+            )
+          })()
+        : null}
 
-              {/* Sélection du clan de destination */}
-              <div className="mt-5 space-y-1.5">
-                <label htmlFor="target-clan-select" className="block text-xs font-bold text-slate-700 dark:text-slate-300">
-                  Clan de destination :
-                </label>
-                {compatibleClans.length > 0 ? (
-                  <select
-                    id="target-clan-select"
-                    value={selectedTargetClanId ?? ''}
-                    onChange={(e) => setSelectedTargetClanId(Number(e.target.value))}
-                    disabled={actionSubmitting}
-                    className="app-modal-select w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs font-semibold text-slate-900 shadow-sm focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20 dark:border-slate-700 dark:bg-slate-800 dark:text-white"
+      {memberToTransfer
+        ? (() => {
+            const compatibleClans = availableClans.filter(
+              (c) => c.id !== clanId && (!memberToTransfer.platformShard || c.platformShard === memberToTransfer.platformShard)
+            )
+            const closeTransfer = () => {
+              setMemberToTransfer(null)
+              setSelectedTargetClanId(null)
+            }
+            return (
+              <PanelModal
+                id="transfer-member-title"
+                icon={ArrowRightLeft}
+                tone="sky"
+                title={`Transférer ${memberToTransfer.name}`}
+                subtitle={`Vers un autre clan suivi (${memberToTransfer.platformShard || 'steam'})`}
+                busy={actionSubmitting}
+                onClose={closeTransfer}
+                footer={
+                  <button
+                    type="button"
+                    onClick={() => void handleConfirmTransferMember()}
+                    disabled={actionSubmitting || !selectedTargetClanId || compatibleClans.length === 0}
+                    className="app-btn app-btn--md app-btn--primary gap-2"
                   >
-                    {compatibleClans.map((c) => (
-                      <option key={c.id} value={c.id}>
-                        [{c.tag}] {c.name} ({c.platformShard})
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <div className="rounded-xl border border-amber-200 bg-amber-50/90 p-3.5 text-xs text-amber-900 dark:border-amber-900/40 dark:bg-amber-950/40 dark:text-amber-200">
-                    Aucun autre clan compatible sur la plateforme <strong>{memberToTransfer.platformShard || 'steam'}</strong> n&apos;a été trouvé.
-                  </div>
-                )}
-              </div>
-
-              {/* Fiche récapitulative des conséquences */}
-              <div className="app-modal-inner-card mt-4 space-y-3 rounded-2xl border border-slate-100 bg-slate-50/80 p-4 text-xs dark:border-slate-800/80 dark:bg-slate-800/50">
-                <div className="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-blue-500" />
-                  <div>
-                    <strong className="text-slate-900 dark:text-blue-300">Rôle dans le nouveau clan :</strong>
-                    <p className="mt-0.5 text-slate-600 dark:text-slate-300">
-                      Le joueur recevra automatiquement le rôle par défaut <strong>Membre</strong> dans son nouveau clan. Ses permissions actuelles sont révoquées.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2.5 pb-2.5 border-b border-slate-200/60 dark:border-slate-700/60">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-emerald-500" />
-                  <div>
-                    <strong className="text-slate-900 dark:text-emerald-300">Historique passé &amp; futurs matchs :</strong>
-                    <p className="mt-0.5 text-slate-600 dark:text-slate-300">
-                      Les matchs d&apos;escouade passés restent rattachés à ce clan. Les prochaines parties jouées seront collectées pour le nouveau clan.
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-start gap-2.5">
-                  <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-amber-500" />
-                  <div>
-                    <strong className="text-slate-900 dark:text-amber-300">Synchronisation des deux clans :</strong>
-                    <p className="mt-0.5 text-slate-600 dark:text-slate-300">
-                      Les totaux et effectifs de l&apos;ancien et du nouveau clan seront automatiquement recalculés à l&apos;issue du transfert.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              {/* Boutons d'action */}
-              <div className="mt-6 flex items-center justify-end gap-3">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setMemberToTransfer(null)
-                    setSelectedTargetClanId(null)
-                  }}
-                  disabled={actionSubmitting}
-                  className="app-btn app-btn--md app-btn--secondary"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={() => void handleConfirmTransferMember()}
-                  disabled={actionSubmitting || !selectedTargetClanId || compatibleClans.length === 0}
-                  className="app-btn app-btn--md app-btn--primary inline-flex items-center gap-2"
-                >
-                  {actionSubmitting ? (
-                    <>
+                    {actionSubmitting ? (
                       <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" />
-                      <span>Transfert...</span>
-                    </>
-                  ) : (
-                    <>
+                    ) : (
                       <ArrowRightLeft className="h-4 w-4" aria-hidden="true" />
-                      <span>Confirmer le transfert</span>
-                    </>
+                    )}
+                    Transférer
+                  </button>
+                }
+              >
+                <div className="flex flex-col gap-1">
+                  <span className="t-label">Clan de destination</span>
+                  {compatibleClans.length > 0 ? (
+                    <ChoiceMenu
+                      label="Clan de destination"
+                      value={String(selectedTargetClanId ?? compatibleClans[0].id)}
+                      onChange={(value) => setSelectedTargetClanId(Number(value))}
+                      options={compatibleClans.map((c) => ({ value: String(c.id), label: `[${c.tag}] ${c.name}` }))}
+                    />
+                  ) : (
+                    <Callout tone="warn" icon={AlertTriangle} title="Aucun clan compatible">
+                      Aucun autre clan suivi sur la plateforme {memberToTransfer.platformShard || 'steam'}.
+                    </Callout>
                   )}
-                </button>
-              </div>
-            </div>
-          </div>
-        )
-      })() : null}
+                </div>
+                <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                  <ConsequenceItem tone="sky" title="Rôle Membre dans le nouveau clan">
+                    Le joueur reçoit le rôle par défaut ; ses permissions actuelles sont révoquées.
+                  </ConsequenceItem>
+                  <ConsequenceItem tone="pos" title="Historique conservé">
+                    Les parties passées restent rattachées à ce clan ; les prochaines vont au nouveau clan.
+                  </ConsequenceItem>
+                  <ConsequenceItem tone="warn" title="Deux clans recalculés">
+                    Les totaux et effectifs de l’ancien et du nouveau clan sont recalculés après le transfert.
+                  </ConsequenceItem>
+                </ul>
+              </PanelModal>
+            )
+          })()
+        : null}
 
-      {/* Modal Comparaison PUBG vs Site */}
       {isPubgDiffModalOpen ? (
-        <div
-          className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center bg-slate-950/75 p-4 backdrop-blur-sm animate-in fade-in duration-200"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="pubg-diff-modal-title"
+        <PanelModal
+          id="pubg-diff-modal-title"
+          icon={ArrowRightLeft}
+          tone="warn"
+          title="Comparaison avec le clan PUBG"
+          subtitle="Membres du clan officiel PUBG et joueurs suivis par le site"
+          busy={false}
+          wide
+          onClose={() => setIsPubgDiffModalOpen(false)}
         >
-          <div className="app-modal-card flex max-h-[85vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border border-slate-200 bg-white p-6 shadow-2xl dark:border-slate-800 dark:bg-slate-900 sm:p-7">
-            {/* En-tête de la modale */}
-            <div className="flex items-start justify-between gap-3 border-b border-slate-200/80 pb-4 dark:border-slate-800">
-              <div className="flex items-center gap-3">
-                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-amber-500/20 bg-amber-500/10 text-amber-500">
-                  <ArrowRightLeft className="h-6 w-6" />
-                </div>
-                <div>
-                  <h3 id="pubg-diff-modal-title" className="text-lg font-black text-slate-900 dark:text-white">
-                    Comparaison PUBG vs Site
-                  </h3>
-                  <p className="text-xs text-slate-500 dark:text-slate-400">
-                    Rapprochement entre les membres du clan officiel PUBG et les joueurs trackés
-                  </p>
-                </div>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPubgDiffModalOpen(false)}
-                className="rounded-lg p-1.5 text-slate-400 transition hover:bg-slate-100 hover:text-slate-600 dark:hover:bg-slate-800 dark:hover:text-slate-200"
-                aria-label="Fermer la fenêtre"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-
-            {/* Corps scrollable */}
-            <div className="mt-4 flex-1 overflow-y-auto pr-1">
-              <ClanSyncPanel
-                clanId={clanId}
-                pubgClanId={overviewData?.clan?.pubgClanId}
-                isModal={true}
-              />
-            </div>
-
-            {/* Pied de page */}
-            <div className="mt-5 flex items-center justify-end border-t border-slate-200/80 pt-4 dark:border-slate-800">
-              <button
-                type="button"
-                onClick={() => setIsPubgDiffModalOpen(false)}
-                className="app-btn app-btn--md app-btn--secondary"
-              >
-                Fermer
-              </button>
-            </div>
+          <div className="max-h-[60vh] overflow-y-auto pr-1">
+            <ClanSyncPanel clanId={clanId} pubgClanId={overviewData?.clan?.pubgClanId} isModal={true} />
           </div>
-        </div>
+        </PanelModal>
       ) : null}
+    </div>
+  )
+}
+
+/** Conséquence d'une action, pastille colorée puis titre et texte (modales de gestion d'un membre). */
+function ConsequenceItem({ tone, title, children }: { tone: Exclude<Tone, 'neutral'>; title: string; children: ReactNode }) {
+  return (
+    <li className="flex items-start gap-2.5">
+      <span className="mt-1.5 h-2 w-2 shrink-0 rounded-full" style={{ background: `var(--game-${tone})` }} aria-hidden="true" />
+      <span className="flex flex-col">
+        <span className="t-body font-semibold text-gray-900">{title}</span>
+        <span className="t-meta">{children}</span>
+      </span>
+    </li>
+  )
+}
+
+/**
+ * Modale de la charte pour les actions sur un membre : voile `app-modal-backdrop`, carte `app-panel`, tuile d'icône,
+ * corps, puis Annuler et l'action à droite. Échap ferme (sauf pendant l'action).
+ */
+function PanelModal({
+  id,
+  icon,
+  tone,
+  title,
+  subtitle,
+  busy,
+  wide = false,
+  onClose,
+  footer,
+  children,
+}: {
+  id: string
+  icon: LucideIcon
+  tone: Exclude<Tone, 'neutral'>
+  title: string
+  subtitle: string
+  busy: boolean
+  wide?: boolean
+  onClose: () => void
+  footer?: ReactNode
+  children: ReactNode
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape' && !busy) onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [busy, onClose])
+
+  return (
+    <div
+      className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby={id}
+    >
+      <div className={`app-panel flex max-h-[90vh] w-full flex-col gap-4 overflow-y-auto p-5 sm:p-6 ${wide ? 'max-w-2xl' : 'max-w-lg'}`}>
+        <div className="flex items-start gap-3">
+          <IconTile icon={icon} tone={tone} />
+          <div className="flex min-w-0 flex-1 flex-col gap-0.5">
+            <h2 id={id} className="t-section-title m-0">
+              {title}
+            </h2>
+            <p className="t-meta m-0">{subtitle}</p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={busy}
+            className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-[8px] text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            aria-label="Fermer"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        {children}
+        <div className="flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+          <button type="button" onClick={onClose} disabled={busy} className="app-btn app-btn--md app-btn--secondary">
+            {footer ? 'Annuler' : 'Fermer'}
+          </button>
+          {footer}
+        </div>
+      </div>
     </div>
   )
 }

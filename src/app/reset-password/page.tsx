@@ -3,7 +3,15 @@
 import Link from 'next/link'
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
+import { ArrowLeft, KeyRound, Mail } from 'lucide-react'
 
+import { AuthAlert, AuthCard, AuthPage, AuthVisual, FieldLabel } from '@/components/auth/AuthLayout'
+import { ButtonSpinner, ListSkeleton } from '@/components/ui/CharteKit'
+
+/**
+ * Mot de passe oublié : demande d'un lien par e-mail, puis nouveau mot de passe avec le lien reçu (`?token=`). Selon la
+ * charte UI (docs/ui/index.html) : mise en page des pages d'accès (`AuthLayout`).
+ */
 function ResetPasswordPageContent() {
   const searchParams = useSearchParams()
   const tokenFromUrl = useMemo(() => searchParams.get('token')?.trim() ?? '', [searchParams])
@@ -14,7 +22,7 @@ function ResetPasswordPageContent() {
   const [requestError, setRequestError] = useState('')
   const [requestSuccess, setRequestSuccess] = useState('')
 
-  const [token, setToken] = useState(tokenFromUrl)
+  const [token] = useState(tokenFromUrl)
   const [tokenChecking, setTokenChecking] = useState(Boolean(tokenFromUrl))
   const [tokenValid, setTokenValid] = useState(!tokenFromUrl)
   const [tokenError, setTokenError] = useState('')
@@ -28,31 +36,21 @@ function ResetPasswordPageContent() {
   const hasToken = token.trim().length > 0
 
   useEffect(() => {
-    if (!hasToken) {
-      setTokenValid(true)
-      setTokenError('')
-      setTokenChecking(false)
-      return
-    }
+    if (!hasToken) return
 
     let cancelled = false
 
     async function checkToken() {
       try {
-        setTokenChecking(true)
-        setTokenError('')
-        setTokenValid(false)
-
-        const response = await fetch(
-          `/api/auth/password/reset/context?token=${encodeURIComponent(token.trim())}`,
-          {
-            cache: 'no-store',
-          }
-        )
+        const response = await fetch(`/api/auth/password/reset/context?token=${encodeURIComponent(token.trim())}`, {
+          cache: 'no-store',
+        })
 
         if (!response.ok) {
-          setTokenValid(false)
-          setTokenError('Ce lien de réinitialisation est invalide ou expiré.')
+          if (!cancelled) {
+            setTokenValid(false)
+            setTokenError('Ce lien de réinitialisation est invalide ou expiré.')
+          }
           return
         }
 
@@ -96,21 +94,15 @@ function ResetPasswordPageContent() {
         }),
       })
 
-      const payload = (await response.json().catch(() => null)) as
-        | { message?: string; error?: string }
-        | null
+      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null
 
       if (!response.ok) {
         throw new Error(payload?.error ?? 'Échec de la demande de réinitialisation')
       }
 
-      setRequestSuccess(
-        payload?.message ?? 'Si un compte correspond, un email de réinitialisation vient d\'être envoyé.'
-      )
+      setRequestSuccess(payload?.message ?? 'Si un compte correspond, un e-mail de réinitialisation vient d’être envoyé.')
     } catch (error) {
-      setRequestError(
-        error instanceof Error ? error.message : 'Échec de la demande de réinitialisation'
-      )
+      setRequestError(error instanceof Error ? error.message : 'Échec de la demande de réinitialisation')
     } finally {
       setRequesting(false)
     }
@@ -147,9 +139,7 @@ function ResetPasswordPageContent() {
         }),
       })
 
-      const payload = (await response.json().catch(() => null)) as
-        | { message?: string; error?: string }
-        | null
+      const payload = (await response.json().catch(() => null)) as { message?: string; error?: string } | null
 
       if (!response.ok) {
         throw new Error(payload?.error ?? 'Échec de la réinitialisation du mot de passe')
@@ -157,132 +147,129 @@ function ResetPasswordPageContent() {
 
       setNewPassword('')
       setConfirmPassword('')
-      setResetSuccess(payload?.message ?? 'Mot de passe réinitialisé avec succès.')
+      setResetSuccess(payload?.message ?? 'Mot de passe réinitialisé.')
     } catch (error) {
-      setResetError(
-        error instanceof Error ? error.message : 'Échec de la réinitialisation du mot de passe'
-      )
+      setResetError(error instanceof Error ? error.message : 'Échec de la réinitialisation du mot de passe')
     } finally {
       setResetting(false)
     }
   }
 
   return (
-    <main className="relative flex flex-1 items-center overflow-hidden px-4 py-10 sm:px-6">
-      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,_rgba(16,185,129,0.14),_transparent_44%),radial-gradient(circle_at_bottom_right,_rgba(14,165,233,0.14),_transparent_40%)]" />
+    <AuthPage>
+      <AuthCard
+        visual={
+          <AuthVisual
+            image="/sauvetage.jpg"
+            kicker="Assistance connexion"
+            title="Mot de passe oublié"
+            text="Demander un lien de réinitialisation, puis choisir un nouveau mot de passe avec le lien reçu par e-mail."
+          />
+        }
+      >
+        {!hasToken ? (
+          <>
+            <div className="flex flex-col gap-1">
+              <h2 className="t-section-title m-0 flex items-center gap-2">
+                <Mail className="h-5 w-5 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                Demander un lien
+              </h2>
+              <p className="t-meta m-0">Saisir son e-mail de connexion pour recevoir un lien de réinitialisation.</p>
+            </div>
 
-      <section className="relative mx-auto grid w-full max-w-5xl overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-xl lg:grid-cols-[1.1fr_0.9fr]">
-        <div className="relative bg-slate-900 p-7 text-white sm:p-10">
-          <div className="pointer-events-none absolute -left-10 top-14 h-40 w-40 rounded-full bg-emerald-400/30 blur-2xl" />
-          <div className="pointer-events-none absolute -right-14 bottom-8 h-52 w-52 rounded-full bg-sky-500/30 blur-2xl" />
+            <form className="flex flex-col gap-4" onSubmit={(event) => void handleRequestReset(event)}>
+              <label className="flex flex-col gap-1">
+                <FieldLabel required>E-mail</FieldLabel>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  className="app-input"
+                  autoComplete="email"
+                  placeholder="joueur@exemple.com"
+                />
+              </label>
 
-          <div className="relative z-10">
-            <p className="inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.24em]">
-              Assistance connexion
-            </p>
-            <h1 className="mt-4 text-3xl font-black leading-tight sm:text-4xl">Mot de passe oublié</h1>
-            <p className="mt-4 max-w-md text-sm text-slate-200">
-              Demande un lien de réinitialisation ou définis ton nouveau mot de passe avec le lien reçu par email.
-            </p>
-          </div>
-        </div>
+              {requestError ? <AuthAlert tone="neg" title={requestError} /> : null}
+              {requestSuccess ? <AuthAlert tone="pos" title={requestSuccess} /> : null}
 
-        <div className="p-7 sm:p-10">
-          {!hasToken ? (
-            <>
-              <h2 className="text-2xl font-black text-slate-900">Demander un lien</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Saisis ton email de connexion pour recevoir un lien de réinitialisation.
-              </p>
+              <button type="submit" disabled={requesting} className="app-btn app-btn--md app-btn--primary w-full gap-2">
+                {requesting ? <ButtonSpinner /> : <Mail className="h-4 w-4" aria-hidden="true" />}
+                {requesting ? 'Envoi…' : 'Envoyer le lien de réinitialisation'}
+              </button>
+            </form>
+          </>
+        ) : (
+          <>
+            <div className="flex flex-col gap-1">
+              <h2 className="t-section-title m-0 flex items-center gap-2">
+                <KeyRound className="h-5 w-5 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                Nouveau mot de passe
+              </h2>
+              <p className="t-meta m-0">Saisir le nouveau mot de passe, puis confirmer la réinitialisation.</p>
+            </div>
 
-              <form className="mt-7 space-y-4" onSubmit={(event) => void handleRequestReset(event)}>
-                <label className="block text-sm font-medium text-slate-700">
-                  Email
+            {tokenChecking ? <ListSkeleton rows={1} /> : null}
+            {tokenError ? (
+              <AuthAlert tone="neg" title={tokenError}>
+                Demander un nouveau lien depuis cette page, sans paramètre.
+              </AuthAlert>
+            ) : null}
+
+            {tokenValid && !tokenChecking ? (
+              <form className="flex flex-col gap-4" onSubmit={(event) => void handleResetPassword(event)}>
+                <label className="flex flex-col gap-1">
+                  <FieldLabel required>Nouveau mot de passe</FieldLabel>
                   <input
-                    type="email"
+                    type="password"
                     required
-                    value={email}
-                    onChange={(event) => setEmail(event.target.value)}
-                    className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                    autoComplete="email"
-                    placeholder="joueur@exemple.com"
+                    minLength={8}
+                    value={newPassword}
+                    onChange={(event) => setNewPassword(event.target.value)}
+                    className="app-input"
+                    autoComplete="new-password"
+                  />
+                  <span className="t-meta">8 caractères au moins.</span>
+                </label>
+
+                <label className="flex flex-col gap-1">
+                  <FieldLabel required>Confirmer le mot de passe</FieldLabel>
+                  <input
+                    type="password"
+                    required
+                    minLength={8}
+                    value={confirmPassword}
+                    onChange={(event) => setConfirmPassword(event.target.value)}
+                    className="app-input"
+                    autoComplete="new-password"
                   />
                 </label>
 
-                {requestError ? <p className="text-sm text-rose-700">{requestError}</p> : null}
-                {requestSuccess ? <p className="text-sm text-emerald-700">{requestSuccess}</p> : null}
+                {resetError ? <AuthAlert tone="neg" title={resetError} /> : null}
+                {resetSuccess ? (
+                  <AuthAlert tone="pos" title={resetSuccess}>
+                    <Link href="/login" className="app-link font-semibold">
+                      Se connecter
+                    </Link>
+                  </AuthAlert>
+                ) : null}
 
-                <button
-                  type="submit"
-                  disabled={requesting}
-                  className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
-                >
-                  {requesting ? 'Envoi...' : 'Envoyer le lien de réinitialisation'}
+                <button type="submit" disabled={resetting} className="app-btn app-btn--md app-btn--primary w-full gap-2">
+                  {resetting ? <ButtonSpinner /> : <KeyRound className="h-4 w-4" aria-hidden="true" />}
+                  {resetting ? 'Mise à jour…' : 'Réinitialiser le mot de passe'}
                 </button>
               </form>
-            </>
-          ) : (
-            <>
-              <h2 className="text-2xl font-black text-slate-900">Définir un nouveau mot de passe</h2>
-              <p className="mt-2 text-sm text-slate-600">
-                Saisis ton nouveau mot de passe puis confirme la réinitialisation.
-              </p>
+            ) : null}
+          </>
+        )}
 
-              {tokenChecking ? <p className="mt-5 text-sm text-slate-600">Vérification du lien...</p> : null}
-              {tokenError ? <p className="mt-5 text-sm text-rose-700">{tokenError}</p> : null}
-
-              {tokenValid ? (
-                <form className="mt-7 space-y-4" onSubmit={(event) => void handleResetPassword(event)}>
-                  <label className="block text-sm font-medium text-slate-700">
-                    Nouveau mot de passe
-                    <input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={newPassword}
-                      onChange={(event) => setNewPassword(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                      autoComplete="new-password"
-                    />
-                  </label>
-
-                  <label className="block text-sm font-medium text-slate-700">
-                    Confirmer le mot de passe
-                    <input
-                      type="password"
-                      required
-                      minLength={8}
-                      value={confirmPassword}
-                      onChange={(event) => setConfirmPassword(event.target.value)}
-                      className="mt-1 w-full rounded-xl border border-slate-300 px-3 py-2 text-sm"
-                      autoComplete="new-password"
-                    />
-                  </label>
-
-                  {resetError ? <p className="text-sm text-rose-700">{resetError}</p> : null}
-                  {resetSuccess ? <p className="text-sm text-emerald-700">{resetSuccess}</p> : null}
-
-                  <button
-                    type="submit"
-                    disabled={resetting}
-                    className="w-full rounded-xl bg-slate-900 px-4 py-2 text-sm font-semibold text-white transition hover:bg-slate-800 disabled:opacity-60"
-                  >
-                    {resetting ? 'Mise à jour...' : 'Réinitialiser le mot de passe'}
-                  </button>
-                </form>
-              ) : null}
-            </>
-          )}
-
-          <Link
-            href="/login"
-            className="mt-6 inline-flex text-sm font-semibold text-slate-700 underline underline-offset-2 transition hover:text-slate-900"
-          >
-            Retour à la connexion
-          </Link>
-        </div>
-      </section>
-    </main>
+        <Link href="/login" className="app-link inline-flex items-center gap-1.5 self-start text-sm font-semibold">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Retour à la connexion
+        </Link>
+      </AuthCard>
+    </AuthPage>
   )
 }
 
@@ -290,8 +277,8 @@ export default function ResetPasswordPage() {
   return (
     <Suspense
       fallback={
-        <main className="mx-auto flex w-full max-w-md flex-1 items-center px-4 py-10">
-          <p className="text-sm text-gray-600">Chargement...</p>
+        <main className="charte game-ui mx-auto flex min-h-screen w-full max-w-md flex-1 items-center px-4 py-10">
+          <ListSkeleton rows={3} />
         </main>
       }
     >

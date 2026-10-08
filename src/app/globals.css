@@ -1214,6 +1214,13 @@ html[data-app-theme='dark'] :where([class*='hover:bg-amber-50']:hover) {
   color: rgb(30 41 59 / 1);
 }
 
+/* SuperUser : violet du rôle (jetons --theme-superuser-nav-*, définis pour les deux thèmes). Identité, pas état actif. */
+.member-role-badge--superuser {
+  border-color: var(--theme-superuser-nav-border);
+  background-color: var(--theme-superuser-nav-bg);
+  color: var(--theme-superuser-nav-text);
+}
+
 .member-access-badge--active {
   border-color: rgb(16 185 129 / 0.4);
   background-color: rgb(167 243 208 / 0.78);

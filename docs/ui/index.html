@@ -430,6 +430,7 @@
     .member-role-badge--moderator { border-color: rgb(245 158 11 / 0.4); background-color: rgb(254 240 138 / 0.76); color: rgb(133 77 14 / 1); }
     .member-role-badge--member { border-color: rgb(16 185 129 / 0.38); background-color: rgb(167 243 208 / 0.75); color: rgb(6 95 70 / 1); }
     .member-role-badge--default { border-color: rgb(148 163 184 / 0.45); background-color: rgb(226 232 240 / 0.82); color: rgb(30 41 59 / 1); }
+    .member-role-badge--superuser { border-color: var(--theme-superuser-nav-border); background-color: var(--theme-superuser-nav-bg); color: var(--theme-superuser-nav-text); }
     .member-access-badge--active { border-color: rgb(16 185 129 / 0.4); background-color: rgb(167 243 208 / 0.78); color: rgb(6 95 70 / 1); }
     .member-access-badge--inactive { border-color: rgb(100 116 139 / 0.48); background-color: rgb(226 232 240 / 0.84); color: rgb(30 41 59 / 1); }
     html[data-app-theme='dark'] .member-role-badge--owner { border-color: rgb(251 113 133 / 0.6); background-color: rgb(190 24 93 / 0.34); color: rgb(255 228 230 / 1); }
@@ -4059,8 +4060,13 @@ border-gray-200  ← hardcodé</code>
               <span class="member-role-badge member-role-badge--default">Invité</span>
               <span class="docs-label">--default</span>
             </div>
+            <div class="ex-col" style="align-items:center;">
+              <span class="member-role-badge member-role-badge--superuser">SuperUser</span>
+              <span class="docs-label">--superuser</span>
+            </div>
           </div>
-          <div style="margin-top:0.5rem;"><code class="docs-code">.member-role-badge .member-role-badge--{owner|admin|moderator|member|default}</code></div>
+          <div style="margin-top:0.5rem;"><code class="docs-code">.member-role-badge .member-role-badge--{owner|admin|moderator|member|default|superuser}</code></div>
+          <p class="t-meta" style="margin-top:0.5rem;"><span class="sync-tag sync-tag--ok">Ajouté depuis le code</span> <code>--superuser</code> (08/10/2026) : badge des contenus réservés au SuperUser — cartes de la section « Réservé au SuperUser » des paramètres du clan. Violet du rôle (jetons <code>--theme-superuser-nav-*</code>), identité et non état actif.</p>
         </div>
 
         <!-- Access badges -->

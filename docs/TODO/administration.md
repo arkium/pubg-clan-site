@@ -746,6 +746,12 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
 - La resynchronisation rapide garde son plafond et sa basse priorité (fonctions renommées `requestCappedResync`,
   `computeResyncQuota` ; clé `AppConfig` `owner_resync_ledger:<clanId>` inchangée).
 
+Accueil « Paramètres du clan » refait selon la charte (2026-10-08) : bandeau photo (`/city.jpg`, titre Teko, nom du
+clan), puis **deux sections** — « Gestion du clan » (cartes ouvertes à l'Owner selon la délégation) et « Réservé au
+SuperUser » (Données et télémétrie ; sous-domaine et suivi, fiche `/settings/clans/[clanId]`), rendue côté serveur pour
+le seul SuperUser, chaque carte portant le badge `member-role-badge--superuser` (violet du rôle, ajouté à la charte).
+Test : `src/lib/clan-settings-hub.test.ts`.
+
 3a — ce qui est livré :
 
 - **Accueil Plateforme `/settings`** (page serveur gardée + `PlatformHub`) : cartes `superuser-menu` réparties en

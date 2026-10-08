@@ -1,7 +1,11 @@
 # Administration du site — audit et réorganisation
 
 > **Étape 1 — analyse, rédigée le 2026-10-06. Étape 2 — décisions du 2026-10-07 (§5.3, §5.4, §7).**
-> **Étape 3 — lots 0, 1, 2, 3a, 3b et 3c réalisés les 2026-10-07 et 08** (branche `fix/admin-rights`, §6).
+> **Étape 3 — lots 0, 1, 2, 3a, 3b et 3c réalisés les 2026-10-07 et 08** (branche `fix/admin-rights`, §6),
+> **fusionnés dans `main` le 2026-10-08, pas encore déployés** ; les deux scripts du lot 2 restent à appliquer après le
+> déploiement (§6, lot 2, « Ordre de déploiement »).
+> **Étape 4 — pages d'administration et d'accès refaites selon la charte UI le 2026-10-08** (§6, fin du lot 3) : aucune
+> route, garde ni table modifiée.
 > **Révision du 2026-10-08** : la télémétrie d'un clan (santé des données, resynchronisation, outils) est réservée au
 > SuperUser et n'est plus délégable aux Owners (Q1, Q17 révisées).
 > Aucune donnée ni entrée de menu n'a été modifiée en base : les deux scripts du lot 2 n'ont tourné qu'en simulation
@@ -411,7 +415,7 @@ Chaque lot est livré séparément, après accord. À la fin de chaque lot, ce d
 
 ### Lot 0 — Correctifs critiques (fait le 2026-10-07, Q19)
 
-Branche `fix/admin-rights`, non commité au moment de la rédaction.
+Branche `fix/admin-rights`, commit `b8f642e`.
 
 - M1 : DELETE `…/members/[mid]/invite` sans `allowMissingActor` (puis `clan-members` au lot 1).
 - M2 : `matches/[matchId]` GET et POST derrière `requireSuperUser` (seul appelant : la page SuperUser d'import).
@@ -515,12 +519,12 @@ autre clan), `src/lib/nav-permissions-service.test.ts`. Tests existants adaptés
 `login-welcome-upload-routes`, `period-route-contracts`, `pubg-telemetry/route-contracts`. Suite complète verte hors
 les trois fichiers qui écrivent en production (non lancés).
 
-Reste à faire :
+Fait depuis (plus rien à faire sur ce lot) :
 
-- Lancer les specs Playwright des pages gardées (`clan-lifecycle`, `league-settings`, `tournament-admin`) : non lancées
-  le 2026-10-07, attendues vertes avec la règle de Q21.
-- Palette de commandes (M23) : liens vers les outils de télémétrie toujours visibles de tous ; les pages refusent
-  désormais côté serveur.
+- Specs Playwright des pages gardées : vertes avec la règle de Q21, après chaque lot puis le 2026-10-08 sur ordinateur,
+  tablette et mobile (`admin-journal`, `clan-lifecycle`, `clan-mutations`, `league-settings`, `resources-admin`,
+  `tournament-admin` : 155 réussis, 1 ignoré par la spec elle-même).
+- Palette de commandes (M23) : réglée au lot 2 (groupe « Télémétrie & Administration » réservé au SuperUser).
 
 ### Lot 2 — Doublons et pages mortes
 
@@ -563,7 +567,8 @@ Simulations du 2026-10-07 :
 
 Ordre de déploiement :
 
-1. Déployer le code (lots 0, 1 et 2) sur les quatre services.
+1. Déployer le code (lots 0, 1 et 2) sur les quatre services. **Dans `main` depuis le 2026-10-08, pas encore
+   déployé** ; les étapes 2 et 3 attendent ce déploiement.
 2. `npx tsx scripts/cleanup-admin-nav.ts --apply` — avant, les icônes des entrées renommées retombent sur l'icône par
    défaut (elles sont choisies d'après le libellé, `NavIcon`).
 3. `npx tsx scripts/remove-admin-moderator-roles.ts --apply` — jamais avant l'étape 1 : l'ancien code recréait les
@@ -590,7 +595,8 @@ ignorée par le code en place) ; `npx prisma migrate deploy` au déploiement ne 
 - **Registre aligné sur la production** : rôles par défaut des référentiels et outils de pipeline à `superuser`, ceux de
   « Mon clan » à `owner` ; libellés francisés. Les titres des pages concernées suivent (« Tâches planifiées »,
   « API PUBG », « État de la télémétrie »). Le corps des pages `cron`, `pubg-api`, `telemetry-recoveries` garde ses
-  anglicismes : hors périmètre, au lot 3 avec la console Télémétrie.
+  anglicismes : hors périmètre, au lot 3 avec la console Télémétrie. **Repris le 2026-10-08** avec la charte (outils
+  Plateforme) : textes francisés, seul « worker » reste (terme technique).
 - **Lien « Accueil login » de la vue d'ensemble** : cherché dans `owner-menu` (il était cherché dans `admin-menu`, où
   l'entrée n'apparaissait plus depuis sa surcharge en `owner`).
 - **Palette de commandes (M23)** : le groupe « Télémétrie & Administration » n'apparaît qu'au SuperUser.
@@ -752,6 +758,28 @@ SuperUser » (Données et télémétrie ; sous-domaine et suivi, fiche `/setting
 le seul SuperUser, chaque carte portant le badge `member-role-badge--superuser` (violet du rôle, ajouté à la charte).
 Test : `src/lib/clan-settings-hub.test.ts`.
 
+Pages d'administration selon la charte UI (2026-10-08, liste tenue dans `docs/ui/index.html` › « Pages migrées ») —
+présentation seulement, aucune route, garde, table ni entrée de menu modifiée :
+
+- **Paramètres du clan** : les sept onglets « Données » (santé, état, soirées et soirée, erreurs, synchronisation,
+  récupérations), les trois onglets des membres, l'accueil login, les notifications Discord, et la fiche du clan côté
+  Plateforme (`/settings/clans/[clanId]`).
+- **Plateforme** : accueil, clans suivis et adverses, en-tête à onglets des Clans et des Joueurs (`SettingsTabsShell`),
+  API PUBG ; outils — tâches planifiées, télémétrie de tous les clans, import de matchs, base de données, cartes, armes,
+  phases, envoi d'e-mails, navigation ; délégation, journal, demandes de confidentialité, onglets Joueurs (suivi,
+  résolution, tri).
+- **Pages d'accès**, hors administration mais mêmes règles : connexion, adhésion, mot de passe oublié, activation.
+- **Composants partagés** : `src/components/ui/CharteKit.ts` (tuiles, pastilles, états vide / erreur / chargement,
+  encadrés, interrupteur, menu de choix, modale de confirmation, toasts), `AdminPageBanner` (dont hérite
+  `ClanSettingsBanner`), `src/components/settings/AdminPageStates.tsx` (chargement, accès restreint, retour de
+  formulaire), `src/components/auth/AuthLayout.tsx`. Les `confirm()` du navigateur et les `<select>` natifs sont
+  remplacés par la modale et le menu de la charte.
+- **Seul changement de comportement** : sur `/join`, l'e-mail de contact d'une création de clan est vérifié avant
+  l'envoi et n'est demandé qu'à un visiteur connecté (lui seul peut envoyer la demande).
+- **Vérifié** : captures en clair, en sombre et sur mobile, sans défilement horizontal ; e2e `admin-journal` adapté
+  (filtres par menu). **Sans e2e**, vérifiés par captures seulement : accueil Plateforme, clans, API PUBG, les neuf
+  outils, délégation, confidentialité, onglets Joueurs, accueil et onglets des paramètres du clan, pages d'accès.
+
 3a — ce qui est livré :
 
 - **Accueil Plateforme `/settings`** (page serveur gardée + `PlatformHub`) : cartes `superuser-menu` réparties en
@@ -826,25 +854,7 @@ Test : `src/lib/clan-settings-hub.test.ts`.
 - **Q9 — Mode visiteur en production** : confirmé (`DISABLE_AUTH_PERMISSIONS=true`). Les lectures gardées par
   `requireNavPermission` ou marquées `readOnly` restent publiques et inter-clans ; les gardes d'administration
   (`admin-guards.ts`) ne sont jamais ouvertes par ce mode.
+- **Q15 — Ajouter un joueur depuis Mon clan** : dans le clan de l'adresse seulement ; faire suivre un nouveau clan PUBG
+  reste au SuperUser (livré au 3b-2).
 
-**À trancher avant les lots 2 et 3**
-
-- **Q5 — « Adversaires rencontrés » dans les stats du clan** : visible par qui (Owner, membres du clan, visiteurs) ? La
-  page nomme des joueurs extérieurs au site.
-- **Q7 — Défis et rapports.** `clan.challenges` est masqué en production ; les rapports sont abandonnés. Les défis
-  rejoignent-ils « Compétition » ou restent-ils masqués ? On supprime définitivement `clan.reports` ?
-- **Q8 — APIs de lecture des clans en rôle `none`** : publiques et inter-clans même hors mode visiteur. On les garde
-  ainsi (cohérent avec le mode visiteur) ou on les limite aux membres du clan quand l'authentification est active ?
-- **Q10 — Journal des actions d'administration** : une table qui enregistre qui a fait quoi (migration Prisma), et la
-  correction de `triggeredBy` (membre ou compte, mais pas les deux) ? Au lot 1 ou plus tard ? **Condition** pour ouvrir
-  un jour `clan-telemetry-tools` aux Owners (§5.3).
-- **Q11 — `/settings/admin`, `/settings/owner`, `/members/add`** : leur adresse ne porte pas le clan, une redirection de
-  `next.config.ts` ne peut pas le deviner. Une petite page serveur qui lit la session et redirige vers le clan du
-  membre actif te convient-elle ?
-- **Q13 — Recalcul « tous les clans »** : on le garde dans l'interface SuperUser sous forme de tâche du worker (au lieu
-  d'une requête HTTP qui boucle sur tous les clans), ou on le réserve à la ligne de commande ?
-- **Q15 — Ajouter un joueur depuis Mon clan** : uniquement dans le clan de l'adresse ; faire suivre un nouveau clan
-  PUBG reste au SuperUser. D'accord ?
-- **Q16 — `GET /api/members`** renvoie les membres de tous les clans à toute session connectée : voulu ?
-- **Q17 — Santé des données pour l'Owner** : rien, lecture seule, ou lecture seule + demande de resynchronisation
-  plafonnée (proposition) ? Quel plafond ?
+**À trancher** : plus aucune question ouverte (la liste posée avant les lots 2 et 3 est entièrement réglée ci-dessus).

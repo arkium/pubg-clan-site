@@ -5,11 +5,11 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Monitor } from 'lucide-react'
+import { Lock, Monitor, Save, Upload } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import ClanSettingsBanner from '@/components/clan-settings/ClanSettingsBanner'
+import { ButtonSpinner, Callout, ErrorState, ListSkeleton } from '@/components/ui/CharteKit'
 
 type WelcomeSettings = {
   badge: string
@@ -185,14 +185,9 @@ export default function ClanLoginWelcomeSettingsPage() {
 
   if (loading || loadingData) {
     return (
-      <main className="app-container app-main flex flex-1 items-center justify-center">
-      <NavigationTrail
-        currentLabel="Accueil login"
-        currentHref={`/clans/${clanId}/settings/login-welcome`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
-      />
-        <p className="text-sm text-gray-600">Chargement de la configuration...</p>
-      </main>
+      <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+        <ListSkeleton rows={3} />
+      </div>
     )
   }
 
@@ -202,178 +197,166 @@ export default function ClanLoginWelcomeSettingsPage() {
 
   if (!clanId) {
     return (
-      <main className="app-container app-main flex-1">
-        <section className="app-panel p-6">
-          <p className="text-sm text-rose-700">Identifiant de clan invalide.</p>
+      <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+        <section className="app-panel">
+          <ErrorState message="Identifiant de clan invalide." />
         </section>
-      </main>
+      </div>
     )
   }
 
   if (!canManageSettings) {
     return (
-      <main className="app-container app-main flex-1">
-        <section className="app-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">
-            Permissions
-          </p>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">Accès restreint</h1>
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm text-amber-800">
-              Cette page est réservée au Owner ou aux admins disposant de la permission
-              manage_settings.
-            </p>
-          </div>
-          <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour à l&apos;accueil
+      <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+        <Callout tone="warn" icon={Lock} title="Accès réservé">
+          Cette page est réservée à l’Owner du clan et au SuperUser.{' '}
+          <Link href="/" className="app-link font-semibold">
+            Retour à l’accueil
           </Link>
-        </section>
-      </main>
+        </Callout>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main flex-1">
-      <NavigationTrail
-        currentLabel="Accueil login"
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+      <ClanSettingsBanner
+        clanId={clanId}
+        title="Accueil login"
+        subtitle={
+          clanLabel
+            ? `Le message affiché sur la page de connexion pour ${clanLabel}.`
+            : 'Le message affiché sur la page de connexion de ce clan.'
+        }
+        icon={Monitor}
+        image="/login-welcome.jpg"
         currentHref={`/clans/${clanId}/settings/login-welcome`}
-        fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres', altHref: '/clans' }}
       />
-      <header
-        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/login-welcome.jpg')`, backgroundPosition: 'center 35%' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Monitor className="h-4 w-4 text-emerald-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
+
+      <div className="grid gap-4 lg:grid-cols-2">
+        <form className="app-panel flex flex-col gap-4 p-4 sm:p-5" onSubmit={handleSave} aria-labelledby="welcome-form-title">
+          <div className="flex flex-col gap-0.5">
+            <h2 id="welcome-form-title" className="t-section-title m-0">
               Message de bienvenue
-            </h1>
+            </h2>
+            <p className="t-meta m-0">L’aperçu à côté se met à jour pendant la saisie.</p>
           </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            {clanLabel
-              ? `Personnalisez le texte affiché sur la page de connexion pour ${clanLabel}.`
-              : "Personnalisez le texte affiché sur la page de connexion de ce clan."}
-          </p>
-        </div>
-      </header>
 
-      <section className="app-panel p-5 sm:p-6">
-        <div className="grid gap-6 lg:grid-cols-2">
-          <form className="app-panel-muted space-y-4 p-4 sm:p-5" onSubmit={handleSave}>
-            <label className="block text-sm font-medium text-gray-700">
-              Badge court
+          <label className="flex flex-col gap-1">
+            <span className="t-label">Badge court</span>
+            <input
+              type="text"
+              value={settings.badge}
+              maxLength={60}
+              onChange={(event) => setSettings((current) => ({ ...current, badge: event.target.value }))}
+              className="app-input"
+              placeholder="Bienvenue au clan"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="t-label">Titre principal</span>
+            <input
+              type="text"
+              value={settings.title}
+              maxLength={100}
+              onChange={(event) => setSettings((current) => ({ ...current, title: event.target.value }))}
+              className="app-input"
+              placeholder="Connexion escouade"
+            />
+          </label>
+
+          <label className="flex flex-col gap-1">
+            <span className="flex items-center justify-between gap-2">
+              <span className="t-label">Message</span>
+              <span className="t-meta t-num">{settings.message.length}/260</span>
+            </span>
+            <textarea
+              value={settings.message}
+              maxLength={260}
+              onChange={(event) => setSettings((current) => ({ ...current, message: event.target.value }))}
+              className="app-input min-h-28"
+              placeholder="L’ambiance du clan, ce qu’il attend de ses joueurs…"
+            />
+          </label>
+
+          <div className="flex flex-col gap-1">
+            <label htmlFor="imageUrl" className="flex items-center justify-between gap-2">
+              <span className="t-label">Image du clan</span>
+              <span className="t-meta">Facultatif</span>
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
               <input
+                id="imageUrl"
                 type="text"
-                value={settings.badge}
-                maxLength={60}
+                value={settings.imageUrl ?? ''}
+                maxLength={500}
                 onChange={(event) =>
-                  setSettings((current) => ({ ...current, badge: event.target.value }))
+                  setSettings((current) => ({
+                    ...current,
+                    imageUrl: event.target.value.trim() ? event.target.value : null,
+                  }))
                 }
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Bienvenue au clan"
+                className="app-input min-w-0 flex-1 basis-[200px]"
+                placeholder="/clans/d32.jpg ou https://…"
               />
-            </label>
-
-            <label className="block text-sm font-medium text-gray-700">
-              Titre principal
-              <input
-                type="text"
-                value={settings.title}
-                maxLength={100}
-                onChange={(event) =>
-                  setSettings((current) => ({ ...current, title: event.target.value }))
-                }
-                className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Connexion escouade"
-              />
-            </label>
-
-            <label className="block text-sm font-medium text-gray-700">
-              Message
-              <textarea
-                value={settings.message}
-                maxLength={260}
-                onChange={(event) =>
-                  setSettings((current) => ({ ...current, message: event.target.value }))
-                }
-                className="mt-1 min-h-28 w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                placeholder="Décrivez l'ambiance ou les attentes du clan"
-              />
-            </label>
-
-            <div className="space-y-1 text-sm font-medium text-gray-700">
-              <label htmlFor="imageUrl">Image du clan (URL ou chemin local, optionnel)</label>
-              <div className="flex items-center gap-3">
+              <label className={`app-btn app-btn--md app-btn--secondary cursor-pointer gap-1.5 whitespace-nowrap ${uploading ? 'opacity-45' : ''}`}>
+                {uploading ? <ButtonSpinner /> : <Upload className="h-4 w-4" aria-hidden="true" />}
+                {uploading ? 'Téléversement…' : 'Téléverser'}
                 <input
-                  id="imageUrl"
-                  type="text"
-                  value={settings.imageUrl ?? ''}
-                  maxLength={500}
-                  onChange={(event) =>
-                    setSettings((current) => ({
-                      ...current,
-                      imageUrl: event.target.value.trim() ? event.target.value : null,
-                    }))
-                  }
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="Ex: /clans/d32.jpg ou https://..."
+                  type="file"
+                  className="hidden"
+                  accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,image/*"
+                  onChange={handleFileUpload}
+                  disabled={uploading}
                 />
-                
-                <label className={`app-btn app-btn--sm app-btn--secondary whitespace-nowrap cursor-pointer ${uploading ? 'opacity-50' : ''}`}>
-                  {uploading ? 'Téléversement...' : 'Uploader une image...'}
-                  <input
-                    type="file"
-                    className="hidden"
-                    accept="image/png,image/jpeg,image/webp,.png,.jpg,.jpeg,.webp,image/*"
-                    onChange={handleFileUpload}
-                    disabled={uploading}
-                  />
-                </label>
-              </div>
-              <p className="text-xs font-normal text-gray-500">
-                Formats acceptés : JPG, PNG, WEBP (max 5 Mo). Résolution recommandée : 1024x434 px.
-              </p>
+              </label>
             </div>
+            <span className="t-meta">JPG, PNG ou WEBP, 5 Mo au plus. Format conseillé : 1024 × 434 px.</span>
+          </div>
 
-            {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-            {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
+          {error ? (
+            <p className="t-body t-neg m-0" role="alert">
+              {error}
+            </p>
+          ) : null}
+          {success ? (
+            <p className="t-body t-pos m-0" role="status">
+              {success}
+            </p>
+          ) : null}
 
-            <button
-              type="submit"
-              disabled={saving}
-              className="app-btn app-btn--md app-btn--primary"
-            >
-              {saving ? 'Enregistrement...' : 'Enregistrer'}
+          <div>
+            <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary gap-2">
+              {saving ? <ButtonSpinner /> : <Save className="h-4 w-4" aria-hidden="true" />}
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
             </button>
-          </form>
+          </div>
+        </form>
 
-          <section className="app-panel-muted overflow-hidden">
-            <div className="relative h-full p-6">
-              {settings.imageUrl ? (
-                <img
-                  src={settings.imageUrl}
-                  alt="Aperçu clan"
-                  className="absolute inset-0 h-full w-full object-cover opacity-35"
-                />
-              ) : null}
-              <div className="absolute inset-0 bg-slate-900/70" />
-
-              <p className="relative z-10 inline-flex rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
+        <section className="flex flex-col gap-2" aria-labelledby="welcome-preview-title">
+          <h2 id="welcome-preview-title" className="t-label m-0">
+            Aperçu de la page de connexion
+          </h2>
+          <div className="app-on-photo bg-hero-fallback relative min-h-[16rem] flex-1 overflow-hidden rounded-[14px] text-white">
+            {settings.imageUrl ? (
+              <img src={settings.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
+            ) : null}
+            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-black/30" aria-hidden="true" />
+            <div className="relative z-10 flex h-full flex-col justify-end gap-3 p-5 sm:p-6">
+              <span className="inline-flex self-start rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
                 {settings.badge || 'Bienvenue au clan'}
-              </p>
-              <h2 className="relative z-10 mt-4 text-3xl font-black leading-tight">
-                {settings.title || 'Connexion escouade'}
-              </h2>
-              <p className="relative z-10 mt-4 max-w-md text-sm text-slate-200">
+              </span>
+              <p className="t-banner-title m-0 text-white">{settings.title || 'Connexion escouade'}</p>
+              <p className="m-0 max-w-md text-[13px] text-white/80">
                 {settings.message ||
                   'Connectez-vous pour retrouver vos statistiques, votre progression et les outils de coordination du clan.'}
               </p>
             </div>
-          </section>
-        </div>
-      </section>
-    </main>
+          </div>
+        </section>
+      </div>
+    </div>
   )
 }

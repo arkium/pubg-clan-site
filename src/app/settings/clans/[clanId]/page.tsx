@@ -1,16 +1,18 @@
 'use client'
 
+import { Settings, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 
 import ClanFollowDangerZone from '@/components/clan/ClanFollowDangerZone'
 import ClanSubdomainSettings from '@/components/clan/ClanSubdomainSettings'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import ClanSettingsBanner, { BANNER_GLASS_BUTTON } from '@/components/clan-settings/ClanSettingsBanner'
+import { ErrorState } from '@/components/ui/CharteKit'
 
 /**
- * Fiche d'un clan côté Plateforme (docs/TODO/administration.md, lot 3b) : réglages qui engagent toute la plateforme,
- * sortis de l'accueil « Mon clan » — sous-domaine et arrêt (ou reprise) du suivi.
+ * Fiche d'un clan côté Plateforme (docs/TODO/administration.md, lot 3b), selon la charte UI (docs/ui/index.html) :
+ * réglages qui engagent toute la plateforme, sortis de l'accueil « Mon clan » — sous-domaine et arrêt (ou reprise) du
+ * suivi. Réservée au SuperUser (garde du dossier et des routes).
  */
 
 function parseClanId(value: string | string[] | undefined) {
@@ -25,32 +27,35 @@ export default function PlatformClanPage() {
 
   if (!clanId) {
     return (
-      <main className="app-container app-main flex-1">
-        <p className="text-sm text-red-600">Identifiant de clan invalide.</p>
-      </main>
+      <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+        <section className="app-panel">
+          <ErrorState message="Identifiant de clan invalide." />
+        </section>
+      </div>
     )
   }
 
   return (
-    <main className="app-container app-main flex-1 space-y-6">
-      <NavigationTrail
-        currentLabel="Fiche du clan"
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+      <ClanSettingsBanner
+        clanId={clanId}
+        title="Sous-domaine et suivi"
+        subtitle="Réglages de plateforme du clan : son adresse en sous-domaine, et l’arrêt ou la reprise de son suivi."
+        icon={ShieldCheck}
+        image="/clan_banner.jpg"
         currentHref={`/settings/clans/${clanId}`}
-        fallbackParent={{ href: '/settings/clans', label: 'Clans' }}
+        parent={{ href: '/settings/clans', label: 'Clans' }}
+        pills={['Réservé au SuperUser']}
+        action={
+          <Link href={`/clans/${clanId}/settings`} className={BANNER_GLASS_BUTTON}>
+            <Settings className="h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4" aria-hidden="true" />
+            Paramètres du clan
+          </Link>
+        }
       />
-      <section className="app-panel p-6">
-        <SettingsPageHeader
-          title="Fiche du clan"
-          subtitle="Réglages de plateforme du clan : sous-domaine et suivi."
-          actions={
-            <Link href={`/clans/${clanId}/settings`} className="app-btn app-btn--sm app-btn--secondary">
-              Paramètres du clan
-            </Link>
-          }
-        />
-      </section>
       <ClanSubdomainSettings clanId={clanId} />
       <ClanFollowDangerZone clanId={clanId} />
-    </main>
+    </div>
   )
 }

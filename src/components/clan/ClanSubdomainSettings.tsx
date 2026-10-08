@@ -1,7 +1,9 @@
 'use client'
 
-import { Globe } from 'lucide-react'
+import { Globe, Save } from 'lucide-react'
 import { useEffect, useState } from 'react'
+
+import { ButtonSpinner, ListSkeleton, SectionCard } from '@/components/ui/CharteKit'
 
 type SubdomainSummary = {
   clan: {
@@ -71,72 +73,67 @@ export default function ClanSubdomainSettings({ clanId }: { clanId: number }) {
   const root = summary?.root ?? 'chickendinner.fr'
 
   return (
-    <section className="app-panel p-6">
-      <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-sky-500/20 bg-sky-500/10 text-sky-500">
-          <Globe className="h-5 w-5" aria-hidden="true" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h2 className="text-lg font-semibold text-gray-900">Adresse du clan</h2>
-          <p className="mt-1 text-sm text-gray-600">
-            Le sous-domaine mène à la vue d&apos;ensemble du clan. Il ne change pas si le tag PUBG change. Réservé au
-            SuperUser.
+    <SectionCard
+      id={`clan-subdomain-title-${clanId}`}
+      icon={Globe}
+      title="Adresse du clan"
+      meta="Le sous-domaine mène à la vue d’ensemble du clan. Il ne change pas si le tag PUBG change."
+    >
+      {loadError ? <p className="t-body t-neg m-0">{loadError}</p> : null}
+
+      {clan?.isSystem ? (
+        <p className="t-meta m-0">Le clan technique n’a pas de sous-domaine.</p>
+      ) : clan ? (
+        <div className="flex flex-col gap-3">
+          <p className="t-body m-0 text-gray-700">
+            Adresse actuelle :{' '}
+            {clan.subdomain ? (
+              <strong className="font-mono font-semibold text-gray-900">
+                {clan.subdomain}.{root}
+              </strong>
+            ) : (
+              <span className="text-gray-500">aucune {clan.isActive ? '' : '(attribuée à l’activation du clan)'}</span>
+            )}
+            {!summary?.root ? <span className="text-gray-500"> — redirection pas encore activée sur ce serveur</span> : null}
           </p>
-
-          {loadError ? <p className="mt-3 text-sm text-red-600">{loadError}</p> : null}
-
-          {clan?.isSystem ? (
-            <p className="mt-3 text-sm text-gray-600">Le clan système n&apos;a pas de sous-domaine.</p>
-          ) : clan ? (
-            <div className="mt-4 space-y-3">
-              <p className="text-sm text-gray-700">
-                Adresse actuelle :{' '}
-                {clan.subdomain ? (
-                  <strong className="font-semibold text-gray-900">
-                    {clan.subdomain}.{root}
-                  </strong>
-                ) : (
-                  <span className="text-gray-500">aucune {clan.isActive ? '' : '(attribuée à l’activation du clan)'}</span>
-                )}
-                {!summary?.root ? (
-                  <span className="text-gray-500"> — redirection pas encore activée sur ce serveur</span>
-                ) : null}
-              </p>
-              <label className="block text-sm font-medium text-gray-700" htmlFor={`clan-subdomain-${clanId}`}>
-                Sous-domaine
-              </label>
-              <div className="flex flex-wrap items-center gap-2">
-                <input
-                  id={`clan-subdomain-${clanId}`}
-                  value={value}
-                  onChange={(event) => setValue(event.target.value.toLowerCase())}
-                  maxLength={63}
-                  className="w-full max-w-xs rounded-lg border border-gray-200 bg-white px-3 py-2 text-sm text-gray-900"
-                  aria-describedby={`clan-subdomain-help-${clanId}`}
-                />
-                <span className="text-sm text-gray-500">.{root}</span>
-                <button
-                  type="button"
-                  onClick={() => void save()}
-                  disabled={saving || !value || value === clan.subdomain}
-                  className="app-btn app-btn--sm app-btn--primary"
-                >
-                  {saving ? 'Enregistrement…' : 'Enregistrer'}
-                </button>
-              </div>
-              <p id={`clan-subdomain-help-${clanId}`} className="text-xs text-gray-500">
-                Lettres minuscules, chiffres et tirets, 2 à 63 caractères. Les adresses techniques (www, api, mail…)
-                sont réservées.
-              </p>
-              {feedback ? (
-                <p className={`text-sm ${feedback.tone === 'success' ? 'text-emerald-600' : 'text-red-600'}`}>
-                  {feedback.text}
-                </p>
-              ) : null}
+          <div className="flex flex-col gap-1">
+            <label className="t-label" htmlFor={`clan-subdomain-${clanId}`}>
+              Sous-domaine
+            </label>
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                id={`clan-subdomain-${clanId}`}
+                value={value}
+                onChange={(event) => setValue(event.target.value.toLowerCase())}
+                maxLength={63}
+                className="app-input w-full max-w-xs font-mono"
+                aria-describedby={`clan-subdomain-help-${clanId}`}
+              />
+              <span className="t-body font-mono text-gray-500">.{root}</span>
+              <button
+                type="button"
+                onClick={() => void save()}
+                disabled={saving || !value || value === clan.subdomain}
+                className="app-btn app-btn--md app-btn--primary gap-1.5"
+              >
+                {saving ? <ButtonSpinner /> : <Save className="h-4 w-4" aria-hidden="true" />}
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
             </div>
+            <span id={`clan-subdomain-help-${clanId}`} className="t-meta">
+              Lettres minuscules, chiffres et tirets, de 2 à 63 caractères. Les adresses techniques (www, api, mail…) sont
+              réservées.
+            </span>
+          </div>
+          {feedback ? (
+            <p className={`t-body m-0 ${feedback.tone === 'success' ? 't-pos' : 't-neg'}`} role="status">
+              {feedback.text}
+            </p>
           ) : null}
         </div>
-      </div>
-    </section>
+      ) : (
+        <ListSkeleton rows={1} />
+      )}
+    </SectionCard>
   )
 }

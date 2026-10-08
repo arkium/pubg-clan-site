@@ -2,9 +2,10 @@
 
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
-import { ShieldAlert } from 'lucide-react'
+import { PowerOff, RotateCcw, ShieldAlert } from 'lucide-react'
 
 import ClanArchiveDialog from '@/components/clan/ClanArchiveDialog'
+import { ButtonSpinner, IconTile, ListSkeleton } from '@/components/ui/CharteKit'
 import type { ClanFollowState } from '@/lib/clan-archive-state'
 
 type ClanFollowSummary = {
@@ -76,72 +77,71 @@ export default function ClanFollowDangerZone({ clanId }: { clanId: number }) {
   const clan = summary?.clan
 
   return (
-    <section className="app-panel rounded-2xl border border-red-200 p-6 dark:border-red-900/60">
+    <section
+      className="app-panel flex flex-col gap-4 p-4 sm:p-5"
+      style={{ borderColor: 'color-mix(in srgb, var(--game-neg) 45%, transparent)' }}
+      aria-labelledby={`clan-danger-title-${clanId}`}
+    >
       <div className="flex items-start gap-3">
-        <ShieldAlert className="mt-0.5 h-5 w-5 shrink-0 text-red-500" aria-hidden="true" />
-        <div className="min-w-0 flex-1">
-          <h2 className="text-base font-bold text-slate-900 dark:text-slate-100">Zone de danger</h2>
-          <p className="mt-1 text-sm text-slate-600 dark:text-slate-300">
-            Réservée au SuperUser. Arrêter le suivi coupe la synchronisation du clan sans rien effacer.
-          </p>
-
-          <div className="mt-4 text-sm text-slate-700 dark:text-slate-300">
-            {loadError ? (
-              <p className="text-red-600">{loadError}</p>
-            ) : !clan ? (
-              <p className="text-slate-500">Chargement…</p>
-            ) : clan.isSystem ? (
-              <p>Clan technique du site : son suivi ne peut pas être arrêté.</p>
-            ) : clan.state === 'pending' ? (
-              <p>
-                Ce clan attend sa validation.{' '}
-                <Link href="/settings/clans/lifecycle?tab=pending" className="font-semibold text-indigo-600 underline dark:text-indigo-400">
-                  Le valider ou le refuser
-                </Link>
-                .
-              </p>
-            ) : clan.state === 'archived' ? (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p>
-                  Ce clan n’est plus suivi depuis le{' '}
-                  {clan.archivedAt ? new Date(clan.archivedAt).toLocaleDateString('fr-FR') : '—'}
-                  {clan.archivedReason ? ` (${ARCHIVE_REASON_LABELS[clan.archivedReason] ?? clan.archivedReason})` : ''}.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => void reactivate()}
-                  disabled={reactivating}
-                  className="app-btn app-btn--md app-btn--secondary"
-                >
-                  {reactivating ? 'Réactivation…' : 'Réactiver le suivi'}
-                </button>
-              </div>
-            ) : (
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <p>
-                  {summary.activeMembers} membre(s) actif(s). Vous choisirez leur sort à l’étape suivante.
-                </p>
-                <button
-                  type="button"
-                  onClick={() => setDialogOpen(true)}
-                  className="app-btn app-btn--md app-btn--danger-solid"
-                >
-                  Désactiver le suivi de ce clan
-                </button>
-              </div>
-            )}
-          </div>
-
-          {feedback ? (
-            <p
-              role="status"
-              className={`mt-3 text-sm ${feedback.tone === 'success' ? 'text-emerald-700 dark:text-emerald-400' : 'text-red-600'}`}
-            >
-              {feedback.text}
-            </p>
-          ) : null}
+        <IconTile icon={ShieldAlert} tone="neg" />
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <h2 id={`clan-danger-title-${clanId}`} className="t-card-title m-0">
+            Zone de danger
+          </h2>
+          <p className="t-meta m-0">Arrêter le suivi coupe la synchronisation du clan, sans rien effacer.</p>
         </div>
       </div>
+
+      <div className="t-body text-gray-700">
+        {loadError ? (
+          <p className="t-neg m-0">{loadError}</p>
+        ) : !clan ? (
+          <ListSkeleton rows={1} />
+        ) : clan.isSystem ? (
+          <p className="m-0">Clan technique du site : son suivi ne peut pas être arrêté.</p>
+        ) : clan.state === 'pending' ? (
+          <p className="m-0">
+            Ce clan attend sa validation.{' '}
+            <Link href="/settings/clans/lifecycle?tab=pending" className="app-link font-semibold">
+              Le valider ou le refuser
+            </Link>
+            .
+          </p>
+        ) : clan.state === 'archived' ? (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="m-0">
+              Ce clan n’est plus suivi depuis le {clan.archivedAt ? new Date(clan.archivedAt).toLocaleDateString('fr-FR') : '—'}
+              {clan.archivedReason ? ` (${ARCHIVE_REASON_LABELS[clan.archivedReason] ?? clan.archivedReason})` : ''}.
+            </p>
+            <button
+              type="button"
+              onClick={() => void reactivate()}
+              disabled={reactivating}
+              className="app-btn app-btn--md app-btn--secondary gap-1.5"
+            >
+              {reactivating ? <ButtonSpinner /> : <RotateCcw className="h-4 w-4" aria-hidden="true" />}
+              {reactivating ? 'Réactivation…' : 'Réactiver le suivi'}
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="m-0">
+              <span className="t-num font-semibold text-gray-900">{summary.activeMembers}</span> membre(s) actif(s) : vous
+              choisirez leur sort à l’étape suivante.
+            </p>
+            <button type="button" onClick={() => setDialogOpen(true)} className="app-btn app-btn--md app-btn--danger-solid gap-1.5">
+              <PowerOff className="h-4 w-4" aria-hidden="true" />
+              Arrêter le suivi de ce clan
+            </button>
+          </div>
+        )}
+      </div>
+
+      {feedback ? (
+        <p role="status" className={`t-body m-0 ${feedback.tone === 'success' ? 't-pos' : 't-neg'}`}>
+          {feedback.text}
+        </p>
+      ) : null}
 
       {dialogOpen && clan ? (
         <ClanArchiveDialog

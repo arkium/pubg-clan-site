@@ -4,8 +4,8 @@ import type { LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import type { ReactNode } from 'react'
 
+import ClanSettingsBanner from '@/components/clan-settings/ClanSettingsBanner'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 export type MembersSettingsTab = 'membres' | 'demandes' | 'ajout'
 
@@ -57,14 +57,14 @@ export default function MembersSettingsTabs({ clanId, active }: { clanId: number
 
 /**
  * En-tête des onglets de gestion des membres selon la charte (docs/ui/index.html, En-têtes de page) : fil d'Ariane,
- * bandeau photo (titre Teko, sous-titre, pastilles, action en verre dépoli), puis les onglets.
+ * bandeau photo commun aux trois onglets, puis les onglets.
  */
 export function MembersSectionHeader({
   clanId,
   active,
   title,
   subtitle,
-  icon: Icon,
+  icon,
   pills = [],
   action,
 }: {
@@ -79,34 +79,16 @@ export function MembersSectionHeader({
   const query = TABS.find((tab) => tab.key === active)?.query ?? ''
   return (
     <>
-      <NavigationTrail
-        currentLabel={title}
+      <ClanSettingsBanner
+        clanId={clanId}
+        title={title}
+        subtitle={subtitle}
+        icon={icon}
+        image="/banner-members.jpg"
         currentHref={`/clans/${clanId}/settings/members${query}`}
-        fallbackParent={{ href: `/clans/${clanId}/settings`, label: 'Paramètres du clan', altHref: '/clans' }}
+        pills={pills}
+        action={action}
       />
-      <header
-        className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/banner-members.jpg')`, backgroundPosition: 'center 35%' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        {action ? <div className="absolute right-2 top-2 z-10 sm:right-4 sm:top-4">{action}</div> : null}
-        <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 px-3.5 py-3 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-2">
-            <Icon className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="t-banner-title text-white drop-shadow-md">{title}</h1>
-          </div>
-          <p className="text-[13px] text-white/80 drop-shadow-md">{subtitle}</p>
-          {pills.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 text-xs font-semibold text-white">
-              {pills.map((pill, index) => (
-                <span key={index} className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5">
-                  {pill}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </header>
       <MembersSettingsTabs clanId={clanId} active={active} />
     </>
   )

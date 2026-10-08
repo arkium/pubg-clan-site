@@ -1,98 +1,102 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import Link from 'next/link'
-import {
-  Info,
-  RefreshCcw,
-  Search,
-  ExternalLink,
-  CheckCircle2,
-  AlertTriangle,
-  RotateCcw,
-  Sparkles,
-  ChevronLeft,
-  ChevronRight,
-  Shield,
-  ArrowDown,
-  ArrowUp,
-  ArrowUpDown,
-  X,
-} from 'lucide-react'
+import { AlertTriangle, CheckCircle2, ExternalLink, Info, Loader2, RotateCcw, RotateCw, Search, Shield, Sparkles, X } from 'lucide-react'
 
+import { FormFeedback } from '@/components/settings/AdminPageStates'
+import { Callout, EmptyState, ListSkeleton, Tag, type Tone } from '@/components/ui/CharteKit'
+import Pagination from '@/components/ui/Pagination'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(' ')
+/**
+ * Triage des joueurs croisés dont le clan PUBG reste à découvrir — onglet « Triage API » de Plateforme › Joueurs.
+ * Selon la charte UI (docs/ui/index.html) : statuts en puces à l'accent (choix multiple), tableau trié par ses en-têtes
+ * côté serveur (cartes sous `md`), résolution unitaire et pagination numérotée.
+ */
+
+type TriageStatus = 'never_attempted' | 'retry_pending' | 'failed' | 'below_threshold' | 'resolved_with_clan' | 'resolved_without_clan'
+
+type SortColumn = 'pubgPlayerName' | 'status' | 'distinctClanCount' | 'totalEncounterCount' | 'resolveAttempts' | 'lastSeenAt'
+
+type TriageClan = { clanTag?: string | null; clanName?: string | null; encounterCount?: number }
+
+type TriageRow = {
+  id: string
+  pubgPlayerName: string
+  status?: TriageStatus
+  pubgClanTag?: string | null
+  pubgClanName?: string | null
+  clanResolvedAt?: string | null
+  clans?: TriageClan[]
+  clanTag?: string | null
+  clanName?: string | null
+  clan?: { tag?: string | null; name?: string | null } | null
+  encounterCount?: number
+  totalEncounterCount?: number
+  distinctClanCount?: number
+  resolveAttempts?: number
+  lastSeenAt?: string | null
 }
 
-type TriageStatus =
-  | 'never_attempted'
-  | 'retry_pending'
-  | 'failed'
-  | 'below_threshold'
-  | 'resolved_with_clan'
-  | 'resolved_without_clan'
+const PAGE_SIZE = 20
+const QUEUE_STATUSES: TriageStatus[] = ['never_attempted', 'retry_pending', 'failed']
+const ALL_STATUSES: TriageStatus[] = ['never_attempted', 'retry_pending', 'failed', 'below_threshold', 'resolved_with_clan', 'resolved_without_clan']
 
-const STATUS_CONFIG: Record<
-  TriageStatus,
-  { label: string; tooltip: string; badgeClass: string }
-> = {
+const STATUS_CONFIG: Record<TriageStatus, { label: string; tooltip: string; tone: Tone }> = {
   never_attempted: {
-    label: 'Jamais tenté (clan inconnu)',
-    tooltip: 'Pseudo déjà connu dès le match. Clan PUBG non encore interrogé auprès de l’API.',
-    badgeClass: 'bg-indigo-50 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-400 border-indigo-200 dark:border-indigo-800',
+    label: 'Jamais tenté',
+    tooltip: 'Pseudo déjà connu dès le match. Clan PUBG pas encore demandé à l’API.',
+    tone: 'sky',
   },
   retry_pending: {
-    label: 'Nouvel essai (relance)',
-    tooltip: 'Tentative précédente échouée (ex: rate limit ou timeout). Sera retenté automatiquement par le cron.',
-    badgeClass: 'bg-amber-50 text-amber-700 dark:bg-amber-950/50 dark:text-amber-400 border-amber-200 dark:border-amber-800',
+    label: 'À relancer',
+    tooltip: 'Tentative précédente échouée (limite de débit, délai dépassé). Retentée automatiquement par le cron.',
+    tone: 'warn',
   },
   failed: {
-    label: 'Échec définitif (sans réponse 5x)',
-    tooltip: 'Nombre maximal de tentatives (5) dépassé. Compte souvent inexistant, supprimé ou bot.',
-    badgeClass: 'bg-rose-50 text-rose-700 dark:bg-rose-950/50 dark:text-rose-400 border-rose-200 dark:border-rose-800',
+    label: 'Sans réponse (5 essais)',
+    tooltip: 'Nombre maximal de tentatives (5) dépassé. Compte souvent inexistant, supprimé ou robot.',
+    tone: 'neg',
   },
   below_threshold: {
-    label: 'Sous le seuil (<2 matchs)',
-    tooltip: 'Croisé 1 seule fois. Nécessite 2 rencontres pour être qualifié au traitement automatique par cron.',
-    badgeClass: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300 border-slate-200 dark:border-slate-700',
+    label: 'Sous le seuil (1 rencontre)',
+    tooltip: 'Croisé une seule fois. Il faut deux rencontres pour entrer dans le traitement automatique.',
+    tone: 'neutral',
   },
-  resolved_with_clan: {
-    label: 'Avec clan (identifié)',
-    tooltip: 'Clan PUBG identifié avec succès auprès de l’API.',
-    badgeClass: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/50 dark:text-emerald-400 border-emerald-200 dark:border-emerald-800',
-  },
-  resolved_without_clan: {
-    label: 'Sans clan (confirmé solo)',
-    tooltip: 'Joueur solo vérifié sans aucun clan PUBG affilié.',
-    badgeClass: 'bg-cyan-50 text-cyan-700 dark:bg-cyan-950/50 dark:text-cyan-400 border-cyan-200 dark:border-cyan-800',
-  },
+  resolved_with_clan: { label: 'Avec clan', tooltip: 'Clan PUBG identifié auprès de l’API.', tone: 'pos' },
+  resolved_without_clan: { label: 'Sans clan (solo)', tooltip: 'Joueur vérifié, sans clan PUBG.', tone: 'pos' },
+}
+
+function sameSet(selected: Set<TriageStatus>, list: TriageStatus[]) {
+  return selected.size === list.length && list.every((status) => selected.has(status))
+}
+
+function rowClans(row: TriageRow): TriageClan[] {
+  if (row.clans && row.clans.length > 0) return row.clans
+  return [{ clanTag: row.clanTag || row.clan?.tag, encounterCount: row.encounterCount, clanName: row.clanName || row.clan?.name }]
 }
 
 export default function OpponentsTriagePage() {
   const { loading, authenticated, isSuperUser } = useAuthSession()
 
-  const [triageRows, setTriageRows] = useState<any[]>([])
+  const [triageRows, setTriageRows] = useState<TriageRow[]>([])
   const [totalCount, setTotalCount] = useState(0)
   const [loadingData, setLoadingData] = useState(false)
+  const [loaded, setLoaded] = useState(false)
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Filters
-  const [selectedStatuses, setSelectedStatuses] = useState<Set<TriageStatus>>(
-    new Set(['never_attempted', 'retry_pending', 'failed'])
-  )
+  const [selectedStatuses, setSelectedStatuses] = useState<Set<TriageStatus>>(new Set(QUEUE_STATUSES))
   const [searchInput, setSearchInput] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [page, setPage] = useState(1)
 
-  // Server-side sorting
-  type SortColumn = 'pubgPlayerName' | 'status' | 'distinctClanCount' | 'totalEncounterCount' | 'resolveAttempts' | 'lastSeenAt'
+  // Tri côté serveur ; `default` = ordre de la file proposé par la route.
   const [sortBy, setSortBy] = useState<SortColumn | 'default'>('default')
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc')
 
-  // Individual resolution state
   const [resolvingIds, setResolvingIds] = useState<Set<string>>(new Set())
   const [resolutionFeedback, setResolutionFeedback] = useState<Record<string, { success: boolean; message: string }>>({})
 
@@ -112,26 +116,27 @@ export default function OpponentsTriagePage() {
           params.set('sortBy', sortBy)
           params.set('sortOrder', sortOrder)
         }
-        for (const s of selectedStatuses) {
-          params.append('status', s)
+        for (const status of selectedStatuses) {
+          params.append('status', status)
         }
 
-        const res = await fetch(`/api/settings/encountered-players?${params.toString()}`, {
-          cache: 'no-store',
-        })
+        const res = await fetch(`/api/settings/encountered-players?${params.toString()}`, { cache: 'no-store' })
         const data = await res.json().catch(() => null)
         if (!res.ok) throw new Error(data?.error || 'Chargement du triage impossible')
 
         if (!cancelled) {
-          const players = data?.rows ?? data?.players ?? data?.data?.players ?? data?.data?.rows ?? []
-          const total = data?.total ?? data?.data?.total ?? 0
+          const players = (data?.rows ?? data?.players ?? data?.data?.players ?? data?.data?.rows ?? []) as TriageRow[]
+          const total = Number(data?.total ?? data?.data?.total ?? 0)
           setTriageRows(players)
           setTotalCount(total)
         }
-      } catch (err: any) {
-        if (!cancelled) setError(err.message)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement du triage impossible')
       } finally {
-        if (!cancelled) setLoadingData(false)
+        if (!cancelled) {
+          setLoadingData(false)
+          setLoaded(true)
+        }
       }
     }
 
@@ -151,17 +156,6 @@ export default function OpponentsTriagePage() {
     }
   }
 
-  function renderSortIcon(column: SortColumn) {
-    if (sortBy !== column) {
-      return <ArrowUpDown className="h-3.5 w-3.5 text-slate-400 opacity-40 group-hover:opacity-100 transition-opacity" />
-    }
-    return sortOrder === 'asc' ? (
-      <ArrowUp className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-    ) : (
-      <ArrowDown className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
-    )
-  }
-
   function toggleStatus(status: TriageStatus) {
     setPage(1)
     setSelectedStatuses((prev) => {
@@ -175,13 +169,21 @@ export default function OpponentsTriagePage() {
     })
   }
 
-  async function handleResolveOne(player: any, forceRetry = false) {
+  function applyPreset(list: TriageStatus[]) {
+    setSelectedStatuses(new Set(list))
+    setPage(1)
+  }
+
+  function clearSearch() {
+    setSearchInput('')
+    setSearchQuery('')
+    setPage(1)
+  }
+
+  async function handleResolveOne(player: TriageRow, forceRetry = false) {
     try {
       setResolvingIds((prev) => new Set(prev).add(player.id))
-      setResolutionFeedback((prev) => ({
-        ...prev,
-        [player.id]: { success: false, message: 'Résolution en cours...' },
-      }))
+      setResolutionFeedback((prev) => ({ ...prev, [player.id]: { success: false, message: 'Résolution en cours…' } }))
 
       const url = `/api/settings/encountered-players/${player.id}/resolve${forceRetry ? '?force=retry' : ''}`
       const res = await fetch(url, { method: 'POST' })
@@ -190,7 +192,7 @@ export default function OpponentsTriagePage() {
       if (!res.ok) throw new Error(data?.error || 'Échec de la résolution')
 
       const outcome = data.result?.outcome
-      let message = 'Résolu avec succès !'
+      let message = 'Résolu.'
       if (outcome === 'resolved_with_clan') {
         message = `Clan trouvé : [${data.result.pubgClanTag || 'TAG'}] ${data.result.pubgClanName || ''}`
       } else if (outcome === 'resolved_without_clan') {
@@ -199,29 +201,26 @@ export default function OpponentsTriagePage() {
         message = 'Résolu depuis le cache'
       }
 
-      setResolutionFeedback((prev) => ({
-        ...prev,
-        [player.id]: { success: true, message },
-      }))
+      setResolutionFeedback((prev) => ({ ...prev, [player.id]: { success: true, message } }))
 
-      // Optimistically update player row
+      // Mise à jour optimiste de la ligne
       setTriageRows((prev) =>
-        prev.map((r) =>
-          r.id === player.id
+        prev.map((row) =>
+          row.id === player.id
             ? {
-                ...r,
-                pubgClanTag: data.result?.pubgClanTag ?? r.pubgClanTag,
-                pubgClanName: data.result?.pubgClanName ?? r.pubgClanName,
+                ...row,
+                pubgClanTag: data.result?.pubgClanTag ?? row.pubgClanTag,
+                pubgClanName: data.result?.pubgClanName ?? row.pubgClanName,
                 clanResolvedAt: new Date().toISOString(),
                 status: outcome === 'resolved_with_clan' ? 'resolved_with_clan' : 'resolved_without_clan',
               }
-            : r
+            : row
         )
       )
-    } catch (err: any) {
+    } catch (err) {
       setResolutionFeedback((prev) => ({
         ...prev,
-        [player.id]: { success: false, message: err.message },
+        [player.id]: { success: false, message: err instanceof Error ? err.message : 'Échec de la résolution' },
       }))
     } finally {
       setResolvingIds((prev) => {
@@ -234,486 +233,327 @@ export default function OpponentsTriagePage() {
 
   if (loading || !authenticated || !isSuperUser) return null
 
-  const totalPages = Math.max(1, Math.ceil(totalCount / 20))
+  const totalPages = Math.max(1, Math.ceil(totalCount / PAGE_SIZE))
+  const preset = sameSet(selectedStatuses, QUEUE_STATUSES) ? 'queue' : sameSet(selectedStatuses, ALL_STATUSES) ? 'all' : 'custom'
+  const activeSort = sortBy === 'default' ? undefined : sortBy
 
   return (
-    <div className="space-y-6">
-      {error ? <p className="p-4 text-sm text-rose-700 dark:text-rose-400">{error}</p> : null}
-
-      <section className="app-panel p-5 sm:p-7 space-y-6">
-        {/* Header */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Shield className="h-5 w-5 text-indigo-500" />
-              Triage des joueurs rencontrés
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 flex items-center gap-1">
-              File d’attente des joueurs croisés en match nécessitant une identification de clan PUBG.
-              <span
-                title="Règle d’éligibilité : le joueur doit avoir été croisé au moins 2 fois pour être éligible au cron automatique afin d'économiser les quotas PUBG."
-                className="cursor-help inline-flex items-center text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-              >
-                <Info className="h-3.5 w-3.5" />
-              </span>
-            </p>
-          </div>
-
+    <div className="flex flex-col gap-5">
+      <section className="flex flex-col gap-2.5" aria-labelledby="triage-title">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="triage-title" className="t-section-title m-0 flex items-center gap-2">
+            <Shield className="h-5 w-5 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+            Triage des joueurs rencontrés
+          </h2>
           <button
             type="button"
             onClick={() => setRefreshKey((k) => k + 1)}
             disabled={loadingData}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-xs"
-            title="Rafraîchir les joueurs de triage"
+            className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+            title="Recharger la liste"
           >
-            <RefreshCcw className={cx('h-3.5 w-3.5', loadingData && 'animate-spin text-indigo-500')} />
-            Rafraîchir
+            <RotateCw className={`h-3.5 w-3.5 ${loadingData ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Actualiser
           </button>
         </div>
+        <p className="t-meta m-0">Joueurs croisés en match dont le clan PUBG reste à identifier.</p>
+      </section>
 
-        {/* Educational Callout Banner */}
-        <div className="rounded-xl border border-indigo-200/70 bg-indigo-50/60 p-3.5 sm:p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20 text-xs text-indigo-950 dark:text-indigo-200 flex items-start gap-3">
-          <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-          <div className="space-y-1 leading-relaxed">
-            <p className="font-semibold text-slate-900 dark:text-slate-100">
-              💡 Comment fonctionne la découverte des joueurs et des clans ?
-            </p>
-            <p className="text-slate-600 dark:text-slate-300">
-              • <strong>Le pseudo et l&apos;ID du joueur sont déjà connus à 100%</strong> dès la fin de chaque match (l&apos;API PUBG fournit systématiquement le nom en jeu).
-            </p>
-            <p className="text-slate-600 dark:text-slate-300">
-              • <strong>Seul le clan PUBG reste à découvrir :</strong> Les données de match n&apos;incluent pas l&apos;affiliation au clan. Le cron et cet écran interrogent PUBG pour identifier le clan adverse de chaque joueur croisé.
-            </p>
-          </div>
-        </div>
+      <Callout tone="sky" icon={Info} title="Seul le clan reste à découvrir">
+        Pseudo et identifiant sont connus dès la fin de chaque partie ; les données de match n’indiquent pas le clan. Le cron et
+        cet écran le demandent à l’API PUBG, joueur par joueur. Un joueur n’entre dans le traitement automatique qu’après deux
+        rencontres, pour ménager les quotas.
+      </Callout>
 
-        {/* Filter Bar & Search */}
-        <div className="space-y-3 pt-1">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            {/* Presets & Status Pills */}
-            <div className="flex flex-wrap items-center gap-1.5">
-              <div className="inline-flex items-center rounded-lg border border-slate-300 dark:border-slate-700 bg-slate-100 dark:bg-slate-800 p-0.5 text-xs font-semibold mr-1">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedStatuses(new Set(['never_attempted', 'retry_pending', 'failed']))
-                    setPage(1)
-                  }}
-                  className={cx(
-                    'px-2.5 py-1 rounded-md transition-all',
-                    selectedStatuses.size === 3 &&
-                      selectedStatuses.has('never_attempted') &&
-                      selectedStatuses.has('retry_pending') &&
-                      selectedStatuses.has('failed')
-                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                  )}
-                  title="Afficher uniquement les 3 statuts de la file d'attente à résoudre"
-                >
-                  File à traiter
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedStatuses(
-                      new Set([
-                        'never_attempted',
-                        'retry_pending',
-                        'failed',
-                        'below_threshold',
-                        'resolved_with_clan',
-                        'resolved_without_clan',
-                      ])
-                    )
-                    setPage(1)
-                  }}
-                  className={cx(
-                    'px-2.5 py-1 rounded-md transition-all',
-                    selectedStatuses.size === 6
-                      ? 'bg-white dark:bg-slate-700 text-indigo-600 dark:text-indigo-300 shadow-xs font-bold'
-                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-slate-200'
-                  )}
-                  title="Sélectionner tous les statuts pour voir tous les joueurs"
-                >
-                  Tous les statuts
-                </button>
-              </div>
-
-              {(Object.keys(STATUS_CONFIG) as TriageStatus[]).map((statusKey) => {
-                const config = STATUS_CONFIG[statusKey]
-                const isSelected = selectedStatuses.has(statusKey)
-                return (
-                  <button
-                    key={statusKey}
-                    type="button"
-                    onClick={() => toggleStatus(statusKey)}
-                    className={cx(
-                      'inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-semibold border transition-all',
-                      isSelected
-                        ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
-                        : 'bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-400 border-slate-300 dark:border-slate-700 hover:border-slate-400'
-                    )}
-                    title={config.tooltip}
-                  >
-                    <span>{config.label}</span>
-                    <span
-                      title={config.tooltip}
-                      className="cursor-help"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <Info className={cx('h-3 w-3', isSelected ? 'text-indigo-200' : 'text-slate-400')} />
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-
-            {/* Search Form */}
-            <form
-              onSubmit={(e) => {
-                e.preventDefault()
-                setPage(1)
-                setSearchQuery(searchInput.trim())
+      <section className="app-panel flex flex-col gap-4 p-4 sm:p-5" aria-label="Joueurs à trier">
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2">
+            <SegmentedControl<'queue' | 'all' | 'custom'>
+              size="sm"
+              value={preset}
+              onChange={(value) => {
+                if (value === 'queue') applyPreset(QUEUE_STATUSES)
+                if (value === 'all') applyPreset(ALL_STATUSES)
               }}
-              className="flex items-center gap-1.5"
-            >
-              <div className="relative">
-                <input
-                  type="text"
-                  value={searchInput}
-                  onChange={(e) => setSearchInput(e.target.value)}
-                  placeholder="Rechercher par pseudo (ex: Lord)..."
-                  className="w-56 sm:w-64 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 pl-8 pr-7 py-1.5 text-xs text-slate-900 dark:text-slate-100 placeholder-slate-400 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                />
-                <Search className="h-3.5 w-3.5 text-slate-400 absolute left-2.5 top-2.5 pointer-events-none" />
-                {searchInput && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSearchInput('')
-                      setSearchQuery('')
-                      setPage(1)
-                    }}
-                    className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"
-                    title="Effacer"
-                  >
-                    <X className="h-3.5 w-3.5" />
-                  </button>
-                )}
-              </div>
-              <button
-                type="submit"
-                className="px-3 py-1.5 rounded-lg bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold shadow-xs transition-colors"
-              >
-                Rechercher
-              </button>
-            </form>
+              options={[
+                { value: 'queue', label: 'File à traiter' },
+                { value: 'all', label: 'Tous les statuts' },
+                ...(preset === 'custom' ? [{ value: 'custom' as const, label: 'Sélection' }] : []),
+              ]}
+            />
           </div>
-
-          {/* Active Search & Filter Indicators */}
-          {searchQuery && (
-            <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-indigo-700 dark:text-indigo-300 bg-indigo-50/70 dark:bg-indigo-950/40 px-3 py-2 rounded-lg border border-indigo-200 dark:border-indigo-800">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="font-semibold">
-                  Recherche de pseudo active pour « {searchQuery} » ({totalCount.toLocaleString()} résultat{totalCount > 1 ? 's' : ''})
-                </span>
-                {selectedStatuses.size < 6 && (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setSelectedStatuses(
-                        new Set([
-                          'never_attempted',
-                          'retry_pending',
-                          'failed',
-                          'below_threshold',
-                          'resolved_with_clan',
-                          'resolved_without_clan',
-                        ])
-                      )
-                      setPage(1)
-                    }}
-                    className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 hover:bg-indigo-200 dark:hover:bg-indigo-800 font-medium transition-colors border border-indigo-300 dark:border-indigo-700"
-                    title="Élargir aux joueurs déjà résolus ou avec/sans clan"
-                  >
-                    <Search className="h-3 w-3" />
-                    Élargir à tous les statuts (y compris déjà résolus)
-                  </button>
-                )}
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setSearchInput('')
-                  setSearchQuery('')
-                  setPage(1)
-                }}
-                className="inline-flex items-center gap-0.5 text-indigo-800 dark:text-indigo-200 hover:underline font-bold"
-              >
-                <X className="h-3 w-3" />
-                Effacer le filtre de recherche
-              </button>
-            </div>
-          )}
+          <div className="flex flex-wrap gap-1.5" role="group" aria-label="Statuts affichés">
+            {ALL_STATUSES.map((status) => {
+              const config = STATUS_CONFIG[status]
+              const selected = selectedStatuses.has(status)
+              return (
+                <button
+                  key={status}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => toggleStatus(status)}
+                  title={config.tooltip}
+                  className="inline-flex items-center rounded-full border border-gray-200 px-2.5 py-1 text-xs font-semibold text-gray-700 transition-colors hover:bg-gray-50"
+                  style={
+                    selected
+                      ? {
+                          borderColor: 'var(--theme-ui-accent-ring)',
+                          backgroundColor: 'var(--theme-ui-accent-soft)',
+                          color: 'var(--theme-ui-accent-text)',
+                        }
+                      : undefined
+                  }
+                >
+                  {config.label}
+                </button>
+              )
+            })}
+          </div>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              setPage(1)
+              setSearchQuery(searchInput.trim())
+            }}
+            className="flex flex-wrap items-center gap-2"
+          >
+            <label className="relative w-full sm:w-72">
+              <span className="sr-only">Rechercher un pseudo</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+              <input
+                type="search"
+                value={searchInput}
+                onChange={(e) => setSearchInput(e.target.value)}
+                placeholder="Pseudo PUBG…"
+                className="app-input pl-9 pr-9"
+              />
+              {searchInput ? (
+                <button
+                  type="button"
+                  onClick={clearSearch}
+                  className="absolute right-2 top-1/2 grid h-6 w-6 -translate-y-1/2 place-items-center rounded-md text-gray-500 hover:bg-gray-100"
+                  aria-label="Effacer la recherche"
+                >
+                  <X className="h-3.5 w-3.5" aria-hidden="true" />
+                </button>
+              ) : null}
+            </label>
+            <button type="submit" className="app-btn app-btn--md app-btn--secondary">
+              Rechercher
+            </button>
+          </form>
         </div>
 
-        {/* Triage Table */}
-        <div className="app-table-shell overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-          <table className="min-w-full text-left text-xs text-slate-700 dark:text-slate-300">
-            <thead className="app-table-head uppercase tracking-wide text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
-              <tr>
-                <th className="px-3 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSort('pubgPlayerName')}
-                    className="group inline-flex items-center gap-1.5 font-bold hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors"
-                  >
-                    <span>Joueur PUBG</span>
-                    {renderSortIcon('pubgPlayerName')}
-                  </button>
-                </th>
-                <th className="px-3 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSort('status')}
-                    className="group inline-flex items-center gap-1.5 font-bold hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors"
-                  >
-                    <span>Statut de résolution</span>
-                    {renderSortIcon('status')}
-                  </button>
-                </th>
-                <th className="px-3 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSort('distinctClanCount')}
-                    className="group inline-flex items-center gap-1.5 font-bold hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors"
-                  >
-                    <span>Clans suivis croisés</span>
-                    {renderSortIcon('distinctClanCount')}
-                  </button>
-                </th>
-                <th className="px-3 py-2.5 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleSort('totalEncounterCount')}
-                    className="group inline-flex items-center gap-1.5 font-bold hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors"
-                  >
-                    <span>Rencontres totales</span>
-                    {renderSortIcon('totalEncounterCount')}
-                  </button>
-                </th>
-                <th className="px-3 py-2.5 text-center">
-                  <button
-                    type="button"
-                    onClick={() => handleSort('resolveAttempts')}
-                    className="group inline-flex items-center gap-1.5 font-bold hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors"
-                  >
-                    <span>Tentatives</span>
-                    {renderSortIcon('resolveAttempts')}
-                  </button>
-                </th>
-                <th className="px-3 py-2.5">
-                  <button
-                    type="button"
-                    onClick={() => handleSort('lastSeenAt')}
-                    className="group inline-flex items-center gap-1.5 font-bold hover:text-indigo-600 dark:hover:text-indigo-400 focus:outline-none transition-colors"
-                  >
-                    <span>Dernière vue</span>
-                    {renderSortIcon('lastSeenAt')}
-                  </button>
-                </th>
-                <th className="px-3 py-2.5 text-right">Action unitaire</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-              {loadingData ? (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
-                    Chargement des joueurs en cours...
-                  </td>
-                </tr>
-              ) : triageRows.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
-                    Aucun joueur trouvé pour ces filtres de statut.
-                  </td>
-                </tr>
-              ) : (
-                triageRows.map((row) => {
-                  const statusKey = (row.status as TriageStatus) || 'never_attempted'
-                  const config = STATUS_CONFIG[statusKey] || STATUS_CONFIG.never_attempted
-                  const feedback = resolutionFeedback[row.id]
-                  const isResolving = resolvingIds.has(row.id)
+        {searchQuery ? (
+          <Callout tone="sky" icon={Search} title={`Recherche « ${searchQuery} » : ${totalCount.toLocaleString('fr-FR')} résultat(s)`}>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              {!sameSet(selectedStatuses, ALL_STATUSES) ? (
+                <button type="button" onClick={() => applyPreset(ALL_STATUSES)} className="app-link text-xs font-semibold">
+                  Élargir à tous les statuts, résolus compris
+                </button>
+              ) : null}
+              <button type="button" onClick={clearSearch} className="app-link text-xs font-semibold">
+                Effacer la recherche
+              </button>
+            </span>
+          </Callout>
+        ) : null}
 
-                  const clanList =
-                    row.clans && row.clans.length > 0
-                      ? row.clans
-                      : [
-                          {
-                            clanTag: row.clanTag || row.clan?.tag,
-                            encounterCount: row.encounterCount,
-                            clanName: row.clanName || row.clan?.name,
-                          },
-                        ]
+        <FormFeedback error={error} />
 
-                  const totalEncounters = row.totalEncounterCount ?? row.encounterCount ?? 1
-                  const distinctClans = row.distinctClanCount ?? clanList.length
-
-                  return (
-                    <tr key={row.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                      {/* Player Name with PUBG Tracker Link */}
-                      <td className="px-3 py-2.5 font-semibold text-slate-900 dark:text-slate-100">
-                        <div className="flex items-center gap-1.5">
-                          <span>{row.pubgPlayerName}</span>
-                          <a
-                            href={`https://pubglookup.com/players/steam/${encodeURIComponent(row.pubgPlayerName)}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="text-slate-400 hover:text-indigo-600 dark:hover:text-indigo-400 transition-colors"
-                            title="Voir sur PUBG Lookup"
-                          >
-                            <ExternalLink className="h-3 w-3" />
-                          </a>
-                        </div>
+        {!loaded ? (
+          <ListSkeleton rows={4} />
+        ) : triageRows.length === 0 ? (
+          <EmptyState icon={Shield} title="Aucun joueur pour ces statuts" />
+        ) : (
+          <div className={`flex flex-col gap-2 ${loadingData ? 'opacity-60 transition-opacity duration-200' : ''}`} aria-busy={loadingData}>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
+              {triageRows.map((row) => (
+                <li key={row.id} className="app-panel-muted flex flex-col gap-2 px-3 py-2.5">
+                  <span className="flex items-center justify-between gap-2">
+                    <PlayerName row={row} />
+                    <StatusTag row={row} />
+                  </span>
+                  <ClansCell row={row} />
+                  <span className="t-meta t-num">
+                    {row.totalEncounterCount ?? row.encounterCount ?? 1} rencontre(s) · {row.resolveAttempts ?? 0} / 5 essais · vu le{' '}
+                    {row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleDateString('fr-FR') : '—'}
+                  </span>
+                  <ResolveAction
+                    row={row}
+                    resolving={resolvingIds.has(row.id)}
+                    feedback={resolutionFeedback[row.id]}
+                    onResolve={() => void handleResolveOne(row, row.status === 'failed')}
+                  />
+                </li>
+              ))}
+            </ul>
+            <div className="app-table-shell hidden md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="app-table-head">
+                  <tr>
+                    <SortableTh<SortColumn> column="pubgPlayerName" sortKey={activeSort} sortDir={sortOrder} onSort={handleSort} align="left">
+                      Joueur
+                    </SortableTh>
+                    <SortableTh<SortColumn> column="status" sortKey={activeSort} sortDir={sortOrder} onSort={handleSort} align="left">
+                      Statut
+                    </SortableTh>
+                    <SortableTh<SortColumn> column="distinctClanCount" sortKey={activeSort} sortDir={sortOrder} onSort={handleSort} align="left">
+                      Clans suivis croisés
+                    </SortableTh>
+                    <SortableTh<SortColumn> column="totalEncounterCount" sortKey={activeSort} sortDir={sortOrder} onSort={handleSort}>
+                      Rencontres
+                    </SortableTh>
+                    <SortableTh<SortColumn> column="resolveAttempts" sortKey={activeSort} sortDir={sortOrder} onSort={handleSort}>
+                      Essais
+                    </SortableTh>
+                    <SortableTh<SortColumn> column="lastSeenAt" sortKey={activeSort} sortDir={sortOrder} onSort={handleSort} align="left">
+                      Dernière vue
+                    </SortableTh>
+                    <SortableTh>Action</SortableTh>
+                  </tr>
+                </thead>
+                <tbody>
+                  {triageRows.map((row) => (
+                    <tr key={row.id} className="app-table-row align-top">
+                      <td className="px-[9px] py-2">
+                        <PlayerName row={row} />
                       </td>
-
-                      {/* Status Badge */}
-                      <td className="px-3 py-2.5">
-                        <span
-                          className={cx(
-                            'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold border',
-                            config.badgeClass
-                          )}
-                          title={config.tooltip}
-                        >
-                          {row.pubgClanTag ? `[${row.pubgClanTag}] ` : ''}
-                          {config.label}
-                        </span>
+                      <td className="px-[9px] py-2">
+                        <StatusTag row={row} />
                       </td>
-
-                      {/* Clans suivis croisés avec badges détaillés */}
-                      <td className="px-3 py-2.5">
-                        <div className="flex flex-col gap-1">
-                          <div className="flex items-center gap-1.5">
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-md text-[11px] font-bold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800">
-                              {distinctClans} {distinctClans > 1 ? 'clans suivis' : 'clan suivi'}
-                            </span>
-                          </div>
-                          {/* Badges de chaque clan avec compteur au survol */}
-                          <div className="flex flex-wrap items-center gap-1">
-                            {clanList.map((c: any, idx: number) => (
-                              <span
-                                key={idx}
-                                title={`${c.clanName || c.clanTag || 'Clan'} : ${c.encounterCount} rencontre${c.encounterCount > 1 ? 's' : ''}`}
-                                className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700 cursor-help hover:border-indigo-300 dark:hover:border-indigo-700 transition-colors"
-                              >
-                                <span className="font-semibold">{c.clanTag ? `[${c.clanTag}]` : (c.clanName || 'Clan')}</span>
-                                <span className="text-[9px] text-slate-500 dark:text-slate-400 font-medium">({c.encounterCount})</span>
-                              </span>
-                            ))}
-                          </div>
-                        </div>
+                      <td className="px-[9px] py-2">
+                        <ClansCell row={row} />
                       </td>
-
-                      {/* Rencontres totales */}
-                      <td className="px-3 py-2.5 text-center tabular-nums">
-                        <span className="inline-flex items-center justify-center px-2.5 py-1 rounded-lg text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-900 dark:text-slate-100 border border-slate-200 dark:border-slate-700 shadow-2xs">
-                          {totalEncounters}
-                        </span>
-                      </td>
-
-                      {/* Resolve attempts */}
-                      <td className="px-3 py-2.5 text-center tabular-nums text-slate-600 dark:text-slate-400">
-                        {row.resolveAttempts ?? 0} / 5
-                      </td>
-
-                      {/* Last Seen */}
-                      <td className="px-3 py-2.5 whitespace-nowrap text-slate-500 dark:text-slate-400">
+                      <td className="t-num px-[9px] py-2 text-right font-bold text-gray-900">{row.totalEncounterCount ?? row.encounterCount ?? 1}</td>
+                      <td className="t-num px-[9px] py-2 text-right text-gray-700">{row.resolveAttempts ?? 0} / 5</td>
+                      <td className="whitespace-nowrap px-[9px] py-2 text-gray-700">
                         {row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleDateString('fr-FR') : '—'}
                       </td>
-
-                      {/* Action */}
-                      <td className="px-3 py-2.5 text-right whitespace-nowrap">
-                        <div className="flex items-center justify-end gap-2">
-                          {feedback ? (
-                            <span
-                              className={cx(
-                                'text-[11px] font-semibold flex items-center gap-1',
-                                feedback.success ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'
-                              )}
-                            >
-                              {feedback.success ? <CheckCircle2 className="h-3 w-3" /> : <AlertTriangle className="h-3 w-3" />}
-                              {feedback.message}
-                            </span>
-                          ) : null}
-
-                          <button
-                            type="button"
-                            disabled={isResolving}
-                            onClick={() => handleResolveOne(row, row.status === 'failed')}
-                            className={cx(
-                              'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-bold transition-all shadow-xs',
-                              row.status === 'failed'
-                                ? 'bg-amber-100 dark:bg-amber-950/50 text-amber-800 dark:text-amber-300 hover:bg-amber-200'
-                                : 'bg-indigo-50 dark:bg-indigo-950/50 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-100'
-                            )}
-                            title="Lancer une résolution unitaire immédiate auprès de l'API PUBG"
-                          >
-                            {isResolving ? (
-                              <RefreshCcw className="h-3 w-3 animate-spin" />
-                            ) : row.status === 'failed' ? (
-                              <RotateCcw className="h-3 w-3" />
-                            ) : (
-                              <Sparkles className="h-3 w-3" />
-                            )}
-                            {isResolving
-                              ? 'Appel PUBG...'
-                              : row.status === 'failed'
-                              ? 'Forcer réessai'
-                              : 'Résoudre'}
-                          </button>
-                        </div>
+                      <td className="px-[9px] py-2">
+                        <span className="flex justify-end">
+                          <ResolveAction
+                            row={row}
+                            resolving={resolvingIds.has(row.id)}
+                            feedback={resolutionFeedback[row.id]}
+                            onResolve={() => void handleResolveOne(row, row.status === 'failed')}
+                          />
+                        </span>
                       </td>
                     </tr>
-                  )
-                })
-              )}
-            </tbody>
-          </table>
-        </div>
-
-        {/* Pagination Bar */}
-        {totalCount > 0 && (
-          <div className="flex items-center justify-between flex-wrap gap-3 pt-2">
-            <span className="text-xs text-slate-500 dark:text-slate-400">
-              Lignes <strong className="text-slate-800 dark:text-slate-200">{(page - 1) * 20 + 1}–{Math.min(page * 20, totalCount)}</strong> sur{' '}
-              <strong className="text-slate-800 dark:text-slate-200">{totalCount.toLocaleString()}</strong> joueurs
-            </span>
-
-            <div className="flex items-center gap-1">
-              <button
-                type="button"
-                disabled={page <= 1}
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="text-xs font-semibold px-2 text-slate-700 dark:text-slate-300">
-                {page} / {totalPages}
-              </span>
-              <button
-                type="button"
-                disabled={page >= totalPages}
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
-                className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 text-slate-700 dark:text-slate-300 disabled:opacity-40 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
+
+        {totalCount > 0 ? (
+          <Pagination
+            page={page}
+            pageCount={totalPages}
+            total={totalCount}
+            pageSize={PAGE_SIZE}
+            onPageChange={setPage}
+            ariaLabel="Pages du triage"
+            itemLabel="Joueurs"
+          />
+        ) : null}
       </section>
     </div>
+  )
+}
+
+function PlayerName({ row }: { row: TriageRow }) {
+  return (
+    <span className="flex min-w-0 items-center gap-1.5">
+      <span className="truncate font-semibold text-gray-900">{row.pubgPlayerName}</span>
+      <a
+        href={`https://pubglookup.com/players/steam/${encodeURIComponent(row.pubgPlayerName)}`}
+        target="_blank"
+        rel="noopener noreferrer"
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+        title="Voir sur PUBG Lookup"
+      >
+        <ExternalLink className="h-3 w-3" aria-hidden="true" />
+        <span className="sr-only">PUBG Lookup de {row.pubgPlayerName}</span>
+      </a>
+    </span>
+  )
+}
+
+function StatusTag({ row }: { row: TriageRow }) {
+  const config = STATUS_CONFIG[row.status ?? 'never_attempted'] ?? STATUS_CONFIG.never_attempted
+  return (
+    <span title={config.tooltip} className="shrink-0">
+      <Tag tone={config.tone}>
+        {row.pubgClanTag ? `[${row.pubgClanTag}] ` : ''}
+        {config.label}
+      </Tag>
+    </span>
+  )
+}
+
+function ClansCell({ row }: { row: TriageRow }) {
+  const clans = rowClans(row)
+  const distinct = row.distinctClanCount ?? clans.length
+  return (
+    <span className="flex flex-col gap-1">
+      <span className="t-meta font-semibold text-gray-700">
+        {distinct} {distinct > 1 ? 'clans suivis' : 'clan suivi'}
+      </span>
+      <span className="flex flex-wrap items-center gap-1">
+        {clans.map((clan, index) => (
+          <span
+            key={index}
+            title={`${clan.clanName || clan.clanTag || 'Clan'} : ${clan.encounterCount ?? 0} rencontre(s)`}
+            className="app-panel-muted inline-flex items-center gap-1 px-1.5 py-0.5 text-[11px]"
+          >
+            <span className="font-mono font-bold text-gray-900">{clan.clanTag ? `[${clan.clanTag}]` : clan.clanName || 'Clan'}</span>
+            <span className="t-num text-gray-500">{clan.encounterCount ?? 0}</span>
+          </span>
+        ))}
+      </span>
+    </span>
+  )
+}
+
+function ResolveAction({
+  row,
+  resolving,
+  feedback,
+  onResolve,
+}: {
+  row: TriageRow
+  resolving: boolean
+  feedback: { success: boolean; message: string } | undefined
+  onResolve: () => void
+}) {
+  const failed = row.status === 'failed'
+  return (
+    <span className="flex flex-wrap items-center gap-2">
+      {feedback && !resolving ? (
+        <span className={`flex items-center gap-1 text-xs font-semibold ${feedback.success ? 't-pos' : 't-neg'}`}>
+          {feedback.success ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />}
+          {feedback.message}
+        </span>
+      ) : null}
+      <button
+        type="button"
+        disabled={resolving}
+        onClick={onResolve}
+        className="app-btn app-btn--xs app-btn--secondary gap-1"
+        title="Demander tout de suite le clan de ce joueur à l’API PUBG"
+      >
+        {resolving ? (
+          <Loader2 className="h-3 w-3 animate-spin" aria-hidden="true" />
+        ) : failed ? (
+          <RotateCcw className="h-3 w-3" aria-hidden="true" />
+        ) : (
+          <Sparkles className="h-3 w-3" aria-hidden="true" />
+        )}
+        {resolving ? 'Appel PUBG…' : failed ? 'Forcer un essai' : 'Résoudre'}
+      </button>
+    </span>
   )
 }

@@ -47,7 +47,8 @@ test('filtres : « Erreurs » et clan envoyés à la route, retour à la premiè
   expect(calls.urls.at(-1)?.searchParams.get('page')).toBe('1')
   await expect(entries(page)).toHaveCount(12)
 
-  await page.getByLabel('Clan').selectOption('1')
+  await page.getByRole('button', { name: 'Clan : Tous les clans' }).click()
+  await page.getByRole('menuitemradio', { name: 'Clan Démo' }).click()
   await expect.poll(() => calls.urls.at(-1)?.searchParams.get('clanId')).toBe('1')
 })
 

@@ -2,50 +2,93 @@
 
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import {
-  Play,
-  RefreshCcw,
-  Info,
-  CheckCircle2,
-  AlertTriangle,
-  Clock,
-  Zap,
-  Activity,
-  Calendar,
-  ExternalLink,
-} from 'lucide-react'
+import { Activity, AlertTriangle, Calendar, CheckCircle2, Clock, Info, Play, RotateCw, SlidersHorizontal, Timer, UserX, Zap } from 'lucide-react'
 
+import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
+import { FormFeedback } from '@/components/settings/AdminPageStates'
+import { Callout, EmptyState, ListSkeleton, SectionCard, Switch, Tag } from '@/components/ui/CharteKit'
+import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
 
-function cx(...classes: Array<string | false | null | undefined>) {
-  return classes.filter(Boolean).join(' ')
+/**
+ * Résolution des clans PUBG des joueurs croisés — onglet « Résolution & Cron » de Plateforme › Joueurs : débit du cron,
+ * reste à qualifier, passe manuelle. Selon la charte UI (docs/ui/index.html) : indicateurs, interrupteur de la charte,
+ * historique en tableau (cartes sous `md`).
+ */
+
+type ResolutionRun = {
+  id: string | number
+  startedAt: string
+  source: string
+  status: string
+  durationMs?: number | null
+  uniqueCandidatesSelected?: number
+  candidatesSelected?: number
+  resolvedWithClan?: number
+  resolvedWithoutClan?: number
+  playersResolved?: number
+  failed?: number
+  errorMessage?: string | null
+}
+
+type QuickData = {
+  config?: { enabled: boolean; batchSize: number }
+  cron?: { expression?: string; description?: string }
+  recentRuns?: ResolutionRun[]
+}
+
+type BacklogData = {
+  backlog?: { neverAttempted?: number; retryPending?: number; failed?: number }
+  resolutionsLast24h?: { withClan?: number; withoutClan?: number }
+  estimatedCatchUpDays?: number | null
+}
+
+type ManualRunSummary = {
+  uniqueCandidatesSelected: number
+  resolvedWithClan: number
+  resolvedWithoutClan: number
+  resolvedFromCache: number
+  failed: number
+}
+
+const formatCount = (value: number | undefined) => Number(value ?? 0).toLocaleString('fr-FR')
+
+function runResolved(run: ResolutionRun) {
+  if (run.resolvedWithClan !== undefined) return run.resolvedWithClan + (run.resolvedWithoutClan ?? 0)
+  return run.playersResolved ?? null
+}
+
+function RunStatus({ run }: { run: ResolutionRun }) {
+  const ok = run.status === 'success'
+  return (
+    <Tag tone={ok ? 'pos' : 'neg'}>
+      {run.source === 'manual' ? 'Manuel' : 'Cron'} · {ok ? 'réussi' : run.status}
+    </Tag>
+  )
 }
 
 export default function OpponentsResolutionPage() {
   const { loading, authenticated, isSuperUser } = useAuthSession()
 
-  // Quick data (config, cron, worker, runs) — loads in ~25ms
-  const [quickData, setQuickData] = useState<any>(null)
+  // Données rapides (réglages, cron, dernières passes) — ~25 ms
+  const [quickData, setQuickData] = useState<QuickData | null>(null)
   const [loadingQuick, setLoadingQuick] = useState(false)
 
-  // Backlog data (counts, 24h, estimated days) — loads in ~1s
-  const [backlogData, setBacklogData] = useState<any>(null)
+  // Reste à qualifier (compteurs, 24 h, rattrapage) — ~1 s, chargé à part
+  const [backlogData, setBacklogData] = useState<BacklogData | null>(null)
   const [loadingBacklog, setLoadingBacklog] = useState(false)
 
   const [error, setError] = useState('')
   const [refreshKey, setRefreshKey] = useState(0)
 
-  // Configuration state
   const [batchSize, setBatchSize] = useState<number>(50)
   const [cronStatus, setCronStatus] = useState<'IDLE' | 'SAVING' | 'ERROR'>('IDLE')
   const [resolutionError, setResolutionError] = useState('')
 
-  // Manual run state
   const [isRunningManual, setIsRunningManual] = useState(false)
-  const [manualRunSummary, setManualRunSummary] = useState<any>(null)
+  const [manualRunSummary, setManualRunSummary] = useState<ManualRunSummary | null>(null)
   const [manualRunError, setManualRunError] = useState('')
 
-  // 1. Initial fast fetch for configuration & recent runs
   useEffect(() => {
     if (loading || !authenticated || !isSuperUser) return
 
@@ -54,20 +97,18 @@ export default function OpponentsResolutionPage() {
       try {
         setLoadingQuick(true)
         setError('')
-        const res = await fetch('/api/settings/encountered-player-resolution?mode=quick', {
-          cache: 'no-store',
-        })
+        const res = await fetch('/api/settings/encountered-player-resolution?mode=quick', { cache: 'no-store' })
         const data = await res.json().catch(() => null)
         if (!res.ok) throw new Error(data?.error || 'Chargement rapide impossible')
 
         if (!cancelled && data?.data) {
-          setQuickData(data.data)
+          setQuickData(data.data as QuickData)
           if (data.data.config?.batchSize) {
             setBatchSize(data.data.config.batchSize)
           }
         }
-      } catch (err: any) {
-        if (!cancelled) setError(err.message)
+      } catch (err) {
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Chargement rapide impossible')
       } finally {
         if (!cancelled) setLoadingQuick(false)
       }
@@ -79,7 +120,6 @@ export default function OpponentsResolutionPage() {
     }
   }, [authenticated, isSuperUser, loading, refreshKey])
 
-  // 2. Fetch backlog metrics in background (progressive loading)
   useEffect(() => {
     if (loading || !authenticated || !isSuperUser) return
 
@@ -87,16 +127,14 @@ export default function OpponentsResolutionPage() {
     async function loadBacklog() {
       try {
         setLoadingBacklog(true)
-        const res = await fetch('/api/settings/encountered-player-resolution?mode=backlog', {
-          cache: 'no-store',
-        })
+        const res = await fetch('/api/settings/encountered-player-resolution?mode=backlog', { cache: 'no-store' })
         const data = await res.json().catch(() => null)
-        if (!res.ok) throw new Error(data?.error || 'Chargement du backlog impossible')
+        if (!res.ok) throw new Error(data?.error || 'Chargement du reste à qualifier impossible')
 
         if (!cancelled && data?.data) {
-          setBacklogData(data.data)
+          setBacklogData(data.data as BacklogData)
         }
-      } catch (err: any) {
+      } catch (err) {
         console.warn('Erreur chargement backlog:', err)
       } finally {
         if (!cancelled) setLoadingBacklog(false)
@@ -109,7 +147,7 @@ export default function OpponentsResolutionPage() {
     }
   }, [authenticated, isSuperUser, loading, refreshKey])
 
-  async function handleToggleCron(currentActive: boolean) {
+  async function saveConfig(enabled: boolean) {
     if (cronStatus === 'SAVING') return
     try {
       setCronStatus('SAVING')
@@ -117,52 +155,16 @@ export default function OpponentsResolutionPage() {
       const response = await fetch('/api/settings/encountered-player-resolution', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ enabled: !currentActive, batchSize }),
+        body: JSON.stringify({ enabled, batchSize }),
       })
       const body = await response.json().catch(() => null)
       if (!response.ok) throw new Error(body?.error ?? 'Erreur inattendue')
 
-      setQuickData((prev: any) =>
-        prev
-          ? {
-              ...prev,
-              config: { ...prev.config, enabled: !currentActive, batchSize },
-            }
-          : prev
-      )
+      setQuickData((prev) => (prev ? { ...prev, config: { enabled, batchSize } } : prev))
       setCronStatus('IDLE')
-    } catch (err: any) {
+    } catch (err) {
       setCronStatus('ERROR')
-      setResolutionError(err.message)
-    }
-  }
-
-  async function handleSaveBatchSize() {
-    if (cronStatus === 'SAVING' || !quickData?.config) return
-    const currentActive = quickData.config.enabled
-    try {
-      setCronStatus('SAVING')
-      setResolutionError('')
-      const response = await fetch('/api/settings/encountered-player-resolution', {
-        method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ enabled: currentActive, batchSize }),
-      })
-      const body = await response.json().catch(() => null)
-      if (!response.ok) throw new Error(body?.error ?? 'Erreur inattendue')
-
-      setQuickData((prev: any) =>
-        prev
-          ? {
-              ...prev,
-              config: { ...prev.config, batchSize },
-            }
-          : prev
-      )
-      setCronStatus('IDLE')
-    } catch (err: any) {
-      setCronStatus('ERROR')
-      setResolutionError(err.message)
+      setResolutionError(err instanceof Error ? err.message : 'Erreur inattendue')
     }
   }
 
@@ -183,10 +185,10 @@ export default function OpponentsResolutionPage() {
         throw new Error(data?.error || `Erreur serveur HTTP ${res.status}`)
       }
 
-      setManualRunSummary(data.summary)
+      setManualRunSummary(data.summary as ManualRunSummary)
       setRefreshKey((k) => k + 1)
-    } catch (err: any) {
-      setManualRunError(err.message || 'Échec de l’exécution manuelle')
+    } catch (err) {
+      setManualRunError(err instanceof Error && err.message ? err.message : 'Échec de la passe manuelle')
     } finally {
       setIsRunningManual(false)
     }
@@ -194,350 +196,249 @@ export default function OpponentsResolutionPage() {
 
   if (loading || !authenticated || !isSuperUser) return null
 
+  const backlog = backlogData?.backlog
+  const backlogPending = !backlogData && loadingBacklog
+  const toDiscover = (backlog?.neverAttempted ?? 0) + (backlog?.retryPending ?? 0)
+  const cronEnabled = Boolean(quickData?.config?.enabled)
+  const runs = quickData?.recentRuns ?? []
+
+  const kpis: Kpi[] = [
+    {
+      label: 'Jamais tentés',
+      value: backlogPending ? '…' : formatCount(backlog?.neverAttempted),
+      detail: 'pseudo connu, clan jamais demandé (croisés 2 fois et plus)',
+      icon: Zap,
+      color: 'var(--game-sky)',
+    },
+    {
+      label: 'À relancer',
+      value: backlogPending ? '…' : formatCount(backlog?.retryPending),
+      detail: 'échec passager, retenté automatiquement',
+      icon: RotateCw,
+      color: 'var(--game-warn)',
+    },
+    {
+      label: 'Sans réponse',
+      value: backlogPending ? '…' : formatCount(backlog?.failed),
+      detail: 'cinq tentatives échouées',
+      icon: UserX,
+      color: 'var(--game-neg)',
+    },
+    {
+      label: 'Résolus en 24 h',
+      value: backlogPending ? '…' : `${formatCount(backlogData?.resolutionsLast24h?.withClan)} / ${formatCount(backlogData?.resolutionsLast24h?.withoutClan)}`,
+      detail: 'avec clan / sans clan',
+      icon: CheckCircle2,
+      color: 'var(--game-pos)',
+    },
+    {
+      label: 'Rattrapage',
+      value: backlogPending
+        ? '…'
+        : backlogData?.estimatedCatchUpDays === null || backlogData?.estimatedCatchUpDays === undefined
+          ? '—'
+          : `${backlogData.estimatedCatchUpDays.toLocaleString('fr-FR', { maximumFractionDigits: 1 })} j`,
+      detail: 'au rythme du cron et du lot',
+      icon: Timer,
+      color: 'var(--game-gold)',
+    },
+    {
+      label: 'Cadence',
+      value: quickData?.cron?.expression || (loadingQuick ? '…' : 'Désactivé'),
+      detail: quickData?.cron?.description || 'expression du cron',
+      icon: Clock,
+      color: 'var(--theme-ui-text-muted)',
+    },
+  ]
+
   return (
-    <div className="space-y-6">
-      {error ? <p className="p-4 text-sm text-rose-700 dark:text-rose-400">{error}</p> : null}
-
-      <section className="app-panel p-5 sm:p-7 space-y-6">
-        {/* Header Title */}
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div>
-            <h2 className="text-xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-              <Zap className="h-5 w-5 text-indigo-500" />
-              Résolution automatique des clans adverses
-            </h2>
-            <p className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-              Débit du cron de résolution, backlog des joueurs à qualifier et déclenchement manuel ciblé. Le débit PUBG
-              est partagé avec les autres traitements — voir{' '}
-              <Link
-                href="/settings/pubg-api"
-                className="font-semibold text-indigo-600 dark:text-indigo-400 hover:underline inline-flex items-center gap-0.5"
-              >
-                /settings/pubg-api <ExternalLink className="h-3 w-3" />
-              </Link>
-              .
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setRefreshKey((k) => k + 1)}
-              disabled={loadingQuick || loadingBacklog}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold border border-slate-300 dark:border-slate-700 hover:bg-slate-200 dark:hover:bg-slate-700 disabled:opacity-50 transition-colors shadow-xs"
-              title="Rafraîchir les données de l'onglet"
-            >
-              <RefreshCcw className={cx('h-3.5 w-3.5', (loadingQuick || loadingBacklog) && 'animate-spin text-indigo-500')} />
-              Rafraîchir
-            </button>
-          </div>
+    <div className="flex flex-col gap-5">
+      <section className="flex flex-col gap-2.5" aria-labelledby="resolution-title">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="resolution-title" className="t-section-title m-0">
+            Résolution des clans adverses
+          </h2>
+          <button
+            type="button"
+            onClick={() => setRefreshKey((k) => k + 1)}
+            disabled={loadingQuick || loadingBacklog}
+            className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+            title="Recharger les données de l’onglet"
+          >
+            <RotateCw className={`h-3.5 w-3.5 ${loadingQuick || loadingBacklog ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Actualiser
+          </button>
         </div>
+        <p className="t-meta m-0">
+          Débit du cron de résolution, joueurs à qualifier et passe manuelle. Le débit PUBG est partagé avec les autres
+          traitements :{' '}
+          <Link href="/settings/pubg-api" className="app-link font-semibold">
+            API PUBG
+          </Link>
+          .
+        </p>
+        <FormFeedback error={error} />
+      </section>
 
-        {resolutionError ? <p className="text-sm text-rose-700 dark:text-rose-400">{resolutionError}</p> : null}
+      <Callout tone="sky" icon={Info} title="Le clan n’est pas dans les données de match">
+        Pseudo et identifiant de chaque joueur sont connus dès la fin d’une partie, mais PUBG n’y indique pas son clan. Le cron
+        interroge l’API joueur par joueur pour le découvrir, sans dépasser les quotas.
+      </Callout>
 
-        {/* Feedback for manual run */}
-        {manualRunSummary && (
-          <div className="flex items-center gap-2 p-3 text-xs font-semibold text-emerald-700 bg-emerald-50 dark:bg-emerald-950/30 dark:text-emerald-400 rounded-xl border border-emerald-200 dark:border-emerald-800">
-            <CheckCircle2 className="h-4 w-4 shrink-0" />
-            <span>
-              Lot traité avec succès : {manualRunSummary.uniqueCandidatesSelected} joueurs visés,{' '}
-              {manualRunSummary.resolvedWithClan} résolus avec clan, {manualRunSummary.resolvedWithoutClan} sans clan,{' '}
-              {manualRunSummary.resolvedFromCache} depuis le cache, {manualRunSummary.failed} échecs.
+      {backlog ? (
+        <div className="app-panel flex flex-wrap items-center justify-between gap-3 px-4 py-3.5">
+          <span className="flex flex-col gap-0.5">
+            <span className="t-label">Joueurs à découvrir</span>
+            <span className="flex flex-wrap items-baseline gap-2">
+              <span className="t-hero t-hero--md text-gray-900">{formatCount(toDiscover)}</span>
+              <span className="t-meta">
+                {formatCount(backlog.neverAttempted)} jamais tentés · {formatCount(backlog.retryPending)} à relancer
+              </span>
             </span>
-          </div>
-        )}
-
-        {manualRunError && (
-          <div className="flex items-center gap-2 p-3 text-xs font-semibold text-rose-700 bg-rose-50 dark:bg-rose-950/30 dark:text-rose-400 rounded-xl border border-rose-200 dark:border-rose-800">
-            <AlertTriangle className="h-4 w-4 shrink-0" />
-            <span>{manualRunError}</span>
-          </div>
-        )}
-
-        {/* Educational Callout */}
-        <div className="rounded-xl border border-indigo-200/70 bg-indigo-50/60 p-3.5 sm:p-4 dark:border-indigo-900/50 dark:bg-indigo-950/20 text-xs text-indigo-950 dark:text-indigo-200 flex items-start gap-3">
-          <Info className="h-4 w-4 text-indigo-600 dark:text-indigo-400 shrink-0 mt-0.5" />
-          <div className="space-y-1 leading-relaxed">
-            <p className="font-semibold text-slate-900 dark:text-slate-100">
-              💡 Rappel sur la découverte des joueurs et des clans
-            </p>
-            <p className="text-slate-600 dark:text-slate-300">
-              Le pseudo et l&apos;ID de chaque joueur sont <strong>déjà connus à 100%</strong> dès la fin des matchs. En revanche, PUBG n&apos;indique pas le clan dans les données de match. Le rôle du cron ci-dessous est d&apos;interroger l&apos;API PUBG joueur par joueur pour découvrir leur clan sans dépasser les quotas.
-            </p>
-          </div>
+          </span>
+          <Link href="/settings/players/triage" className="app-btn app-btn--sm app-btn--secondary">
+            Ouvrir le triage
+          </Link>
         </div>
+      ) : null}
 
-        {/* Backlog Summary Highlight */}
-        {backlogData?.backlog && (
-          <div className="rounded-xl border border-indigo-200 bg-indigo-50/80 p-4 dark:border-indigo-900/60 dark:bg-indigo-950/30 flex flex-wrap items-center justify-between gap-3">
-            <div className="space-y-0.5">
-              <span className="text-xs font-bold text-indigo-900 dark:text-indigo-200 uppercase tracking-wide">
-                Total des joueurs à découvrir (Clan PUBG inconnu)
-              </span>
-              <p className="text-xl sm:text-2xl font-black text-indigo-700 dark:text-indigo-300">
-                {(
-                  (backlogData.backlog.neverAttempted ?? 0) + (backlogData.backlog.retryPending ?? 0)
-                ).toLocaleString()}{' '}
-                <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
-                  joueurs ({Number(backlogData.backlog.neverAttempted ?? 0).toLocaleString()} jamais tentés + {Number(backlogData.backlog.retryPending ?? 0).toLocaleString()} en attente de relance)
-                </span>
-              </p>
-            </div>
-            <Link
-              href="/settings/players/triage"
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 text-white hover:bg-indigo-700 text-xs font-semibold shadow-xs transition-colors"
-            >
-              Ouvrir le Triage des joueurs
-            </Link>
-          </div>
-        )}
+      <KpiGrid items={kpis} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" />
 
-        {/* Metric Cards Grid (Progressive Loading) */}
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          <MetricCard
-            label="Clans à découvrir (Jamais tenté)"
-            value={
-              loadingBacklog && !backlogData
-                ? '...'
-                : Number(backlogData?.backlog?.neverAttempted ?? 0).toLocaleString()
-            }
-            tooltip="Pseudos connus mais clan non encore interrogé auprès de PUBG. Joueurs croisés au moins 2 fois."
-          />
-          <MetricCard
-            label="Clans à relancer (Retry)"
-            value={
-              loadingBacklog && !backlogData
-                ? '...'
-                : Number(backlogData?.backlog?.retryPending ?? 0).toLocaleString()
-            }
-            tooltip="Joueurs dont la précédente tentative a échoué (quota temporaire ou timeout) et qui seront retentés automatiquement."
-          />
-          <MetricCard
-            label="Sans réponse (Échec 5x)"
-            value={
-              loadingBacklog && !backlogData
-                ? '...'
-                : Number(backlogData?.backlog?.failed ?? 0).toLocaleString()
-            }
-            tooltip="Joueurs ayant dépassé le quota maximal de 5 tentatives (compte introuvable, supprimé ou erreur PUBG permanente)."
-          />
-          <MetricCard
-            label="Résolus 24h (clan / sans)"
-            value={
-              loadingBacklog && !backlogData
-                ? '...'
-                : `${backlogData?.resolutionsLast24h?.withClan ?? 0} / ${backlogData?.resolutionsLast24h?.withoutClan ?? 0}`
-            }
-            tooltip="Joueurs dont le statut a été résolu au cours des 24 dernières heures (premier chiffre = clan trouvé, second = sans clan)."
-          />
-          <MetricCard
-            label="Rattrapage estimé"
-            value={
-              loadingBacklog && !backlogData
-                ? '...'
-                : backlogData?.estimatedCatchUpDays === null || backlogData?.estimatedCatchUpDays === undefined
-                ? '—'
-                : `${backlogData.estimatedCatchUpDays.toFixed(1)} j`
-            }
-            tooltip="Délai prévisionnel en jours pour écluser la totalité du backlog selon le rythme du cron et la taille de lot configurée."
-          />
-          <MetricCard
-            label="Cadence cron"
-            value={quickData?.cron?.expression || (loadingQuick ? '...' : 'Désactivé')}
-            tooltip={quickData?.cron?.description || 'Expression cron planifiée pour le traitement automatique.'}
-          />
-        </div>
-
-        {/* Controls & Manual Trigger Panel */}
-        <div className="rounded-2xl border border-slate-200 dark:border-slate-800 bg-slate-50/70 dark:bg-slate-900/50 p-4 sm:p-5 flex flex-wrap items-center justify-between gap-4">
-          <div className="flex flex-wrap items-center gap-4">
-            <div>
-              <label htmlFor="batchSize" className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Taille du lot (identités par cycle)
-                <span
-                  title="Nombre maximum de joueurs distincts traités à chaque passage du cron"
-                  className="inline-block ml-1 cursor-help"
-                >
-                  <Info className="h-3 w-3 text-slate-400 inline" />
-                </span>
-              </label>
-              <div className="mt-1.5 flex items-center gap-2">
-                <input
-                  id="batchSize"
-                  type="number"
-                  min="1"
-                  max="100"
-                  className="w-24 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 py-1.5 text-xs text-slate-900 dark:text-slate-100 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
-                  value={batchSize}
-                  onChange={(e) => setBatchSize(Number(e.target.value))}
-                />
-                <button
-                  type="button"
-                  disabled={cronStatus === 'SAVING' || batchSize === quickData?.config?.batchSize}
-                  onClick={handleSaveBatchSize}
-                  className="app-btn app-btn--sm app-btn--secondary text-xs px-3 py-1.5"
-                >
-                  Sauvegarder
-                </button>
-              </div>
-            </div>
-
-            <div className="hidden sm:block h-10 w-px bg-slate-200 dark:bg-slate-800" />
-
-            <div className="space-y-1">
-              <span className="block text-xs font-semibold text-slate-700 dark:text-slate-300">
-                Statut du cron
-              </span>
+      <SectionCard id="resolution-settings" icon={SlidersHorizontal} title="Réglages du cron" meta="Taille du lot et activation ; une passe manuelle traite un lot tout de suite.">
+        <div className="flex flex-wrap items-end gap-x-6 gap-y-4">
+          <div className="flex flex-col gap-1">
+            <label htmlFor="batchSize" className="t-label" title="Nombre maximum de joueurs distincts traités à chaque passage du cron">
+              Taille du lot
+            </label>
+            <span className="flex items-center gap-2">
+              <input
+                id="batchSize"
+                type="number"
+                min="1"
+                max="100"
+                className="app-input w-24"
+                value={batchSize}
+                onChange={(e) => setBatchSize(Number(e.target.value))}
+              />
               <button
                 type="button"
-                disabled={cronStatus === 'SAVING' || !quickData}
-                onClick={() => handleToggleCron(quickData?.config?.enabled)}
-                className={cx(
-                  'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition-all',
-                  quickData?.config?.enabled
-                    ? 'bg-emerald-600 text-white hover:bg-emerald-700 shadow-xs'
-                    : 'bg-slate-200 text-slate-700 hover:bg-slate-300 dark:bg-slate-800 dark:text-slate-300'
-                )}
+                disabled={cronStatus === 'SAVING' || batchSize === quickData?.config?.batchSize}
+                onClick={() => void saveConfig(cronEnabled)}
+                className="app-btn app-btn--md app-btn--secondary"
               >
-                <Activity className="h-3.5 w-3.5" />
-                {cronStatus === 'SAVING'
-                  ? 'Modification...'
-                  : quickData?.config?.enabled
-                  ? 'Cron actif (activé)'
-                  : 'Cron inactif (désactivé)'}
+                Enregistrer
               </button>
-            </div>
+            </span>
           </div>
 
-          {/* Manual Run Action */}
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              disabled={isRunningManual}
-              onClick={handleTriggerManualRun}
-              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 text-white font-semibold text-xs hover:bg-indigo-700 active:scale-98 disabled:opacity-50 transition-all shadow-sm"
-              title="Lancer immédiatement une passe de résolution sans attendre le déclencheur cron"
-            >
-              <Play className={cx('h-3.5 w-3.5 fill-current', isRunningManual && 'animate-spin')} />
-              {isRunningManual ? 'Résolution du lot en cours...' : 'Résoudre un lot maintenant'}
-            </button>
+          <div className="flex items-center gap-2.5">
+            <Switch
+              checked={cronEnabled}
+              onChange={(enabled) => void saveConfig(enabled)}
+              disabled={cronStatus === 'SAVING' || !quickData}
+              labelledBy="resolution-cron-label"
+            />
+            <span id="resolution-cron-label" className="t-body flex items-center gap-1.5 text-gray-900">
+              <Activity className="h-4 w-4 text-gray-500" aria-hidden="true" />
+              {cronStatus === 'SAVING' ? 'Modification…' : cronEnabled ? 'Cron actif' : 'Cron désactivé'}
+            </span>
           </div>
+
+          <button
+            type="button"
+            disabled={isRunningManual}
+            onClick={() => void handleTriggerManualRun()}
+            className="app-btn app-btn--md app-btn--primary gap-1.5 sm:ml-auto"
+            title="Lancer une passe de résolution sans attendre le cron"
+          >
+            <Play className={`h-4 w-4 ${isRunningManual ? 'animate-pulse' : ''}`} aria-hidden="true" />
+            {isRunningManual ? 'Résolution en cours…' : 'Résoudre un lot maintenant'}
+          </button>
         </div>
 
-        {/* Recent Runs Table */}
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-slate-900 dark:text-slate-100 flex items-center gap-1.5">
-              <Calendar className="h-4 w-4 text-indigo-500" />
-              Historique des dernières exécutions (Runs)
-            </h3>
-            {quickData?.recentRuns?.length > 0 && (
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                {quickData.recentRuns.length} passages récents
-              </span>
-            )}
-          </div>
+        {manualRunSummary ? (
+          <p className="t-body t-pos m-0 flex items-start gap-2" role="status">
+            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            Lot traité : {manualRunSummary.uniqueCandidatesSelected} joueurs visés, {manualRunSummary.resolvedWithClan} résolus avec
+            clan, {manualRunSummary.resolvedWithoutClan} sans clan, {manualRunSummary.resolvedFromCache} depuis le cache,{' '}
+            {manualRunSummary.failed} échecs.
+          </p>
+        ) : null}
+        {manualRunError ? (
+          <p className="t-body t-neg m-0 flex items-start gap-2" role="alert">
+            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+            {manualRunError}
+          </p>
+        ) : null}
+        <FormFeedback error={resolutionError} />
+      </SectionCard>
 
-          <div className="app-table-shell overflow-x-auto rounded-xl border border-slate-200 dark:border-slate-800">
-            <table className="min-w-full text-left text-xs text-slate-700 dark:text-slate-300">
-              <thead className="app-table-head uppercase tracking-wide text-slate-500 dark:text-slate-400 bg-slate-50 dark:bg-slate-900/60 border-b border-slate-200 dark:border-slate-800">
-                <tr>
-                  <th className="px-3 py-2.5">Date & Heure</th>
-                  <th className="px-3 py-2.5">Source / Statut</th>
-                  <th className="px-3 py-2.5 text-right">Durée</th>
-                  <th className="px-3 py-2.5 text-right">Joueurs visés</th>
-                  <th className="px-3 py-2.5 text-right">Résolus</th>
-                  <th className="px-3 py-2.5 text-right">Échecs</th>
-                  <th className="px-3 py-2.5">Détail / Erreur</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-slate-200 dark:divide-slate-800">
-                {loadingQuick && !quickData ? (
+      <SectionCard
+        id="resolution-runs"
+        icon={Calendar}
+        title="Dernières exécutions"
+        aside={runs.length > 0 ? <Tag tone="neutral">{runs.length} passages</Tag> : undefined}
+      >
+        {loadingQuick && !quickData ? (
+          <ListSkeleton rows={3} />
+        ) : runs.length === 0 ? (
+          <EmptyState icon={Calendar} title="Aucune exécution enregistrée pour le moment" />
+        ) : (
+          <>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
+              {runs.map((run) => (
+                <li key={run.id} className="app-panel-muted flex flex-col gap-1 px-3 py-2.5">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="t-body font-semibold text-gray-900">{new Date(run.startedAt).toLocaleString('fr-FR')}</span>
+                    <RunStatus run={run} />
+                  </span>
+                  <span className="t-meta t-num">
+                    {run.uniqueCandidatesSelected ?? run.candidatesSelected ?? '—'} visés · {runResolved(run) ?? '—'} résolus ·{' '}
+                    {run.failed ?? '—'} échecs · {run.durationMs ? `${(run.durationMs / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s` : '—'}
+                  </span>
+                  {run.errorMessage ? <span className="t-meta t-neg break-all">{run.errorMessage}</span> : null}
+                </li>
+              ))}
+            </ul>
+            <div className="app-table-shell hidden md:block">
+              <table className="w-full text-left text-sm">
+                <thead className="app-table-head">
                   <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
-                      Chargement des exécutions...
-                    </td>
+                    <SortableTh align="left">Date</SortableTh>
+                    <SortableTh align="left">Source · statut</SortableTh>
+                    <SortableTh>Durée</SortableTh>
+                    <SortableTh>Visés</SortableTh>
+                    <SortableTh>Résolus</SortableTh>
+                    <SortableTh>Échecs</SortableTh>
+                    <SortableTh align="left">Détail</SortableTh>
                   </tr>
-                ) : (quickData?.recentRuns?.length ?? 0) === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-6 text-center text-slate-500 dark:text-slate-400">
-                      Aucune exécution enregistrée pour le moment.
-                    </td>
-                  </tr>
-                ) : (
-                  quickData?.recentRuns.map((run: any) => (
-                    <tr key={run.id} className="hover:bg-slate-50/50 dark:hover:bg-slate-800/40 transition-colors">
-                      <td className="px-3 py-2.5 whitespace-nowrap font-medium text-slate-900 dark:text-slate-100">
-                        {new Date(run.startedAt).toLocaleString('fr-FR')}
+                </thead>
+                <tbody>
+                  {runs.map((run) => (
+                    <tr key={run.id} className="app-table-row">
+                      <td className="whitespace-nowrap px-[9px] py-2 font-semibold text-gray-900">{new Date(run.startedAt).toLocaleString('fr-FR')}</td>
+                      <td className="px-[9px] py-2">
+                        <RunStatus run={run} />
                       </td>
-                      <td className="px-3 py-2.5">
-                        <span
-                          className={cx(
-                            'inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-bold',
-                            run.status === 'success'
-                              ? 'bg-emerald-50 dark:bg-emerald-950/40 text-emerald-700 dark:text-emerald-400 border border-emerald-200 dark:border-emerald-800'
-                              : 'bg-rose-50 dark:bg-rose-950/40 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-800'
-                          )}
-                        >
-                          {run.source === 'manual' ? 'Manuel' : 'Cron'} • {run.status}
-                        </span>
+                      <td className="t-num px-[9px] py-2 text-right text-gray-700">
+                        {run.durationMs ? `${(run.durationMs / 1000).toLocaleString('fr-FR', { maximumFractionDigits: 1 })} s` : '—'}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-600 dark:text-slate-400">
-                        {run.durationMs ? `${(run.durationMs / 1000).toFixed(1)}s` : '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-slate-900 dark:text-slate-100">
+                      <td className="t-num px-[9px] py-2 text-right font-semibold text-gray-900">
                         {run.uniqueCandidatesSelected ?? run.candidatesSelected ?? '—'}
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums font-semibold text-emerald-600 dark:text-emerald-400">
-                        {run.resolvedWithClan !== undefined
-                          ? run.resolvedWithClan + run.resolvedWithoutClan
-                          : run.playersResolved ?? '—'}
-                      </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-rose-600 dark:text-rose-400">
-                        {run.failed ?? '—'}
-                      </td>
-                      <td
-                        className="px-3 py-2.5 max-w-[240px] truncate text-slate-500 dark:text-slate-400"
-                        title={run.errorMessage || ''}
-                      >
+                      <td className="t-num px-[9px] py-2 text-right font-semibold t-pos">{runResolved(run) ?? '—'}</td>
+                      <td className="t-num px-[9px] py-2 text-right t-neg">{run.failed ?? '—'}</td>
+                      <td className="t-meta max-w-[240px] truncate px-[9px] py-2" title={run.errorMessage || ''}>
                         {run.errorMessage || '—'}
                       </td>
                     </tr>
-                  ))
-                )}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      </section>
-    </div>
-  )
-}
-
-function MetricCard({
-  label,
-  value,
-  tooltip,
-}: {
-  label: string
-  value: string
-  tooltip?: string
-}) {
-  return (
-    <article className="app-panel-muted p-3.5 rounded-xl border border-slate-200/80 dark:border-slate-800 dark:bg-slate-900/60 relative">
-      <div className="flex items-center justify-between gap-1">
-        <p className="text-[11px] font-semibold uppercase tracking-wider text-slate-500 dark:text-slate-400 truncate">
-          {label}
-        </p>
-        {tooltip && (
-          <span title={tooltip} className="cursor-help shrink-0">
-            <Info className="h-3.5 w-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors" />
-          </span>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
         )}
-      </div>
-      <p className="mt-1.5 text-xl font-black text-slate-900 dark:text-slate-100 tracking-tight">
-        {value}
-      </p>
-    </article>
+      </SectionCard>
+    </div>
   )
 }

@@ -1,9 +1,11 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { ScrollText } from 'lucide-react'
 
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import AdminPageBanner from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, FormFeedback } from '@/components/settings/AdminPageStates'
+import { ChoiceMenu, EmptyState, ListSkeleton, Tag } from '@/components/ui/CharteKit'
 import Pagination from '@/components/ui/Pagination'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import type { AdminActionPage, AdminActionRow } from '@/lib/admin-action-log'
@@ -11,7 +13,7 @@ import type { AdminActionPage, AdminActionRow } from '@/lib/admin-action-log'
 /**
  * Journal des actions d'administration (docs/TODO/administration.md Q10) : qui a fait quoi, sur quel clan, avec quel
  * résultat. Une ligne par écriture d'une route d'administration ; les refus et les simulations n'y sont pas. Conservé
- * 12 mois.
+ * 12 mois. Selon la charte UI (docs/ui/index.html) : bandeau photo, filtres en menus de la charte, résultat en pastille.
  */
 
 type OutcomeFilter = 'all' | 'success' | 'error'
@@ -30,9 +32,9 @@ function SummaryLine({ row }: { row: AdminActionRow }) {
   ]
   if (parts.length === 0 && !row.summary?.error) return null
   return (
-    <p className="text-xs text-gray-500">
+    <p className="t-meta m-0 break-all">
       {parts.join(' · ')}
-      {row.summary?.error ? <span className="block text-red-600">{row.summary.error}</span> : null}
+      {row.summary?.error ? <span className="t-neg block">{row.summary.error}</span> : null}
     </p>
   )
 }
@@ -77,43 +79,43 @@ export default function AdminJournalPage() {
   }
 
   const pageCount = data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1
+  const clanOptions = [{ value: '', label: 'Tous les clans' }, ...(data?.clans ?? []).map((clan) => ({ value: String(clan.id), label: clan.name }))]
+  const userOptions = [{ value: '', label: 'Tous les comptes' }, ...(data?.users ?? []).map((user) => ({ value: String(user.id), label: user.label }))]
 
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Journal d’administration"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Journal d’administration"
+        subtitle="Chaque écriture d’un outil d’administration : qui, quel clan, quel résultat. Sans les refus ni les simulations ; purgé au-delà de 12 mois."
+        icon={ScrollText}
+        image="/matchesplayer.jpg"
         currentHref="/settings/journal"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          ...(data
+            ? [
+                <>
+                  <span className="t-num">{data.total.toLocaleString('fr-FR')}</span> actions
+                </>,
+              ]
+            : []),
+          'Réservé au SuperUser',
+        ]}
       />
-      <section className="app-panel space-y-4 p-4 sm:p-6">
-        <SettingsPageHeader
-          title="Journal d’administration"
-          subtitle="Chaque écriture d’un outil d’administration : qui, quel clan, quel résultat. Les refus et les simulations n’y figurent pas ; les lignes de plus de 12 mois sont purgées chaque nuit."
-        />
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <label className="space-y-1 text-xs font-semibold text-gray-500">
-            <span>Clan</span>
-            <select className="app-input" value={clanId} onChange={(event) => changeFilter(() => setClanId(event.target.value))}>
-              <option value="">Tous</option>
-              {data?.clans.map((clan) => (
-                <option key={clan.id} value={clan.id}>
-                  {clan.name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="space-y-1 text-xs font-semibold text-gray-500">
-            <span>Compte</span>
-            <select className="app-input" value={userId} onChange={(event) => changeFilter(() => setUserId(event.target.value))}>
-              <option value="">Tous</option>
-              {data?.users.map((user) => (
-                <option key={user.id} value={user.id}>
-                  {user.label}
-                </option>
-              ))}
-            </select>
-          </label>
+
+      <div className="app-panel grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] lg:items-end">
+        <div className="flex flex-col gap-1">
+          <span className="t-label">Clan</span>
+          <ChoiceMenu<string> label="Clan" value={clanId} onChange={(value) => changeFilter(() => setClanId(value))} options={clanOptions} />
+        </div>
+        <div className="flex flex-col gap-1">
+          <span className="t-label">Compte</span>
+          <ChoiceMenu<string> label="Compte" value={userId} onChange={(value) => changeFilter(() => setUserId(value))} options={userOptions} />
+        </div>
+        <div className="flex flex-col gap-1 sm:col-span-2 lg:col-span-1">
+          <span className="t-label">Résultat</span>
           <SegmentedControl<OutcomeFilter>
+            size="sm"
             value={outcome}
             onChange={(value) => changeFilter(() => setOutcome(value))}
             options={[
@@ -123,39 +125,35 @@ export default function AdminJournalPage() {
             ]}
           />
         </div>
-      </section>
+      </div>
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+      <FormFeedback error={error} />
 
       {!data ? (
-        loading ? <p className="text-sm text-gray-500">Chargement…</p> : null
+        loading ? <ListSkeleton rows={5} /> : null
       ) : data.rows.length === 0 ? (
-        <section className="app-panel-muted p-6 text-center text-sm text-gray-500">Aucune action enregistrée.</section>
+        <EmptyState icon={ScrollText} title="Aucune action enregistrée" />
       ) : (
         // Rechargement : la page précédente reste affichée, estompée.
-        <div aria-busy={loading} className={loading ? 'space-y-4 opacity-60' : 'space-y-4'}>
-          <ul className="app-panel divide-y divide-gray-200">
+        <div aria-busy={loading} className={`flex flex-col gap-4 ${loading ? 'opacity-60 transition-opacity' : ''}`}>
+          <ul className="app-panel m-0 list-none divide-y divide-gray-200 p-0">
             {data.rows.map((row) => (
-              <li key={row.id} className="space-y-1 p-4">
+              <li key={row.id} className="flex flex-col gap-1 px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="min-w-0 break-all text-sm font-semibold text-gray-900">
-                    <span className="mr-2 text-xs font-bold text-gray-500">{row.method}</span>
+                  <p className="m-0 flex min-w-0 items-center gap-2 break-all text-sm font-semibold text-gray-900">
+                    <Tag tone="neutral">
+                      <span className="font-mono">{row.method}</span>
+                    </Tag>
                     {actionLabel(row.action)}
                   </p>
-                  <span
-                    className={`rounded-full border px-2 py-0.5 text-xs font-medium ${
-                      row.outcome === 'success'
-                        ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                        : 'border-red-200 bg-red-50 text-red-800'
-                    }`}
-                  >
-                    {row.outcome === 'success' ? 'Réussie' : `Erreur ${row.status}`}
-                  </span>
+                  <Tag tone={row.outcome === 'success' ? 'pos' : 'neg'}>{row.outcome === 'success' ? 'Réussie' : `Erreur ${row.status}`}</Tag>
                 </div>
-                <p className="text-xs text-gray-600">
+                <p className="t-meta m-0">
                   {dateTimeFormat.format(new Date(row.createdAt))}
                   {' · '}
-                  {row.memberName ?? row.userLabel ?? (row.userId ? `Compte #${row.userId}` : 'Compte inconnu')}
+                  <span className="font-semibold text-gray-700">
+                    {row.memberName ?? row.userLabel ?? (row.userId ? `Compte #${row.userId}` : 'Compte inconnu')}
+                  </span>
                   {row.isSuperUser ? ' (SuperUser)' : ''}
                   {row.clanId ? ` · ${row.clanName ?? `Clan #${row.clanId}`}` : ''}
                 </p>
@@ -177,6 +175,6 @@ export default function AdminJournalPage() {
           />
         </div>
       )}
-    </main>
+    </div>
   )
 }

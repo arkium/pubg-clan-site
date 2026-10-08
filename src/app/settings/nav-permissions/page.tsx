@@ -1,17 +1,32 @@
 'use client'
 
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  Check,
+  Compass,
+  Crown,
+  GripVertical,
+  Loader2,
+  type LucideIcon,
+  PanelsTopLeft,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Settings2,
+  Shield,
+  Star,
+  Trash2,
+  UserRound,
+  X,
+} from 'lucide-react'
+
+import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted, FormFeedback } from '@/components/settings/AdminPageStates'
+import { ChoiceMenu, ConfirmDialog, IconTile, ListSkeleton, Tag, toneStyle } from '@/components/ui/CharteKit'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { invalidateNavPermissionsCache } from '@/hooks/useNavPermissions'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import {
-  NAV_SECTION_LABELS,
-  type NavRole,
-  type NavSection,
-  type NavItemDef,
-} from '@/lib/nav-permissions-registry'
+import { NAV_SECTION_LABELS, type NavRole, type NavSection, type NavItemDef } from '@/lib/nav-permissions-registry'
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -24,20 +39,46 @@ type SaveState = 'idle' | 'saving' | 'saved' | 'error'
 
 const ROLES: NavRole[] = ['none', 'member', 'owner', 'superuser', 'hidden']
 
-const ROLE_META: Record<NavRole, { label: string; color: string; bg: string; border: string; dot: string }> = {
-  none:      { label: 'Tous',      color: 'text-slate-600',  bg: 'bg-slate-100',  border: 'border-slate-300',  dot: 'bg-slate-400'  },
-  member:    { label: 'Membre',    color: 'text-sky-700',    bg: 'bg-sky-50',     border: 'border-sky-300',    dot: 'bg-sky-500'    },
-  owner:     { label: 'Owner',     color: 'text-amber-700',  bg: 'bg-amber-50',   border: 'border-amber-400',  dot: 'bg-amber-500'  },
-  superuser: { label: 'SuperUser', color: 'text-violet-700', bg: 'bg-violet-50',  border: 'border-violet-400', dot: 'bg-violet-500' },
-  hidden:    { label: 'Masqué',    color: 'text-slate-500',  bg: 'bg-slate-200',  border: 'border-slate-400',  dot: 'bg-slate-500'  },
+const ROLE_LABELS: Record<NavRole, string> = {
+  none: 'Tous',
+  member: 'Membre',
+  owner: 'Owner',
+  superuser: 'SuperUser',
+  hidden: 'Masqué',
+}
+
+/** Couleur d'un rôle : jetons de jeu, et pour le SuperUser son violet d'identité (`--theme-superuser-nav-*`). */
+function roleStyle(role: NavRole): CSSProperties {
+  if (role === 'superuser') {
+    return {
+      backgroundColor: 'var(--theme-superuser-nav-bg)',
+      borderColor: 'var(--theme-superuser-nav-border)',
+      color: 'var(--theme-superuser-nav-text)',
+    }
+  }
+  if (role === 'member') return toneStyle('sky')
+  if (role === 'owner') return toneStyle('warn')
+  if (role === 'hidden') return { ...toneStyle('neutral'), opacity: 0.7 }
+  return toneStyle('neutral')
 }
 
 const SECTION_ORDER: NavSection[] = ['nav-primary', 'clan-section', 'member-section', 'admin-menu', 'owner-menu', 'superuser-menu']
+
+const SECTION_ICONS: Record<NavSection, LucideIcon> = {
+  'nav-primary': Compass,
+  'clan-section': Shield,
+  'member-section': UserRound,
+  'admin-menu': Settings2,
+  'owner-menu': Crown,
+  'superuser-menu': Star,
+}
 
 const ROLE_TO_TARGET_SECTION: Partial<Record<NavRole, NavSection>> = {
   owner: 'owner-menu',
   superuser: 'superuser-menu',
 }
+
+const SECTION_OPTIONS = SECTION_ORDER.map((section) => ({ value: section, label: NAV_SECTION_LABELS[section] }))
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -74,53 +115,55 @@ function buildDisplayOrder(items: NavItemDef[], positions: PositionMap, pMap: Pe
 
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
-function RoleBadge({ role }: { role: NavRole }) {
-  const m = ROLE_META[role]
+function RoleChip({ role, children }: { role: NavRole; children?: React.ReactNode }) {
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${m.color} ${m.bg} ${m.border}`}>
-      <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />
-      {m.label}
+    <span className="inline-flex items-center gap-1 rounded-md border px-1.5 py-0.5 text-[11px] font-bold" style={roleStyle(role)}>
+      {children ?? ROLE_LABELS[role]}
     </span>
   )
 }
 
-function RoleSelector({ navKey, currentRole, defaultRole, disabled, onChange }: {
+function SaveStateIcon({ state }: { state: SaveState }) {
+  if (state === 'saving') return <Loader2 className="h-3.5 w-3.5 animate-spin text-gray-500" aria-label="Enregistrement…" />
+  if (state === 'saved') return <Check className="h-3.5 w-3.5" style={{ color: 'var(--game-pos)' }} aria-label="Enregistré" />
+  if (state === 'error') return <X className="h-3.5 w-3.5" style={{ color: 'var(--game-neg)' }} aria-label="Échec de l’enregistrement" />
+  return null
+}
+
+function RoleSelector({
+  navKey,
+  currentRole,
+  defaultRole,
+  disabled,
+  onChange,
+}: {
   navKey: string
   currentRole: NavRole
   defaultRole: NavRole
   disabled: boolean
   onChange: (navKey: string, role: NavRole) => void
 }) {
-  const m = ROLE_META[currentRole]
   return (
-    <div className="inline-flex items-center gap-1.5">
-      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${m.dot}`} />
-      <select
+    <div className={`w-44 ${disabled ? 'pointer-events-none opacity-60' : ''}`}>
+      <ChoiceMenu<NavRole>
+        label="Accès"
         value={currentRole}
-        disabled={disabled}
-        onChange={(e) => onChange(navKey, e.target.value as NavRole)}
-        className={[
-          'rounded-md border px-1.5 py-0.5 text-[11px] font-semibold outline-none transition-colors',
-          m.bg,
-          m.border,
-          m.color,
-          disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer',
-        ].join(' ')}
-      >
-        {ROLES.map((role) => (
-          <option key={role} value={role}>
-            {ROLE_META[role].label}
-            {defaultRole === role ? ' •' : ''}
-          </option>
-        ))}
-      </select>
+        onChange={(role) => onChange(navKey, role)}
+        options={ROLES.map((role) => ({ value: role, label: `${ROLE_LABELS[role]}${defaultRole === role ? ' (défaut)' : ''}` }))}
+      />
     </div>
   )
 }
 
 // ─── Label editor inline ──────────────────────────────────────────────────────
 
-function LabelEditor({ navKey, currentLabel, defaultLabel, labelSaveState, onSave }: {
+function LabelEditor({
+  navKey,
+  currentLabel,
+  defaultLabel,
+  labelSaveState,
+  onSave,
+}: {
   navKey: string
   currentLabel: string
   defaultLabel: string
@@ -152,13 +195,19 @@ function LabelEditor({ navKey, currentLabel, defaultLabel, labelSaveState, onSav
   }
 
   function onKeyDown(e: React.KeyboardEvent) {
-    if (e.key === 'Enter') { e.preventDefault(); commitEdit() }
-    if (e.key === 'Escape') { e.preventDefault(); cancelEdit() }
+    if (e.key === 'Enter') {
+      e.preventDefault()
+      commitEdit()
+    }
+    if (e.key === 'Escape') {
+      e.preventDefault()
+      cancelEdit()
+    }
   }
 
   if (editing) {
     return (
-      <div className="flex items-center gap-1.5" onMouseDown={(e) => e.stopPropagation()}>
+      <div className="flex min-w-0 flex-1 items-center gap-1.5" onMouseDown={(e) => e.stopPropagation()}>
         <input
           ref={inputRef}
           autoFocus
@@ -167,51 +216,50 @@ function LabelEditor({ navKey, currentLabel, defaultLabel, labelSaveState, onSav
           onBlur={commitEdit}
           onKeyDown={onKeyDown}
           maxLength={60}
-          className="h-6 min-w-0 flex-1 rounded border border-blue-400 bg-blue-50 px-2 text-sm font-semibold text-slate-900 outline-none ring-1 ring-blue-400 focus:ring-2"
+          aria-label="Titre du bouton"
+          className="app-input h-8 min-w-0 flex-1"
         />
         <button
           type="button"
-          onMouseDown={(e) => { e.preventDefault(); cancelEdit() }}
-          className="shrink-0 text-[10px] text-slate-400 hover:text-slate-700"
+          onMouseDown={(e) => {
+            e.preventDefault()
+            cancelEdit()
+          }}
+          className="grid h-7 w-7 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100"
           title="Annuler (Échap)"
-        >✕</button>
+          aria-label="Annuler"
+        >
+          <X className="h-3.5 w-3.5" aria-hidden="true" />
+        </button>
       </div>
     )
   }
 
   return (
-    <div className="flex items-center gap-1.5">
-      <span className="font-semibold text-sm text-slate-900">{currentLabel}</span>
-      {isOverridden && (
-        <span className="inline-flex items-center rounded-full border border-violet-200 bg-violet-50 px-1.5 py-0.5 text-[9px] font-semibold text-violet-700">
-          Renommé
-        </span>
-      )}
-      {labelSaveState === 'saving' && <span className="text-[10px] text-slate-400 italic">…</span>}
-      {labelSaveState === 'saved' && <span className="text-[10px] text-emerald-600">✓</span>}
-      {labelSaveState === 'error' && <span className="text-[10px] text-red-600">✗</span>}
+    <div className="flex min-w-0 items-center gap-1.5">
+      <span className="t-card-title truncate">{currentLabel}</span>
+      {isOverridden ? <Tag tone="sky">Renommé</Tag> : null}
+      <SaveStateIcon state={labelSaveState} />
       <button
         type="button"
         onClick={startEdit}
-        className="shrink-0 rounded p-0.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
+        className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
         title="Renommer ce bouton"
+        aria-label={`Renommer « ${currentLabel} »`}
       >
-        <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
-          <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
-        </svg>
+        <Pencil className="h-3 w-3" aria-hidden="true" />
       </button>
-      {isOverridden && (
+      {isOverridden ? (
         <button
           type="button"
           onClick={() => onSave(navKey, defaultLabel)}
-          className="shrink-0 rounded p-0.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-500"
+          className="grid h-6 w-6 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
           title={`Remettre le titre par défaut : « ${defaultLabel} »`}
+          aria-label="Remettre le titre par défaut"
         >
-          <svg viewBox="0 0 16 16" className="h-3 w-3" fill="currentColor">
-            <path d="M1.705 8.005a.75.75 0 0 1 .834.656 5.5 5.5 0 0 0 9.592 2.97l-1.204-1.204a.25.25 0 0 1 .177-.427h3.646a.25.25 0 0 1 .25.25v3.646a.25.25 0 0 1-.427.177l-1.38-1.38A7.002 7.002 0 0 1 1.05 8.84a.75.75 0 0 1 .656-.834ZM8 2.5a5.487 5.487 0 0 0-4.131 1.869l1.204 1.204A.25.25 0 0 1 4.896 6H1.25A.25.25 0 0 1 1 5.75V2.104a.25.25 0 0 1 .427-.177l1.38 1.38A7.002 7.002 0 0 1 14.95 7.16a.75.75 0 0 1-1.49.178A5.5 5.5 0 0 0 8 2.5Z" />
-          </svg>
+          <RotateCcw className="h-3 w-3" aria-hidden="true" />
         </button>
-      )}
+      ) : null}
     </div>
   )
 }
@@ -257,45 +305,28 @@ function SortableRow({
   onDelete: (navKey: string) => void
   onEdit: (navKey: string) => void
 }) {
-  const [confirmDelete, setConfirmDelete] = useState(false)
   const isRoleOverridden = currentRole !== item.defaultRole
 
   return (
-    <div
+    <li
       draggable
       onDragStart={() => onDragStart(item.navKey)}
       onDragEnter={() => onDragEnter(item.navKey)}
       onDragEnd={onDragEnd}
       onDragOver={(e) => e.preventDefault()}
-      className={[
-        'group flex items-start gap-3 rounded-xl border p-3 transition-all duration-150 select-none',
-        isDragging ? 'opacity-40 scale-[0.98] cursor-grabbing' : 'cursor-grab',
-        isDragOver ? 'border-blue-400 bg-blue-50 shadow-md ring-1 ring-blue-300' :
-          isPromoted ? 'border-dashed border-slate-300 bg-slate-50/40' :
-          isRoleOverridden ? 'border-slate-300 bg-white shadow-sm' : 'border-slate-200 bg-slate-50/60',
-      ].join(' ')}
+      className={`app-panel-muted group flex select-none items-start gap-2.5 px-3 py-2.5 transition-all duration-150 ${
+        isDragging ? 'scale-[0.98] cursor-grabbing opacity-40' : 'cursor-grab'
+      } ${isPromoted ? 'border-dashed' : ''}`}
+      style={isDragOver ? { borderColor: 'var(--theme-ui-accent)', backgroundColor: 'var(--theme-ui-accent-tint)' } : undefined}
+      title={isPromoted ? 'Bouton déplacé dans ce menu par son rôle d’accès' : undefined}
     >
-      {/* Drag handle */}
-      <div className="mt-0.5 shrink-0">
-        <svg
-          viewBox="0 0 20 20"
-          className={['h-4 w-4 transition-colors', isPromoted ? 'text-slate-200 group-hover:text-slate-400' : 'text-slate-300 group-hover:text-slate-500'].join(' ')}
-          fill="currentColor"
-        >
-          <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
-          <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
-          <circle cx="7" cy="15" r="1.5" /><circle cx="13" cy="15" r="1.5" />
-        </svg>
-      </div>
-
-      {/* Position badge */}
-      <div className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-slate-200 text-[10px] font-bold text-slate-600">
+      <GripVertical className="mt-1 h-4 w-4 shrink-0 text-gray-500 opacity-60 group-hover:opacity-100" aria-hidden="true" />
+      <span className="t-num mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[var(--theme-ui-surface-strong)] text-[11px] font-bold text-gray-700">
         {index + 1}
-      </div>
+      </span>
 
-      {/* Content */}
-      <div className="min-w-0 flex-1">
-        <div className="flex flex-wrap items-center gap-2">
+      <div className="flex min-w-0 flex-1 flex-col gap-1">
+        <div className="flex flex-wrap items-center gap-1.5">
           <LabelEditor
             navKey={item.navKey}
             currentLabel={currentLabel}
@@ -303,24 +334,14 @@ function SortableRow({
             labelSaveState={labelSaveState}
             onSave={onLabelSave}
           />
-          <RoleBadge role={currentRole} />
-          {isRoleOverridden && (
-            <span className="inline-flex items-center gap-1 rounded-full border border-violet-200 bg-violet-50 px-2 py-0.5 text-[10px] font-medium text-violet-700">
-              Modifié
-            </span>
-          )}
-          {feedback === 'saved' && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-medium text-emerald-700">✓ Sauvegardé</span>
-          )}
-          {feedback === 'error' && (
-            <span className="inline-flex items-center gap-1 rounded-full bg-red-50 px-2 py-0.5 text-[10px] font-medium text-red-700">✗ Erreur</span>
-          )}
+          <RoleChip role={currentRole} />
+          {isRoleOverridden ? <Tag tone="sky">Accès modifié</Tag> : null}
+          {feedback === 'saved' ? <Tag tone="pos">Enregistré</Tag> : null}
+          {feedback === 'error' ? <Tag tone="neg">Erreur</Tag> : null}
         </div>
-
-        <p className="mt-0.5 font-mono text-[11px] text-slate-400">{item.hrefTemplate}</p>
-        <p className="mt-1 text-[11px] text-slate-500">{item.description}</p>
-
-        <div className="mt-2">
+        <span className="t-meta break-all font-mono">{item.hrefTemplate}</span>
+        {item.description ? <span className="t-meta">{item.description}</span> : null}
+        <div className="mt-1">
           <RoleSelector
             navKey={item.navKey}
             currentRole={currentRole}
@@ -331,60 +352,40 @@ function SortableRow({
         </div>
       </div>
 
-      {/* Actions: position + edit + delete */}
-      <div className="mt-0.5 flex shrink-0 flex-col items-end gap-2">
-        <span className="text-[10px] text-slate-400 tabular-nums">{index + 1} / {total}</span>
-        {confirmDelete ? (
-          <div className="flex items-center gap-1" onMouseDown={(e) => e.stopPropagation()}>
-            <button
-              type="button"
-              onClick={() => { setConfirmDelete(false); onDelete(item.navKey) }}
-              className="rounded bg-red-600 px-2 py-0.5 text-[10px] font-semibold text-white hover:bg-red-700"
-            >
-              Confirmer
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(false)}
-              className="rounded border border-slate-200 px-2 py-0.5 text-[10px] text-slate-500 hover:bg-slate-50"
-            >
-              Annuler
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-1">
-            <button
-              type="button"
-              onClick={() => onEdit(item.navKey)}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="rounded p-0.5 text-slate-300 transition hover:bg-slate-100 hover:text-slate-600"
-              title="Modifier hrefTemplate et description"
-            >
-              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM1.5 8a6.5 6.5 0 1 0 13 0 6.5 6.5 0 0 0-13 0Zm4.879-2.773 4.264 2.559a.25.25 0 0 1 0 .428l-4.264 2.559A.25.25 0 0 1 6 10.559V5.442a.25.25 0 0 1 .379-.215Z" />
-              </svg>
-            </button>
-            <button
-              type="button"
-              onClick={() => setConfirmDelete(true)}
-              onMouseDown={(e) => e.stopPropagation()}
-              className="rounded p-0.5 text-slate-200 transition hover:bg-red-50 hover:text-red-500"
-              title="Supprimer cet item"
-            >
-              <svg viewBox="0 0 16 16" className="h-3.5 w-3.5" fill="currentColor">
-                <path d="M11 1.75V3h2.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H5V1.75C5 .784 5.784 0 6.75 0h2.5C10.216 0 11 .784 11 1.75ZM4.496 6.675l.66 6.6a.25.25 0 0 0 .249.225h5.19a.25.25 0 0 0 .249-.225l.66-6.6a.75.75 0 0 1 1.492.149l-.66 6.6A1.748 1.748 0 0 1 10.595 15h-5.19a1.75 1.75 0 0 1-1.741-1.575l-.66-6.6a.75.75 0 1 1 1.492-.15ZM6.5 1.75V3h3V1.75a.25.25 0 0 0-.25-.25h-2.5a.25.25 0 0 0-.25.25Z" />
-              </svg>
-            </button>
-          </div>
-        )}
+      <div className="flex shrink-0 flex-col items-end gap-1.5">
+        <span className="t-meta t-num">
+          {index + 1} / {total}
+        </span>
+        <span className="flex items-center gap-0.5">
+          <button
+            type="button"
+            onClick={() => onEdit(item.navKey)}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="grid h-7 w-7 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+            title="Modifier le lien, la description ou le menu"
+            aria-label={`Modifier « ${currentLabel} »`}
+          >
+            <Settings2 className="h-3.5 w-3.5" aria-hidden="true" />
+          </button>
+          <button
+            type="button"
+            onClick={() => onDelete(item.navKey)}
+            onMouseDown={(e) => e.stopPropagation()}
+            className="grid h-7 w-7 place-items-center rounded-md text-gray-500 hover:bg-gray-100"
+            title="Supprimer ce bouton"
+            aria-label={`Supprimer « ${currentLabel} »`}
+          >
+            <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--game-neg)' }} aria-hidden="true" />
+          </button>
+        </span>
       </div>
-    </div>
+    </li>
   )
 }
 
 // ─── Section card ─────────────────────────────────────────────────────────────
 
-function SectionCard({
+function NavSectionCard({
   section,
   items,
   nativeNavKeys,
@@ -424,35 +425,40 @@ function SectionCard({
   onEdit: (navKey: string) => void
 }) {
   const counts: Record<NavRole, number> = { owner: 0, member: 0, none: 0, superuser: 0, hidden: 0 }
-  items.forEach((item) => { counts[permissions[item.navKey] ?? item.defaultRole]++ })
+  items.forEach((item) => {
+    counts[permissions[item.navKey] ?? item.defaultRole]++
+  })
+  const titleId = `nav-section-${section}`
 
   return (
-    <section
-      className="app-panel p-4 sm:p-5"
-      onDragOver={(e) => e.preventDefault()}
-    >
-      <div className="mb-3 flex flex-wrap items-start justify-between gap-2 border-b border-slate-100 pb-3">
-        <div>
-          <h2 className="text-sm font-bold text-slate-900">{NAV_SECTION_LABELS[section]}</h2>
-          <p className="mt-0.5 text-xs text-slate-500">
-            {items.length} élément{items.length > 1 ? 's' : ''} · Glisser pour réordonner · Crayon pour renommer
-          </p>
+    <section className="app-panel flex flex-col gap-3 p-4 sm:p-5" aria-labelledby={titleId} onDragOver={(e) => e.preventDefault()}>
+      <div className="flex flex-wrap items-start justify-between gap-2">
+        <div className="flex min-w-0 items-start gap-3">
+          <IconTile icon={SECTION_ICONS[section]} />
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h2 id={titleId} className="t-card-title">
+              {NAV_SECTION_LABELS[section]}
+            </h2>
+            <p className="t-meta m-0">
+              {items.length} bouton{items.length > 1 ? 's' : ''}
+              {positionSaveState === 'saving' ? ' · ordre en cours d’enregistrement…' : ''}
+              {positionSaveState === 'saved' ? ' · ordre enregistré' : ''}
+              {positionSaveState === 'error' ? ' · échec de l’enregistrement de l’ordre' : ''}
+            </p>
+          </div>
         </div>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {positionSaveState === 'saving' && <span className="text-xs text-slate-400 italic">Sauvegarde…</span>}
-          {positionSaveState === 'saved' && <span className="text-xs text-emerald-600">✓ Ordre sauvegardé</span>}
-          {positionSaveState === 'error' && <span className="text-xs text-red-600">✗ Erreur ordre</span>}
+        <span className="flex flex-wrap items-center gap-1">
           {(['superuser', 'owner', 'member', 'none', 'hidden'] as NavRole[]).map((role) =>
             counts[role] > 0 ? (
-              <span key={role} className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${ROLE_META[role].color} ${ROLE_META[role].bg} ${ROLE_META[role].border}`}>
-                <span className={`h-1.5 w-1.5 rounded-full ${ROLE_META[role].dot}`} />{counts[role]}
-              </span>
+              <RoleChip key={role} role={role}>
+                <span className="t-num">{counts[role]}</span> {ROLE_LABELS[role]}
+              </RoleChip>
             ) : null
           )}
-        </div>
+        </span>
       </div>
 
-      <div className="space-y-2">
+      <ul className="m-0 flex list-none flex-col gap-2 p-0">
         {items.map((item, index) => (
           <SortableRow
             key={item.navKey}
@@ -476,14 +482,96 @@ function SectionCard({
             onEdit={onEdit}
           />
         ))}
-      </div>
+      </ul>
     </section>
   )
 }
 
-// ─── Edit modal ───────────────────────────────────────────────────────────────
+// ─── Modales (charte : voile `app-modal-backdrop`, carte `app-panel`) ─────────
 
-function EditItemModal({ item, onClose, onSave }: {
+function ItemModal({
+  title,
+  subtitle,
+  onClose,
+  children,
+}: {
+  title: string
+  subtitle?: string
+  onClose: () => void
+  children: React.ReactNode
+}) {
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') onClose()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [onClose])
+
+  return (
+    <div
+      className="app-modal-backdrop fixed inset-0 z-50 flex items-center justify-center p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="nav-item-modal-title"
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose()
+      }}
+    >
+      <div className="app-panel w-full max-w-md p-5 sm:p-6">
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="flex min-w-0 flex-col gap-0.5">
+            <h2 id="nav-item-modal-title" className="t-section-title m-0">
+              {title}
+            </h2>
+            {subtitle ? <p className="t-meta m-0 font-mono">{subtitle}</p> : null}
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            className="grid h-8 w-8 shrink-0 place-items-center rounded-md text-gray-500 hover:bg-gray-100"
+            aria-label="Fermer"
+          >
+            <X className="h-4 w-4" aria-hidden="true" />
+          </button>
+        </div>
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function Field({ label, required = false, hint, children }: { label: string; required?: boolean; hint?: string; children: React.ReactNode }) {
+  return (
+    <label className="flex flex-col gap-1">
+      <span className="t-label">
+        {label}
+        {required ? <span style={{ color: 'var(--game-neg)' }}> *</span> : null}
+      </span>
+      {children}
+      {hint ? <span className="t-meta">{hint}</span> : null}
+    </label>
+  )
+}
+
+function ModalActions({ onClose, saving, submitLabel, savingLabel }: { onClose: () => void; saving: boolean; submitLabel: string; savingLabel: string }) {
+  return (
+    <div className="flex justify-end gap-2.5 pt-1">
+      <button type="button" onClick={onClose} className="app-btn app-btn--md app-btn--secondary">
+        Annuler
+      </button>
+      <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary">
+        {saving ? savingLabel : submitLabel}
+      </button>
+    </div>
+  )
+}
+
+function EditItemModal({
+  item,
+  onClose,
+  onSave,
+}: {
   item: NavItemDef
   onClose: () => void
   onSave: (navKey: string, patch: { label?: string; hrefTemplate?: string; description?: string; section?: NavSection }) => Promise<void>
@@ -497,8 +585,14 @@ function EditItemModal({ item, onClose, onSave }: {
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!label.trim()) { setError('Le label est requis.'); return }
-    if (!hrefTemplate.trim() || !hrefTemplate.startsWith('/')) { setError('hrefTemplate doit commencer par /.'); return }
+    if (!label.trim()) {
+      setError('Le titre est requis.')
+      return
+    }
+    if (!hrefTemplate.trim() || !hrefTemplate.startsWith('/')) {
+      setError('Le lien doit commencer par /.')
+      return
+    }
     setSaving(true)
     setError(null)
     try {
@@ -517,80 +611,37 @@ function EditItemModal({ item, onClose, onSave }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900">Modifier un item</h2>
-            <p className="mt-0.5 font-mono text-[11px] text-slate-400">{item.navKey}</p>
-          </div>
-          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
-              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-            </svg>
-          </button>
+    <ItemModal title="Modifier un bouton" subtitle={item.navKey} onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          void handleSubmit(e)
+        }}
+        className="flex flex-col gap-3.5"
+      >
+        <div className="flex flex-col gap-1">
+          <span className="t-label">Menu</span>
+          <ChoiceMenu<NavSection> label="Menu" value={section} onChange={setSection} options={SECTION_OPTIONS} />
         </div>
-        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4 p-5">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Menu (section)</label>
-            <select
-              value={section}
-              onChange={(e) => setSection(e.target.value as NavSection)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
-            >
-              {SECTION_ORDER.map((s) => (
-                <option key={s} value={s}>{NAV_SECTION_LABELS[s]}</option>
-              ))}
-            </select>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Label <span className="text-red-500">*</span></label>
-            <input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-              required
-            />
-            <p className="mt-1 text-[11px] text-slate-400">Label de base. Si un renommage inline existe, il prend le dessus.</p>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">hrefTemplate <span className="text-red-500">*</span></label>
-            <input
-              value={hrefTemplate}
-              onChange={(e) => setHrefTemplate(e.target.value)}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-none"
-            />
-          </div>
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? 'Sauvegarde…' : 'Enregistrer'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <Field label="Titre" required hint="Titre de base ; un renommage depuis la liste reste prioritaire.">
+          <input value={label} onChange={(e) => setLabel(e.target.value)} className="app-input" required />
+        </Field>
+        <Field label="Lien (hrefTemplate)" required>
+          <input value={hrefTemplate} onChange={(e) => setHrefTemplate(e.target.value)} className="app-input font-mono" required />
+        </Field>
+        <Field label="Description">
+          <textarea value={description} onChange={(e) => setDescription(e.target.value)} rows={2} className="app-input resize-none" />
+        </Field>
+        <FormFeedback error={error ?? undefined} />
+        <ModalActions onClose={onClose} saving={saving} submitLabel="Enregistrer" savingLabel="Enregistrement…" />
+      </form>
+    </ItemModal>
   )
 }
 
-// ─── Create modal ─────────────────────────────────────────────────────────────
-
-function CreateItemModal({ onClose, onCreate }: {
+function CreateItemModal({
+  onClose,
+  onCreate,
+}: {
   onClose: () => void
   onCreate: (data: { navKey: string; section: NavSection; label: string; hrefTemplate: string; defaultRole: NavRole; description: string }) => Promise<void>
 }) {
@@ -606,17 +657,24 @@ function CreateItemModal({ onClose, onCreate }: {
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!navKey.trim() || !label.trim() || !hrefTemplate.trim()) {
-      setError('navKey, label et hrefTemplate sont requis.')
+      setError('La clé, le titre et le lien sont requis.')
       return
     }
     if (!hrefTemplate.startsWith('/')) {
-      setError('hrefTemplate doit commencer par /.')
+      setError('Le lien doit commencer par /.')
       return
     }
     setSaving(true)
     setError(null)
     try {
-      await onCreate({ navKey: navKey.trim(), section, label: label.trim(), hrefTemplate: hrefTemplate.trim(), defaultRole, description: description.trim() })
+      await onCreate({
+        navKey: navKey.trim(),
+        section,
+        label: label.trim(),
+        hrefTemplate: hrefTemplate.trim(),
+        defaultRole,
+        description: description.trim(),
+      })
       onClose()
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Erreur inconnue')
@@ -626,102 +684,66 @@ function CreateItemModal({ onClose, onCreate }: {
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={(e) => { if (e.target === e.currentTarget) onClose() }}>
-      <div className="w-full max-w-md rounded-2xl bg-white shadow-2xl">
-        <div className="flex items-center justify-between border-b border-slate-100 px-5 py-4">
-          <h2 className="text-sm font-bold text-slate-900">Ajouter un item de navigation</h2>
-          <button type="button" onClick={onClose} className="rounded p-1 text-slate-400 hover:bg-slate-100 hover:text-slate-600">
-            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
-              <path d="M3.72 3.72a.75.75 0 0 1 1.06 0L8 6.94l3.22-3.22a.749.749 0 0 1 1.275.326.749.749 0 0 1-.215.734L9.06 8l3.22 3.22a.749.749 0 0 1-.326 1.275.749.749 0 0 1-.734-.215L8 9.06l-3.22 3.22a.751.751 0 0 1-1.042-.018.751.751 0 0 1-.018-1.042L6.94 8 3.72 4.78a.75.75 0 0 1 0-1.06Z" />
-            </svg>
-          </button>
+    <ItemModal title="Ajouter un bouton de navigation" onClose={onClose}>
+      <form
+        onSubmit={(e) => {
+          void handleSubmit(e)
+        }}
+        className="flex flex-col gap-3.5"
+      >
+        <Field label="Clé (navKey)" required>
+          <input value={navKey} onChange={(e) => setNavKey(e.target.value)} placeholder="clan.nouvelle-page" className="app-input font-mono" required />
+        </Field>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <div className="flex flex-col gap-1">
+            <span className="t-label">Menu</span>
+            <ChoiceMenu<NavSection> label="Menu" value={section} onChange={setSection} options={SECTION_OPTIONS} />
+          </div>
+          <div className="flex flex-col gap-1">
+            <span className="t-label">Accès par défaut</span>
+            <ChoiceMenu<NavRole>
+              label="Accès par défaut"
+              value={defaultRole}
+              onChange={setDefaultRole}
+              options={ROLES.map((role) => ({ value: role, label: ROLE_LABELS[role] }))}
+            />
+          </div>
         </div>
-        <form onSubmit={(e) => { void handleSubmit(e) }} className="space-y-4 p-5">
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">navKey <span className="text-red-500">*</span></label>
-            <input
-              value={navKey}
-              onChange={(e) => setNavKey(e.target.value)}
-              placeholder="ex: clan.new-page"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-              required
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Section <span className="text-red-500">*</span></label>
-              <select
-                value={section}
-                onChange={(e) => setSection(e.target.value as NavSection)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
-              >
-                {SECTION_ORDER.map((s) => (
-                  <option key={s} value={s}>{NAV_SECTION_LABELS[s]}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs font-semibold text-slate-700 mb-1">Rôle par défaut</label>
-              <select
-                value={defaultRole}
-                onChange={(e) => setDefaultRole(e.target.value as NavRole)}
-                className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400"
-              >
-                {ROLES.map((r) => (
-                  <option key={r} value={r}>{ROLE_META[r].label}</option>
-                ))}
-              </select>
-            </div>
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Label <span className="text-red-500">*</span></label>
-            <input
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="ex: Ma nouvelle page"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">hrefTemplate <span className="text-red-500">*</span></label>
-            <input
-              value={hrefTemplate}
-              onChange={(e) => setHrefTemplate(e.target.value)}
-              placeholder="ex: /clans/:clanId/ma-page"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm font-mono text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400"
-              required
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-semibold text-slate-700 mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
-              rows={2}
-              placeholder="Description optionnelle"
-              className="w-full rounded-lg border border-slate-200 px-3 py-2 text-sm text-slate-900 outline-none focus:border-blue-400 focus:ring-1 focus:ring-blue-400 resize-none"
-            />
-          </div>
-          {error && <p className="rounded-lg bg-red-50 px-3 py-2 text-xs text-red-700">{error}</p>}
-          <div className="flex justify-end gap-2 pt-1">
-            <button type="button" onClick={onClose} className="rounded-lg border border-slate-200 px-4 py-2 text-sm text-slate-600 hover:bg-slate-50">Annuler</button>
-            <button
-              type="submit"
-              disabled={saving}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
-            >
-              {saving ? 'Création…' : 'Créer'}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <Field label="Titre" required>
+          <input value={label} onChange={(e) => setLabel(e.target.value)} placeholder="Ma nouvelle page" className="app-input" required />
+        </Field>
+        <Field label="Lien (hrefTemplate)" required>
+          <input
+            value={hrefTemplate}
+            onChange={(e) => setHrefTemplate(e.target.value)}
+            placeholder="/clans/:clanId/ma-page"
+            className="app-input font-mono"
+            required
+          />
+        </Field>
+        <Field label="Description">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            rows={2}
+            placeholder="Facultative"
+            className="app-input resize-none"
+          />
+        </Field>
+        <FormFeedback error={error ?? undefined} />
+        <ModalActions onClose={onClose} saving={saving} submitLabel="Créer" savingLabel="Création…" />
+      </form>
+    </ItemModal>
   )
 }
 
 // ─── Page ─────────────────────────────────────────────────────────────────────
 
+/**
+ * Navigation du site (SuperUser), selon la charte UI (docs/ui/index.html) : accès, ordre et titre de chaque bouton des
+ * menus, enregistrés aussitôt. Un bouton glissé dans un autre menu y change de section ; les menus servent aussi de
+ * gardes d'API.
+ */
 export default function NavPermissionsPage() {
   const router = useRouter()
   const { loading, authenticated, isSuperUser } = useAuthSession()
@@ -748,6 +770,8 @@ export default function NavPermissionsPage() {
   )
   const [showCreateModal, setShowCreateModal] = useState(false)
   const [editingItem, setEditingItem] = useState<NavItemDef | null>(null)
+  // Suppression d’un bouton : confirmée dans la page (charte), plus sur la ligne elle-même.
+  const [deleteTarget, setDeleteTarget] = useState<NavItemDef | null>(null)
 
   function loadData() {
     return fetch('/api/settings/nav-permissions')
@@ -1072,117 +1096,73 @@ export default function NavPermissionsPage() {
   // ── Guards ───────────────────────────────────────────────────────────────────
 
   if (loading) {
-    return (
-      <main className="app-container app-main">
-        <div className="flex h-48 items-center justify-center">
-          <span className="text-sm text-slate-500">Vérification de la session…</span>
-        </div>
-      </main>
-    )
+    return <AdminPageLoading />
   }
 
   if (!canAccess) {
-    return (
-      <main className="app-container app-main">
-        <div className="app-panel flex flex-col items-center gap-3 py-16 text-center">
-          <div className="flex h-12 w-12 items-center justify-center rounded-full bg-red-50">
-            <svg viewBox="0 0 20 20" className="h-6 w-6 text-red-500" fill="currentColor">
-              <path fillRule="evenodd" d="M10 1a4.5 4.5 0 0 0-4.5 4.5V9H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-6a2 2 0 0 0-2-2h-.5V5.5A4.5 4.5 0 0 0 10 1Zm3 8V5.5a3 3 0 1 0-6 0V9h6Z" clipRule="evenodd" />
-            </svg>
-          </div>
-          <p className="font-semibold text-slate-800">Accès réservé aux Owners et SuperUsers</p>
-          <p className="max-w-xs text-sm text-slate-500">Seul un Owner ou un SuperUser peut modifier les paramètres de navigation.</p>
-        </div>
-      </main>
-    )
+    return <AdminPageRestricted message="Seul le SuperUser modifie la navigation : les menus servent aussi de gardes d’accès." />
   }
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
+  const visibleSections = SECTION_ORDER.filter((section) => (displaySections[section] ?? []).length > 0)
+
   return (
-    <main className="app-container app-main">
-      <NavigationTrail
-        currentLabel="Navigation"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Navigation"
+        subtitle="Accès, ordre et titre de chaque bouton des menus ; chaque modification est enregistrée aussitôt."
+        icon={Compass}
+        image="/map-stats.jpg"
         currentHref="/settings/nav-permissions"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-      {showCreateModal && (
-        <CreateItemModal
-          onClose={() => setShowCreateModal(false)}
-          onCreate={handleCreate}
-        />
-      )}
-      {editingItem && (
-        <EditItemModal
-          item={editingItem}
-          onClose={() => setEditingItem(null)}
-          onSave={handleEditSave}
-        />
-      )}
-
-      <section className="app-panel mb-5 p-4">
-        <div className="flex flex-wrap items-start justify-between gap-3">
-          <SettingsPageHeader
-            title="Permissions &amp; ordre de navigation"
-            subtitle="Accès, ordre et titre de chaque bouton. Toutes les modifications sont enregistrées automatiquement."
-          />
-          <button
-            type="button"
-            onClick={() => setShowCreateModal(true)}
-            className="shrink-0 inline-flex items-center gap-1.5 rounded-lg bg-blue-600 px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-blue-700"
-          >
-            <svg viewBox="0 0 16 16" className="h-4 w-4" fill="currentColor">
-              <path d="M7.75 2a.75.75 0 0 1 .75.75V7h4.25a.75.75 0 0 1 0 1.5H8.5v4.25a.75.75 0 0 1-1.5 0V8.5H2.75a.75.75 0 0 1 0-1.5H7V2.75A.75.75 0 0 1 7.75 2Z" />
-            </svg>
-            Ajouter un item
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <>
+            <span className="t-num">{allItems.length}</span> boutons
+          </>,
+          <>
+            <span className="t-num">{visibleSections.length}</span> menus
+          </>,
+          'Réservé au SuperUser',
+        ]}
+        action={
+          <button type="button" onClick={() => setShowCreateModal(true)} className={BANNER_GLASS_BUTTON}>
+            <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+            Ajouter un bouton
           </button>
-        </div>
+        }
+      />
 
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border border-slate-100 bg-slate-50 px-4 py-3 text-xs text-slate-500">
-          <div className="flex flex-wrap gap-2">
-            {ROLES.map((role) => {
-              const m = ROLE_META[role]
-              return (
-                <span key={role} className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${m.color} ${m.bg} ${m.border}`}>
-                  <span className={`h-1.5 w-1.5 rounded-full ${m.dot}`} />{m.label}
-                </span>
-              )
-            })}
-          </div>
-          <span className="hidden sm:inline text-slate-300">·</span>
-          <span className="flex items-center gap-1">
-            <span className="inline-flex h-2.5 w-2.5 items-center justify-center rounded-full bg-slate-400 text-[7px] text-white">✦</span>
-            Valeur par défaut
-          </span>
-          <span className="flex items-center gap-1">
-            <svg viewBox="0 0 16 16" className="h-3 w-3 text-slate-400" fill="currentColor">
-              <path d="M11.013 1.427a1.75 1.75 0 0 1 2.474 0l1.086 1.086a1.75 1.75 0 0 1 0 2.474l-8.61 8.61c-.21.21-.47.364-.756.445l-3.251.93a.75.75 0 0 1-.927-.928l.929-3.25c.081-.286.235-.547.445-.758l8.61-8.61Zm.176 4.823L9.75 4.81l-6.286 6.287a.253.253 0 0 0-.064.108l-.558 1.953 1.953-.558a.253.253 0 0 0 .108-.064Zm1.238-3.763a.25.25 0 0 0-.354 0L10.811 3.75l1.439 1.44 1.263-1.263a.25.25 0 0 0 0-.354Z" />
-            </svg>
-            Crayon pour renommer
-          </span>
-          <span className="flex items-center gap-1">
-            <svg viewBox="0 0 20 20" className="h-3.5 w-3.5 text-slate-400" fill="currentColor">
-              <circle cx="7" cy="5" r="1.5" /><circle cx="13" cy="5" r="1.5" />
-              <circle cx="7" cy="10" r="1.5" /><circle cx="13" cy="10" r="1.5" />
-              <circle cx="7" cy="15" r="1.5" /><circle cx="13" cy="15" r="1.5" />
-            </svg>
-            Glisser pour réordonner ou changer de section
-          </span>
-        </div>
-      </section>
+      <div className="app-panel-muted t-meta flex flex-wrap items-center gap-x-4 gap-y-2 px-3.5 py-2.5">
+        <span className="flex flex-wrap items-center gap-1">
+          {ROLES.map((role) => (
+            <RoleChip key={role} role={role} />
+          ))}
+        </span>
+        <span>« (défaut) » : accès prévu par le code</span>
+        <span className="inline-flex items-center gap-1">
+          <Pencil className="h-3 w-3" aria-hidden="true" />
+          renommer
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <GripVertical className="h-3.5 w-3.5" aria-hidden="true" />
+          glisser pour réordonner ou changer de menu
+        </span>
+        <span className="inline-flex items-center gap-1">
+          <PanelsTopLeft className="h-3.5 w-3.5" aria-hidden="true" />
+          bord pointillé : bouton placé dans ce menu par son accès
+        </span>
+      </div>
 
       {!dataLoaded ? (
-        <div className="app-panel flex h-32 items-center justify-center">
-          <span className="text-sm text-slate-500">Chargement…</span>
-        </div>
+        <ListSkeleton rows={4} />
       ) : (
-        <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-          {SECTION_ORDER.map((section) => {
+        <div className="grid grid-cols-1 items-start gap-4 lg:grid-cols-2">
+          {visibleSections.map((section) => {
             const items = displaySections[section] ?? []
-            if (items.length === 0) return null
             const nativeNavKeys = new Set(allItems.filter((i) => i.section === section).map((i) => i.navKey))
             return (
-              <SectionCard
+              <NavSectionCard
                 key={section}
                 section={section}
                 items={items}
@@ -1200,13 +1180,34 @@ export default function NavPermissionsPage() {
                 onDragStart={handleDragStart}
                 onDragEnter={handleDragEnter}
                 onDragEnd={handleDragEnd}
-                onDelete={handleDelete}
+                onDelete={(navKey) => setDeleteTarget(allItems.find((i) => i.navKey === navKey) ?? null)}
                 onEdit={(navKey) => setEditingItem(allItems.find((i) => i.navKey === navKey) ?? null)}
               />
             )
           })}
         </div>
       )}
-    </main>
+
+      {showCreateModal ? <CreateItemModal onClose={() => setShowCreateModal(false)} onCreate={handleCreate} /> : null}
+      {editingItem ? <EditItemModal item={editingItem} onClose={() => setEditingItem(null)} onSave={handleEditSave} /> : null}
+      {deleteTarget ? (
+        <ConfirmDialog
+          icon={Trash2}
+          title="Supprimer ce bouton ?"
+          confirmLabel="Supprimer"
+          tone="danger"
+          busy={false}
+          onCancel={() => setDeleteTarget(null)}
+          onConfirm={() => {
+            const navKey = deleteTarget.navKey
+            setDeleteTarget(null)
+            void handleDelete(navKey)
+          }}
+        >
+          « {labelMap[deleteTarget.navKey] ?? deleteTarget.label} » ({deleteTarget.hrefTemplate}) disparaîtra de son menu pour tout le
+          monde.
+        </ConfirmDialog>
+      ) : null}
+    </div>
   )
 }

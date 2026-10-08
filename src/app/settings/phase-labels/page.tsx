@@ -1,38 +1,58 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Activity } from 'lucide-react'
+import { Activity, CircleDot, Hourglass, Shrink } from 'lucide-react'
+import type { LucideIcon } from 'lucide-react'
 
+import AdminPageBanner from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted, FormFeedback } from '@/components/settings/AdminPageStates'
+import { SectionCard, Tag, type Tone } from '@/components/ui/CharteKit'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { PHASE_KEYS, DEFAULT_PHASE_LABELS, type PhaseKey } from '@/lib/phase-label-service'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type PhaseLabels = Record<string, string>
 
 const PHASE_GROUPS: Array<{
+  id: string
   title: string
   description: string
+  icon: LucideIcon
   keys: readonly string[]
 }> = [
   {
-    title: 'Pré-partie',
-    description: 'Phase avant le saut (isGame = 0.1)',
+    id: 'phase-group-pre',
+    title: 'Avant le saut',
+    description: 'Phase d’avant-partie (isGame = 0.1).',
+    icon: Hourglass,
     keys: ['0.1'],
   },
   {
+    id: 'phase-group-stable',
     title: 'Phases stables',
-    description: 'Cercle fixe — isGame entier (1, 2… 8)',
+    description: 'Cercle fixe : isGame entier (1, 2… 8).',
+    icon: CircleDot,
     keys: ['1', '2', '3', '4', '5', '6', '7', '8'],
   },
   {
-    title: 'Transitions (rétrécissements)',
-    description: 'Cercle en mouvement — isGame avec .5 (1.5, 2.5… 7.5)',
+    id: 'phase-group-shrink',
+    title: 'Rétrécissements',
+    description: 'Cercle en mouvement : isGame en .5 (1.5, 2.5… 7.5).',
+    icon: Shrink,
     keys: ['1.5', '2.5', '3.5', '4.5', '5.5', '6.5', '7.5'],
   },
 ]
 
+function phaseType(key: string): { label: string; tone: Tone } {
+  const isGame = Number(key)
+  if (isGame < 1) return { label: 'avant-partie', tone: 'neutral' }
+  return Number.isInteger(isGame) ? { label: 'stable', tone: 'sky' } : { label: 'rétrécissement', tone: 'warn' }
+}
+
+/**
+ * Alias des phases de jeu (valeur `isGame` de la télémétrie), référentiel commun à la plateforme (SuperUser), selon la
+ * charte UI (docs/ui/index.html) : un bloc par famille de phases, une ligne par valeur.
+ */
 export default function PhaseLabelSettingsPage() {
   const router = useRouter()
   const { loading, authenticated, isSuperUser } = useAuthSession()
@@ -63,14 +83,15 @@ export default function PhaseLabelSettingsPage() {
         if (!response.ok) throw new Error('Impossible de charger les alias de phases')
         if (!cancelled) setLabels(payload?.labels ?? {})
       } catch (loadError) {
-        if (!cancelled)
-          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger les alias de phases')
+        if (!cancelled) setError(loadError instanceof Error ? loadError.message : 'Impossible de charger les alias de phases')
       } finally {
         if (!cancelled) setDataLoaded(true)
       }
     }
     void loadData()
-    return () => { cancelled = true }
+    return () => {
+      cancelled = true
+    }
   }, [authenticated, canManageSettings, loading])
 
   const loadingData = authenticated && canManageSettings && !dataLoaded
@@ -86,13 +107,12 @@ export default function PhaseLabelSettingsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ labels }),
       })
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; labels?: PhaseLabels } | null
-      if (!response.ok) throw new Error(payload?.error ?? 'Échec de la sauvegarde')
+      const payload = (await response.json().catch(() => null)) as { error?: string; labels?: PhaseLabels } | null
+      if (!response.ok) throw new Error(payload?.error ?? 'Échec de l’enregistrement')
       setLabels(payload?.labels ?? labels)
       setSuccess('Alias de phases enregistrés.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de l’enregistrement')
     } finally {
       setSaving(false)
     }
@@ -108,153 +128,78 @@ export default function PhaseLabelSettingsPage() {
     setError('')
   }
 
-  if (loading || loadingData) {
-    return (
-      <main className="app-container app-main flex flex-1 items-center justify-center">
-        <p className="text-sm text-slate-600">Chargement de la configuration...</p>
-      </main>
-    )
-  }
+  if (loading || loadingData) return <AdminPageLoading />
 
   if (!authenticated) return null
 
   if (!canManageSettings) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Alias des phases PUBG"
-        currentHref="/settings/phase-labels"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-        <section className="app-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Permissions</p>
-          <h1 className="mt-2 text-2xl font-bold text-slate-900">Accès restreint</h1>
-          <p className="mt-3 text-sm text-slate-600">
-            Cette page est réservée au SuperUser : les alias de phases sont communs à toute la plateforme.
-          </p>
-          <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour à l&apos;accueil
-          </Link>
-        </section>
-      </main>
-    )
+    return <AdminPageRestricted message="Cette page est réservée au SuperUser : les alias de phases sont communs à toute la plateforme." />
   }
 
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Alias des phases PUBG"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Alias des phases"
+        subtitle="Noms affichés pour chaque phase de jeu (valeur isGame) dans les filtres, graphiques et tableaux."
+        icon={Activity}
+        image="/banner-phases.jpg"
         currentHref="/settings/phase-labels"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <>
+            <span className="t-num">{PHASE_KEYS.length}</span> phases
+          </>,
+          'Réservé au SuperUser',
+        ]}
       />
 
-      <header
-        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/banner-phases.jpg')`, backgroundPosition: 'center 35%' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Activity className="h-4 w-4 text-sky-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
-              Alias des phases PUBG
-            </h1>
-          </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Personnalise les noms affichés pour chaque valeur isGame dans les filtres, graphiques et tableaux de phases.
-          </p>
-        </div>
-      </header>
+      <form onSubmit={handleSave} className="flex flex-col gap-5">
+        {PHASE_GROUPS.map((group) => (
+          <SectionCard key={group.id} id={group.id} icon={group.icon} title={group.title} meta={group.description}>
+            <ul className="m-0 flex list-none flex-col gap-2 p-0">
+              {group.keys.map((key) => {
+                const type = phaseType(key)
+                const defaultLabel = DEFAULT_PHASE_LABELS[key as PhaseKey]
+                return (
+                  <li
+                    key={key}
+                    className="app-panel-muted grid grid-cols-[auto_minmax(0,1fr)] items-center gap-x-3 gap-y-1.5 px-3 py-2 sm:grid-cols-[3.5rem_8.5rem_minmax(0,1fr)_minmax(0,11rem)]"
+                  >
+                    <span className="t-num font-mono font-semibold text-gray-900">{key}</span>
+                    <span>
+                      <Tag tone={type.tone}>{type.label}</Tag>
+                    </span>
+                    <label className="col-span-2 sm:col-span-1">
+                      <span className="sr-only">Alias de la phase {key}</span>
+                      <input
+                        type="text"
+                        value={labels[key] ?? defaultLabel ?? ''}
+                        maxLength={40}
+                        onChange={(event) => setLabels((prev) => ({ ...prev, [key]: event.target.value }))}
+                        className="app-input"
+                        placeholder={defaultLabel}
+                      />
+                    </label>
+                    <span className="t-meta col-span-2 truncate sm:col-span-1" title={defaultLabel}>
+                      Par défaut : {defaultLabel}
+                    </span>
+                  </li>
+                )
+              })}
+            </ul>
+          </SectionCard>
+        ))}
 
-      {error ? (
-        <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-700">
-          {error}
-        </div>
-      ) : null}
-      {success ? (
-        <div className="mb-4 rounded-lg border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
-          {success}
-        </div>
-      ) : null}
-
-      <form onSubmit={handleSave}>
-        <div className="space-y-4">
-          {PHASE_GROUPS.map((group) => (
-            <section key={group.title} className="app-panel p-4 md:p-5">
-              <h2 className="text-base font-semibold text-slate-900">{group.title}</h2>
-              <p className="mt-0.5 text-xs text-slate-500">{group.description}</p>
-
-              <div className="mt-3 overflow-x-auto rounded-lg border border-slate-200">
-                <table className="min-w-full text-sm">
-                  <thead className="bg-slate-50 text-left text-xs uppercase tracking-wide text-slate-500">
-                    <tr>
-                      <th className="w-24 px-3 py-2">isGame</th>
-                      <th className="w-40 px-3 py-2">Type</th>
-                      <th className="px-3 py-2">Alias (affiché dans les filtres)</th>
-                      <th className="w-40 px-3 py-2 text-slate-400">Valeur par défaut</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.keys.map((key) => {
-                      const isGame = Number(key)
-                      const type = isGame < 1 ? 'pré-partie' : Number.isInteger(isGame) ? 'stable' : 'rétrécissement'
-                      const typeTone =
-                        isGame < 1
-                          ? 'bg-slate-100 text-slate-600'
-                          : Number.isInteger(isGame)
-                            ? 'bg-blue-100 text-blue-700'
-                            : 'bg-orange-100 text-orange-700'
-                      return (
-                        <tr key={key} className="border-t border-slate-100">
-                          <td className="px-3 py-2 font-mono text-xs text-slate-700">{key}</td>
-                          <td className="px-3 py-2">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${typeTone}`}>
-                              {type}
-                            </span>
-                          </td>
-                          <td className="px-3 py-2">
-                            <input
-                              type="text"
-                              value={labels[key] ?? DEFAULT_PHASE_LABELS[key as PhaseKey] ?? ''}
-                              maxLength={40}
-                              onChange={(e) =>
-                                setLabels((prev) => ({ ...prev, [key]: e.target.value }))
-                              }
-                              className="app-input w-full"
-                              placeholder={DEFAULT_PHASE_LABELS[key as PhaseKey]}
-                            />
-                          </td>
-                          <td className="px-3 py-2 text-xs text-slate-400">
-                            {DEFAULT_PHASE_LABELS[key as PhaseKey]}
-                          </td>
-                        </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-          ))}
-        </div>
-
-        <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button
-            type="submit"
-            disabled={saving}
-            className="app-btn app-btn--md app-btn--primary"
-          >
-            {saving ? 'Enregistrement...' : 'Enregistrer les alias'}
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary">
+            {saving ? 'Enregistrement…' : 'Enregistrer les alias'}
           </button>
-          <button
-            type="button"
-            onClick={handleReset}
-            disabled={saving}
-            className="app-btn app-btn--md app-btn--secondary"
-          >
-            Réinitialiser les valeurs par défaut
+          <button type="button" onClick={handleReset} disabled={saving} className="app-btn app-btn--md app-btn--secondary">
+            Rétablir les valeurs par défaut
           </button>
+          <FormFeedback error={error} success={success} />
         </div>
       </form>
-    </main>
+    </div>
   )
 }

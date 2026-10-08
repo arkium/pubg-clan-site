@@ -1,6 +1,5 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
@@ -15,7 +14,6 @@ import {
   RefreshCw,
   RotateCcw,
   Search,
-  ShieldAlert,
   Timer,
   Trash2,
   TrendingUp,
@@ -25,12 +23,12 @@ import {
 
 import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
 import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted } from '@/components/settings/AdminPageStates'
 import {
   Callout,
   ChoiceMenu,
   ConfirmDialog,
   EmptyState,
-  ListSkeleton,
   SectionCard,
   Tag,
   type Tone,
@@ -341,11 +339,7 @@ export default function PubgApiSettingsPage() {
   }
 
   if (loading || (loadingData && !payload)) {
-    return (
-      <div className="app-container app-main game-ui charte flex flex-1 flex-col">
-        <ListSkeleton rows={4} />
-      </div>
-    )
+    return <AdminPageLoading />
   }
 
   if (!authenticated) {
@@ -353,22 +347,7 @@ export default function PubgApiSettingsPage() {
   }
 
   if (!isSuperUser) {
-    return (
-      <div className="app-container app-main game-ui charte flex flex-1 flex-col">
-        <EmptyState
-          icon={ShieldAlert}
-          title="Accès restreint"
-          text={
-            <>
-              Cette page est réservée au SuperUser.{' '}
-              <Link href="/" className="app-link font-semibold">
-                Retour à l’accueil
-              </Link>
-            </>
-          }
-        />
-      </div>
-    )
+    return <AdminPageRestricted />
   }
 
   const totals = payload?.totals
@@ -391,12 +370,12 @@ export default function PubgApiSettingsPage() {
 
   return (
     // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
-    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-5">
+    <div className={ADMIN_PAGE_CLASS}>
       <AdminPageBanner
         title="API PUBG"
         subtitle="Appels à l’API PUBG de la journée, erreurs 429, latence et limite de débit."
         icon={Globe}
-        image="/cartographie-tactique.jpg"
+        image="/recall.jpg"
         currentHref="/settings/pubg-api"
         parent={{ href: '/settings', label: 'Plateforme' }}
         pills={[

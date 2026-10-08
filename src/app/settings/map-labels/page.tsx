@@ -1,20 +1,18 @@
 'use client'
 
 import Image from 'next/image'
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useRef, useState } from 'react'
-import { Map } from 'lucide-react'
+import { Map, MapPin, Plus, Tags, Trash2 } from 'lucide-react'
 
-import DropZoneMapViewport, {
-  type DropZoneMapViewportHandle,
-} from '@/components/drop-zones/DropZoneMapViewport'
-import { useAuthSession } from '@/hooks/useAuthSession'
-import FilterDropdown from '@/components/ui/FilterDropdown'
+import DropZoneMapViewport, { type DropZoneMapViewportHandle } from '@/components/drop-zones/DropZoneMapViewport'
+import AdminPageBanner from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted, FormFeedback } from '@/components/settings/AdminPageStates'
+import { ChoiceMenu, EmptyState, SectionCard, Switch } from '@/components/ui/CharteKit'
 import MapImage from '@/components/ui/MapImage'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import type { MapLocation, MapLocations } from '@/lib/map-location-service'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 const MAP_KEYS = [
   'Baltic_Main',
@@ -52,6 +50,10 @@ const VIEW_OPTIONS: Array<{ value: SettingsView; label: string }> = [
   { value: 'locations', label: 'Villes et zones' },
 ]
 
+/**
+ * Cartes PUBG, référentiel commun à la plateforme (SuperUser), selon la charte UI (docs/ui/index.html) : alias des
+ * cartes, et villes ou zones placées sur la carte (position, diamètre, activation).
+ */
 export default function MapLabelsSettingsPage() {
   const router = useRouter()
   const { loading, authenticated, isSuperUser } = useAuthSession()
@@ -94,9 +96,7 @@ export default function MapLabelsSettingsPage() {
           fetch('/api/settings/map-labels', { cache: 'no-store' }),
           fetch('/api/settings/map-locations', { cache: 'no-store' }),
         ])
-        const labelsPayload = (await labelsResponse.json().catch(() => null)) as
-          | { labels?: MapLabels }
-          | null
+        const labelsPayload = (await labelsResponse.json().catch(() => null)) as { labels?: MapLabels } | null
         const locationsPayload = (await locationsResponse.json().catch(() => null)) as
           | { locations?: MapLocations; defaultLocations?: MapLocations }
           | null
@@ -112,11 +112,7 @@ export default function MapLabelsSettingsPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error
-              ? loadError.message
-              : 'Impossible de charger la configuration des cartes'
-          )
+          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger la configuration des cartes')
         }
       } finally {
         if (!cancelled) {
@@ -150,18 +146,16 @@ export default function MapLabelsSettingsPage() {
         body: JSON.stringify({ labels }),
       })
 
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; labels?: MapLabels }
-        | null
+      const payload = (await response.json().catch(() => null)) as { error?: string; labels?: MapLabels } | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Échec de la sauvegarde')
+        throw new Error(payload?.error ?? 'Échec de l’enregistrement')
       }
 
       setLabels(payload?.labels ?? labels)
-      setSuccess('Alias de cartes enregistres.')
+      setSuccess('Alias de cartes enregistrés.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de l’enregistrement')
     } finally {
       setSaving(false)
     }
@@ -180,18 +174,16 @@ export default function MapLabelsSettingsPage() {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({ locations }),
       })
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; locations?: MapLocations }
-        | null
+      const payload = (await response.json().catch(() => null)) as { error?: string; locations?: MapLocations } | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Échec de la sauvegarde')
+        throw new Error(payload?.error ?? 'Échec de l’enregistrement')
       }
 
       setLocations(payload?.locations ?? locations)
-      setSuccess('Villes et zones enregistrees.')
+      setSuccess('Villes et zones enregistrées.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de l’enregistrement')
     } finally {
       setSaving(false)
     }
@@ -249,8 +241,8 @@ export default function MapLabelsSettingsPage() {
     }))
     setSuccess(
       additions.length > 0
-        ? `${additions.length} villes ajoutees pour ${labels[selectedMap] ?? selectedMap}.`
-        : `Toutes les villes par defaut de ${labels[selectedMap] ?? selectedMap} sont déjà presentes.`
+        ? `${additions.length} ville(s) ajoutée(s) pour ${labels[selectedMap] ?? selectedMap}, à enregistrer.`
+        : `Toutes les villes par défaut de ${labels[selectedMap] ?? selectedMap} sont déjà présentes.`
     )
     setError('')
   }
@@ -270,8 +262,8 @@ export default function MapLabelsSettingsPage() {
     setLocations(nextLocations)
     setSuccess(
       addedCount > 0
-        ? `${addedCount} villes ajoutees sur les cartes disponibles.`
-        : 'Toutes les villes par defaut sont déjà presentes.'
+        ? `${addedCount} ville(s) ajoutée(s) sur les cartes disponibles, à enregistrer.`
+        : 'Toutes les villes par défaut sont déjà présentes.'
     )
     setError('')
   }
@@ -281,9 +273,7 @@ export default function MapLabelsSettingsPage() {
 
     setLocations((current) => ({
       ...current,
-      [selectedMap]: (current[selectedMap] ?? []).filter(
-        (location) => location.id !== selectedLocationId
-      ),
+      [selectedMap]: (current[selectedMap] ?? []).filter((location) => location.id !== selectedLocationId),
     }))
     setSelectedLocationId(null)
   }
@@ -298,11 +288,7 @@ export default function MapLabelsSettingsPage() {
   }
 
   if (loading || loadingData) {
-    return (
-      <main className="app-container app-main flex flex-1 items-center justify-center">
-        <p className="text-sm text-gray-600">Chargement de la configuration...</p>
-      </main>
-    )
+    return <AdminPageLoading />
   }
 
   if (!authenticated) {
@@ -310,91 +296,57 @@ export default function MapLabelsSettingsPage() {
   }
 
   if (!canManageSettings) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Cartes PUBG"
-        currentHref="/settings/map-labels"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-        <section className="app-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">Accès restreint</h1>
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm text-amber-800">
-              Cette page est réservée au SuperUser : les alias de cartes sont communs à toute la plateforme.
-            </p>
-          </div>
-          <Link
-            href="/"
-            className="mt-5 app-btn app-btn--md app-btn--secondary"
-          >
-            Retour à l&apos;accueil
-          </Link>
-        </section>
-      </main>
-    )
+    return <AdminPageRestricted message="Cette page est réservée au SuperUser : les alias de cartes sont communs à toute la plateforme." />
   }
 
+  const locationCount = Object.values(locations).reduce((total, list) => total + list.length, 0)
+
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Cartes PUBG"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Cartes"
+        subtitle="Noms des cartes affichés dans le site et périmètres des villes utilisés par les zones de drop."
+        icon={Map}
+        image="/banner-maps.jpg"
         currentHref="/settings/map-labels"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <>
+            <span className="t-num">{MAP_KEYS.length}</span> cartes
+          </>,
+          <>
+            <span className="t-num">{locationCount}</span> villes
+          </>,
+          'Réservé au SuperUser',
+        ]}
       />
-      <header
-        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/banner-maps.jpg')`, backgroundPosition: 'center 35%' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Map className="h-4 w-4 text-amber-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
-              Configuration des cartes PUBG
-            </h1>
-          </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Gérez les libellés des cartes et les périmètres des villes.
-          </p>
-        </div>
-      </header>
-      <section className="app-panel mb-4 p-4">
-        <div className="mt-4 border-t border-gray-200 pt-4">
-          <SegmentedControl
-            options={VIEW_OPTIONS}
-            value={view}
-            onChange={(nextView) => {
-              setView(nextView)
-              setError('')
-              setSuccess('')
-            }}
-            size="sm"
-            fullWidthOnMobile
-          />
-        </div>
-      </section>
+
+      <SegmentedControl
+        options={VIEW_OPTIONS}
+        value={view}
+        onChange={(nextView) => {
+          setView(nextView)
+          setError('')
+          setSuccess('')
+        }}
+        size="sm"
+        fullWidthOnMobile
+      />
 
       {view === 'labels' ? (
-        <section className="app-panel p-5 sm:p-6">
-        <form className="space-y-4" onSubmit={handleSaveLabels}>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Libellés des cartes</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Ajuste les noms affichés dans les filtres et tableaux de l&apos;application.
-            </p>
-          </div>
-
-          <div className="app-panel-muted p-4 sm:p-5">
-            <div className="grid gap-4 md:grid-cols-2">
+        <form onSubmit={handleSaveLabels}>
+          <SectionCard
+            id="map-labels-title"
+            icon={Tags}
+            title="Libellés des cartes"
+            meta="Noms affichés dans les filtres et tableaux du site ; laisser vide pour garder la clé PUBG."
+          >
+            <ul className="m-0 grid list-none gap-2 p-0 md:grid-cols-2">
               {MAP_KEYS.map((mapKey) => (
-                <label key={mapKey} className="flex items-center gap-3 text-sm font-medium text-gray-700">
-                  <div className="flex h-12 w-20 shrink-0 items-center justify-center">
-                    <MapImage mapKey={mapKey} className="h-12 w-20" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="block truncate">{mapKey}</span>
+                <li key={mapKey} className="app-panel-muted flex items-center gap-3 px-3 py-2">
+                  <MapImage mapKey={mapKey} className="h-12 w-20 shrink-0 rounded-[6px]" />
+                  <label className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="t-meta truncate font-mono">{mapKey}</span>
                     <input
                       type="text"
                       value={labels[mapKey] ?? ''}
@@ -405,46 +357,33 @@ export default function MapLabelsSettingsPage() {
                           [mapKey]: event.target.value,
                         }))
                       }
-                      className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"
+                      className="app-input"
                       placeholder={mapKey}
                     />
-                  </div>
-                </label>
+                  </label>
+                </li>
               ))}
+            </ul>
+
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary">
+                {saving ? 'Enregistrement…' : 'Enregistrer'}
+              </button>
+              <FormFeedback error={error} success={success} />
             </div>
-          </div>
-
-          {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-          {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              type="submit"
-              disabled={saving}
-              className="app-btn app-btn--md app-btn--primary"
-            >
-              {saving ? 'Enregistrement...' : 'Enregistrer'}
-            </button>
-          </div>
+          </SectionCard>
         </form>
-        </section>
       ) : (
-        <section className="app-panel p-5 sm:p-6">
-          <form className="space-y-5" onSubmit={handleSaveLocations}>
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-semibold text-gray-900">Villes et zones</h2>
-                <p className="mt-1 text-sm text-gray-600">
-                  {labels[selectedMap] ?? selectedMap} · {selectedMapLocations.length} zone(s)
-                </p>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  className="app-btn app-btn--sm app-btn--secondary"
-                  onClick={loadAllDefaultLocations}
-                >
-                  Pre-remplir toutes les cartes
+        <form onSubmit={handleSaveLocations}>
+          <SectionCard
+            id="map-locations-title"
+            icon={MapPin}
+            title="Villes et zones"
+            meta={`${labels[selectedMap] ?? selectedMap} · ${selectedMapLocations.length} zone(s). Cliquer sur la carte place la ville choisie.`}
+            aside={
+              <>
+                <button type="button" className="app-btn app-btn--sm app-btn--secondary" onClick={loadAllDefaultLocations}>
+                  Pré-remplir toutes les cartes
                 </button>
                 <button
                   type="button"
@@ -452,49 +391,45 @@ export default function MapLabelsSettingsPage() {
                   onClick={loadDefaultLocationsForSelectedMap}
                   disabled={(defaultLocations[selectedMap] ?? []).length === 0}
                 >
-                  Pre-remplir cette carte
+                  Pré-remplir cette carte
                 </button>
-                <button type="button" className="app-btn app-btn--sm app-btn--primary" onClick={addLocation}>
-                  Ajouter une ville
-                </button>
-              </div>
-            </div>
+              </>
+            }
+          >
+            <ul className="m-0 grid list-none grid-cols-3 gap-2 p-0 sm:grid-cols-4 lg:grid-cols-6">
+              {MAP_KEYS.map((mapKey) => {
+                const available = MAP_KEYS_WITH_ASSETS.has(mapKey)
+                const selected = selectedMap === mapKey
+                return (
+                  <li key={mapKey} className="flex">
+                    <button
+                      type="button"
+                      disabled={!available}
+                      aria-pressed={selected}
+                      onClick={() => {
+                        setSelectedMap(mapKey)
+                        setSelectedLocationId(null)
+                        mapViewportRef.current?.reset()
+                      }}
+                      className="app-panel-muted flex w-full min-w-0 flex-col gap-1 p-1.5 text-left transition-colors enabled:hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-45"
+                      style={selected ? { borderColor: 'var(--theme-ui-accent)', backgroundColor: 'var(--theme-ui-accent-tint)' } : undefined}
+                      title={available ? undefined : 'Image de carte indisponible'}
+                    >
+                      <MapImage mapKey={mapKey} className="aspect-video w-full rounded-[6px]" />
+                      <span
+                        className={`truncate text-xs font-semibold ${selected ? 'text-[var(--theme-ui-accent-text)]' : 'text-gray-700'}`}
+                      >
+                        {labels[mapKey] || mapKey}
+                      </span>
+                    </button>
+                  </li>
+                )
+              })}
+            </ul>
 
-            <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
-              {MAP_KEYS.map((mapKey) => (
-                <button
-                  key={mapKey}
-                  type="button"
-                  disabled={!MAP_KEYS_WITH_ASSETS.has(mapKey)}
-                  onClick={() => {
-                    setSelectedMap(mapKey)
-                    setSelectedLocationId(null)
-                    mapViewportRef.current?.reset()
-                  }}
-                  className={`min-w-0 rounded border p-2 text-left transition-colors ${
-                    !MAP_KEYS_WITH_ASSETS.has(mapKey)
-                      ? 'cursor-not-allowed border-gray-200 bg-gray-50 text-gray-400 opacity-55'
-                      : selectedMap === mapKey
-                      ? 'border-blue-500 bg-blue-50 text-blue-800'
-                      : 'border-gray-200 bg-white text-gray-700 hover:bg-gray-50'
-                  }`}
-                  title={MAP_KEYS_WITH_ASSETS.has(mapKey) ? undefined : 'Image de carte indisponible'}
-                >
-                  <MapImage mapKey={mapKey} className="aspect-video w-full" />
-                  <span className="mt-1 block truncate text-xs font-medium">
-                    {labels[mapKey] ?? mapKey}
-                  </span>
-                </button>
-              ))}
-            </div>
-
-            <div className="grid gap-5 lg:grid-cols-[minmax(0,1.45fr)_minmax(18rem,0.75fr)]">
-              <div className="min-w-0 space-y-2">
-                <DropZoneMapViewport
-                  ref={mapViewportRef}
-                  showBoundaryControl={false}
-                  onMapClick={placeSelectedLocation}
-                >
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.45fr)_minmax(17rem,0.75fr)]">
+              <div className="min-w-0">
+                <DropZoneMapViewport ref={mapViewportRef} showBoundaryControl={false} onMapClick={placeSelectedLocation}>
                   <Image
                     src={`/maps/pubg/${selectedMap}.webp`}
                     alt={labels[selectedMap] ?? selectedMap}
@@ -503,81 +438,79 @@ export default function MapLabelsSettingsPage() {
                     sizes="(min-width: 1024px) 56vw, 100vw"
                     unoptimized
                   />
-                  {selectedMapLocations.filter((location) => location.enabled).map((location) => (
-                    <span
-                      key={location.id}
-                      className="pointer-events-none absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center text-[10px] font-semibold text-white shadow"
-                      style={{
-                        left: `${location.xPct}%`,
-                        top: `${location.yPct}%`,
-                        width: `${location.radiusPct * 2}%`,
-                        aspectRatio: '1',
-                        border: `2px solid ${
-                          location.id === selectedLocationId
-                            ? 'rgb(165 243 252)'
-                            : 'rgb(255 255 255 / 0.8)'
-                        }`,
-                        borderRadius: '50%',
-                        backgroundColor:
-                          location.id === selectedLocationId
-                            ? 'rgb(14 116 144 / 0.55)'
-                            : 'rgb(2 6 23 / 0.45)',
-                        boxShadow:
-                          location.id === selectedLocationId
-                            ? '0 0 0 2px rgb(255 255 255)'
-                            : undefined,
-                      }}
-                    >
-                      <span className="max-w-full truncate px-1">{location.name}</span>
-                    </span>
-                  ))}
+                  {selectedMapLocations
+                    .filter((location) => location.enabled)
+                    .map((location) => {
+                      const active = location.id === selectedLocationId
+                      return (
+                        <span
+                          key={location.id}
+                          className="pointer-events-none absolute flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full text-[11px] font-semibold text-white shadow"
+                          style={{
+                            left: `${location.xPct}%`,
+                            top: `${location.yPct}%`,
+                            width: `${location.radiusPct * 2}%`,
+                            aspectRatio: '1',
+                            border: `2px solid ${active ? 'var(--theme-ui-accent)' : 'color-mix(in srgb, white 80%, transparent)'}`,
+                            backgroundColor: active
+                              ? 'color-mix(in srgb, var(--theme-ui-accent) 40%, transparent)'
+                              : 'color-mix(in srgb, black 45%, transparent)',
+                          }}
+                        >
+                          <span className="max-w-full truncate px-1">{location.name}</span>
+                        </span>
+                      )
+                    })}
                 </DropZoneMapViewport>
               </div>
 
-              <div className="space-y-4">
-                <FilterDropdown
-                  id="map-location-select"
-                  label="Ville ou zone"
-                  value={selectedLocationId ?? ''}
-                  disabled={selectedMapLocations.length === 0}
-                  options={[
-                    {
-                      value: '',
-                      label:
-                        selectedMapLocations.length === 0
-                          ? 'Aucune ville configuree'
-                          : 'Sélectionner une ville',
-                    },
-                    ...selectedMapLocations.map((location) => ({
-                      value: location.id,
-                      label: `${location.name} — Ø ${(location.radiusPct * 2).toFixed(1)}%`,
-                    })),
-                  ]}
-                  onChange={(locationId) => {
-                    setSelectedLocationId(locationId || null)
-                    const location = selectedMapLocations.find((item) => item.id === locationId)
-                    if (location) {
-                      centerMapOnLocation(location)
-                    }
-                  }}
-                />
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-col gap-1">
+                  <span className="t-label">Ville ou zone</span>
+                  {selectedMapLocations.length === 0 ? (
+                    <p className="t-meta m-0">Aucune ville configurée sur cette carte.</p>
+                  ) : (
+                    <ChoiceMenu<string>
+                      label="Ville ou zone"
+                      value={selectedLocationId ?? ''}
+                      options={[
+                        { value: '', label: 'Choisir une ville' },
+                        ...selectedMapLocations.map((location) => ({
+                          value: location.id,
+                          label: `${location.name} — Ø ${(location.radiusPct * 2).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`,
+                        })),
+                      ]}
+                      onChange={(locationId) => {
+                        setSelectedLocationId(locationId || null)
+                        const location = selectedMapLocations.find((item) => item.id === locationId)
+                        if (location) {
+                          centerMapOnLocation(location)
+                        }
+                      }}
+                    />
+                  )}
+                </div>
+                <button type="button" className="app-btn app-btn--sm app-btn--secondary gap-1.5 self-start" onClick={addLocation}>
+                  <Plus className="h-3.5 w-3.5" aria-hidden="true" />
+                  Ajouter une ville
+                </button>
 
                 {selectedLocation ? (
-                  <div className="app-panel-muted space-y-4 p-4">
-                    <label className="block text-sm font-medium text-gray-700">
-                      Nom
+                  <div className="app-panel-muted flex flex-col gap-3 p-3.5">
+                    <label className="flex flex-col gap-1">
+                      <span className="t-label">Nom</span>
                       <input
                         type="text"
                         value={selectedLocation.name}
                         maxLength={60}
                         onChange={(event) => updateSelectedLocation({ name: event.target.value })}
-                        className="mt-1 w-full rounded border border-gray-300 px-3 py-2 font-normal"
+                        className="app-input"
                       />
                     </label>
 
-                    <div className="grid grid-cols-2 gap-3">
-                      <label className="block text-sm font-medium text-gray-700">
-                        Position X (%)
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <label className="flex flex-col gap-1">
+                        <span className="t-label">Position X (%)</span>
                         <input
                           type="number"
                           min={0}
@@ -585,11 +518,11 @@ export default function MapLabelsSettingsPage() {
                           step={0.1}
                           value={selectedLocation.xPct}
                           onChange={(event) => updateSelectedLocation({ xPct: Number(event.target.value) })}
-                          className="mt-1 w-full rounded border border-gray-300 px-3 py-2 font-normal"
+                          className="app-input"
                         />
                       </label>
-                      <label className="block text-sm font-medium text-gray-700">
-                        Position Y (%)
+                      <label className="flex flex-col gap-1">
+                        <span className="t-label">Position Y (%)</span>
                         <input
                           type="number"
                           min={0}
@@ -597,56 +530,57 @@ export default function MapLabelsSettingsPage() {
                           step={0.1}
                           value={selectedLocation.yPct}
                           onChange={(event) => updateSelectedLocation({ yPct: Number(event.target.value) })}
-                          className="mt-1 w-full rounded border border-gray-300 px-3 py-2 font-normal"
+                          className="app-input"
                         />
                       </label>
                     </div>
 
-                    <label className="block text-sm font-medium text-gray-700">
-                      Diametre ({(selectedLocation.radiusPct * 2).toFixed(1)}%)
+                    <label className="flex flex-col gap-1">
+                      <span className="t-label">
+                        Diamètre <span className="t-num">({(selectedLocation.radiusPct * 2).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %)</span>
+                      </span>
                       <input
                         type="range"
                         min={0.5}
                         max={50}
                         step={0.5}
                         value={selectedLocation.radiusPct * 2}
-                        onChange={(event) =>
-                          updateSelectedLocation({ radiusPct: Number(event.target.value) / 2 })
-                        }
-                        className="mt-2 w-full"
+                        onChange={(event) => updateSelectedLocation({ radiusPct: Number(event.target.value) / 2 })}
+                        className="w-full accent-[var(--theme-ui-accent)]"
                       />
                     </label>
 
-                    <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
-                      <input
-                        type="checkbox"
+                    <div className="flex items-center gap-2.5">
+                      <Switch
                         checked={selectedLocation.enabled}
-                        onChange={(event) => updateSelectedLocation({ enabled: event.target.checked })}
+                        onChange={(enabled) => updateSelectedLocation({ enabled })}
+                        labelledBy="map-location-enabled"
                       />
-                      Zone active
-                    </label>
+                      <span id="map-location-enabled" className="t-body text-gray-900">
+                        Zone active
+                      </span>
+                    </div>
 
-                    <button
-                      type="button"
-                      className="app-btn app-btn--sm app-btn--danger"
-                      onClick={deleteSelectedLocation}
-                    >
-                      Supprimer la ville
+                    <button type="button" className="app-btn app-btn--sm app-btn--danger gap-1.5 self-start" onClick={deleteSelectedLocation}>
+                      <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+                      Retirer la ville
                     </button>
                   </div>
+                ) : selectedMapLocations.length > 0 ? (
+                  <EmptyState icon={MapPin} title="Aucune ville choisie" text="Choisir une ville pour la déplacer, la redimensionner ou la désactiver." />
                 ) : null}
               </div>
             </div>
 
-            {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-            {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
-
-            <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary">
-              {saving ? 'Enregistrement...' : 'Enregistrer les villes'}
-            </button>
-          </form>
-        </section>
+            <div className="flex flex-wrap items-center gap-3">
+              <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary">
+                {saving ? 'Enregistrement…' : 'Enregistrer les villes'}
+              </button>
+              <FormFeedback error={error} success={success} />
+            </div>
+          </SectionCard>
+        </form>
       )}
-    </main>
+    </div>
   )
 }

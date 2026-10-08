@@ -1,13 +1,16 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Download, History, Loader2, Search, UserRound } from 'lucide-react'
 
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import PlacementBadge from '@/components/ui/PlacementBadge'
+import { PlaceCell } from '@/components/matches/MatchesUi'
+import AdminPageBanner from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted, FormFeedback } from '@/components/settings/AdminPageStates'
+import { EmptyState, SectionCard, Tag } from '@/components/ui/CharteKit'
+import SortableTh from '@/components/ui/SortableTh'
+import TeamModeBadge, { type TeamMode } from '@/components/ui/TeamModeBadge'
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 interface MemberOption {
   id: number
@@ -44,12 +47,37 @@ interface ImportedMatchResponse {
   id: string
 }
 
+const MEMBER_RESULTS_LIMIT = 8
+
 function formatDuration(seconds: number) {
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
-  return `${minutes}m ${remainingSeconds}s`
+  return `${minutes} min ${String(remainingSeconds).padStart(2, '0')} s`
 }
 
+/** Mode d'équipe d'un mode PUBG brut (`squad-fpp`, `duo`…), pour le badge partagé ; `null` pour un mode d'événement. */
+function teamModeOf(mode: string): TeamMode | null {
+  const base = mode.toLowerCase().split('-')[0]
+  return base === 'solo' || base === 'duo' || base === 'trio' || base === 'squad' ? base : null
+}
+
+function ModeCell({ mode }: { mode: string }) {
+  const teamMode = teamModeOf(mode)
+  return teamMode ? (
+    <span className="inline-flex items-center gap-1.5" title={mode}>
+      <TeamModeBadge mode={teamMode} />
+      {mode.toLowerCase().includes('fpp') ? <span className="t-meta">FPP</span> : null}
+    </span>
+  ) : (
+    <span className="t-meta">{mode}</span>
+  )
+}
+
+/**
+ * Import manuel des derniers matchs PUBG d'un membre, tous clans confondus (SuperUser), selon la charte UI
+ * (docs/ui/index.html) : choix du membre par recherche, vérification auprès de l'API PUBG (rythme limité), import
+ * match par match ou en bloc.
+ */
 export default function MatchImportSettingsPage() {
   const router = useRouter()
   const { loading, authenticated, isSuperUser } = useAuthSession()
@@ -57,6 +85,7 @@ export default function MatchImportSettingsPage() {
   const [members, setMembers] = useState<MemberOption[]>([])
   const [loadingMembers, setLoadingMembers] = useState(true)
   const [selectedMemberId, setSelectedMemberId] = useState<number | null>(null)
+  const [memberQuery, setMemberQuery] = useState('')
 
   const [matchInfo, setMatchInfo] = useState<MatchInfo | null>(null)
   const [apiMatches, setApiMatches] = useState<ApiMatch[]>([])
@@ -120,6 +149,16 @@ export default function MatchImportSettingsPage() {
     }
   }, [])
 
+  const selectedMember = members.find((member) => member.id === selectedMemberId) ?? null
+
+  const memberResults = useMemo(() => {
+    const query = memberQuery.trim().toLowerCase()
+    if (!query) return []
+    return members
+      .filter((member) => member.displayName.toLowerCase().includes(query) || member.clan?.tag.toLowerCase().includes(query))
+      .slice(0, MEMBER_RESULTS_LIMIT)
+  }, [memberQuery, members])
+
   function resetMemberState() {
     pubgCheckCancelledRef.current = true
     setMatchInfo(null)
@@ -128,6 +167,12 @@ export default function MatchImportSettingsPage() {
     setCheckingPubgMatches(false)
     setLoadingApiMatches(false)
     setError('')
+  }
+
+  function selectMember(memberId: number | null) {
+    setSelectedMemberId(memberId)
+    setMemberQuery('')
+    resetMemberState()
   }
 
   async function checkPubgMatches() {
@@ -178,9 +223,7 @@ export default function MatchImportSettingsPage() {
         const matchId = data.recentApiMatchIds[index]
 
         try {
-          const matchResponse = await fetch(
-            `/api/matches/${matchId}?shard=${data.shard}&playerId=${data.playerId}`
-          )
+          const matchResponse = await fetch(`/api/matches/${matchId}?shard=${data.shard}&playerId=${data.playerId}`)
           const matchPayload = (await matchResponse.json()) as ApiMatch | { error?: string }
 
           if (!matchResponse.ok) {
@@ -228,12 +271,12 @@ export default function MatchImportSettingsPage() {
       const payload = (await response.json()) as ImportedMatchResponse | { error?: string }
 
       if (!response.ok) {
-        throw new Error('error' in payload ? payload.error : "Impossible d'importer le match")
+        throw new Error('error' in payload ? payload.error : 'Impossible d’importer le match')
       }
 
       setApiMatches((current) => current.filter((match) => match.id !== matchId))
     } catch (importError) {
-      setError(importError instanceof Error ? importError.message : "Impossible d'importer le match")
+      setError(importError instanceof Error ? importError.message : 'Impossible d’importer le match')
       throw importError
     } finally {
       setImportingMatchIds((current) => current.filter((id) => id !== matchId))
@@ -277,11 +320,7 @@ export default function MatchImportSettingsPage() {
   }, [])
 
   if (loading || loadingMembers) {
-    return (
-      <main className="app-container app-main flex flex-1 items-center justify-center">
-        <p className="text-sm text-slate-600">Chargement...</p>
-      </main>
-    )
+    return <AdminPageLoading />
   }
 
   if (!authenticated) {
@@ -289,179 +328,220 @@ export default function MatchImportSettingsPage() {
   }
 
   if (!isSuperUser) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Import manuel de matchs"
-        currentHref="/settings/match-import"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-        <section className="app-panel p-6">
-          <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
-          <p className="mt-2 text-sm text-amber-800">Cette page est réservée au SuperUser.</p>
-          <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour à l&apos;accueil
-          </Link>
-        </section>
-      </main>
-    )
+    return <AdminPageRestricted />
   }
 
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Import manuel de matchs"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Import de matchs"
+        subtitle="Vérifier puis importer à la main les derniers matchs PUBG d’un membre, tous clans confondus."
+        icon={Download}
+        image="/matches.jpg"
         currentHref="/settings/match-import"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <>
+            <span className="t-num">{members.length.toLocaleString('fr-FR')}</span> membres
+          </>,
+          'Réservé au SuperUser',
+        ]}
       />
-      <section className="app-panel p-4">
-        <SettingsPageHeader
-          title="Import de matchs PUBG"
-          subtitle="Verifie et importe manuellement les derniers matchs PUBG d'un membre, tous clans confondus."
-        />
-      </section>
 
-      <section className="app-panel p-6">
-        <label className="block text-sm font-medium text-gray-700">
-          Membre
-          <select
-            value={selectedMemberId ?? ''}
-            onChange={(event) => {
-              const value = event.target.value ? Number(event.target.value) : null
-              setSelectedMemberId(value)
-              resetMemberState()
-            }}
-            className="mt-1 w-full max-w-md rounded border border-gray-300 px-3 py-2 text-sm"
-          >
-            <option value="">Sélectionner un membre...</option>
-            {members.map((member) => (
-              <option key={member.id} value={member.id}>
-                {member.displayName} {member.clan ? `[${member.clan.tag}]` : '(sans clan)'}
-              </option>
-            ))}
-          </select>
-        </label>
-      </section>
+      <SectionCard id="match-import-member" icon={UserRound} title="Membre" meta="Rechercher par pseudo ou par tag de clan.">
+        {selectedMember ? (
+          <div className="app-panel-muted flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
+            <span className="flex min-w-0 items-baseline gap-2">
+              <span className="t-card-title truncate">{selectedMember.displayName}</span>
+              <span className="t-meta shrink-0 font-mono">{selectedMember.clan ? `[${selectedMember.clan.tag}]` : 'sans clan'}</span>
+            </span>
+            <button type="button" onClick={() => selectMember(null)} className="app-btn app-btn--sm app-btn--secondary">
+              Changer de membre
+            </button>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-2">
+            <label className="relative sm:max-w-md">
+              <span className="sr-only">Rechercher un membre</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+              <input
+                type="search"
+                value={memberQuery}
+                onChange={(event) => setMemberQuery(event.target.value)}
+                className="app-input pl-9"
+                placeholder="Pseudo ou tag de clan…"
+                autoComplete="off"
+              />
+            </label>
+            {memberQuery.trim() === '' ? (
+              <p className="t-meta m-0">{members.length.toLocaleString('fr-FR')} membres actifs, tous clans confondus.</p>
+            ) : memberResults.length === 0 ? (
+              <p className="t-meta m-0">Aucun membre ne correspond.</p>
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-1.5 p-0 sm:max-w-md">
+                {memberResults.map((member) => (
+                  <li key={member.id}>
+                    <button
+                      type="button"
+                      onClick={() => selectMember(member.id)}
+                      className="app-panel-muted flex w-full items-baseline justify-between gap-2 px-3 py-2 text-left transition-colors hover:bg-gray-100"
+                    >
+                      <span className="t-body truncate font-semibold text-gray-900">{member.displayName}</span>
+                      <span className="t-meta shrink-0 font-mono">{member.clan ? `[${member.clan.tag}]` : 'sans clan'}</span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+      </SectionCard>
 
-      {error ? (
-        <div className="rounded border border-red-200 bg-red-50 p-3 text-sm text-red-700">{error}</div>
-      ) : null}
-
-      {selectedMemberId ? (
-        !hasCheckedPubgMatches ? (
-          <section className="app-panel p-6">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">Matchs PUBG recents a importer</h2>
-                <p className="text-sm text-gray-500">
-                  Interroge l&apos;API PUBG pour verifier s&apos;il y a de nouveaux matchs a importer.
-                </p>
-              </div>
+      {selectedMember ? (
+        <SectionCard
+          id="match-import-matches"
+          icon={History}
+          title="Matchs PUBG récents à importer"
+          meta={
+            matchInfo
+              ? `${apiMatches.length} match(s) non importé(s) parmi les ${matchInfo.recentMatchesConsidered} plus récents (${matchInfo.totalMatches} remontés par PUBG).`
+              : 'Interroge l’API PUBG pour repérer les matchs de ce membre absents du site.'
+          }
+          aside={
+            hasCheckedPubgMatches && apiMatches.length > 0 ? (
+              <>
+                <Tag tone="warn">{apiMatches.length} à importer</Tag>
+                <button
+                  type="button"
+                  onClick={() => void handleImportAll()}
+                  disabled={importingAll}
+                  className="app-btn app-btn--sm app-btn--primary gap-1.5"
+                >
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  {importingAll ? 'Import en cours…' : 'Tout importer'}
+                </button>
+              </>
+            ) : null
+          }
+        >
+          {!hasCheckedPubgMatches ? (
+            <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
                 onClick={() => void checkPubgMatches()}
                 disabled={checkingPubgMatches}
-                className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
+                className="app-btn app-btn--md app-btn--primary gap-1.5"
               >
-                {checkingPubgMatches ? 'Verification...' : 'Verifier les nouveaux matchs PUBG'}
+                {checkingPubgMatches ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden="true" /> : <Search className="h-4 w-4" aria-hidden="true" />}
+                {checkingPubgMatches ? 'Vérification…' : 'Vérifier les nouveaux matchs'}
               </button>
+              <FormFeedback error={error} />
             </div>
-          </section>
-        ) : matchInfo ? (
-          <section className="app-panel p-6">
-            <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-              <div>
-                <h2 className="text-xl font-semibold">Matchs PUBG recents a importer</h2>
-                <p className="text-sm text-gray-500">
-                  {apiMatches.length} match{apiMatches.length === 1 ? '' : 's'} non importe{apiMatches.length === 1 ? '' : 's'}
-                  {' '}sur les {matchInfo.recentMatchesConsidered} plus recents
-                  ({matchInfo.totalMatches} matchs remontes par PUBG).
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <span className="rounded-full bg-amber-100 px-3 py-1 text-xs font-semibold text-amber-700">
-                  A importer
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void handleImportAll()}
-                  disabled={importingAll || apiMatches.length === 0}
-                  className="rounded bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  {importingAll ? 'Import en cours...' : 'Importer tout'}
-                </button>
-              </div>
-            </div>
-
-            {apiMatches.length === 0 && !loadingApiMatches ? (
-              <p className="text-sm text-gray-500">Tous les derniers matchs sont déjà importes.</p>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="w-full border-collapse border border-gray-200 text-sm">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="border border-gray-200 p-2 text-left">Mode</th>
-                      <th className="border border-gray-200 p-2 text-left">Carte</th>
-                      <th className="border border-gray-200 p-2 text-left">Joue le</th>
-                      <th className="border border-gray-200 p-2 text-center">Kills</th>
-                      <th className="border border-gray-200 p-2 text-center">Assists</th>
-                      <th className="border border-gray-200 p-2 text-center">Degats</th>
-                      <th className="border border-gray-200 p-2 text-center">Headshots</th>
-                      <th className="border border-gray-200 p-2 text-center">Revives</th>
-                      <th className="border border-gray-200 p-2 text-center">Place</th>
-                      <th className="border border-gray-200 p-2 text-center">Action</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {apiMatches.map((match) => {
-                      const isImporting = importingAll || importingMatchIds.includes(match.id)
-
-                      return (
-                        <tr key={match.id} className="hover:bg-gray-50">
-                          <td className="border border-gray-200 p-2">{match.mode}</td>
-                          <td className="border border-gray-200 p-2">
-                            {mapLabels[match.mapName] ?? match.mapName}
-                          </td>
-                          <td className="border border-gray-200 p-2">
-                            <div>{new Date(match.createdAt).toLocaleString('fr-FR')}</div>
-                            <div className="text-xs text-gray-500">
-                              Duree : {formatDuration(match.durationSeconds)}
-                            </div>
-                          </td>
-                          <td className="border border-gray-200 p-2 text-center">{match.stats.kills}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.stats.assists}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.stats.damageDealt.toFixed(0)}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.stats.headshotKills}</td>
-                          <td className="border border-gray-200 p-2 text-center">{match.stats.revives}</td>
-                          <td className="border border-gray-200 p-2 text-center">
-                            <PlacementBadge placement={match.stats.position} />
-                          </td>
-                          <td className="border border-gray-200 p-2 text-center">
-                            <button
-                              type="button"
-                              onClick={() => void importMatch(match.id)}
-                              disabled={isImporting}
-                              className="rounded bg-amber-500 px-3 py-2 text-xs font-semibold text-white hover:bg-amber-600 disabled:cursor-not-allowed disabled:opacity-50"
-                            >
-                              {isImporting ? 'Import...' : 'Importer'}
-                            </button>
-                          </td>
+          ) : matchInfo ? (
+            <>
+              {apiMatches.length === 0 && !loadingApiMatches ? (
+                <EmptyState icon={History} title="Tous les derniers matchs sont déjà importés" />
+              ) : (
+                <>
+                  <ul className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
+                    {apiMatches.map((match) => (
+                      <li key={match.id} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+                        <span className="flex items-center justify-between gap-2">
+                          <span className="flex items-center gap-2">
+                            <PlaceCell place={match.stats.position} title={`Place ${match.stats.position}`} />
+                            <span className="t-body font-semibold text-gray-900">{mapLabels[match.mapName] ?? match.mapName}</span>
+                          </span>
+                          <ModeCell mode={match.mode} />
+                        </span>
+                        <span className="t-meta">
+                          {new Date(match.createdAt).toLocaleString('fr-FR')} · {formatDuration(match.durationSeconds)}
+                        </span>
+                        <span className="t-meta t-num">
+                          {match.stats.kills} kills · {match.stats.assists} assists · {match.stats.damageDealt.toFixed(0)} dégâts ·{' '}
+                          {match.stats.headshotKills} headshots · {match.stats.revives} réa.
+                        </span>
+                        <ImportButton
+                          busy={importingAll || importingMatchIds.includes(match.id)}
+                          onClick={() => void importMatch(match.id).catch(() => undefined)}
+                        />
+                      </li>
+                    ))}
+                  </ul>
+                  <div className="app-table-shell hidden md:block">
+                    <table className="w-full text-left text-sm">
+                      <thead className="app-table-head">
+                        <tr>
+                          <SortableTh align="center">Place</SortableTh>
+                          <SortableTh align="left">Carte</SortableTh>
+                          <SortableTh align="left">Mode</SortableTh>
+                          <SortableTh align="left">Joué le</SortableTh>
+                          <SortableTh>Kills</SortableTh>
+                          <SortableTh>Assists</SortableTh>
+                          <SortableTh>Dégâts</SortableTh>
+                          <SortableTh>Headshots</SortableTh>
+                          <SortableTh title="Réanimations">Réa.</SortableTh>
+                          <SortableTh align="right">
+                            <span className="sr-only">Action</span>
+                          </SortableTh>
                         </tr>
-                      )
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
+                      </thead>
+                      <tbody>
+                        {apiMatches.map((match) => (
+                          <tr key={match.id} className="app-table-row">
+                            <td className="px-[9px] py-2 text-center">
+                              <PlaceCell place={match.stats.position} />
+                            </td>
+                            <td className="px-[9px] py-2 font-semibold text-gray-900">{mapLabels[match.mapName] ?? match.mapName}</td>
+                            <td className="px-[9px] py-2">
+                              <ModeCell mode={match.mode} />
+                            </td>
+                            <td className="whitespace-nowrap px-[9px] py-2 text-gray-700">
+                              {new Date(match.createdAt).toLocaleString('fr-FR')}
+                              <span className="t-meta block">{formatDuration(match.durationSeconds)}</span>
+                            </td>
+                            <td className="t-num px-[9px] py-2 text-right text-gray-900">{match.stats.kills}</td>
+                            <td className="t-num px-[9px] py-2 text-right text-gray-700">{match.stats.assists}</td>
+                            <td className="t-num px-[9px] py-2 text-right text-gray-700">{match.stats.damageDealt.toFixed(0)}</td>
+                            <td className="t-num px-[9px] py-2 text-right text-gray-700">{match.stats.headshotKills}</td>
+                            <td className="t-num px-[9px] py-2 text-right text-gray-700">{match.stats.revives}</td>
+                            <td className="px-[9px] py-2 text-right">
+                              <ImportButton
+                                busy={importingAll || importingMatchIds.includes(match.id)}
+                                onClick={() => void importMatch(match.id).catch(() => undefined)}
+                              />
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                </>
+              )}
 
-            {loadingApiMatches ? (
-              <p className="mt-4 text-sm text-gray-500">
-                Chargement des matchs API restants... le rythme est limite pour eviter les appels PUBG inutiles.
-              </p>
-            ) : null}
-          </section>
-        ) : null
-      ) : null}
-    </main>
+              {loadingApiMatches ? (
+                <p className="t-meta m-0 flex items-center gap-2">
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                  Chargement des matchs restants, un toutes les 6 secondes pour ménager l’API PUBG…
+                </p>
+              ) : null}
+              <FormFeedback error={error} />
+            </>
+          ) : (
+            <FormFeedback error={error} />
+          )}
+        </SectionCard>
+      ) : (
+        <FormFeedback error={error} />
+      )}
+    </div>
+  )
+}
+
+function ImportButton({ busy, onClick }: { busy: boolean; onClick: () => void }) {
+  return (
+    <button type="button" onClick={onClick} disabled={busy} className="app-btn app-btn--xs app-btn--secondary gap-1 self-start">
+      <Download className="h-3 w-3" aria-hidden="true" />
+      {busy ? 'Import…' : 'Importer'}
+    </button>
   )
 }

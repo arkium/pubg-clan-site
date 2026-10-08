@@ -1,13 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { Swords } from 'lucide-react'
+import { Search, Swords, Tags } from 'lucide-react'
 
-import { useAuthSession } from '@/hooks/useAuthSession'
+import AdminPageBanner from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted, FormFeedback } from '@/components/settings/AdminPageStates'
+import { EmptyState, SectionCard } from '@/components/ui/CharteKit'
 import WeaponIcon from '@/components/ui/WeaponIcon'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { useAuthSession } from '@/hooks/useAuthSession'
 
 const WEAPON_KEYS = [
   'WeapAK47_C',
@@ -57,6 +58,10 @@ const WEAPON_KEYS = [
 
 type WeaponLabels = Record<string, string>
 
+/**
+ * Alias des armes PUBG, référentiel commun à la plateforme (SuperUser), selon la charte UI (docs/ui/index.html) :
+ * bandeau photo, recherche, une ligne par arme (icône, clé PUBG, libellé affiché).
+ */
 export default function WeaponLabelsSettingsPage() {
   const router = useRouter()
   const { loading, authenticated, isSuperUser } = useAuthSession()
@@ -94,7 +99,7 @@ export default function WeaponLabelsSettingsPage() {
         const payload = (await response.json().catch(() => null)) as { labels?: WeaponLabels } | null
 
         if (!response.ok) {
-          throw new Error('Impossible de charger les alias d\'armes')
+          throw new Error('Impossible de charger les alias d’armes')
         }
 
         if (!cancelled) {
@@ -102,9 +107,7 @@ export default function WeaponLabelsSettingsPage() {
         }
       } catch (loadError) {
         if (!cancelled) {
-          setError(
-            loadError instanceof Error ? loadError.message : 'Impossible de charger les alias d\'armes'
-          )
+          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger les alias d’armes')
         }
       } finally {
         if (!cancelled) {
@@ -155,29 +158,23 @@ export default function WeaponLabelsSettingsPage() {
         body: JSON.stringify({ labels }),
       })
 
-      const payload = (await response.json().catch(() => null)) as
-        | { error?: string; labels?: WeaponLabels }
-        | null
+      const payload = (await response.json().catch(() => null)) as { error?: string; labels?: WeaponLabels } | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Échec de la sauvegarde')
+        throw new Error(payload?.error ?? 'Échec de l’enregistrement')
       }
 
       setLabels(payload?.labels ?? labels)
-      setSuccess('Alias d\'armes enregistres.')
+      setSuccess('Alias d’armes enregistrés.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Échec de la sauvegarde')
+      setError(saveError instanceof Error ? saveError.message : 'Échec de l’enregistrement')
     } finally {
       setSaving(false)
     }
   }
 
   if (loading || loadingData) {
-    return (
-      <main className="app-container app-main flex flex-1 items-center justify-center">
-        <p className="text-sm text-gray-600">Chargement de la configuration...</p>
-      </main>
-    )
+    return <AdminPageLoading />
   }
 
   if (!authenticated) {
@@ -185,98 +182,61 @@ export default function WeaponLabelsSettingsPage() {
   }
 
   if (!canManageSettings) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Alias des armes PUBG"
-        currentHref="/settings/weapon-labels"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-        <section className="app-panel p-6">
-          <p className="text-xs font-semibold uppercase tracking-[0.2em] text-gray-600">Permissions</p>
-          <h1 className="mt-2 text-2xl font-bold text-gray-900">Accès restreint</h1>
-          <div className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-4">
-            <p className="text-sm text-amber-800">
-              Cette page est réservée au SuperUser : les alias d’armes sont communs à toute la plateforme.
-            </p>
-          </div>
-          <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour à l&apos;accueil
-          </Link>
-        </section>
-      </main>
-    )
+    return <AdminPageRestricted message="Cette page est réservée au SuperUser : les alias d’armes sont communs à toute la plateforme." />
   }
 
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Alias des armes PUBG"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Alias des armes"
+        subtitle="Noms d’armes affichés dans les pages de télémétrie : clan, joueur, débriefing d’un match."
+        icon={Swords}
+        image="/banner-weapons.jpg"
         currentHref="/settings/weapon-labels"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <>
+            <span className="t-num">{orderedKeys.length}</span> armes
+          </>,
+          'Réservé au SuperUser',
+        ]}
       />
-      <header
-        className="relative mb-6 min-h-[10rem] overflow-hidden rounded-2xl bg-cover bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('/banner-weapons.jpg')`, backgroundPosition: 'center 35%' }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        <div className="absolute inset-x-0 bottom-0 z-10 px-3 py-2.5 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-1.5 sm:gap-2">
-            <Swords className="h-4 w-4 text-red-400 sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="text-sm font-bold tracking-tight text-white drop-shadow-md sm:text-xl md:text-2xl">
-              Alias des armes PUBG
-            </h1>
-          </div>
-          <p className="mt-0.5 text-[11px] font-medium text-gray-200 drop-shadow-md sm:mt-1 sm:text-sm">
-            Personnalise les noms affichés dans les pages telemetry (clan, membre, détail match).
-          </p>
-        </div>
-      </header>
 
-      <section className="app-panel p-5 sm:p-6">
-        <form className="space-y-4" onSubmit={handleSave}>
-          <div>
-            <h2 className="text-lg font-semibold text-gray-900">Libellés des armes</h2>
-            <p className="mt-1 text-sm text-gray-600">
-              Garde les cles PUBG intactes et ajuste seulement le label d&apos;affichage.
-            </p>
+      <form onSubmit={handleSave}>
+        <SectionCard
+          id="weapon-labels-title"
+          icon={Tags}
+          title="Libellés des armes"
+          meta="La clé PUBG reste intacte ; seul le libellé affiché change. Laisser vide pour garder le nom par défaut."
+        >
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5">
+            <label className="relative w-full sm:w-72">
+              <span className="sr-only">Rechercher une arme</span>
+              <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+              <input
+                type="search"
+                value={searchTerm}
+                onChange={(event) => setSearchTerm(event.target.value)}
+                className="app-input pl-9"
+                placeholder="WeapHK416_C, M416, fusil…"
+              />
+            </label>
+            <span className="t-meta t-num">
+              {filteredKeys.length} sur {orderedKeys.length}
+            </span>
           </div>
 
-          <div className="app-panel-muted p-4">
-            <div className="flex flex-wrap items-end gap-3">
-              <label className="flex min-w-[18rem] flex-1 flex-col gap-1 text-sm font-medium text-gray-700">
-                Recherche
-                <input
-                  type="text"
-                  value={searchTerm}
-                  onChange={(event) => setSearchTerm(event.target.value)}
-                  className="w-full rounded border border-gray-300 px-3 py-2 text-sm"
-                  placeholder="Ex: WeapHK416_C, M416, shotgun..."
-                />
-              </label>
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                disabled={searchTerm.trim().length === 0}
-                className="app-btn app-btn--sm app-btn--secondary"
-              >
-                Effacer
-              </button>
-            </div>
-            <p className="mt-2 text-xs text-gray-600">
-              {filteredKeys.length} resultat(s) sur {orderedKeys.length}
-            </p>
-          </div>
-
-          <div className="app-panel-muted p-4 sm:p-5">
-            <div className="grid gap-4 md:grid-cols-2">
+          {filteredKeys.length === 0 ? (
+            <EmptyState icon={Search} title="Aucune arme ne correspond à cette recherche" />
+          ) : (
+            <ul className="m-0 grid list-none gap-2 p-0 md:grid-cols-2">
               {filteredKeys.map((weaponKey) => (
-                <label key={weaponKey} className="flex items-center gap-3 text-sm font-medium text-gray-700">
-                  <div className="flex h-12 w-12 shrink-0 items-center justify-center">
+                <li key={weaponKey} className="app-panel-muted flex items-center gap-3 px-3 py-2">
+                  <span className="flex h-12 w-12 shrink-0 items-center justify-center">
                     <WeaponIcon id={weaponKey} size="xl" />
-                  </div>
-                  <div className="min-w-0 flex-1">
-                    <span className="block truncate">{weaponKey}</span>
+                  </span>
+                  <label className="flex min-w-0 flex-1 flex-col gap-1">
+                    <span className="t-meta truncate font-mono">{weaponKey}</span>
                     <input
                       type="text"
                       value={labels[weaponKey] ?? ''}
@@ -287,28 +247,23 @@ export default function WeaponLabelsSettingsPage() {
                           [weaponKey]: event.target.value,
                         }))
                       }
-                      className="mt-1 w-full rounded border border-gray-300 px-3 py-2 text-sm font-normal"
+                      className="app-input"
                       placeholder={weaponKey}
                     />
-                  </div>
-                </label>
+                  </label>
+                </li>
               ))}
-            </div>
-            {filteredKeys.length === 0 ? (
-              <p className="text-sm text-gray-600">Aucun resultat pour cette recherche.</p>
-            ) : null}
-          </div>
-
-          {error ? <p className="text-sm text-rose-700">{error}</p> : null}
-          {success ? <p className="text-sm text-emerald-700">{success}</p> : null}
+            </ul>
+          )}
 
           <div className="flex flex-wrap items-center gap-3">
             <button type="submit" disabled={saving} className="app-btn app-btn--md app-btn--primary">
-              {saving ? 'Enregistrement...' : 'Enregistrer'}
+              {saving ? 'Enregistrement…' : 'Enregistrer'}
             </button>
+            <FormFeedback error={error} success={success} />
           </div>
-        </form>
-      </section>
-    </main>
+        </SectionCard>
+      </form>
+    </div>
   )
 }

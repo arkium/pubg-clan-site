@@ -3,12 +3,31 @@
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Fragment, useCallback, useEffect, useMemo, useState } from 'react'
-import { AlertOctagon, CheckCircle2, RotateCw, Trash2, Users } from 'lucide-react'
+import {
+  Activity,
+  CheckCircle2,
+  ChevronDown,
+  Clock,
+  Cpu,
+  History,
+  Info,
+  Loader2,
+  Play,
+  RefreshCw,
+  ScrollText,
+  Settings2,
+  Trash2,
+  XCircle,
+} from 'lucide-react'
 
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
+import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading } from '@/components/settings/AdminPageStates'
+import { Callout, ChoiceMenu, ConfirmDialog, EmptyState, SectionCard, Tag, ToastStack, type Toast, type Tone } from '@/components/ui/CharteKit'
+import Pagination from '@/components/ui/Pagination'
+import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -217,51 +236,10 @@ const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
     'Recalcule, carte par carte, les emplacements où des véhicules sont trouvés en début de partie (montées des 90 derniers jours) pour la carte des ressources. Remplace les emplacements de chaque carte ; tâche globale, sans ligne dans l\'historique par clan.',
 }
 
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-function StatusPill({
-  status,
-  customLabel,
-}: {
-  status: 'ok' | 'warning' | 'error' | 'running' | 'success' | 'partial' | 'failed'
-  customLabel?: string
-}) {
-  let variant = 'status-pill--offline'
-  let dotColor = 'bg-slate-400'
-  let defaultLabel = status as string
-
-  if (status === 'ok' || status === 'success') {
-    variant = 'status-pill--online'
-    dotColor = 'bg-emerald-500'
-    defaultLabel = status === 'ok' ? 'Opérationnel' : 'Succès'
-  } else if (status === 'running') {
-    variant = 'status-pill--pending'
-    dotColor = 'bg-amber-500 animate-pulse'
-    defaultLabel = 'En cours'
-  } else if (status === 'warning' || status === 'partial') {
-    variant = 'status-pill--pending'
-    dotColor = 'bg-amber-500'
-    defaultLabel = status === 'partial' ? 'Partiel' : 'Attention'
-  } else if (status === 'error' || status === 'failed') {
-    variant = 'status-pill--error'
-    dotColor = 'bg-rose-500'
-    defaultLabel = status === 'failed' ? 'Échec' : 'Erreur'
-  }
-
-  return (
-    <span className={`status-pill ${variant}`}>
-      <span className={`status-dot ${dotColor}`} />
-      {customLabel ?? defaultLabel}
-    </span>
-  )
-}
-
 function formatDate(value: string | null | undefined) {
-  if (!value) return '-'
+  if (!value) return '—'
   const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return '-'
+  if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleString('fr-FR', {
     day: '2-digit', month: '2-digit', year: 'numeric',
     hour: '2-digit', minute: '2-digit', second: '2-digit',
@@ -269,9 +247,9 @@ function formatDate(value: string | null | undefined) {
 }
 
 function getDurationLabel(durationMs: number | null | undefined) {
-  if (durationMs === null || durationMs === undefined) return '-'
+  if (durationMs === null || durationMs === undefined) return '—'
   if (durationMs < 1000) return `${durationMs} ms`
-  return `${(durationMs / 1000).toFixed(1)} s`
+  return `${(durationMs / 1000).toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} s`
 }
 
 function getLockAgeLabel(acquiredAt: string) {
@@ -314,46 +292,74 @@ function formatDetailsSnippet(details: unknown): string | null {
 }
 
 // ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+type StatusValue = 'ok' | 'warning' | 'error' | 'running' | 'success' | 'partial' | 'failed'
+
+const STATUS_META: Record<StatusValue, { tone: Tone; label: string }> = {
+  ok: { tone: 'pos', label: 'Opérationnel' },
+  success: { tone: 'pos', label: 'Succès' },
+  running: { tone: 'sky', label: 'En cours' },
+  warning: { tone: 'warn', label: 'Attention' },
+  partial: { tone: 'warn', label: 'Partiel' },
+  error: { tone: 'neg', label: 'Erreur' },
+  failed: { tone: 'neg', label: 'Échec' },
+}
+
+const HISTORY_STATUSES = ['running', 'success', 'partial', 'failed'] as const
+
+/** Pastille d'état (jetons de jeu de la charte) : vert, bleu, orange ou rouge. */
+function StatusTag({ status, customLabel }: { status: StatusValue; customLabel?: string }) {
+  const meta = STATUS_META[status]
+  return <Tag tone={meta.tone}>{customLabel ?? meta.label}</Tag>
+}
+
+/** Couleur d'un état pour un point ou une icône. */
+function statusColor(status: 'ok' | 'warning' | 'error') {
+  return status === 'ok' ? 'var(--game-pos)' : status === 'warning' ? 'var(--game-warn)' : 'var(--game-neg)'
+}
+
+// ---------------------------------------------------------------------------
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function CheckGroupTable({ items, title, description }: { items: CronCheck[]; title: string; description: string }) {
-  if (items.length === 0) return null
+function SubsectionTitle({ title, description }: { title: string; description: React.ReactNode }) {
   return (
-    <div className="space-y-2">
-      <div>
-        <p className="text-sm font-bold text-slate-900 dark:text-white">{title}</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400">{description}</p>
-      </div>
-      <div className="app-table-shell overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-3 py-2">Variable</th>
-              <th className="px-3 py-2">État</th>
-              <th className="px-3 py-2">Valeur</th>
-              <th className="px-3 py-2">Info</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((item) => (
-              <tr key={item.key} className="app-table-row align-top">
-                <td className="px-3 py-2 font-mono text-xs font-semibold text-slate-900 dark:text-white">{item.label}</td>
-                <td className="px-3 py-2">
-                  <StatusPill status={item.status} />
-                </td>
-                <td className="px-3 py-2 font-mono text-xs text-slate-700 dark:text-slate-300">{item.value}</td>
-                <td className="px-3 py-2 text-xs text-slate-600 dark:text-slate-400">{item.hint ?? '-'}</td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
+    <div className="flex flex-col gap-0.5">
+      <h3 className="t-card-title m-0">{title}</h3>
+      <p className="t-meta m-0">{description}</p>
     </div>
   )
 }
 
-function ScheduleEditorTable({
+function CheckGroup({ items, title, description }: { items: CronCheck[]; title: string; description: string }) {
+  if (items.length === 0) return null
+  return (
+    <div className="flex flex-col gap-2">
+      <SubsectionTitle title={title} description={description} />
+      <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
+        {items.map((item) => (
+          <li
+            key={item.key}
+            className="app-panel-muted grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-3 py-2 md:grid-cols-[minmax(0,13rem)_auto_minmax(0,1fr)]"
+          >
+            <span className="break-all font-mono text-xs font-semibold text-gray-900">{item.label}</span>
+            <span className="justify-self-end md:justify-self-start">
+              <StatusTag status={item.status} />
+            </span>
+            <span className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1">
+              <span className="break-all font-mono text-xs text-gray-700">{item.value}</span>
+              {item.hint ? <span className="t-meta">{item.hint}</span> : null}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  )
+}
+
+function ScheduleEditor({
   schedules,
   drafts,
   busyKey,
@@ -370,111 +376,70 @@ function ScheduleEditorTable({
   onApply: (key: string) => void
   onReset: (key: string) => void
 }) {
-  if (schedules.length === 0) {
-    return <p className="text-xs text-slate-500 dark:text-slate-400">Chargement des schedules...</p>
-  }
-
   return (
-    <div className="space-y-2">
-      <div>
-        <p className="text-sm font-bold text-slate-900 dark:text-white">Schedules cron</p>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Expressions cron actives (fuseau {schedules[0]?.timezone ?? 'UTC'}). Modifiable sans redémarrage —
-          appliqué immédiatement au process courant.
+    <div className="flex flex-col gap-2">
+      <SubsectionTitle
+        title="Horaires des tâches"
+        description={`Expressions cron actives (fuseau ${schedules[0]?.timezone ?? 'UTC'}), modifiables sans redémarrage : appliquées aussitôt au processus en cours.`}
+      />
+      {schedules.length === 0 ? (
+        <p className="t-meta m-0 flex items-center gap-2">
+          <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+          Chargement des horaires…
         </p>
-      </div>
-      <div className="app-table-shell overflow-x-auto">
-        <table className="min-w-full text-left text-sm">
-          <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-            <tr>
-              <th className="px-3 py-2.5">Tâche & Description</th>
-              <th className="px-3 py-2.5">Source</th>
-              <th className="px-3 py-2.5">Expression</th>
-              <th className="px-3 py-2.5">Actions</th>
-            </tr>
-          </thead>
-          <tbody>
-            {schedules.map((entry) => {
-              const draft = drafts[entry.key] ?? entry.expression
-              const isBusy = busyKey === entry.key
-              const rowFeedback = feedback[entry.key]
-              return (
-                <tr key={entry.key} className="app-table-row align-top">
-                  <td className="px-3 py-2.5">
-                    <div className="font-semibold text-slate-900 dark:text-white">
-                      {SCHEDULE_LABELS[entry.key] ?? entry.key}
-                    </div>
-                    <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400 max-w-lg leading-relaxed">
-                      {SCHEDULE_DESCRIPTIONS[entry.key] ?? 'Tâche planifiée automatique.'}
-                    </p>
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <span
-                      className={`status-pill ${
-                        entry.source === 'db' ? 'status-pill--online' : 'status-pill--offline'
-                      }`}
-                    >
-                      <span
-                        className={`status-dot ${
-                          entry.source === 'db' ? 'bg-emerald-500' : 'bg-slate-400'
-                        }`}
-                      />
-                      {entry.source === 'db' ? 'personnalisé' : '.env'}
-                    </span>
-                  </td>
-                  <td className="px-3 py-2.5">
+      ) : (
+        <ul className="m-0 flex list-none flex-col gap-2 p-0">
+          {schedules.map((entry) => {
+            const draft = drafts[entry.key] ?? entry.expression
+            const isBusy = busyKey === entry.key
+            const rowFeedback = feedback[entry.key]
+            return (
+              <li key={entry.key} className="app-panel-muted flex flex-col gap-2 px-3 py-2.5 md:flex-row md:items-start md:justify-between">
+                <div className="flex min-w-0 flex-col gap-0.5 md:max-w-[34rem]">
+                  <span className="flex flex-wrap items-center gap-1.5">
+                    <span className="t-body font-semibold text-gray-900">{SCHEDULE_LABELS[entry.key] ?? entry.key}</span>
+                    <Tag tone={entry.source === 'db' ? 'pos' : 'neutral'}>{entry.source === 'db' ? 'personnalisé' : '.env'}</Tag>
+                  </span>
+                  <span className="t-meta">{SCHEDULE_DESCRIPTIONS[entry.key] ?? 'Tâche planifiée automatique.'}</span>
+                </div>
+                <div className="flex shrink-0 flex-col gap-1">
+                  <span className="flex flex-wrap items-center gap-2">
                     <input
                       type="text"
                       value={draft}
                       onChange={(e) => onDraftChange(entry.key, e.target.value)}
                       disabled={isBusy}
-                      className="w-36 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1 font-mono text-xs text-slate-900 dark:text-white"
+                      aria-label={`Expression cron de « ${SCHEDULE_LABELS[entry.key] ?? entry.key} »`}
+                      className="app-input w-40 font-mono"
                     />
-                    {rowFeedback && (
-                      <p
-                        className={`mt-1 text-xs font-semibold ${
-                          rowFeedback.type === 'error'
-                            ? 'text-rose-600 dark:text-rose-400'
-                            : 'text-emerald-600 dark:text-emerald-400'
-                        }`}
-                      >
-                        {rowFeedback.message}
-                      </p>
-                    )}
-                  </td>
-                  <td className="px-3 py-2.5">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <button
-                        type="button"
-                        onClick={() => onApply(entry.key)}
-                        disabled={isBusy || draft.trim() === entry.expression.trim()}
-                        className="app-btn app-btn--xs app-btn--primary"
-                      >
-                        {isBusy ? '...' : 'Appliquer'}
+                    <button
+                      type="button"
+                      onClick={() => onApply(entry.key)}
+                      disabled={isBusy || draft.trim() === entry.expression.trim()}
+                      className="app-btn app-btn--sm app-btn--secondary"
+                    >
+                      {isBusy ? 'Envoi…' : 'Appliquer'}
+                    </button>
+                    {entry.source === 'db' ? (
+                      <button type="button" onClick={() => onReset(entry.key)} disabled={isBusy} className="app-btn app-btn--sm app-btn--secondary">
+                        Réinitialiser
                       </button>
-                      {entry.source === 'db' && (
-                        <button
-                          type="button"
-                          onClick={() => onReset(entry.key)}
-                          disabled={isBusy}
-                          className="app-btn app-btn--xs app-btn--secondary"
-                        >
-                          Réinitialiser
-                        </button>
-                      )}
-                    </div>
-                  </td>
-                </tr>
-              )
-            })}
-          </tbody>
-        </table>
-      </div>
+                    ) : null}
+                  </span>
+                  {rowFeedback ? (
+                    <span className={`text-xs font-semibold ${rowFeedback.type === 'error' ? 't-neg' : 't-pos'}`}>{rowFeedback.message}</span>
+                  ) : null}
+                </div>
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </div>
   )
 }
 
-function WorkerPanel({
+function WorkerTile({
   title,
   subtitle,
   badge,
@@ -488,23 +453,36 @@ function WorkerPanel({
   details: { label: string; value: string }[]
 }) {
   return (
-    <article className="app-panel p-4 space-y-3">
-      <div>
-        <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">{title}</p>
-        <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">{subtitle}</p>
+    <article className="app-panel-muted flex flex-col gap-2 px-3.5 py-3">
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex min-w-0 flex-col gap-0.5">
+          <span className="break-all font-mono text-xs font-bold text-gray-900">{title}</span>
+          <span className="t-meta">{subtitle}</span>
+        </div>
+        <span className="shrink-0">
+          <StatusTag status={badgeStatus} customLabel={badge} />
+        </span>
       </div>
-      <div>
-        <StatusPill status={badgeStatus} customLabel={badge} />
-      </div>
-      <dl className="space-y-1.5 pt-1">
-        {details.map((row) => (
-          <div key={row.label} className="flex items-start justify-between gap-2 text-xs">
-            <dt className="text-slate-500 dark:text-slate-400 shrink-0">{row.label}</dt>
-            <dd className="font-semibold text-slate-900 dark:text-white text-right">{row.value}</dd>
-          </div>
-        ))}
-      </dl>
+      {details.length > 0 ? (
+        <dl className="m-0 flex flex-col gap-1">
+          {details.map((row) => (
+            <div key={row.label} className="flex items-start justify-between gap-2 text-xs">
+              <dt className="shrink-0 text-gray-500">{row.label}</dt>
+              <dd className="t-num m-0 text-right font-semibold text-gray-900">{row.value}</dd>
+            </div>
+          ))}
+        </dl>
+      ) : null}
     </article>
+  )
+}
+
+function RateLimitStat({ label, value }: { label: string; value: React.ReactNode }) {
+  return (
+    <div className="app-panel-muted flex flex-col gap-0.5 px-3 py-2.5">
+      <span className="t-label">{label}</span>
+      <span className="t-body t-num font-semibold text-gray-900">{value}</span>
+    </div>
   )
 }
 
@@ -512,6 +490,11 @@ function WorkerPanel({
 // Main page
 // ---------------------------------------------------------------------------
 
+/**
+ * Tâches planifiées de toute la plateforme (SuperUser), selon la charte UI (docs/ui/index.html) : santé du scheduler et
+ * des workers de télémétrie, dernière exécution par action, actions manuelles (un clan ou tous), configuration et
+ * horaires, historique des exécutions.
+ */
 export default function CronSettingsPage() {
   const router = useRouter()
   const { loading: authLoading, authenticated, isSuperUser } = useAuthSession()
@@ -1031,40 +1014,57 @@ export default function CronSettingsPage() {
   // Render guards
   // ---------------------------------------------------------------------------
 
+  function handleRefreshAll() {
+    if (!clanId) return
+    setRefreshing(true)
+    void Promise.allSettled([loadStatus(clanId), loadWorkers(), loadSchedules()])
+  }
+
   if (authLoading || loading) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Tâches planifiées"
-        currentHref="/settings/cron"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-        <p className="text-sm text-slate-600">Chargement...</p>
-      </main>
-    )
+    return <AdminPageLoading />
   }
 
   if (!authenticated || !isSuperUser) return null
 
+  const banner = (
+    <AdminPageBanner
+      title="Tâches planifiées"
+      subtitle="Tâches cron de toute la plateforme, workers de télémétrie et historique des exécutions."
+      icon={Clock}
+      image="/heatmap.jpg"
+      currentHref="/settings/cron"
+      parent={{ href: '/settings', label: 'Plateforme' }}
+      pills={[
+        <span key="health" className="inline-flex items-center gap-1.5">
+          <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusColor(cronWorkerHealth.status) }} aria-hidden="true" />
+          {cronWorkerHealth.label}
+        </span>,
+        ...(payload && payload.checks.errors > 0 ? [`${payload.checks.errors} erreur(s) de configuration`] : []),
+        ...(payload && payload.checks.warnings > 0 ? [`${payload.checks.warnings} alerte(s) de configuration`] : []),
+        'Réservé au SuperUser',
+      ]}
+      action={
+        clanId ? (
+          <button type="button" onClick={handleRefreshAll} disabled={refreshing || pendingAction !== null} className={BANNER_GLASS_BUTTON}>
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Actualiser
+          </button>
+        ) : undefined
+      }
+    />
+  )
+
   if (!clanId) {
     return (
-      <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Tâches planifiées"
-        currentHref="/settings/cron"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-        <section className="app-panel p-6">
-          <SettingsPageHeader title="Tâches planifiées (toute la plateforme)" subtitle="Pilotage des tâches cron et statut des workers." />
-          <p className="mt-4 text-sm text-slate-600">
-            Aucun clan sélectionné. Rendez-vous sur la{' '}
-            <Link href="/clans" className="font-semibold text-emerald-700 hover:underline">
-              page des clans
-            </Link>{' '}
-            pour en sélectionner un.
-          </p>
-        </section>
-      </main>
+      <div className={ADMIN_PAGE_CLASS}>
+        {banner}
+        <Callout tone="sky" icon={Info} title="Aucun clan sélectionné">
+          L’état des tâches se lit à travers un clan.{' '}
+          <Link href="/clans" className="app-link font-semibold">
+            Choisir un clan
+          </Link>
+        </Callout>
+      </div>
     )
   }
 
@@ -1072,122 +1072,87 @@ export default function CronSettingsPage() {
   // Full render
   // ---------------------------------------------------------------------------
 
+  const toasts: Toast[] = [
+    ...(error ? [{ id: 1, text: error, tone: 'error' as const }] : []),
+    ...(info ? [{ id: 2, text: info, tone: 'success' as const }] : []),
+  ]
+
+  const kpis: Kpi[] = payload
+    ? [
+        {
+          label: 'Taux de succès',
+          value: payload.health.successRate === null ? '—' : `${payload.health.successRate} %`,
+          detail: `sur ${payload.health.completedRecent} exécution(s) terminée(s)`,
+          icon: CheckCircle2,
+          color: 'var(--game-pos)',
+        },
+        {
+          label: 'Exécutions récentes',
+          value: String(payload.health.totalRecent),
+          detail: `${payload.health.completedRecent} terminée(s)`,
+          icon: Activity,
+          color: 'var(--game-sky)',
+        },
+        {
+          label: 'En cours',
+          value: String(payload.health.runningCount),
+          detail: 'tâches actives',
+          icon: Loader2,
+          color: 'var(--game-warn)',
+        },
+        {
+          label: 'Échecs récents',
+          value: String(payload.health.failedCount),
+          detail: 'à surveiller',
+          icon: XCircle,
+          color: 'var(--game-neg)',
+        },
+      ]
+    : []
+
+  const targetClan = clansList.find((c) => String(c.id) === targetScope)
+  const targetLabel = targetClan ? (targetClan.tag ? `[${targetClan.tag}]` : targetClan.name) : `#${targetScope === 'current' ? clanId : targetScope}`
+  const scopeOptions = [
+    ...(clansList.length > 0 ? [{ value: 'all', label: `Tous les clans (${clansList.length})` }] : []),
+    ...(clansList.length > 0
+      ? clansList.map((c) => ({
+          value: String(c.id),
+          label: `${c.tag ? `[${c.tag}] ` : ''}${c.name}${c.id === clanId ? ' (actif)' : ''}`,
+        }))
+      : [{ value: String(clanId), label: `Clan actif #${clanId}` }]),
+  ]
+  const actionFilterOptions = [
+    { value: '', label: 'Toutes les actions' },
+    ...historyDistinctActions.map((a) => ({ value: a, label: payload?.actionLabels[a] ?? a })),
+  ]
+  const statusFilterOptions = [
+    { value: '', label: 'Tous les statuts' },
+    ...HISTORY_STATUSES.map((s) => ({ value: s, label: STATUS_META[s].label })),
+  ]
+
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Tâches planifiées"
-        currentHref="/settings/cron"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
+    <div className={ADMIN_PAGE_CLASS}>
+      {banner}
 
-      {/* --- En-tête --- */}
-      <section className="app-panel p-4">
-        <SettingsPageHeader
-          title="Tâches planifiées (toute la plateforme)"
-          subtitle="Pilotage global des tâches cron, statut des workers et historique des exécutions."
-        />
-        <div className="mt-3 flex flex-wrap items-center gap-2">
-          <StatusPill status={cronWorkerHealth.status} customLabel={cronWorkerHealth.label} />
-          {payload && (
-            <>
-              {payload.checks.errors > 0 && (
-                <StatusPill
-                  status="error"
-                  customLabel={`${payload.checks.errors} erreur${payload.checks.errors > 1 ? 's' : ''} config`}
-                />
-              )}
-              {payload.checks.warnings > 0 && (
-                <StatusPill
-                  status="warning"
-                  customLabel={`${payload.checks.warnings} warning${payload.checks.warnings > 1 ? 's' : ''} config`}
-                />
-              )}
-            </>
-          )}
-          <span className="app-meta-pill">
-            Clan actif : #{clanId}
-          </span>
-          {refreshing && <span className="text-xs text-slate-400">Actualisation...</span>}
-        </div>
-      </section>
+      {payload ? <KpiGrid items={kpis} className="grid-cols-2 lg:grid-cols-4" /> : null}
 
-      {error && (
-        <section className="telemetry-toast-error flex items-center justify-between rounded-xl p-3.5 text-sm font-semibold shadow-sm">
-          <p className="flex items-center gap-2">
-            <AlertOctagon className="h-5 w-5 shrink-0" />
-            {error}
-          </p>
-          <button
-            type="button"
-            onClick={() => setError(null)}
-            className="text-xs font-bold underline opacity-80 hover:opacity-100 ml-4 shrink-0"
-          >
-            Fermer
-          </button>
-        </section>
-      )}
-
-      {info && (
-        <section className="telemetry-toast-success flex items-center justify-between rounded-xl p-3.5 text-sm font-semibold shadow-sm">
-          <p className="flex items-center gap-2">
-            <CheckCircle2 className="h-5 w-5 shrink-0" />
-            {info}
-          </p>
-          <button
-            type="button"
-            onClick={() => setInfo(null)}
-            className="text-xs font-bold underline opacity-90 hover:opacity-100 ml-4 shrink-0"
-          >
-            Fermer
-          </button>
-        </section>
-      )}
-
-      {/* --- Cards métriques --- */}
-      {payload && (
-        <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-          <article className="app-panel p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Taux de succès</p>
-            <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">
-              {payload.health.successRate === null ? '-' : `${payload.health.successRate}%`}
-            </p>
-            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">sur {payload.health.completedRecent} terminées</p>
-          </article>
-          <article className="app-panel p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Exécutions récentes</p>
-            <p className="mt-2 text-2xl font-black text-slate-900 dark:text-white">{payload.health.totalRecent}</p>
-            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">{payload.health.completedRecent} terminées</p>
-          </article>
-          <article className="app-panel p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">En cours</p>
-            <p className="mt-2 text-2xl font-black text-amber-600 dark:text-amber-400">{payload.health.runningCount}</p>
-            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">Jobs actifs</p>
-          </article>
-          <article className="app-panel p-4">
-            <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Échecs récents</p>
-            <p className="mt-2 text-2xl font-black text-rose-600 dark:text-rose-400">{payload.health.failedCount}</p>
-            <p className="mt-1 text-xs font-medium text-slate-500 dark:text-slate-400">À surveiller</p>
-          </article>
-        </section>
-      )}
-
-      {/* --- Statut des 3 workers --- */}
-      <section className="app-panel p-4 space-y-3">
-        <div>
-          <h2 className="text-base font-bold text-slate-900 dark:text-white">Statut des workers</h2>
-          <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-            Ces trois processus sont indépendants. Le cron scheduler tourne dans le process Next.js.
-            Les deux workers télémétrie sont des processus Node.js séparés à démarrer manuellement
-            (<code className="text-xs font-mono">npm run telemetry:worker</code> et{' '}
-            <code className="text-xs font-mono">npm run telemetry:aggregates:worker</code>).
-          </p>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          {/* Cron scheduler */}
-          <WorkerPanel
-            title="Cron scheduler (Next.js)"
-            subtitle="Tâches planifiées dans le process web"
-            badge={cronWorkerHealth.label}
+      <SectionCard
+        id="cron-workers"
+        icon={Cpu}
+        title="Workers"
+        meta={
+          <>
+            Trois processus indépendants : le scheduler tourne dans le processus Next.js, les deux workers de télémétrie se lancent à
+            part (<code className="font-mono">npm run telemetry:worker</code> et{' '}
+            <code className="font-mono">npm run telemetry:aggregates:worker</code>).
+          </>
+        }
+      >
+        <div className="grid gap-2.5 md:grid-cols-3">
+          <WorkerTile
+            title="Scheduler cron (Next.js)"
+            subtitle="Tâches planifiées dans le processus web"
+            badge={cronWorkerHealth.status === 'ok' ? 'OK' : cronWorkerHealth.status === 'error' ? 'Inaccessible' : 'À vérifier'}
             badgeStatus={cronWorkerHealth.status}
             details={
               payload
@@ -1200,222 +1165,159 @@ export default function CronSettingsPage() {
                 : []
             }
           />
-          {/* Telemetry resync worker */}
-          <WorkerPanel
+          <WorkerTile
             title="telemetry:worker"
-            subtitle="npm run telemetry:worker · resync fichiers"
+            subtitle="Récupération des fichiers de télémétrie"
             badge={resyncWorkerPanel.badge}
             badgeStatus={resyncWorkerPanel.badgeStatus}
             details={resyncWorkerPanel.details}
           />
-          {/* Aggregate worker */}
-          <WorkerPanel
+          <WorkerTile
             title="telemetry:aggregates:worker"
-            subtitle="npm run telemetry:aggregates:worker · recalcul agrégats"
+            subtitle="Recalcul des agrégats de télémétrie"
             badge={aggregateWorkerPanel.badge}
             badgeStatus={aggregateWorkerPanel.badgeStatus}
             details={aggregateWorkerPanel.details}
           />
         </div>
-      </section>
+      </SectionCard>
 
-      {/* --- Dernière exécution par action --- */}
-      {payload && (
-        <section className="app-panel p-4 space-y-3">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">Dernière exécution par action</h2>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-              Vue synthétique du dernier run connu pour chaque type d&apos;action. Les actions automatiques
-              (préfixe <code className="text-xs font-mono">daily_</code>, <code className="text-xs font-mono">weekly_</code>,{' '}
-              <code className="text-xs font-mono">monthly_</code>) sont déclenchées par le scheduler ; les autres sont des
-              exécutions manuelles.
-            </p>
-          </div>
-          <div className="app-table-shell overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+      {payload ? (
+        <SectionCard
+          id="cron-latest"
+          icon={History}
+          title="Dernière exécution par action"
+          meta={
+            <>
+              Les actions préfixées <code className="font-mono">daily_</code>, <code className="font-mono">weekly_</code> ou{' '}
+              <code className="font-mono">monthly_</code> sont lancées par le scheduler ; les autres sont des exécutions manuelles.
+            </>
+          }
+        >
+          <ul className="m-0 flex list-none flex-col gap-1.5 p-0 md:hidden">
+            {KNOWN_ACTIONS.map((action) => {
+              const entry = payload.latestByAction.find((e) => e.action === action)
+              return (
+                <li key={action} className="app-panel-muted flex flex-col gap-1 px-3 py-2">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="t-body font-semibold text-gray-900">{payload.actionLabels[action] ?? action}</span>
+                    {entry ? <StatusTag status={entry.status} /> : <span className="t-meta">Jamais</span>}
+                  </span>
+                  {entry ? (
+                    <span className="t-meta">
+                      {formatDate(entry.startedAt)} · {getDurationLabel(entry.durationMs)} · {entry.source}
+                    </span>
+                  ) : null}
+                </li>
+              )
+            })}
+          </ul>
+          <div className="app-table-shell hidden md:block">
+            <table className="w-full text-left text-sm">
+              <thead className="app-table-head">
                 <tr>
-                  <th className="px-3 py-2">Action</th>
-                  <th className="px-3 py-2">Statut</th>
-                  <th className="px-3 py-2">Début</th>
-                  <th className="px-3 py-2">Durée</th>
-                  <th className="px-3 py-2">Source</th>
+                  <SortableTh align="left">Action</SortableTh>
+                  <SortableTh align="left">Statut</SortableTh>
+                  <SortableTh align="left">Début</SortableTh>
+                  <SortableTh>Durée</SortableTh>
+                  <SortableTh align="left">Source</SortableTh>
                 </tr>
               </thead>
               <tbody>
                 {KNOWN_ACTIONS.map((action) => {
                   const entry = payload.latestByAction.find((e) => e.action === action)
-                  const label = payload.actionLabels[action] ?? action
                   return (
-                    <tr key={action} className="app-table-row align-middle">
-                      <td className="px-3 py-2 font-semibold text-slate-900 dark:text-white">{label}</td>
-                      <td className="px-3 py-2">
-                        {entry ? (
-                          <StatusPill status={entry.status} />
-                        ) : (
-                          <span className="text-xs text-slate-400">Aucune</span>
-                        )}
-                      </td>
-                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{entry ? formatDate(entry.startedAt) : '-'}</td>
-                      <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{entry ? getDurationLabel(entry.durationMs) : '-'}</td>
-                      <td className="px-3 py-2 text-slate-500 dark:text-slate-400">{entry?.source ?? '-'}</td>
+                    <tr key={action} className="app-table-row">
+                      <td className="px-[9px] py-2 font-semibold text-gray-900">{payload.actionLabels[action] ?? action}</td>
+                      <td className="px-[9px] py-2">{entry ? <StatusTag status={entry.status} /> : <span className="t-meta">Jamais</span>}</td>
+                      <td className="whitespace-nowrap px-[9px] py-2 text-gray-700">{entry ? formatDate(entry.startedAt) : '—'}</td>
+                      <td className="t-num px-[9px] py-2 text-right text-gray-700">{entry ? getDurationLabel(entry.durationMs) : '—'}</td>
+                      <td className="t-meta px-[9px] py-2">{entry?.source ?? '—'}</td>
                     </tr>
                   )
                 })}
               </tbody>
             </table>
           </div>
-        </section>
-      )}
+        </SectionCard>
+      ) : null}
 
-      {/* --- Actions manuelles --- */}
-      {clanId && (
-        <section className="app-panel p-5 space-y-4">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white">Actions manuelles</h2>
-                <span className="app-meta-pill text-xs">Exécution immédiate</span>
-              </div>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                Déclencheur instantané de la logique des crons. Choisissez le clan cible ou lancez en lot sur tous les clans.
-              </p>
-            </div>
-
-            {/* Sélecteur de clan mis en évidence */}
-            <div className="flex flex-wrap items-center gap-2 p-2 rounded-xl bg-slate-100 dark:bg-slate-900/90 border border-slate-300 dark:border-slate-700">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300 flex items-center gap-1.5 pl-1">
-                <Users className="h-4 w-4 text-indigo-500" />
-                Cible :
+      <SectionCard
+        id="cron-manual"
+        icon={Play}
+        title="Actions manuelles"
+        meta="Lance tout de suite la logique d’une tâche, pour un clan ou pour tous les clans l’un après l’autre."
+        aside={
+          <div className={`flex w-full flex-col gap-1 sm:w-72 ${pendingAction !== null ? 'pointer-events-none opacity-60' : ''}`}>
+            <span className="t-label">Cible</span>
+            <ChoiceMenu<string> label="Cible" value={targetScope} onChange={handleScopeChange} options={scopeOptions} />
+          </div>
+        }
+      >
+        {pendingAction ? (
+          <div className="app-panel-muted flex flex-col gap-2 px-3.5 py-3" role="status">
+            <span className="flex items-center justify-between gap-2">
+              <span className="t-body flex items-center gap-2 font-semibold text-gray-900">
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin" style={{ color: 'var(--game-sky)' }} aria-hidden="true" />
+                {progressMessage ?? 'Exécution en cours…'}
               </span>
-              <select
-                value={targetScope}
-                onChange={(e) => handleScopeChange(e.target.value)}
-                disabled={pendingAction !== null}
-                className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 px-3 py-1.5 text-xs font-bold text-slate-900 dark:text-white focus:outline-hidden focus:ring-1 focus:ring-indigo-500"
-              >
-                {clansList.length > 0 && (
-                  <option value="all">⚡ Tous les clans ({clansList.length} clans actifs)</option>
-                )}
-                <optgroup label="Sélectionner un clan">
-                  {clansList.map((c) => (
-                    <option key={c.id} value={String(c.id)}>
-                      Clan #{c.id} — {c.name} {c.tag ? `[${c.tag}]` : ''} {c.id === clanId ? '(actif)' : ''}
-                    </option>
-                  ))}
-                  {clansList.length === 0 && (
-                    <option value={String(clanId)}>Clan actif #{clanId}</option>
-                  )}
-                </optgroup>
-              </select>
-            </div>
+              {progressPercent !== null ? <span className="t-num font-bold text-gray-900">{progressPercent} %</span> : null}
+            </span>
+            {progressPercent !== null ? (
+              <span className="h-2 w-full overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]">
+                <span
+                  className="block h-full rounded-full transition-all duration-300"
+                  style={{ width: `${progressPercent}%`, backgroundColor: 'var(--game-sky)' }}
+                />
+              </span>
+            ) : null}
           </div>
+        ) : null}
 
-          {/* Bandeau d'avancement dynamique */}
-          {pendingAction && (
-            <div className="rounded-xl border border-indigo-500/40 bg-indigo-500/10 p-3.5 space-y-2">
-              <div className="flex items-center justify-between text-xs font-bold text-indigo-800 dark:text-indigo-200">
-                <span className="flex items-center gap-2">
-                  <RotateCw className="h-4 w-4 animate-spin text-indigo-500 shrink-0" />
-                  {progressMessage ?? 'Exécution en cours...'}
-                </span>
-                {progressPercent !== null && <span>{progressPercent}%</span>}
-              </div>
-              {progressPercent !== null && (
-                <div className="w-full bg-slate-200 dark:bg-slate-800 rounded-full h-2 overflow-hidden">
-                  <div
-                    className="bg-indigo-600 dark:bg-indigo-500 h-2 rounded-full transition-all duration-300"
-                    style={{ width: `${progressPercent}%` }}
-                  />
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2 lg:grid-cols-4">
+          {MANUAL_ACTIONS_CONFIG.map((actionCfg) => {
+            const isBusy = pendingAction === actionCfg.action
+            const isAll = targetScope === 'all'
+            return (
+              <div key={actionCfg.action} className="app-panel-muted flex flex-col justify-between gap-3 px-3.5 py-3">
+                <div className="flex flex-col gap-1.5">
+                  <span>
+                    <Tag tone="neutral">
+                      <span className="font-mono">{actionCfg.cronKey}</span>
+                    </Tag>
+                  </span>
+                  <span className="t-card-title">{actionCfg.label}</span>
+                  <span className="t-meta">{actionCfg.description}</span>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* Grille des cartes avec badges de liaison cron */}
-          <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            {MANUAL_ACTIONS_CONFIG.map((actionCfg) => {
-              const isBusy = pendingAction === actionCfg.action
-              const isAnyBusy = pendingAction !== null
-              const isAll = targetScope === 'all'
-
-              return (
-                <div
-                  key={actionCfg.action}
-                  className="app-panel-muted rounded-xl p-3.5 flex flex-col justify-between space-y-3"
+                <button
+                  type="button"
+                  onClick={() => void runAction(actionCfg.action)}
+                  disabled={pendingAction !== null}
+                  className="app-btn app-btn--sm app-btn--secondary w-full gap-1.5"
                 >
-                  <div className="space-y-2">
-                    {/* Badge de liaison cron */}
-                    <div className="flex items-center justify-between">
-                      <span className="inline-flex items-center rounded-md border border-indigo-500/30 bg-indigo-500/10 px-2 py-0.5 font-mono text-[11px] font-bold text-indigo-700 dark:text-indigo-300">
-                        {actionCfg.cronKey}
-                      </span>
-                    </div>
+                  {isBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" /> : <Play className="h-3.5 w-3.5" aria-hidden="true" />}
+                  {isBusy ? 'Traitement…' : isAll ? 'Lancer pour tous les clans' : `Lancer pour ${targetLabel}`}
+                </button>
+              </div>
+            )
+          })}
+        </div>
+      </SectionCard>
 
-                    <div className="text-sm font-bold text-slate-900 dark:text-white">
-                      {actionCfg.label}
-                    </div>
-
-                    <p className="text-xs text-slate-500 dark:text-slate-400 leading-relaxed">
-                      {actionCfg.description}
-                    </p>
-                  </div>
-
-                  <div className="pt-2">
-                    <button
-                      type="button"
-                      onClick={() => void runAction(actionCfg.action)}
-                      disabled={isAnyBusy}
-                      className={`app-btn app-btn--sm w-full font-semibold ${
-                        isBusy
-                          ? 'app-btn--primary'
-                          : isAll
-                          ? 'app-btn--primary'
-                          : 'app-btn--secondary'
-                      }`}
-                    >
-                      {isBusy ? (
-                        <span className="flex items-center justify-center gap-1.5">
-                          <RotateCw className="h-3.5 w-3.5 animate-spin" />
-                          Traitement...
-                        </span>
-                      ) : isAll ? (
-                        'Lancer pour tous les clans'
-                      ) : (
-                        `Lancer pour #${targetScope === 'current' ? clanId : targetScope}`
-                      )}
-                    </button>
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        </section>
-      )}
-
-      {/* --- Configuration --- */}
-      {payload && (
-        <section className="app-panel p-4 space-y-6">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">Configuration</h2>
-            <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-              Vérification des variables d&apos;environnement critiques et des expressions cron actives.
-              Un statut <strong>error</strong> bloque le fonctionnement ; un statut <strong>warning</strong> indique une
-              configuration sous-optimale.
-            </p>
-          </div>
-
-          <CheckGroupTable
-            items={checks.system}
-            title="Système & API"
-            description="Variables d'environnement principales, URLs internes et clés d'accès."
-          />
-          <CheckGroupTable
+      {payload ? (
+        <SectionCard
+          id="cron-config"
+          icon={Settings2}
+          title="Configuration"
+          meta="Variables d’environnement critiques et horaires actifs. Une erreur bloque le fonctionnement ; une alerte signale une configuration à revoir."
+        >
+          <CheckGroup items={checks.system} title="Système et API" description="Variables principales, adresses internes et clés d’accès." />
+          <CheckGroup
             items={checks.telemetry}
             title="Télémétrie"
-            description="Variables contrôlant le pipeline de synchronisation et de parsing des fichiers télémétrie."
+            description="Variables du pipeline de synchronisation et d’analyse des fichiers de télémétrie."
           />
-          <ScheduleEditorTable
+          <ScheduleEditor
             schedules={schedules}
             drafts={scheduleDrafts}
             busyKey={scheduleBusyKey}
@@ -1424,206 +1326,188 @@ export default function CronSettingsPage() {
             onApply={(key) => void applySchedule(key)}
             onReset={(key) => void resetSchedule(key)}
           />
-
-          {/* Rate limit PUBG API */}
-          <div className="space-y-2">
-            <div>
-              <p className="text-sm font-bold text-slate-900 dark:text-white">Rate limit PUBG API</p>
-              <p className="text-xs text-slate-500 dark:text-slate-400">Snapshot du dernier appel observé.</p>
-            </div>
-            <div className="app-panel-muted rounded-xl p-3.5 grid gap-x-6 gap-y-1 sm:grid-cols-2 text-xs">
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Limite</span><span className="font-semibold text-slate-900 dark:text-white">{payload.pubgApi.latestRateLimit?.limit ?? '-'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Restant</span><span className="font-semibold text-slate-900 dark:text-white">{payload.pubgApi.latestRateLimit?.remaining ?? '-'}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Reset</span><span className="font-semibold text-slate-900 dark:text-white">{formatDate(payload.pubgApi.latestRateLimit?.resetAt ?? null)}</span></div>
-              <div className="flex justify-between"><span className="text-slate-500 dark:text-slate-400">Observé</span><span className="font-semibold text-slate-900 dark:text-white">{formatDate(payload.pubgApi.latestRateLimit?.observedAt ?? null)}</span></div>
+          <div className="flex flex-col gap-2">
+            <SubsectionTitle title="Limite de débit de l’API PUBG" description="Dernier appel observé." />
+            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+              <RateLimitStat label="Limite" value={payload.pubgApi.latestRateLimit?.limit ?? '—'} />
+              <RateLimitStat label="Restant" value={payload.pubgApi.latestRateLimit?.remaining ?? '—'} />
+              <RateLimitStat label="Remise à zéro" value={formatDate(payload.pubgApi.latestRateLimit?.resetAt ?? null)} />
+              <RateLimitStat label="Observé" value={formatDate(payload.pubgApi.latestRateLimit?.observedAt ?? null)} />
             </div>
           </div>
-        </section>
-      )}
+        </SectionCard>
+      ) : null}
 
-      {/* --- Historique --- */}
-      {payload && (
-        <section className="app-panel p-4 space-y-4">
-          <div className="flex flex-wrap items-start justify-between gap-3">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">Historique des exécutions</h2>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                Dernières exécutions enregistrées (cron scheduler + actions manuelles + workers télémétrie).
-              </p>
+      {payload ? (
+        <SectionCard
+          id="cron-history"
+          icon={ScrollText}
+          title="Historique des exécutions"
+          meta="Dernières exécutions enregistrées : scheduler, actions manuelles et workers de télémétrie."
+          aside={
+            <button
+              type="button"
+              onClick={() => setConfirmPurge(true)}
+              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+              title="Supprimer les exécutions terminées"
+            >
+              <Trash2 className="h-3.5 w-3.5" style={{ color: 'var(--game-neg)' }} aria-hidden="true" />
+              Purger l’historique
+            </button>
+          }
+        >
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="w-full sm:w-60">
+              <ChoiceMenu<string>
+                label="Action"
+                value={filterAction}
+                onChange={(value) => {
+                  setFilterAction(value)
+                  setHistoryPage(1)
+                }}
+                options={actionFilterOptions}
+              />
             </div>
-
-            {/* Bouton de purge d'historique */}
-            {confirmPurge ? (
-              <div className="flex items-center gap-2 rounded-xl border border-rose-500/40 bg-rose-500/10 p-2 text-xs">
-                <span className="font-semibold text-rose-700 dark:text-rose-300">
-                  Purger tous les logs terminés ?
-                </span>
-                <button
-                  type="button"
-                  onClick={() => void handlePurgeHistory()}
-                  disabled={purging}
-                  className="app-btn app-btn--xs app-btn--danger"
-                >
-                  {purging ? 'Purge...' : 'Confirmer la purge'}
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConfirmPurge(false)}
-                  disabled={purging}
-                  className="app-btn app-btn--xs app-btn--secondary"
-                >
-                  Annuler
-                </button>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => setConfirmPurge(true)}
-                className="app-btn app-btn--xs app-btn--secondary gap-1.5"
-                title="Supprimer les exécutions terminées pour nettoyer la base"
-              >
-                <Trash2 className="h-3.5 w-3.5 text-rose-500" />
-                Purger l&apos;historique
-              </button>
-            )}
-          </div>
-
-          {/* Filtres */}
-          <div className="flex flex-wrap items-center gap-3">
-            <select
-              value={filterAction}
-              onChange={(e) => { setFilterAction(e.target.value); setHistoryPage(1) }}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-900 dark:text-white font-medium"
-            >
-              <option value="">Toutes les actions</option>
-              {historyDistinctActions.map((a) => (
-                <option key={a} value={a}>{payload.actionLabels[a] ?? a}</option>
-              ))}
-            </select>
-            <select
-              value={filterStatus}
-              onChange={(e) => { setFilterStatus(e.target.value); setHistoryPage(1) }}
-              className="rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-2.5 py-1.5 text-xs text-slate-900 dark:text-white font-medium"
-            >
-              <option value="">Tous les statuts</option>
-              {(['running', 'success', 'partial', 'failed'] as const).map((s) => (
-                <option key={s} value={s}>{s}</option>
-              ))}
-            </select>
-            {(filterAction || filterStatus) && (
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="app-btn app-btn--xs app-btn--secondary"
-              >
+            <div className="w-full sm:w-44">
+              <ChoiceMenu<string>
+                label="Statut"
+                value={filterStatus}
+                onChange={(value) => {
+                  setFilterStatus(value)
+                  setHistoryPage(1)
+                }}
+                options={statusFilterOptions}
+              />
+            </div>
+            {filterAction || filterStatus ? (
+              <button type="button" onClick={resetFilters} className="app-link text-xs font-semibold">
                 Réinitialiser
               </button>
-            )}
-            <span className="ml-auto app-meta-pill">
-              {filteredHistory.length} résultat{filteredHistory.length !== 1 ? 's' : ''}
+            ) : null}
+            <span className="sm:ml-auto">
+              <Tag tone="neutral">
+                {filteredHistory.length} résultat{filteredHistory.length !== 1 ? 's' : ''}
+              </Tag>
             </span>
           </div>
 
-          {/* Tableau */}
-          <div className="app-table-shell overflow-x-auto">
-            <table className="min-w-full text-left text-sm">
-              <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                <tr>
-                  <th className="px-3 py-2.5 w-6"></th>
-                  <th className="px-3 py-2.5">Action</th>
-                  <th className="px-3 py-2.5">Statut</th>
-                  <th className="px-3 py-2.5">Début</th>
-                  <th className="px-3 py-2.5">Durée</th>
-                  <th className="px-3 py-2.5">Source</th>
-                  <th className="px-3 py-2.5">Message</th>
-                </tr>
-              </thead>
-              <tbody>
-                {pagedHistory.length === 0 ? (
-                  <tr>
-                    <td colSpan={7} className="px-3 py-4 text-center text-slate-500 dark:text-slate-400 text-xs">
-                      Aucune exécution correspondant aux filtres.
-                    </td>
-                  </tr>
-                ) : (
-                  pagedHistory.map((item) => {
-                    const isExpanded = expandedRows.has(item.id)
-                    const snippet = formatDetailsSnippet(item.details)
-                    const hasDetails = snippet !== null
-                    return (
-                      <Fragment key={item.id}>
-                        <tr className="app-table-row align-top">
-                          <td className="px-3 py-2.5">
-                            {hasDetails && (
-                              <button
-                                type="button"
-                                onClick={() => toggleRow(item.id)}
-                                className="text-slate-400 hover:text-slate-700 dark:hover:text-slate-200"
-                                title="Afficher les détails"
-                              >
-                                <svg
-                                  viewBox="0 0 20 20"
-                                  className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`}
-                                  fill="currentColor"
+          {pagedHistory.length === 0 ? (
+            <EmptyState icon={ScrollText} title="Aucune exécution pour ces filtres" />
+          ) : (
+            <>
+              <ul className="m-0 flex list-none flex-col gap-1.5 p-0 md:hidden">
+                {pagedHistory.map((item) => {
+                  const snippet = formatDetailsSnippet(item.details)
+                  return (
+                    <li key={item.id} className="app-panel-muted flex flex-col gap-1 px-3 py-2">
+                      <span className="flex items-center justify-between gap-2">
+                        <span className="t-body font-semibold text-gray-900">{payload.actionLabels[item.action] ?? item.action}</span>
+                        <StatusTag status={item.status} />
+                      </span>
+                      <span className="t-meta">
+                        {formatDate(item.startedAt)} · {getDurationLabel(item.durationMs)} · {item.source}
+                      </span>
+                      {item.message ? <span className="t-meta text-gray-700">{item.message}</span> : null}
+                      {snippet ? <span className="t-meta font-mono">{snippet}</span> : null}
+                    </li>
+                  )
+                })}
+              </ul>
+              <div className="app-table-shell hidden md:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="app-table-head">
+                    <tr>
+                      <SortableTh align="left">
+                        <span className="sr-only">Détails</span>
+                      </SortableTh>
+                      <SortableTh align="left">Action</SortableTh>
+                      <SortableTh align="left">Statut</SortableTh>
+                      <SortableTh align="left">Début</SortableTh>
+                      <SortableTh>Durée</SortableTh>
+                      <SortableTh align="left">Source</SortableTh>
+                      <SortableTh align="left">Message</SortableTh>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {pagedHistory.map((item) => {
+                      const isExpanded = expandedRows.has(item.id)
+                      const snippet = formatDetailsSnippet(item.details)
+                      return (
+                        <Fragment key={item.id}>
+                          <tr className="app-table-row align-top">
+                            <td className="w-8 px-[9px] py-2">
+                              {snippet ? (
+                                <button
+                                  type="button"
+                                  onClick={() => toggleRow(item.id)}
+                                  aria-expanded={isExpanded}
+                                  className="grid h-6 w-6 place-items-center rounded-md text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                                  title="Afficher les détails"
+                                  aria-label="Afficher les détails"
                                 >
-                                  <path d="M5.23 7.21a.75.75 0 0 1 1.06.02L10 11.12l3.71-3.9a.75.75 0 1 1 1.08 1.04l-4.25 4.46a.75.75 0 0 1-1.08 0L5.21 8.27a.75.75 0 0 1 .02-1.06Z" />
-                                </svg>
-                              </button>
-                            )}
-                          </td>
-                          <td className="px-3 py-2.5 font-semibold text-slate-900 dark:text-white">
-                            {payload.actionLabels[item.action] ?? item.action}
-                          </td>
-                          <td className="px-3 py-2.5">
-                            <StatusPill status={item.status} />
-                          </td>
-                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 text-xs">{formatDate(item.startedAt)}</td>
-                          <td className="px-3 py-2.5 text-slate-700 dark:text-slate-300 text-xs">{getDurationLabel(item.durationMs)}</td>
-                          <td className="px-3 py-2.5 text-slate-500 dark:text-slate-400 text-xs">{item.source}</td>
-                          <td className="px-3 py-2.5 text-slate-600 dark:text-slate-300 text-xs">{item.message ?? '-'}</td>
-                        </tr>
-                        {isExpanded && snippet && (
-                          <tr className="bg-slate-100/60 dark:bg-slate-900/80">
-                            <td />
-                            <td colSpan={6} className="px-3 py-2 text-xs font-mono text-slate-700 dark:text-slate-300 border-t border-slate-200 dark:border-slate-800">
-                              {snippet}
+                                  <ChevronDown className={`h-3.5 w-3.5 transition-transform ${isExpanded ? 'rotate-180' : ''}`} aria-hidden="true" />
+                                </button>
+                              ) : null}
                             </td>
+                            <td className="px-[9px] py-2 font-semibold text-gray-900">{payload.actionLabels[item.action] ?? item.action}</td>
+                            <td className="px-[9px] py-2">
+                              <StatusTag status={item.status} />
+                            </td>
+                            <td className="whitespace-nowrap px-[9px] py-2 text-xs text-gray-700">{formatDate(item.startedAt)}</td>
+                            <td className="t-num whitespace-nowrap px-[9px] py-2 text-right text-xs text-gray-700">{getDurationLabel(item.durationMs)}</td>
+                            <td className="t-meta px-[9px] py-2">{item.source}</td>
+                            <td className="px-[9px] py-2 text-xs text-gray-700">{item.message ?? '—'}</td>
                           </tr>
-                        )}
-                      </Fragment>
-                    )
-                  })
-                )}
-              </tbody>
-            </table>
-          </div>
-
-          {/* Pagination */}
-          {historyPageCount > 1 && (
-            <div className="flex items-center justify-between gap-4 pt-2">
-              <button
-                type="button"
-                onClick={() => setHistoryPage((p) => Math.max(1, p - 1))}
-                disabled={historyPage_ <= 1}
-                className="app-btn app-btn--xs app-btn--secondary"
-              >
-                Précédent
-              </button>
-              <span className="text-xs font-medium text-slate-500 dark:text-slate-400">
-                Page {historyPage_} / {historyPageCount}
-              </span>
-              <button
-                type="button"
-                onClick={() => setHistoryPage((p) => Math.min(historyPageCount, p + 1))}
-                disabled={historyPage_ >= historyPageCount}
-                className="app-btn app-btn--xs app-btn--secondary"
-              >
-                Suivant
-              </button>
-            </div>
+                          {isExpanded && snippet ? (
+                            <tr>
+                              <td />
+                              <td colSpan={6} className="border-t border-gray-200 px-[9px] py-2 font-mono text-xs text-gray-700">
+                                {snippet}
+                              </td>
+                            </tr>
+                          ) : null}
+                        </Fragment>
+                      )
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </>
           )}
-        </section>
-      )}
-    </main>
+
+          <Pagination
+            page={historyPage_}
+            pageCount={historyPageCount}
+            total={filteredHistory.length}
+            pageSize={HISTORY_PAGE_SIZE}
+            onPageChange={setHistoryPage}
+            ariaLabel="Pages de l’historique des exécutions"
+            itemLabel="Exécutions"
+          />
+        </SectionCard>
+      ) : null}
+
+      {confirmPurge ? (
+        <ConfirmDialog
+          icon={Trash2}
+          title="Purger l’historique ?"
+          confirmLabel="Purger"
+          tone="danger"
+          busy={purging}
+          onCancel={() => setConfirmPurge(false)}
+          onConfirm={() => void handlePurgeHistory()}
+        >
+          Toutes les exécutions terminées seront supprimées de l’historique ; les tâches en cours sont conservées.
+        </ConfirmDialog>
+      ) : null}
+
+      <ToastStack
+        toasts={toasts}
+        onDismiss={(id) => {
+          if (id === 1) setError(null)
+          else setInfo(null)
+        }}
+      />
+    </div>
   )
 }

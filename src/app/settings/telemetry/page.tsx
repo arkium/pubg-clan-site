@@ -4,22 +4,28 @@ import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
 import {
-  AlertOctagon,
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  Clock,
   HardDriveDownload,
+  Hourglass,
   ListOrdered,
   Play,
+  RadioTower,
   RefreshCw,
   Server,
+  Users,
+  XCircle,
   Zap,
 } from 'lucide-react'
 
-import { useAuthSession } from '@/hooks/useAuthSession'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
+import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted } from '@/components/settings/AdminPageStates'
+import { Callout, EmptyState, ListSkeleton, SectionCard, Tag, ToastStack, type Toast } from '@/components/ui/CharteKit'
 import SegmentedControl from '@/components/ui/SegmentedControl'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { useAuthSession } from '@/hooks/useAuthSession'
 
 type TelemetryWindow = '24h' | '7d' | '30d' | 'all'
 
@@ -87,37 +93,129 @@ type StatusPayload = {
 }
 
 const WINDOW_OPTIONS: Array<{ value: TelemetryWindow; label: string }> = [
-  { value: '24h', label: '24 heures' },
+  { value: '24h', label: '24 h' },
   { value: '7d', label: '7 jours' },
   { value: '30d', label: '30 jours' },
-  { value: 'all', label: 'Tout' },
+  { value: 'all', label: 'Tous' },
 ]
+
+const WINDOW_LABELS: Record<TelemetryWindow, string> = {
+  '24h': 'les dernières 24 h',
+  '7d': 'les 7 derniers jours',
+  '30d': 'les 30 derniers jours',
+  all: 'tout l’historique',
+}
+
+/** Segments de la barre de complétion : validés, en file, à mettre en file, expirés (jetons de jeu). */
+const SEGMENT_COLORS = {
+  completed: 'var(--game-pos)',
+  inQueue: 'var(--game-sky)',
+  toQueue: 'var(--game-warn)',
+  expired: 'color-mix(in srgb, var(--theme-ui-text-muted) 55%, transparent)',
+}
 
 function formatPercent(value: number | null) {
   if (value === null || !Number.isFinite(value)) {
-    return '-'
+    return '—'
   }
-  return `${value.toFixed(1)} %`
+  return `${value.toLocaleString('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`
 }
 
 function formatDuration(seconds: number | null): string {
-  if (!seconds || seconds <= 0) return '-'
-  if (seconds < 60) return `${seconds}s`
+  if (!seconds || seconds <= 0) return '—'
+  if (seconds < 60) return `${seconds} s`
   const minutes = Math.floor(seconds / 60)
   const remainingSecs = seconds % 60
-  if (minutes < 60) return `${minutes}m ${remainingSecs > 0 ? `${remainingSecs}s` : ''}`
+  if (minutes < 60) return `${minutes} min${remainingSecs > 0 ? ` ${remainingSecs} s` : ''}`
   const hours = Math.floor(minutes / 60)
   const remainingMins = minutes % 60
-  return `${hours}h ${remainingMins}m`
+  return `${hours} h ${remainingMins} min`
 }
 
 function formatTime(isoString: string | null): string {
-  if (!isoString) return '-'
+  if (!isoString) return '—'
   const date = new Date(isoString)
-  if (Number.isNaN(date.getTime())) return '-'
+  if (Number.isNaN(date.getTime())) return '—'
   return date.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
 }
 
+function formatCount(value: number) {
+  return value.toLocaleString('fr-FR')
+}
+
+/** Barre empilée de complétion d'un ensemble de matchs, rapportée à leur total. */
+function CompletionBar({
+  total,
+  completed,
+  inQueue,
+  toQueue,
+  expired,
+  thick = false,
+}: {
+  total: number
+  completed: number
+  inQueue: number
+  toQueue: number
+  expired: number
+  thick?: boolean
+}) {
+  const pct = (value: number) => (total > 0 ? (value / total) * 100 : 0)
+  const segments = [
+    { key: 'completed', value: completed, label: 'validés' },
+    { key: 'inQueue', value: inQueue, label: 'en file' },
+    { key: 'toQueue', value: toQueue, label: 'à mettre en file' },
+    { key: 'expired', value: expired, label: 'expirés' },
+  ] as const
+  return (
+    <span className={`flex w-full overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)] ${thick ? 'h-3' : 'h-2'}`}>
+      {segments.map((segment) => (
+        <span
+          key={segment.key}
+          className="h-full transition-all duration-500"
+          style={{ width: `${pct(segment.value)}%`, backgroundColor: SEGMENT_COLORS[segment.key] }}
+          title={`${formatCount(segment.value)} ${segment.label}`}
+        />
+      ))}
+    </span>
+  )
+}
+
+function LegendDot({ color, children }: { color: string; children: React.ReactNode }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} aria-hidden="true" />
+      {children}
+    </span>
+  )
+}
+
+function StatusTile({
+  label,
+  tag,
+  value,
+  detail,
+}: {
+  label: string
+  tag: React.ReactNode
+  value: React.ReactNode
+  detail: React.ReactNode
+}) {
+  return (
+    <div className="app-panel-muted flex flex-col gap-1 px-3.5 py-3">
+      <span className="flex items-center justify-between gap-2">
+        <span className="t-label">{label}</span>
+        {tag}
+      </span>
+      <span className="t-card-title">{value}</span>
+      <span className="t-meta">{detail}</span>
+    </div>
+  )
+}
+
+/**
+ * Télémétrie de tous les clans (SuperUser), selon la charte UI (docs/ui/index.html) : moteur de récupération et file,
+ * complétion réelle et reste à récupérer (les fichiers PUBG expirent après 14 jours), puis détail par clan.
+ */
 export default function TelemetryRecoveriesOverviewPage() {
   const router = useRouter()
   const { loading: authLoading, authenticated, isSuperUser } = useAuthSession()
@@ -226,7 +324,7 @@ export default function TelemetryRecoveriesOverviewPage() {
     setTimeout(() => setRefreshing(false), 500)
   }
 
-  // Action : Enqueuer tout le backlog ou les urgences
+  // Action : mettre en file tout le reste à récupérer, ou seulement les urgences
   const handleEnqueueBacklog = async (options: { clanId?: number; urgentOnly?: boolean }) => {
     try {
       setEnqueuing(true)
@@ -250,7 +348,7 @@ export default function TelemetryRecoveriesOverviewPage() {
 
       setActionMessage({
         type: 'success',
-        text: `Mise en file effectuée : ${queuedCount} match(s) ajouté(s) à la file live-sync (${alreadyCount} déjà en file).`,
+        text: `${queuedCount} match(s) mis en file de récupération (${alreadyCount} y étaient déjà).`,
       })
 
       // Rafraîchir le statut et le backlog
@@ -267,611 +365,330 @@ export default function TelemetryRecoveriesOverviewPage() {
 
   // Rendu de sécurité Auth / SuperUser
   if (authLoading) {
-    return (
-      <main className="app-container app-main flex flex-1 items-center justify-center">
-        <p className="text-sm font-semibold text-slate-700 dark:text-slate-300">Vérification des droits d&apos;accès...</p>
-      </main>
-    )
+    return <AdminPageLoading />
   }
 
   if (!authenticated) return null
 
   if (!isSuperUser) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-        <NavigationTrail
-          currentLabel="Recoveries Télémétrie Cross-clans"
-          currentHref="/settings/telemetry"
-          fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-        />
-        <section className="app-panel p-6">
-          <h1 className="text-xl font-bold text-amber-800 dark:text-amber-200">Accès restreint</h1>
-          <p className="mt-2 text-sm text-amber-700 dark:text-amber-300">Cette page est réservée aux SuperUsers.</p>
-          <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour à l&apos;accueil
-          </Link>
-        </section>
-      </main>
-    )
+    return <AdminPageRestricted />
   }
 
   const worker = statusData?.worker
   const queue = statusData?.queue
   const scheduler = statusData?.scheduler
   const isWorkerActive = Boolean(worker?.alive)
+  const toasts: Toast[] = actionMessage ? [{ id: 1, text: actionMessage.text, tone: actionMessage.type }] : []
+
+  const backlogKpis: Kpi[] = backlogData
+    ? [
+        {
+          label: 'Matchs éligibles',
+          value: formatCount(backlogData.totalMatches),
+          detail: 'historique hors parties casual',
+          icon: ListOrdered,
+          color: 'var(--theme-ui-text-muted)',
+        },
+        {
+          label: 'Télémétries validées',
+          value: formatCount(backlogData.completedMatches),
+          detail: `${formatPercent(backlogData.completionRate)} des matchs encore disponibles`,
+          icon: CheckCircle2,
+          color: SEGMENT_COLORS.completed,
+        },
+        {
+          label: 'Dans la file',
+          value: formatCount(backlogData.inQueueCount),
+          detail: 'en cours de traitement',
+          icon: Hourglass,
+          color: SEGMENT_COLORS.inQueue,
+        },
+        {
+          label: 'À mettre en file',
+          value: formatCount(backlogData.toQueueCount),
+          detail: 'matchs de moins de 14 jours',
+          icon: Zap,
+          color: SEGMENT_COLORS.toQueue,
+        },
+        {
+          label: 'Expirés',
+          value: formatCount(backlogData.expiredMatches),
+          detail: 'plus de 14 jours, perdus côté PUBG',
+          icon: XCircle,
+          color: 'var(--theme-ui-text-muted)',
+        },
+      ]
+    : []
 
   return (
-    <main className="app-container app-main flex-1 space-y-4 pb-12">
-      <NavigationTrail
-        currentLabel="Recoveries Télémétrie Cross-clans"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Télémétrie, tous les clans"
+        subtitle="Moteur de récupération, complétion réelle et reste à récupérer, clan par clan."
+        icon={RadioTower}
+        image="/cartographie-tactique.jpg"
         currentHref="/settings/telemetry"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <span key="worker" className="inline-flex items-center gap-1.5">
+            <span
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: isWorkerActive ? 'var(--game-pos)' : 'var(--game-warn)' }}
+              aria-hidden="true"
+            />
+            {loadingStatus ? 'Worker…' : isWorkerActive ? 'Worker actif' : 'Worker arrêté'}
+          </span>,
+          'Réservé au SuperUser',
+        ]}
+        action={
+          <button type="button" onClick={handleRefreshAll} disabled={refreshing || enqueuing} className={BANNER_GLASS_BUTTON}>
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Actualiser
+          </button>
+        }
       />
 
-      <section className="app-panel p-4">
-        <SettingsPageHeader
-          title="Télémétrie — Vue cross-clans & Pilotage"
-          subtitle="Supervision du pipeline, complétion réelle, résorption du backlog et pilotage de la file d'attente."
-        />
-      </section>
-
-      {/* Message de notification d'action */}
-      {actionMessage && (
-        <div
-          className={`flex items-center justify-between rounded-xl p-3.5 text-sm font-semibold shadow-sm transition-all ${
-            actionMessage.type === 'success' ? 'telemetry-toast-success' : 'telemetry-toast-error'
-          }`}
-        >
-          <p className="flex items-center gap-2">
-            {actionMessage.type === 'success' ? (
-              <CheckCircle2 className="h-5 w-5 shrink-0" />
-            ) : (
-              <AlertOctagon className="h-5 w-5 shrink-0" />
-            )}
-            {actionMessage.text}
-          </p>
-          <button
-            type="button"
-            onClick={() => setActionMessage(null)}
-            className="text-xs font-bold underline opacity-90 hover:opacity-100 ml-4 shrink-0"
-          >
-            Fermer
-          </button>
-        </div>
-      )}
-
-      {/* --- VOLET 1 : STATUT DU WORKER & FILE D'ATTENTE (Affichage immédiat) --- */}
-      <section className="app-panel p-4 space-y-3">
-        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 dark:border-slate-800 pb-2">
-          <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Moteur de récupération télémétrie & File d&apos;attente
-            </h2>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link
-              href="/settings/cron"
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 dark:text-indigo-300 dark:hover:text-indigo-200 underline flex items-center gap-1"
-            >
-              Console Cron & Workers
-              <ArrowRight className="h-3 w-3" />
-            </Link>
-          </div>
-        </div>
-
+      <SectionCard
+        id="telemetry-engine"
+        icon={Server}
+        title="Moteur de récupération"
+        meta="Worker d’ingestion, file de récupération et synchronisation automatique."
+        aside={
+          <Link href="/settings/cron" className="app-link inline-flex items-center gap-1 text-xs font-semibold">
+            Tâches planifiées
+            <ArrowRight className="h-3 w-3" aria-hidden="true" />
+          </Link>
+        }
+      >
         {loadingStatus ? (
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div className="h-20 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50 p-3" />
-            <div className="h-20 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50 p-3" />
-            <div className="h-20 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50 p-3" />
-          </div>
+          <ListSkeleton rows={2} />
         ) : (
-          <div className="grid gap-3 sm:grid-cols-3">
-            {/* Statut Worker */}
-            <div
-              className={`app-panel-muted p-3.5 border-l-4 transition-colors ${
-                isWorkerActive
-                  ? 'border-l-emerald-500 border-emerald-300/40 dark:border-emerald-500/30'
-                  : 'border-l-amber-500 border-amber-300/40 dark:border-amber-500/30'
-              }`}
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Worker d&apos;ingestion
+          <div className="grid gap-2.5 sm:grid-cols-3">
+            <StatusTile
+              label="Worker d’ingestion"
+              tag={<Tag tone={isWorkerActive ? 'pos' : 'warn'}>{isWorkerActive ? 'Actif' : 'Arrêté'}</Tag>}
+              value={isWorkerActive ? `PID ${worker?.pid}` : 'Arrêté'}
+              detail={
+                isWorkerActive ? (
+                  'Traite la file en continu.'
+                ) : (
+                  <>
+                    Lancer <code className="font-mono">npm run telemetry:worker</code> pour vider la file.
+                  </>
+                )
+              }
+            />
+            <StatusTile
+              label="File de récupération"
+              tag={<Tag tone="neutral">{formatCount(queue?.remaining ?? 0)} restant(s)</Tag>}
+              value={
+                <span className="t-num">
+                  {formatCount(queue?.queued ?? 0)} en attente · {formatCount(queue?.running ?? 0)} en cours
                 </span>
-                <span className={`status-pill ${isWorkerActive ? 'status-pill--online' : 'status-pill--pending'}`}>
-                  <span
-                    className={`status-dot ${
-                      isWorkerActive ? 'bg-emerald-500 animate-pulse' : 'bg-amber-500'
-                    }`}
-                  />
-                  {isWorkerActive ? 'Actif' : 'Inactif'}
-                </span>
-              </div>
-              <p className="mt-2 text-base font-extrabold text-slate-900 dark:text-white">
-                {isWorkerActive ? `PID ${worker?.pid} en cours` : 'Arrêté'}
-              </p>
-              <p className="mt-0.5 text-xs font-medium text-slate-700 dark:text-slate-300">
-                {isWorkerActive
-                  ? 'Traite les matchs de la file en continu.'
-                  : 'Lancez "npm run telemetry:worker" pour dépiler.'}
-              </p>
-            </div>
-
-            {/* État de la File live-sync */}
-            <div className="app-panel-muted p-3.5 border-l-4 border-l-indigo-500 border-indigo-200/40 dark:border-indigo-500/30">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  File en direct (Queue)
-                </span>
-                <span className="app-meta-pill">
-                  <ListOrdered className="h-3.5 w-3.5 opacity-70" />
-                  {queue?.remaining ?? 0} restant(s)
-                </span>
-              </div>
-              <div className="mt-2 flex items-baseline gap-2.5">
-                <span className="text-2xl font-black text-slate-900 dark:text-white">{queue?.queued ?? 0}</span>
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">en attente</span>
-                <span className="text-xl font-black text-indigo-700 dark:text-indigo-300 ml-2">{queue?.running ?? 0}</span>
-                <span className="text-xs font-semibold text-slate-700 dark:text-slate-300">en cours</span>
-              </div>
-              <p className="mt-0.5 text-xs font-medium text-slate-700 dark:text-slate-300">
-                {isWorkerActive && (statusData?.etaSeconds ?? 0) > 0
+              }
+              detail={
+                isWorkerActive && (statusData?.etaSeconds ?? 0) > 0
                   ? `Fin estimée dans ~${formatDuration(statusData?.etaSeconds ?? null)}`
-                  : `${queue?.success ?? 0} traités avec succès · ${queue?.failed ?? 0} échoués`}
-              </p>
-            </div>
-
-            {/* Planification Automatique */}
-            <div className="app-panel-muted p-3.5 border-l-4 border-l-blue-500 border-slate-200/60 dark:border-slate-700">
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Planification (Cron)
+                  : `${formatCount(queue?.success ?? 0)} réussis · ${formatCount(queue?.failed ?? 0)} échoués`
+              }
+            />
+            <StatusTile
+              label="Synchronisation"
+              tag={<Tag tone={scheduler?.syncEnabled ? 'pos' : 'neutral'}>{scheduler?.syncEnabled ? 'Automatique' : 'Désactivée'}</Tag>}
+              value={
+                <span className="inline-flex items-center gap-1.5">
+                  <Clock className="h-4 w-4 text-gray-500" aria-hidden="true" />
+                  Prochain passage ~{formatTime(scheduler?.nextDailySyncEstimate ?? null)}
                 </span>
-                <span className={`status-pill ${scheduler?.syncEnabled ? 'status-pill--online' : 'status-pill--offline'}`}>
-                  <span
-                    className={`status-dot ${
-                      scheduler?.syncEnabled ? 'bg-emerald-500' : 'bg-slate-400'
-                    }`}
-                  />
-                  {scheduler?.syncEnabled ? 'Sync Auto Activée' : 'Sync Désactivée'}
-                </span>
-              </div>
-              <p className="mt-2 text-sm font-extrabold text-slate-900 dark:text-white">
-                Prochain cron : ~{formatTime(scheduler?.nextDailySyncEstimate ?? null)}
-              </p>
-              <p className="mt-0.5 text-xs font-medium text-slate-700 dark:text-slate-300">
-                Quota auto : max {scheduler?.maxMatchesPerRun ?? 50} matchs / clan / nuit.
-              </p>
-            </div>
+              }
+              detail={`Au plus ${scheduler?.maxMatchesPerRun ?? 50} matchs par clan et par nuit.`}
+            />
           </div>
         )}
-      </section>
+      </SectionCard>
 
-      {/* --- VOLET 2 : COMPLÉTION RÉELLE & BACKLOG RESTANT (Progressive loading) --- */}
-      <section className="app-panel p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-          <div>
-            <div className="flex items-center gap-2">
-              <HardDriveDownload className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
-              <h2 className="text-base font-bold text-slate-900 dark:text-white">
-                Complétion Globale & Reste à Récupérer (Backlog)
-              </h2>
-            </div>
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5">
-              Analyse complète des matchs joués par les clans vs télémétries réellement ingérées.
-            </p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Bouton d'urgence : Sauver les matchs proches de 14j */}
-            {backlogData && backlogData.urgentBacklog > 0 && (
+      <SectionCard
+        id="telemetry-backlog"
+        icon={HardDriveDownload}
+        title="Complétion et reste à récupérer"
+        meta="Matchs joués par les clans suivis, comparés aux télémétries réellement analysées."
+        aside={
+          <>
+            {backlogData && backlogData.urgentBacklog > 0 ? (
               <button
                 type="button"
                 onClick={() => handleEnqueueBacklog({ urgentOnly: true })}
                 disabled={enqueuing || refreshing}
-                className="app-btn app-btn--sm bg-rose-600 hover:bg-rose-500 text-white border border-rose-500 gap-1.5 shadow-sm font-bold"
+                className="app-btn app-btn--sm app-btn--danger gap-1.5"
               >
-                <AlertTriangle className={`h-3.5 w-3.5 ${enqueuing ? 'animate-spin' : ''}`} />
-                {enqueuing ? 'Enqueuement...' : `Sauver les ${backlogData.urgentBacklog} urgents (<14j)`}
+                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
+                {enqueuing ? 'Mise en file…' : `Sauver les ${formatCount(backlogData.urgentBacklog)} urgents`}
               </button>
-            )}
-
-            {/* Bouton pour enqueuer tout le backlog récupérable */}
+            ) : null}
             <button
               type="button"
               onClick={() => handleEnqueueBacklog({ urgentOnly: false })}
               disabled={enqueuing || refreshing || !backlogData || backlogData.toQueueCount === 0}
-              className="app-btn app-btn--sm app-btn--primary gap-1.5 font-bold"
+              className="app-btn app-btn--sm app-btn--primary gap-1.5"
             >
-              <Zap className={`h-3.5 w-3.5 ${enqueuing ? 'animate-spin' : ''}`} />
+              <Zap className="h-3.5 w-3.5" aria-hidden="true" />
               {enqueuing
-                ? 'Mise en file...'
+                ? 'Mise en file…'
                 : backlogData && backlogData.toQueueCount > 0
-                ? `Enqueuer tout le restant (${backlogData.toQueueCount})`
-                : 'Tout le backlog est en file'}
+                  ? `Mettre en file le reste (${formatCount(backlogData.toQueueCount)})`
+                  : 'Tout est déjà en file'}
             </button>
-
-            {/* Rafraîchir tout */}
-            <button
-              type="button"
-              onClick={handleRefreshAll}
-              disabled={refreshing || enqueuing}
-              className="app-btn app-btn--sm app-btn--secondary gap-1.5 font-semibold"
-            >
-              <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} />
-              {refreshing ? 'Rafraîchissement...' : 'Rafraîchir'}
-            </button>
-          </div>
-        </div>
-
-        {/* Alerte Urgence PUBG 14 jours */}
-        {backlogData && backlogData.urgentBacklog > 0 && (
-          <div className="flex items-start gap-3 rounded-xl border-2 border-rose-500 bg-rose-50 dark:bg-rose-950/50 p-4 text-rose-950 dark:text-rose-100 shadow-sm">
-            <AlertTriangle className="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
-            <div className="text-xs space-y-1">
-              <p className="font-extrabold text-sm text-rose-900 dark:text-rose-100">
-                Attention : {backlogData.urgentBacklog} match(s) risquent d&apos;expirer définitivement !
-              </p>
-              <p className="text-rose-800 dark:text-rose-200 leading-relaxed font-medium">
-                L&apos;API PUBG purge les fichiers de télémétrie après 14 jours. Ces matchs datent de 7 à
-                13 jours : enclenchez leur récupération immédiatement avant qu&apos;ils ne soient perdus.
-              </p>
-            </div>
-          </div>
-        )}
-
-        {/* KPIs de complétion globale */}
-        {loadingBacklog ? (
-          <div className="space-y-3">
-            <div className="h-10 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50" />
-            <div className="grid gap-3 sm:grid-cols-5">
-              {[...Array(5)].map((_, i) => (
-                <div key={i} className="h-16 animate-pulse rounded-lg bg-slate-100 dark:bg-slate-800/50 p-3" />
-              ))}
-            </div>
-          </div>
-        ) : backlogData ? (
-          <div className="space-y-4">
-            {/* Jauge globale en grand */}
-            <div className="app-panel-muted p-4 border border-slate-200 dark:border-slate-700/80">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <div>
-                  <span className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                    Taux de complétion réel cross-clans
-                  </span>
-                  <div className="flex items-baseline gap-2.5 mt-1">
-                    <span className="text-3xl sm:text-4xl font-black text-indigo-700 dark:text-indigo-300">
-                      {formatPercent(backlogData.completionRate)}
-                    </span>
-                    <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">
-                      ({backlogData.completedMatches.toLocaleString()} /{' '}
-                      {(backlogData.totalMatches - backlogData.expiredMatches).toLocaleString()}{' '}
-                      matchs récupérables)
-                    </span>
-                  </div>
-                </div>
-
-                <div className="text-right text-xs">
-                  <p className="text-sm font-extrabold text-slate-900 dark:text-white">
-                    <strong>{backlogData.recoverableBacklog}</strong> match(s) restant(s) à récupérer
-                  </p>
-                  <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-0.5">
-                    {backlogData.inQueueCount} en file active · {backlogData.toQueueCount} à enqueuer
-                  </p>
-                </div>
-              </div>
-
-              {/* Barre de progression multiniveaux */}
-              <div className="mt-3.5 flex h-3.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
-                {/* Complétés avec succès */}
-                <div
-                  className="h-full bg-emerald-500 transition-all duration-500"
-                  style={{
-                    width: `${
-                      backlogData.totalMatches > 0
-                        ? (backlogData.completedMatches / backlogData.totalMatches) * 100
-                        : 0
-                    }%`,
-                  }}
-                  title={`Complétés: ${backlogData.completedMatches}`}
-                />
-                {/* En file active */}
-                <div
-                  className="h-full bg-indigo-500 transition-all duration-500"
-                  style={{
-                    width: `${
-                      backlogData.totalMatches > 0
-                        ? (backlogData.inQueueCount / backlogData.totalMatches) * 100
-                        : 0
-                    }%`,
-                  }}
-                  title={`En file active: ${backlogData.inQueueCount}`}
-                />
-                {/* À enqueuer */}
-                <div
-                  className="h-full bg-amber-400 transition-all duration-500"
-                  style={{
-                    width: `${
-                      backlogData.totalMatches > 0
-                        ? (backlogData.toQueueCount / backlogData.totalMatches) * 100
-                        : 0
-                    }%`,
-                  }}
-                  title={`À enqueuer: ${backlogData.toQueueCount}`}
-                />
-                {/* Expirés PUBG (>14j) */}
-                <div
-                  className="h-full bg-slate-400 dark:bg-slate-500 transition-all duration-500"
-                  style={{
-                    width: `${
-                      backlogData.totalMatches > 0
-                        ? (backlogData.expiredMatches / backlogData.totalMatches) * 100
-                        : 0
-                    }%`,
-                  }}
-                  title={`Expirés >14j (non récupérables): ${backlogData.expiredMatches}`}
-                />
-              </div>
-
-              <div className="mt-2.5 flex flex-wrap items-center gap-x-5 gap-y-1 text-xs">
-                <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-                  <span className="h-2.5 w-2.5 rounded-full bg-emerald-500 shrink-0" />
-                  {backlogData.completedMatches} complétés
-                </span>
-                <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-                  <span className="h-2.5 w-2.5 rounded-full bg-indigo-500 shrink-0" />
-                  {backlogData.inQueueCount} en file
-                </span>
-                <span className="flex items-center gap-1.5 font-semibold text-slate-800 dark:text-slate-200">
-                  <span className="h-2.5 w-2.5 rounded-full bg-amber-400 shrink-0" />
-                  {backlogData.toQueueCount} à enqueuer
-                </span>
-                <span className="flex items-center gap-1.5 font-semibold text-slate-700 dark:text-slate-300">
-                  <span className="h-2.5 w-2.5 rounded-full bg-slate-400 dark:bg-slate-500 shrink-0" />
-                  {backlogData.expiredMatches} expirés PUBG (&gt;14j)
-                </span>
-              </div>
-            </div>
-
-            {/* Cartes métriques détaillées selon le pattern design system .app-panel-muted avec bordures accentuées */}
-            <div className="grid gap-2.5 sm:grid-cols-5 text-sm">
-              <div className="app-panel-muted p-3.5 border-l-4 border-l-blue-500 border-slate-200/60 dark:border-slate-700">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Total Matchs Éligibles</p>
-                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">{backlogData.totalMatches}</p>
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5">Historique non casual</p>
-              </div>
-
-              <div className="app-panel-muted p-3.5 border-l-4 border-l-emerald-500 border-emerald-300/40 dark:border-emerald-500/30">
-                <p className="text-xs font-bold uppercase tracking-wider text-emerald-800 dark:text-emerald-300">Télémétries Validées</p>
-                <p className="mt-1 text-2xl font-black text-emerald-700 dark:text-emerald-200">
-                  {backlogData.completedMatches}
-                </p>
-                <p className="text-xs font-semibold text-emerald-800 dark:text-emerald-300 mt-0.5">
-                  {formatPercent(backlogData.completionRate)} des vivants
-                </p>
-              </div>
-
-              <div className="app-panel-muted p-3.5 border-l-4 border-l-indigo-500 border-indigo-300/40 dark:border-indigo-500/30">
-                <p className="text-xs font-bold uppercase tracking-wider text-indigo-800 dark:text-indigo-300">Dans la File (Queue)</p>
-                <p className="mt-1 text-2xl font-black text-indigo-700 dark:text-indigo-200">
-                  {backlogData.inQueueCount}
-                </p>
-                <p className="text-xs font-semibold text-indigo-800 dark:text-indigo-300 mt-0.5">En cours de dépilage</p>
-              </div>
-
-              <div className="app-panel-muted p-3.5 border-l-4 border-l-amber-500 border-amber-300/40 dark:border-amber-500/30">
-                <p className="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300">Reste à Enqueuer</p>
-                <p className="mt-1 text-2xl font-black text-amber-700 dark:text-amber-200">
-                  {backlogData.toQueueCount}
-                </p>
-                <p className="text-xs font-semibold text-amber-800 dark:text-amber-300 mt-0.5">Matchs vivants &lt; 14 jours</p>
-              </div>
-
-              <div className="app-panel-muted p-3.5 border-l-4 border-l-slate-400 border-slate-200/60 dark:border-slate-700">
-                <p className="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-300">Expirés Définitifs</p>
-                <p className="mt-1 text-2xl font-black text-slate-900 dark:text-white">
-                  {backlogData.expiredMatches}
-                </p>
-                <p className="text-xs font-medium text-slate-600 dark:text-slate-400 mt-0.5">Plus de 14 jours PUBG</p>
-              </div>
-            </div>
-          </div>
+          </>
+        }
+      >
+        {backlogData && backlogData.urgentBacklog > 0 ? (
+          <Callout tone="warn" icon={AlertTriangle} title={`${formatCount(backlogData.urgentBacklog)} match(s) risquent d’expirer`}>
+            PUBG supprime les fichiers de télémétrie après 14 jours. Ces matchs ont entre 7 et 13 jours : les mettre en file
+            maintenant, avant qu’ils ne soient perdus.
+          </Callout>
         ) : null}
-      </section>
 
-      {/* --- VOLET 3 : RÉPARTITION PAR CLAN & HISTORIQUE RÉCENT --- */}
-      <section className="app-panel p-5 space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 dark:border-slate-800 pb-3">
-          <div>
-            <h2 className="text-base font-bold text-slate-900 dark:text-white">
-              Répartition par Clan & Activité Récente
-            </h2>
-            <p className="text-xs font-medium text-slate-600 dark:text-slate-300 mt-0.5">
-              Complétion du clan et détail des tentatives sur la fenêtre sélectionnée.
-            </p>
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Fenêtre d&apos;activité :</span>
-            <SegmentedControl
-              size="sm"
-              value={window}
-              onChange={(value) => setWindow(value)}
-              options={WINDOW_OPTIONS}
-            />
-          </div>
-        </div>
-
-        {/* Liste des clans */}
-        <div className="space-y-3">
-          {loadingBacklog && loadingOverview ? (
-            <div className="space-y-2">
-              <div className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/50" />
-              <div className="h-24 animate-pulse rounded-xl bg-slate-100 dark:bg-slate-800/50" />
+        {loadingBacklog ? (
+          <ListSkeleton rows={3} />
+        ) : backlogData ? (
+          <>
+            <div className="app-panel-muted flex flex-col gap-2.5 px-3.5 py-3">
+              <div className="flex flex-wrap items-end justify-between gap-2">
+                <span className="flex flex-col gap-0.5">
+                  <span className="t-label">Taux de complétion réel</span>
+                  <span className="flex flex-wrap items-baseline gap-2">
+                    <span className="t-hero t-hero--md text-gray-900">{formatPercent(backlogData.completionRate)}</span>
+                    <span className="t-meta t-num">
+                      {formatCount(backlogData.completedMatches)} / {formatCount(backlogData.totalMatches - backlogData.expiredMatches)} matchs
+                      récupérables
+                    </span>
+                  </span>
+                </span>
+                <span className="t-meta t-num text-right">
+                  <span className="font-semibold text-gray-900">{formatCount(backlogData.recoverableBacklog)}</span> restant(s) ·{' '}
+                  {formatCount(backlogData.inQueueCount)} en file · {formatCount(backlogData.toQueueCount)} à mettre en file
+                </span>
+              </div>
+              <CompletionBar
+                total={backlogData.totalMatches}
+                completed={backlogData.completedMatches}
+                inQueue={backlogData.inQueueCount}
+                toQueue={backlogData.toQueueCount}
+                expired={backlogData.expiredMatches}
+                thick
+              />
+              <span className="t-meta t-num flex flex-wrap gap-x-4 gap-y-1">
+                <LegendDot color={SEGMENT_COLORS.completed}>{formatCount(backlogData.completedMatches)} validés</LegendDot>
+                <LegendDot color={SEGMENT_COLORS.inQueue}>{formatCount(backlogData.inQueueCount)} en file</LegendDot>
+                <LegendDot color={SEGMENT_COLORS.toQueue}>{formatCount(backlogData.toQueueCount)} à mettre en file</LegendDot>
+                <LegendDot color={SEGMENT_COLORS.expired}>{formatCount(backlogData.expiredMatches)} expirés (plus de 14 jours)</LegendDot>
+              </span>
             </div>
-          ) : !backlogData || backlogData.clans.length === 0 ? (
-            <p className="app-panel-muted p-4 text-sm font-semibold text-slate-700 dark:text-slate-300">
-              Aucun clan suivi n&apos;a été trouvé.
-            </p>
-          ) : (
-            backlogData.clans.map((clan) => {
+            <KpiGrid items={backlogKpis} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-5" />
+          </>
+        ) : (
+          <EmptyState icon={HardDriveDownload} title="Bilan indisponible" text="Le calcul du reste à récupérer n’a pas répondu ; réessayer avec « Actualiser »." />
+        )}
+      </SectionCard>
+
+      <SectionCard
+        id="telemetry-clans"
+        icon={Users}
+        title="Par clan"
+        meta={`Complétion de chaque clan suivi et tentatives de récupération sur ${WINDOW_LABELS[window]}.`}
+        aside={<SegmentedControl size="sm" value={window} onChange={(value) => setWindow(value)} options={WINDOW_OPTIONS} />}
+      >
+        {loadingBacklog && loadingOverview ? (
+          <ListSkeleton rows={3} />
+        ) : !backlogData || backlogData.clans.length === 0 ? (
+          <EmptyState icon={Users} title="Aucun clan suivi" />
+        ) : (
+          <ul className="m-0 flex list-none flex-col gap-2 p-0">
+            {backlogData.clans.map((clan) => {
               // Réconciliation avec la fenêtre récente
               const windowStat = windowClans.find((w) => w.clanId === clan.clanId)
               const hasUrgent = clan.urgentBacklog > 0
-              const isLowCompletion =
-                clan.completionRate !== null && clan.completionRate < 80
+              const isLowCompletion = clan.completionRate !== null && clan.completionRate < 80
 
               return (
-                <div
+                <li
                   key={clan.clanId}
-                  className={`app-panel-muted p-4 text-sm transition-all border border-slate-200 dark:border-slate-700/80 ${
+                  className="app-panel-muted flex flex-col gap-2 px-3.5 py-3"
+                  style={
                     hasUrgent
-                      ? 'border-l-4 border-l-rose-500 border-rose-300/50 dark:border-rose-800/60'
+                      ? { borderColor: 'color-mix(in srgb, var(--game-neg) 55%, transparent)' }
                       : isLowCompletion
-                      ? 'border-l-4 border-l-amber-500 border-amber-300/40 dark:border-amber-800/50'
-                      : ''
-                  }`}
+                        ? { borderColor: 'color-mix(in srgb, var(--game-warn) 55%, transparent)' }
+                        : undefined
+                  }
                 >
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="flex items-center gap-2 font-black text-slate-900 dark:text-white text-base">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <div className="flex min-w-0 flex-col gap-0.5">
+                      <span className="flex items-center gap-1.5">
                         {hasUrgent ? (
-                          <AlertTriangle className="h-4 w-4 shrink-0 text-rose-600 dark:text-rose-400" />
+                          <AlertTriangle className="h-4 w-4 shrink-0" style={{ color: 'var(--game-neg)' }} aria-hidden="true" />
                         ) : null}
-                        {clan.clanName}{' '}
-                        <span className="text-slate-600 dark:text-slate-300 font-normal">[{clan.clanTag}]</span>
-                      </p>
-                      <p className="text-xs font-medium text-slate-700 dark:text-slate-300 mt-1">
-                        Complétion :{' '}
-                        <strong className="text-slate-900 dark:text-white font-bold">
-                          {clan.completedMatches} / {clan.totalMatches - clan.expiredMatches}
-                        </strong>{' '}
-                        matchs ({formatPercent(clan.completionRate)}) ·{' '}
-                        <span className="text-indigo-700 dark:text-indigo-300 font-extrabold">
-                          {clan.recoverableBacklog} restant(s)
-                        </span>{' '}
-                        ({clan.inQueueCount} en file, <span className="text-amber-700 dark:text-amber-300 font-bold">{clan.toQueueCount} à enqueuer</span>)
-                      </p>
+                        <span className="shrink-0 font-mono font-bold text-gray-900">[{clan.clanTag}]</span>
+                        <span className="t-card-title truncate">{clan.clanName}</span>
+                      </span>
+                      <span className="t-meta t-num">
+                        {formatCount(clan.completedMatches)} / {formatCount(clan.totalMatches - clan.expiredMatches)} matchs (
+                        {formatPercent(clan.completionRate)}) · {formatCount(clan.recoverableBacklog)} restant(s) dont{' '}
+                        {formatCount(clan.inQueueCount)} en file et {formatCount(clan.toQueueCount)} à mettre en file
+                      </span>
                     </div>
-
-                    <div className="flex flex-wrap items-center gap-2 text-xs">
-                      {/* Badge Urgent */}
-                      {clan.urgentBacklog > 0 && (
-                        <span className="status-pill status-pill--error">
-                          <AlertTriangle className="h-3.5 w-3.5" />
-                          {clan.urgentBacklog} urgent(s) (&lt;14j)
-                        </span>
-                      )}
-
-                      {/* Action enqueuer ce clan */}
-                      {clan.toQueueCount > 0 && (
+                    <div className="flex flex-wrap items-center gap-2">
+                      {hasUrgent ? <Tag tone="neg">{formatCount(clan.urgentBacklog)} urgent(s)</Tag> : null}
+                      {clan.toQueueCount > 0 ? (
                         <button
                           type="button"
-                          onClick={() =>
-                            handleEnqueueBacklog({ clanId: clan.clanId, urgentOnly: false })
-                          }
+                          onClick={() => handleEnqueueBacklog({ clanId: clan.clanId, urgentOnly: false })}
                           disabled={enqueuing}
-                          className="app-btn app-btn--xs app-btn--primary gap-1"
+                          className="app-btn app-btn--xs app-btn--secondary gap-1"
                         >
-                          <Play className="h-3 w-3" />
-                          Enqueuer {clan.toQueueCount}
+                          <Play className="h-3 w-3" aria-hidden="true" />
+                          Mettre en file {formatCount(clan.toQueueCount)}
                         </button>
-                      )}
-
-                      {/* Lien détail clan */}
-                      <Link
-                        href={`/clans/${clan.clanId}/settings/data/recoveries`}
-                        className="app-btn app-btn--xs app-btn--secondary gap-1"
-                      >
-                        Détail clan
-                        <ArrowRight className="h-3 w-3" />
+                      ) : null}
+                      <Link href={`/clans/${clan.clanId}/settings/data/recoveries`} className="app-btn app-btn--xs app-btn--secondary gap-1">
+                        Détail du clan
+                        <ArrowRight className="h-3 w-3" aria-hidden="true" />
                       </Link>
                     </div>
                   </div>
 
-                  {/* Barre de complétion du clan */}
-                  <div className="mt-3 flex h-2.5 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800 border border-slate-300 dark:border-slate-700">
-                    <div
-                      className="h-full bg-emerald-500"
-                      style={{
-                        width: `${
-                          clan.totalMatches > 0
-                            ? (clan.completedMatches / clan.totalMatches) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                    <div
-                      className="h-full bg-indigo-500"
-                      style={{
-                        width: `${
-                          clan.totalMatches > 0
-                            ? (clan.inQueueCount / clan.totalMatches) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                    <div
-                      className="h-full bg-amber-400"
-                      style={{
-                        width: `${
-                          clan.totalMatches > 0
-                            ? (clan.toQueueCount / clan.totalMatches) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                    <div
-                      className="h-full bg-slate-400 dark:bg-slate-500"
-                      style={{
-                        width: `${
-                          clan.totalMatches > 0
-                            ? (clan.expiredMatches / clan.totalMatches) * 100
-                            : 0
-                        }%`,
-                      }}
-                    />
-                  </div>
+                  <CompletionBar
+                    total={clan.totalMatches}
+                    completed={clan.completedMatches}
+                    inQueue={clan.inQueueCount}
+                    toQueue={clan.toQueueCount}
+                    expired={clan.expiredMatches}
+                  />
 
-                  {/* Activité récente sur la fenêtre sélectionnée */}
-                  {windowStat ? (
-                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-2 border-t border-slate-200 dark:border-slate-700/80 pt-2 text-xs font-medium text-slate-700 dark:text-slate-300">
-                      <span>
-                        Activité fenêtre <strong className="text-slate-900 dark:text-white">{window}</strong> : {windowStat.total}{' '}
-                        tentative(s) (taux de succès {formatPercent(windowStat.successRate)})
-                      </span>
-                      <div className="flex items-center gap-1.5">
-                        {windowStat.failed > 0 && (
-                          <span className="status-pill status-pill--error" style={{ padding: '0.125rem 0.5rem', fontSize: '0.7rem' }}>
-                            <span className="status-dot bg-rose-500" style={{ width: '0.375rem', height: '0.375rem' }} />
-                            {windowStat.failed} échec(s)
-                          </span>
-                        )}
-                        {windowStat.expired > 0 && (
-                          <span className="status-pill status-pill--offline" style={{ padding: '0.125rem 0.5rem', fontSize: '0.7rem' }}>
-                            <span className="status-dot bg-slate-400" style={{ width: '0.375rem', height: '0.375rem' }} />
-                            {windowStat.expired} expiré(s)
-                          </span>
-                        )}
-                        <span className="status-pill status-pill--online" style={{ padding: '0.125rem 0.5rem', fontSize: '0.7rem' }}>
-                          <span className="status-dot bg-emerald-500" style={{ width: '0.375rem', height: '0.375rem' }} />
-                          {windowStat.success} succès
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-t border-gray-200 pt-2">
+                    {windowStat ? (
+                      <>
+                        <span className="t-meta t-num">
+                          {formatCount(windowStat.total)} tentative(s) · taux de succès {formatPercent(windowStat.successRate)}
                         </span>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="mt-2.5 border-t border-slate-200 dark:border-slate-700/80 pt-2 text-xs font-medium text-slate-600 dark:text-slate-400">
-                      Aucune tentative sur la fenêtre {window}.
-                    </div>
-                  )}
-                </div>
+                        <span className="flex flex-wrap items-center gap-1.5">
+                          {windowStat.failed > 0 ? <Tag tone="neg">{formatCount(windowStat.failed)} échec(s)</Tag> : null}
+                          {windowStat.expired > 0 ? <Tag tone="neutral">{formatCount(windowStat.expired)} expiré(s)</Tag> : null}
+                          <Tag tone="pos">{formatCount(windowStat.success)} succès</Tag>
+                        </span>
+                      </>
+                    ) : (
+                      <span className="t-meta">Aucune tentative sur {WINDOW_LABELS[window]}.</span>
+                    )}
+                  </div>
+                </li>
               )
-            })
-          )}
-        </div>
-      </section>
-    </main>
+            })}
+          </ul>
+        )}
+      </SectionCard>
+
+      <ToastStack toasts={toasts} onDismiss={() => setActionMessage(null)} />
+    </div>
   )
 }

@@ -1,25 +1,14 @@
 'use client'
 
-import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Clock,
-  KeyRound,
-  Mail,
-  MailCheck,
-  MailWarning,
-  RefreshCw,
-  Send,
-  ShieldOff,
-  XCircle,
-} from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, KeyRound, Mail, MailCheck, MailWarning, RefreshCw, Send, ShieldOff, XCircle } from 'lucide-react'
 
+import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
+import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
+import { ADMIN_PAGE_CLASS, AdminPageLoading, AdminPageRestricted, FormFeedback } from '@/components/settings/AdminPageStates'
+import { Callout, ConfirmDialog, SectionCard } from '@/components/ui/CharteKit'
 import { useAuthSession } from '@/hooks/useAuthSession'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 
 type EmailDeliveryStatus = {
   ready: boolean
@@ -78,31 +67,11 @@ function formatDateTime(value: string | null) {
   })
 }
 
-function StatTile({
-  icon: Icon,
-  tone,
-  label,
-  value,
-  sub,
-}: {
-  icon: typeof Mail
-  tone: string
-  label: string
-  value: string
-  sub?: string | null
-}) {
-  return (
-    <div className="app-panel-muted min-w-0 rounded-2xl px-4 py-3">
-      <div className={`mb-2 inline-flex h-9 w-9 items-center justify-center rounded-lg ${tone}`}>
-        <Icon className="h-5 w-5" aria-hidden="true" />
-      </div>
-      <p className="truncate text-lg font-black leading-tight text-gray-900">{value}</p>
-      <p className="mt-1 text-[11px] uppercase tracking-wide text-gray-500">{label}</p>
-      {sub ? <p className="mt-1 truncate text-xs text-gray-500">{sub}</p> : null}
-    </div>
-  )
-}
-
+/**
+ * Envoi d'e-mails de la plateforme (SuperUser), selon la charte UI (docs/ui/index.html) : état de la configuration
+ * SMTP, variables `.env` attendues, e-mail de test. Un test réussi affiche les invitations par e-mail dans la gestion
+ * des membres ; la révocation les masque à nouveau.
+ */
 export default function EmailDeliverySettingsPage() {
   const router = useRouter()
   const { loading, authenticated, isSuperUser, email } = useAuthSession()
@@ -111,6 +80,7 @@ export default function EmailDeliverySettingsPage() {
   const [statusLoaded, setStatusLoaded] = useState(false)
   const [testing, setTesting] = useState(false)
   const [revoking, setRevoking] = useState(false)
+  const [revokeDialogOpen, setRevokeDialogOpen] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [testEmail, setTestEmail] = useState('')
   const [error, setError] = useState('')
@@ -131,7 +101,7 @@ export default function EmailDeliverySettingsPage() {
     const payload = (await response.json().catch(() => null)) as EmailDeliveryStatus | null
 
     if (!response.ok) {
-      throw new Error('Impossible de charger le statut email')
+      throw new Error('Impossible de charger l’état de l’envoi d’e-mails')
     }
 
     setStatus(payload ?? INITIAL_STATUS)
@@ -156,7 +126,7 @@ export default function EmailDeliverySettingsPage() {
         await loadStatus()
       } catch (loadError) {
         if (!cancelled) {
-          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger le statut email')
+          setError(loadError instanceof Error ? loadError.message : 'Impossible de charger l’état de l’envoi d’e-mails')
         }
       } finally {
         if (!cancelled) {
@@ -180,9 +150,9 @@ export default function EmailDeliverySettingsPage() {
       setError('')
       setSuccess('')
       await loadStatus()
-      setSuccess('Statut email recharge depuis la configuration actuelle.')
+      setSuccess('État rechargé depuis la configuration actuelle.')
     } catch (refreshError) {
-      setError(refreshError instanceof Error ? refreshError.message : 'Impossible de recharger le statut email')
+      setError(refreshError instanceof Error ? refreshError.message : 'Impossible de recharger l’état')
     } finally {
       setRefreshing(false)
     }
@@ -193,7 +163,7 @@ export default function EmailDeliverySettingsPage() {
 
     const recipient = (testEmail || email || '').trim()
     if (!recipient) {
-      setError('Veuillez renseigner une adresse email de test.')
+      setError('Renseigner une adresse pour l’e-mail de test.')
       return
     }
 
@@ -215,7 +185,7 @@ export default function EmailDeliverySettingsPage() {
         | null
 
       if (!response.ok) {
-        throw new Error(payload?.error ?? 'Échec du test email')
+        throw new Error(payload?.error ?? 'Échec de l’e-mail de test')
       }
 
       setStatus({
@@ -226,9 +196,9 @@ export default function EmailDeliverySettingsPage() {
         env: payload?.env ?? INITIAL_STATUS.env,
       })
       setLastDelivery(payload?.delivery ?? null)
-      setSuccess(payload?.message ?? 'Email de test envoye avec succès.')
+      setSuccess(payload?.message ?? 'E-mail de test envoyé.')
     } catch (testError) {
-      setError(testError instanceof Error ? testError.message : 'Échec du test email')
+      setError(testError instanceof Error ? testError.message : 'Échec de l’e-mail de test')
       setStatus((current) => ({
         ...current,
         ready: false,
@@ -263,7 +233,8 @@ export default function EmailDeliverySettingsPage() {
         lastError: payload?.lastError ?? null,
         env: payload?.env ?? INITIAL_STATUS.env,
       })
-      setSuccess(payload?.message ?? 'Validation email revoquee.')
+      setSuccess(payload?.message ?? 'Validation révoquée.')
+      setRevokeDialogOpen(false)
     } catch (revokeError) {
       setError(revokeError instanceof Error ? revokeError.message : 'Échec de la révocation')
     } finally {
@@ -272,11 +243,7 @@ export default function EmailDeliverySettingsPage() {
   }
 
   if (loading || loadingData) {
-    return (
-      <main className="mx-auto flex w-full max-w-4xl flex-1 items-center justify-center px-4 py-12">
-        <p className="text-sm text-gray-600">Chargement de la configuration email...</p>
-      </main>
-    )
+    return <AdminPageLoading />
   }
 
   if (!authenticated) {
@@ -284,217 +251,186 @@ export default function EmailDeliverySettingsPage() {
   }
 
   if (!canManageEmail) {
-    return (
-      <main className="mx-auto w-full max-w-3xl flex-1 px-4 py-10">
-        <section className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
-          <div className="flex items-center gap-2">
-            <ShieldOff className="h-5 w-5 text-amber-700" aria-hidden="true" />
-            <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
-          </div>
-          <p className="mt-2 text-sm text-amber-800">
-            Cette page est réservée au SuperUser.
-          </p>
-          <Link href="/" className="mt-5 app-btn app-btn--md app-btn--secondary">
-            Retour à l&apos;accueil
-          </Link>
-        </section>
-      </main>
-    )
+    return <AdminPageRestricted />
   }
 
+  const kpis: Kpi[] = [
+    {
+      label: 'État',
+      value: status.ready ? 'Opérationnel' : 'Non validé',
+      detail: status.ready ? 'invitations par e-mail affichées' : 'aucun test réussi en cours de validité',
+      icon: status.ready ? MailCheck : MailWarning,
+      color: status.ready ? 'var(--game-pos)' : 'var(--game-warn)',
+    },
+    {
+      label: 'Dernier succès',
+      value: formatDateTime(status.lastSuccessAt),
+      detail: status.lastTestRecipient ?? 'aucun envoi réussi',
+      icon: Clock,
+      color: 'var(--game-sky)',
+    },
+    {
+      label: 'Dernière erreur',
+      value: status.lastError ? 'Oui' : 'Aucune',
+      detail: status.lastError ?? 'rien à signaler',
+      icon: AlertTriangle,
+      color: status.lastError ? 'var(--game-neg)' : 'var(--theme-ui-text-muted)',
+    },
+  ]
+
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Test de livraison email"
+    <div className={ADMIN_PAGE_CLASS}>
+      <AdminPageBanner
+        title="Envoi d’e-mails"
+        subtitle="Un e-mail de test réussi affiche les invitations par e-mail dans la gestion des membres."
+        icon={Mail}
+        image="/recall%202.jpg"
         currentHref="/settings/email-delivery"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-      <section className="app-panel p-4">
-        <SettingsPageHeader
-          title="Test de livraison email"
-          subtitle="Lancez un email de test. Une fois le test réussi, les boutons d'invitation sont affichés dans la gestion des membres."
-          actions={
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <span key="state" className="inline-flex items-center gap-1.5">
             <span
-              className={`inline-flex items-center gap-1.5 rounded-full border px-3 py-1 text-xs font-semibold ${
-                status.ready
-                  ? 'border-emerald-200 bg-emerald-50 text-emerald-700'
-                  : 'border-amber-200 bg-amber-50 text-amber-700'
-              }`}
-            >
-              {status.ready ? (
-                <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" />
-              ) : (
-                <AlertTriangle className="h-3.5 w-3.5" aria-hidden="true" />
-              )}
-              {status.ready ? 'Configuration validée' : 'Configuration non validée'}
-            </span>
-          }
-        />
-      </section>
+              className="h-2 w-2 rounded-full"
+              style={{ backgroundColor: status.ready ? 'var(--game-pos)' : 'var(--game-warn)' }}
+              aria-hidden="true"
+            />
+            {status.ready ? 'Configuration validée' : 'Configuration non validée'}
+          </span>,
+          'Réservé au SuperUser',
+        ]}
+        action={
+          <button type="button" onClick={() => void handleRefreshStatus()} disabled={refreshing} className={BANNER_GLASS_BUTTON}>
+            <RefreshCw className={`h-3.5 w-3.5 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Recharger l’état
+          </button>
+        }
+      />
 
-      <section className="app-panel p-5">
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
-          <StatTile
-            icon={status.ready ? MailCheck : MailWarning}
-            tone={status.ready ? 'bg-emerald-500/15 text-emerald-500' : 'bg-amber-500/15 text-amber-500'}
-            label="Statut"
-            value={status.ready ? 'Opérationnel' : 'Non validé'}
-          />
-          <StatTile
-            icon={Clock}
-            tone="bg-blue-500/15 text-blue-500"
-            label="Dernier succès"
-            value={formatDateTime(status.lastSuccessAt)}
-            sub={status.lastTestRecipient}
-          />
-          <StatTile
-            icon={AlertTriangle}
-            tone={status.lastError ? 'bg-rose-500/15 text-rose-500' : 'bg-gray-400/15 text-gray-400'}
-            label="Dernière erreur"
-            value={status.lastError ? 'Oui' : 'Aucune'}
-            sub={status.lastError}
-          />
-        </div>
-      </section>
+      <KpiGrid items={kpis} className="grid-cols-1 sm:grid-cols-3" />
 
-      <section className="app-panel overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-gray-200 px-5 py-4">
-          <KeyRound className="h-5 w-5 text-gray-500" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-gray-900">Paramètres .env requis</h2>
-        </div>
-
-        <div className="px-5">
+      <SectionCard
+        id="email-env-title"
+        icon={KeyRound}
+        title="Variables .env requises"
+        meta="Lues au démarrage du serveur ; les valeurs sensibles sont masquées."
+      >
+        <ul className="m-0 flex list-none flex-col p-0">
           {status.env.items.map((item, index) => (
-            <div
+            <li
               key={item.key}
-              className={[
-                'flex items-center justify-between gap-3 py-2.5',
-                index > 0 ? 'border-t border-gray-200' : '',
-              ].join(' ')}
+              className={`flex items-center justify-between gap-3 py-2 ${index > 0 ? 'border-t border-gray-200' : ''}`}
             >
-              <div className="flex min-w-0 items-center gap-2">
+              <span className="flex min-w-0 items-center gap-2">
                 {item.isSet ? (
-                  <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" aria-hidden="true" />
+                  <CheckCircle2 className="h-4 w-4 shrink-0" style={{ color: 'var(--game-pos)' }} aria-label="Renseignée" />
                 ) : (
-                  <XCircle className="h-4 w-4 shrink-0 text-rose-500" aria-hidden="true" />
+                  <XCircle className="h-4 w-4 shrink-0" style={{ color: 'var(--game-neg)' }} aria-label="Manquante" />
                 )}
                 <span className="truncate font-mono text-xs text-gray-700">{item.key}</span>
-              </div>
-              <span className={`truncate text-xs ${item.isSet ? 'text-gray-500' : 'font-medium text-rose-600'}`}>
-                {item.value ?? '(vide)'}
               </span>
-            </div>
+              <span className={`t-meta truncate ${item.isSet ? '' : 't-neg font-semibold'}`}>{item.value ?? '(vide)'}</span>
+            </li>
           ))}
-        </div>
+        </ul>
 
         {!status.env.allRequiredSet ? (
-          <div className="m-5 mt-3 rounded-xl border border-amber-200 bg-amber-50 p-4">
-            <div className="flex items-center gap-2 text-sm font-semibold text-amber-900">
-              <AlertTriangle className="h-4 w-4" aria-hidden="true" />
-              Configuration incomplète
-            </div>
-            <p className="mt-1 text-sm text-amber-800">
-              Complétez votre fichier .env puis rechargez la page.
-            </p>
-            <p className="mt-3 text-xs font-semibold uppercase tracking-wide text-amber-800">Exemple .env</p>
-            <pre className="mt-1 overflow-x-auto rounded-lg border border-amber-200 bg-white p-3 text-xs text-gray-700">
-              {status.env.example}
-            </pre>
-          </div>
+          <Callout tone="warn" icon={AlertTriangle} title="Configuration incomplète">
+            Compléter le fichier .env, redémarrer le serveur puis recharger l’état.
+            <pre className="app-panel-muted mt-2 whitespace-pre-wrap break-all p-3 font-mono text-xs text-gray-700">{status.env.example}</pre>
+          </Callout>
         ) : null}
-      </section>
+      </SectionCard>
 
-      <section className="app-panel overflow-hidden">
-        <div className="flex items-center gap-2 border-b border-gray-200 px-5 py-4">
-          <Send className="h-5 w-5 text-blue-500" aria-hidden="true" />
-          <h2 className="text-base font-semibold text-gray-900">Envoyer un email de test</h2>
-        </div>
-
-        <form className="space-y-4 p-5" onSubmit={handleRunTest}>
-          <label className="block text-sm font-medium text-gray-700">
-            Adresse email de test
-            <div className="relative mt-1">
-              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400" aria-hidden="true" />
+      <form onSubmit={handleRunTest}>
+        <SectionCard id="email-test-title" icon={Send} title="E-mail de test" meta="Sans adresse saisie, le test part vers l’adresse de votre compte.">
+          <label className="flex flex-col gap-1 sm:max-w-md">
+            <span className="t-label">Adresse de test</span>
+            <span className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" aria-hidden="true" />
               <input
                 type="email"
                 value={testEmail}
                 onChange={(event) => setTestEmail(event.target.value)}
-                className="w-full rounded-xl border border-gray-300 bg-white py-2 pl-9 pr-3 text-sm text-gray-900"
-                placeholder="admin@exemple.com"
+                className="app-input pl-9"
+                placeholder={email || 'admin@exemple.com'}
                 disabled={testing}
               />
-            </div>
+            </span>
           </label>
 
-          {error ? (
-            <p className="flex items-center gap-1.5 text-sm text-rose-700">
-              <XCircle className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {error}
-            </p>
-          ) : null}
-          {success ? (
-            <p className="flex items-center gap-1.5 text-sm text-emerald-700">
-              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
-              {success}
-            </p>
-          ) : null}
-
           {lastDelivery ? (
-            <div className="rounded-xl border border-gray-200 bg-gray-50 p-4 text-xs text-gray-700">
-              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-gray-500">Dernier envoi</p>
-              <div className="space-y-1">
-                <p>
-                  Mode d&apos;envoi :{' '}
-                  <span className="font-medium text-gray-900">
-                    {lastDelivery.mode === 'smtp' ? 'SMTP réel' : "Simulation locale (pas d'email sortant)"}
-                  </span>
-                </p>
-                <p>
-                  Destinataire : <span className="font-medium text-gray-900">{lastDelivery.to}</span>
-                </p>
-                {lastDelivery.messageId ? <p>Message ID : {lastDelivery.messageId}</p> : null}
+            <div className="app-panel-muted flex flex-col gap-1.5 px-3.5 py-3">
+              <span className="t-label">Dernier envoi</span>
+              <dl className="t-body m-0 grid gap-x-3 gap-y-1 text-gray-700 sm:grid-cols-[max-content_minmax(0,1fr)]">
+                <dt className="text-gray-500">Mode</dt>
+                <dd className="m-0 font-semibold text-gray-900">
+                  {lastDelivery.mode === 'smtp' ? 'SMTP réel' : 'Simulation locale (aucun e-mail sortant)'}
+                </dd>
+                <dt className="text-gray-500">Destinataire</dt>
+                <dd className="m-0 break-all font-semibold text-gray-900">{lastDelivery.to}</dd>
+                {lastDelivery.messageId ? (
+                  <>
+                    <dt className="text-gray-500">Identifiant</dt>
+                    <dd className="m-0 break-all font-mono text-xs">{lastDelivery.messageId}</dd>
+                  </>
+                ) : null}
                 {lastDelivery.accepted && lastDelivery.accepted.length > 0 ? (
-                  <p>Acceptés SMTP : {lastDelivery.accepted.join(', ')}</p>
+                  <>
+                    <dt className="text-gray-500">Acceptés</dt>
+                    <dd className="m-0 break-all">{lastDelivery.accepted.join(', ')}</dd>
+                  </>
                 ) : null}
                 {lastDelivery.rejected && lastDelivery.rejected.length > 0 ? (
-                  <p className="text-rose-700">Rejetés SMTP : {lastDelivery.rejected.join(', ')}</p>
+                  <>
+                    <dt className="text-gray-500">Rejetés</dt>
+                    <dd className="t-neg m-0 break-all">{lastDelivery.rejected.join(', ')}</dd>
+                  </>
                 ) : null}
-                {lastDelivery.reason ? <p>Détail : {lastDelivery.reason}</p> : null}
-              </div>
+                {lastDelivery.reason ? (
+                  <>
+                    <dt className="text-gray-500">Détail</dt>
+                    <dd className="m-0">{lastDelivery.reason}</dd>
+                  </>
+                ) : null}
+              </dl>
             </div>
           ) : null}
 
-          <div className="flex flex-wrap items-center gap-3 border-t border-gray-100 pt-4">
+          <div className="flex flex-wrap items-center gap-3">
             {status.env.allRequiredSet ? (
               <button type="submit" disabled={testing} className="app-btn app-btn--md app-btn--primary gap-1.5">
                 <Send className="h-4 w-4" aria-hidden="true" />
-                {testing ? 'Envoi en cours...' : 'Envoyer un email test'}
+                {testing ? 'Envoi en cours…' : 'Envoyer l’e-mail de test'}
               </button>
             ) : null}
             <button
               type="button"
-              onClick={() => void handleRevoke()}
-              disabled={revoking}
+              onClick={() => setRevokeDialogOpen(true)}
+              disabled={revoking || !status.ready}
               className="app-btn app-btn--md app-btn--danger gap-1.5"
+              title={status.ready ? 'Masquer à nouveau les invitations par e-mail' : 'Aucune validation à révoquer'}
             >
               <ShieldOff className="h-4 w-4" aria-hidden="true" />
-              {revoking ? 'Révocation…' : 'Révoquer la validation'}
+              Révoquer la validation
             </button>
-            <button
-              type="button"
-              onClick={() => void handleRefreshStatus()}
-              disabled={refreshing}
-              className="app-btn app-btn--md app-btn--secondary gap-1.5"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-              {refreshing ? 'Rechargement...' : 'Recharger le statut'}
-            </button>
-            <Link href="/clans" className="text-sm font-medium text-gray-600 hover:text-gray-900">
-              Retour aux clans
-            </Link>
+            <FormFeedback error={error} success={success} />
           </div>
-        </form>
-      </section>
-    </main>
+        </SectionCard>
+      </form>
+
+      {revokeDialogOpen ? (
+        <ConfirmDialog
+          icon={ShieldOff}
+          title="Révoquer la validation ?"
+          confirmLabel="Révoquer"
+          tone="danger"
+          busy={revoking}
+          onCancel={() => setRevokeDialogOpen(false)}
+          onConfirm={() => void handleRevoke()}
+        >
+          Les invitations par e-mail disparaîtront de la gestion des membres jusqu’au prochain e-mail de test réussi.
+        </ConfirmDialog>
+      ) : null}
+    </div>
   )
 }

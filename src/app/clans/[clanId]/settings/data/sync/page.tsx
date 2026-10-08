@@ -1,420 +1,328 @@
-﻿'use client'
+'use client'
 
-import { useState } from 'react'
+import { Check, HardDriveDownload, ListPlus, RefreshCw, Terminal, Workflow, X, type LucideIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { useState } from 'react'
+
+import DataSectionHeader from '@/components/clan-settings/DataSectionHeader'
+
+/**
+ * Synchronisation manuelle de la télémétrie de parties choisies (onglet de « Données », SuperUser seul), selon la
+ * charte UI (docs/ui/index.html) : trois modes — mise en file pour le worker, capture des fichiers seule, traitement des
+ * fichiers capturés — puis exécution. Les identifiants sont ceux des parties du clan (`squadMatchId`).
+ */
 
 type SyncMode = 'direct' | 'capture' | 'queue'
 
-export default function TelemetrySyncBatchPage() {
+type ModeDefinition = {
+  mode: SyncMode
+  title: string
+  pill: string
+  description: string
+  points: string[]
+  next: string
+  icon: LucideIcon
+  action: string
+  busy: string
+}
+
+const MODES: ModeDefinition[] = [
+  {
+    mode: 'direct',
+    title: 'Mise en file directe',
+    pill: 'Worker',
+    description: 'Met les parties en file pour le worker de télémétrie, qui télécharge et traite en arrière-plan.',
+    points: ['Ne bloque pas le site, quelle que soit la taille', 'Aucun fichier local', 'Agrégats recalculés après succès'],
+    next: 'Recommandé dans la plupart des cas',
+    icon: Workflow,
+    action: 'Mettre en file',
+    busy: 'Mise en file…',
+  },
+  {
+    mode: 'capture',
+    title: 'Capture seule',
+    pill: 'Stockage',
+    description: 'Télécharge et conserve les fichiers de télémétrie, sans les traiter.',
+    points: ['Fichiers conservés au-delà des 14 jours du CDN PUBG', 'Traitement rejouable à tout moment'],
+    next: 'Ensuite : « Traiter les fichiers capturés »',
+    icon: HardDriveDownload,
+    action: 'Capturer les fichiers',
+    busy: 'Capture en cours…',
+  },
+  {
+    mode: 'queue',
+    title: 'Traiter les fichiers capturés',
+    pill: 'Worker',
+    description: 'Met en file le traitement des fichiers déjà capturés, repris par le worker.',
+    points: ['Ne bloque pas le site', 'Reprise automatique en cas d’arrêt'],
+    next: 'Prérequis : fichiers capturés',
+    icon: RefreshCw,
+    action: 'Mettre en file le traitement',
+    busy: 'Mise en file…',
+  },
+]
+
+const SELECTED_TILE_STYLE = {
+  borderColor: 'var(--theme-ui-accent-ring)',
+  backgroundColor: 'var(--theme-ui-accent-soft)',
+  boxShadow: '0 0 0 1px var(--theme-ui-accent-ring)',
+}
+
+/** Plusieurs identifiants collés d'un coup : séparés par des espaces, virgules, points-virgules ou retours à la ligne. */
+function parseIds(raw: string) {
+  return raw
+    .split(/[\s,;]+/)
+    .map((value) => value.trim())
+    .filter(Boolean)
+}
+
+function StepTitle({ step, children }: { step: number; children: React.ReactNode }) {
+  return (
+    <div className="flex flex-col gap-0.5">
+      <span className="t-label">Étape {step}</span>
+      <h2 className="t-section-title m-0">{children}</h2>
+    </div>
+  )
+}
+
+export default function TelemetrySyncPage() {
   const params = useParams()
-  const clanId = params.clanId as string
+  const clanId = typeof params.clanId === 'string' ? params.clanId : ''
 
   const [squadMatchIds, setSquadMatchIds] = useState<string[]>([])
   const [matchInput, setMatchInput] = useState('')
   const [syncMode, setSyncMode] = useState<SyncMode>('direct')
   const [loading, setLoading] = useState(false)
-  const [result, setResult] = useState<any>(null)
+  const [result, setResult] = useState<unknown>(null)
   const [error, setError] = useState('')
   const [resetBefore, setResetBefore] = useState(false)
   const [recalcAgg, setRecalcAgg] = useState(true)
 
-  const addMatch = () => {
-    if (matchInput.trim()) {
-      setSquadMatchIds([...squadMatchIds, matchInput.trim()])
-      setMatchInput('')
+  const current = MODES.find((definition) => definition.mode === syncMode) ?? MODES[0]
+
+  function addMatches() {
+    const ids = parseIds(matchInput)
+    if (ids.length === 0) return
+    setSquadMatchIds((existing) => [...new Set([...existing, ...ids])])
+    setMatchInput('')
+  }
+
+  async function call(url: string, init?: RequestInit) {
+    setLoading(true)
+    setError('')
+    setResult(null)
+    try {
+      const response = await fetch(url, init)
+      const data = (await response.json().catch(() => null)) as { error?: string } | null
+      if (!response.ok) {
+        setError(data?.error || `Erreur HTTP ${response.status}`)
+        return
+      }
+      setResult(data)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Erreur réseau')
+    } finally {
+      setLoading(false)
     }
   }
 
-  const removeMatch = (idx: number) => {
-    setSquadMatchIds(squadMatchIds.filter((_, i) => i !== idx))
-  }
-
-  const clearMatches = () => {
-    setSquadMatchIds([])
-  }
-
-  const handleDirectSync = async () => {
+  function run() {
     if (squadMatchIds.length === 0) {
-      setError('Sélectionne au moins 1 match')
+      setError('Ajoutez au moins une partie.')
       return
     }
-
-    setLoading(true)
-    setError('')
-    setResult(null)
-
-    try {
-      // Enqueues into the same telemetry_live_sync queue the automatic cron uses —
-      // the always-running telemetry-resync-worker process does the actual download
-      // + parsing, so this call returns immediately instead of blocking the web request.
-      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-selected-enqueue`, {
+    const post = (path: string, body: unknown) =>
+      call(`/api/clans/${clanId}/telemetry/${path}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ squadMatchIds }),
+        body: JSON.stringify(body),
       })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Erreur')
-        return
-      }
-
-      setResult(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur réseau')
-    } finally {
-      setLoading(false)
-    }
+    if (syncMode === 'direct') return void post('sync-selected-enqueue', { squadMatchIds })
+    if (syncMode === 'capture') return void post('fetch-files-selected', { squadMatchIds })
+    return void post('sync-batch-manual', {
+      squadMatchIds,
+      resetBeforeSync: resetBefore,
+      recalculateAggregates: recalcAgg,
+      batchLabel: `Batch ${new Date().toISOString().split('T')[0]}`,
+    })
   }
 
-  const handleCapture = async () => {
-    if (squadMatchIds.length === 0) {
-      setError('Sélectionne au moins 1 match')
-      return
-    }
-
-    setLoading(true)
-    setError('')
-    setResult(null)
-
-    try {
-      const response = await fetch(`/api/clans/${clanId}/telemetry/fetch-files-selected`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ squadMatchIds }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Erreur')
-        return
-      }
-
-      setResult(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur réseau')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleQueueSync = async () => {
-    if (squadMatchIds.length === 0) {
-      setError('Sélectionne au moins 1 match')
-      return
-    }
-
-    setLoading(true)
-    setError('')
-    setResult(null)
-
-    try {
-      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-batch-manual`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          squadMatchIds,
-          resetBeforeSync: resetBefore,
-          recalculateAggregates: recalcAgg,
-          batchLabel: `Batch ${new Date().toISOString().split('T')[0]}`,
-        }),
-      })
-
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Erreur')
-        return
-      }
-
-      setResult(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur réseau')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const handleGetStatus = async () => {
-    setLoading(true)
-    setError('')
-    setResult(null)
-
-    try {
-      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-batch-manual`)
-      const data = await response.json()
-
-      if (!response.ok) {
-        setError(data.error || 'Erreur')
-        return
-      }
-
-      setResult(data)
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Erreur réseau')
-    } finally {
-      setLoading(false)
-    }
-  }
+  if (!clanId) return null
 
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Synchro manuelle"
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+      <DataSectionHeader
+        clanId={clanId}
+        title="Synchronisation"
+        subtitle="Récupération manuelle de la télémétrie de parties choisies : mise en file, capture ou traitement des fichiers."
+        icon={RefreshCw}
         currentHref={`/clans/${clanId}/settings/data/sync`}
-        fallbackParent={{ href: `/clans/${clanId}/overview`, label: "Vue d'ensemble", altHref: '/clans' }}
+        pills={squadMatchIds.length > 0 ? [<><span className="t-num">{squadMatchIds.length}</span> partie(s) choisie(s)</>] : []}
       />
-      <section className="app-panel p-4">
-        <SettingsPageHeader
-          title="Récupération manuelle"
-          subtitle="Trois modes : Direct (simple), Capture (sauvegarde locale), Queue (asynchrone)."
-        />
+
+      <section className="app-panel flex flex-col gap-3 p-4 sm:p-5" aria-label="Étape 1 : parties">
+        <StepTitle step={1}>Choisir les parties</StepTitle>
+        <div className="flex flex-wrap gap-2">
+          <input
+            type="text"
+            aria-label="Identifiants de parties"
+            placeholder="Identifiant de partie (squadMatchId), un ou plusieurs"
+            value={matchInput}
+            onChange={(event) => setMatchInput(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === 'Enter') addMatches()
+            }}
+            className="app-input min-w-0 flex-1 basis-[240px]"
+          />
+          <button type="button" onClick={addMatches} className="app-btn app-btn--md app-btn--secondary gap-2">
+            <ListPlus className="h-4 w-4" aria-hidden="true" />
+            Ajouter
+          </button>
+        </div>
+        {squadMatchIds.length > 0 ? (
+          <div className="flex flex-col gap-2">
+            <div className="flex items-center justify-between gap-2">
+              <span className="t-meta">
+                <span className="t-num">{squadMatchIds.length}</span> partie(s) choisie(s)
+              </span>
+              <button type="button" onClick={() => setSquadMatchIds([])} className="app-link text-xs font-semibold">
+                Vider la sélection
+              </button>
+            </div>
+            <ul className="m-0 flex max-h-44 list-none flex-col gap-1 overflow-y-auto p-0">
+              {squadMatchIds.map((id) => (
+                <li key={id} className="app-panel-muted flex items-center justify-between gap-2 px-3 py-1.5">
+                  <code className="min-w-0 truncate text-xs">{id}</code>
+                  <button
+                    type="button"
+                    onClick={() => setSquadMatchIds((existing) => existing.filter((value) => value !== id))}
+                    className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                    aria-label={`Retirer ${id}`}
+                  >
+                    <X className="h-4 w-4" aria-hidden="true" />
+                  </button>
+                </li>
+              ))}
+            </ul>
+          </div>
+        ) : null}
       </section>
 
-      <div className="grid gap-6">
-        {/* Input matches */}
-        <div className="border rounded-lg p-4 bg-slate-50">
-          <h2 className="text-xl font-semibold mb-3">Étape 1: Sélectionne les matches</h2>
-          <div className="flex gap-2 mb-3">
-            <input
-              type="text"
-              placeholder="squadMatchId (paste or type)"
-              value={matchInput}
-              onChange={(e) => setMatchInput(e.target.value)}
-              onKeyDown={(e) => e.key === 'Enter' && addMatch()}
-              className="flex-1 border rounded px-3 py-2"
-            />
-            <button
-              onClick={addMatch}
-              className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
-            >
-              Ajouter
-            </button>
-          </div>
-
-          {squadMatchIds.length > 0 && (
-            <div className="space-y-2">
-              <div className="flex justify-between items-center mb-2">
-                <span className="text-sm font-semibold text-gray-700">{squadMatchIds.length} match(s) sélectionné(s)</span>
-                <button
-                  onClick={clearMatches}
-                  className="text-sm text-red-600 hover:text-red-700"
-                >
-                  Vider la sélection
-                </button>
-              </div>
-              <div className="max-h-40 overflow-y-auto space-y-1">
-                {squadMatchIds.map((id, idx) => (
-                  <div key={idx} className="flex justify-between items-center bg-white p-2 rounded border border-gray-200">
-                    <code className="text-xs">{id}</code>
-                    <button
-                      onClick={() => removeMatch(idx)}
-                      className="text-red-500 hover:text-red-700 text-sm"
-                    >
-                      ✕
-                    </button>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Mode selection */}
-        <div className="border rounded-lg p-4 bg-slate-50">
-          <h2 className="text-xl font-semibold mb-4">Étape 2: Choisir le mode de récupération</h2>
-
-          <div className="grid gap-4 md:grid-cols-3">
-            {/* Direct Sync */}
-            <div
-              onClick={() => setSyncMode('direct')}
-              className={`border-2 rounded-lg p-4 cursor-pointer transition ${
-                syncMode === 'direct'
-                  ? 'border-green-500 bg-green-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-lg">Direct Sync</h3>
-                <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Worker</span>
-              </div>
-              <p className="text-sm text-gray-700 mb-3">
-                Met en file pour le worker télémétrie (telemetry-resync-worker), qui télécharge et traite en arrière-plan.
-              </p>
-              <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                <li>✓ Non-bloquant, quelle que soit la taille du batch</li>
-                <li>✓ Pas de fichiers locaux</li>
-                <li>✓ Agrégats recalculés automatiquement après succès</li>
-              </ul>
-              <div className="text-xs text-gray-500">
-                Recommandé: toutes tailles de batch
-              </div>
-            </div>
-
-            {/* Capture Only */}
-            <div
-              onClick={() => setSyncMode('capture')}
-              className={`border-2 rounded-lg p-4 cursor-pointer transition ${
-                syncMode === 'capture'
-                  ? 'border-blue-500 bg-blue-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-lg">Capture seule</h3>
-                <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Stockage</span>
-              </div>
-              <p className="text-sm text-gray-700 mb-3">
-                Télécharge et sauvegarde localement (sans traitement).
-              </p>
-              <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                <li>✓ Non-bloquant</li>
-                <li>✓ Fichiers locaux conservés</li>
-                <li>✓ Rejouer anytime</li>
-              </ul>
-              <div className="text-xs text-gray-500">
-                Ensuite: Mode Queue pour traiter
-              </div>
-            </div>
-
-            {/* Queue Resync */}
-            <div
-              onClick={() => setSyncMode('queue')}
-              className={`border-2 rounded-lg p-4 cursor-pointer transition ${
-                syncMode === 'queue'
-                  ? 'border-purple-500 bg-purple-50'
-                  : 'border-gray-300 hover:border-gray-400'
-              }`}
-            >
-              <div className="flex items-start justify-between mb-2">
-                <h3 className="font-semibold text-lg">Queue Resync</h3>
-                <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Worker</span>
-              </div>
-              <p className="text-sm text-gray-700 mb-3">
-                Traite fichiers capturés (worker asynchrone).
-              </p>
-              <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                <li>✓ Non-bloquant</li>
-                <li>✓ Scalable</li>
-                <li>✓ Reprise auto</li>
-              </ul>
-              <div className="text-xs text-gray-500">
-                Prérequis: Fichiers capturés
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Options */}
-        <div className="border rounded-lg p-4 bg-slate-50">
-          <h2 className="text-xl font-semibold mb-3">Étape 3: Options</h2>
-          <div className="space-y-3">
-            {syncMode === 'queue' && (
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={resetBefore}
-                  onChange={(e) => setResetBefore(e.target.checked)}
-                />
-                <span>Réinitialiser télémétrie avant traitement</span>
-              </label>
-            )}
-            {syncMode === 'queue' && (
-              <label className="flex items-center gap-2">
-                <input
-                  type="checkbox"
-                  checked={recalcAgg}
-                  onChange={(e) => setRecalcAgg(e.target.checked)}
-                />
-                <span>Recalculer agrégats après traitement</span>
-              </label>
-            )}
-            {syncMode === 'direct' && (
-              <p className="text-sm text-gray-600">
-                Pas d&apos;options: la mise en file gère elle-même le recalcul des agrégats après succès.
-              </p>
-            )}
-            {syncMode === 'capture' && (
-              <p className="text-sm text-gray-600">
-                Les fichiers seront sauvegardés dans <code className="bg-gray-100 px-2 py-1 rounded text-xs">.telemetry-captured/</code>
-              </p>
-            )}
-          </div>
-        </div>
-
-        {/* Actions */}
-        <div className="border rounded-lg p-4 bg-slate-50">
-          <h2 className="text-xl font-semibold mb-3">Étape 4: Exécuter</h2>
-          <div className="flex flex-wrap gap-2">
-            {syncMode === 'direct' && (
+      <section className="flex flex-col gap-2.5" aria-label="Étape 2 : mode">
+        <StepTitle step={2}>Choisir le mode</StepTitle>
+        <div className="grid gap-2.5 md:grid-cols-3" role="radiogroup" aria-label="Mode de récupération">
+          {MODES.map((definition) => {
+            const selected = definition.mode === syncMode
+            const Icon = definition.icon
+            return (
               <button
-                onClick={handleDirectSync}
-                disabled={loading || squadMatchIds.length === 0}
-                className="bg-green-500 text-white px-6 py-2 rounded hover:bg-green-600 disabled:bg-gray-400 font-semibold"
+                key={definition.mode}
+                type="button"
+                role="radio"
+                aria-checked={selected}
+                onClick={() => setSyncMode(definition.mode)}
+                // Teinte de la tuile choisie en style : les utilitaires perdent contre le fond de `.app-panel`.
+                className={`app-panel flex flex-col gap-2 p-3.5 text-left transition-colors ${selected ? '' : 'hover:bg-gray-50'}`}
+                style={selected ? SELECTED_TILE_STYLE : undefined}
               >
-                {loading ? 'Mise en file...' : 'Direct Sync'}
+                <span className="flex items-start justify-between gap-2">
+                  <span className="flex items-center gap-2">
+                    <Icon
+                      className={`h-[18px] w-[18px] shrink-0 ${selected ? 'text-[var(--theme-ui-accent-text)]' : 'text-gray-500'}`}
+                      aria-hidden="true"
+                    />
+                    <span className="t-card-title">{definition.title}</span>
+                  </span>
+                  <span className="app-meta-pill shrink-0">{definition.pill}</span>
+                </span>
+                <span className="t-meta">{definition.description}</span>
+                <span className="flex flex-col gap-1">
+                  {definition.points.map((point) => (
+                    <span key={point} className="t-meta flex items-start gap-1.5">
+                      <Check className="t-pos mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                      {point}
+                    </span>
+                  ))}
+                </span>
+                <span className="t-meta mt-auto font-semibold">{definition.next}</span>
               </button>
-            )}
-            {syncMode === 'capture' && (
-              <button
-                onClick={handleCapture}
-                disabled={loading || squadMatchIds.length === 0}
-                className="bg-blue-500 text-white px-6 py-2 rounded hover:bg-blue-600 disabled:bg-gray-400 font-semibold"
-              >
-                {loading ? 'Capture en cours...' : 'Capturer fichiers'}
-              </button>
-            )}
-            {syncMode === 'queue' && (
-              <button
-                onClick={handleQueueSync}
-                disabled={loading || squadMatchIds.length === 0}
-                className="bg-purple-500 text-white px-6 py-2 rounded hover:bg-purple-600 disabled:bg-gray-400 font-semibold"
-              >
-                {loading ? 'Enqueue...' : 'Enqueue Resync'}
-              </button>
-            )}
-            <button
-              onClick={handleGetStatus}
-              disabled={loading}
-              className="bg-gray-500 text-white px-6 py-2 rounded hover:bg-gray-600 disabled:bg-gray-400"
-            >
-              {loading ? '...' : 'Vérifier statut'}
-            </button>
-          </div>
+            )
+          })}
         </div>
+      </section>
 
-        {/* Error */}
-        {error && (
-          <div className="border border-red-300 bg-red-50 rounded-lg p-4">
-            <p className="text-red-700 font-semibold mb-2">❌ Erreur:</p>
-            <pre className="text-sm whitespace-pre-wrap bg-white p-3 rounded overflow-auto max-h-40">{error}</pre>
+      <section className="app-panel flex flex-col gap-3 p-4 sm:p-5" aria-label="Étapes 3 et 4 : options et exécution">
+        <StepTitle step={3}>Options et exécution</StepTitle>
+        {syncMode === 'queue' ? (
+          <div className="flex flex-col gap-2">
+            <label className="t-body flex items-center gap-2 text-gray-900">
+              <input
+                type="checkbox"
+                checked={resetBefore}
+                onChange={(event) => setResetBefore(event.target.checked)}
+                className="h-4 w-4 accent-[var(--theme-ui-accent)]"
+              />
+              Effacer la télémétrie existante avant le traitement
+            </label>
+            <label className="t-body flex items-center gap-2 text-gray-900">
+              <input
+                type="checkbox"
+                checked={recalcAgg}
+                onChange={(event) => setRecalcAgg(event.target.checked)}
+                className="h-4 w-4 accent-[var(--theme-ui-accent)]"
+              />
+              Recalculer les agrégats après le traitement
+            </label>
           </div>
+        ) : (
+          <p className="t-meta m-0">
+            {syncMode === 'direct'
+              ? 'Aucune option : la mise en file recalcule elle-même les agrégats après succès.'
+              : 'Les fichiers sont conservés dans le dossier de capture du serveur (.telemetry-captured/).'}
+          </p>
         )}
-
-        {/* Result */}
-        {result && (
-          <div className="border border-green-300 bg-green-50 rounded-lg p-4">
-            <p className="text-green-700 font-semibold mb-3">✓ Résultat:</p>
-            <div className="bg-white rounded p-3 overflow-auto max-h-96 border border-gray-200">
-              <pre className="text-xs">{JSON.stringify(result, null, 2)}</pre>
-            </div>
+        <div className="flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={run}
+            disabled={loading || squadMatchIds.length === 0}
+            className="app-btn app-btn--md app-btn--primary gap-2"
+          >
+            <current.icon className={`h-4 w-4 ${loading ? 'animate-pulse' : ''}`} aria-hidden="true" />
+            {loading ? current.busy : current.action}
+          </button>
+          <button
+            type="button"
+            onClick={() => void call(`/api/clans/${clanId}/telemetry/sync-batch-manual`, { cache: 'no-store' })}
+            disabled={loading}
+            className="app-btn app-btn--md app-btn--secondary"
+          >
+            Vérifier l’état de la file
+          </button>
+        </div>
+        {error ? (
+          <p className="t-body t-neg m-0 whitespace-pre-wrap" role="alert">
+            {error}
+          </p>
+        ) : null}
+        {result ? (
+          <div className="flex flex-col gap-1.5">
+            <span className="t-label t-pos">Réponse du serveur</span>
+            <pre className="app-panel-muted m-0 max-h-96 overflow-auto p-3 text-xs">{JSON.stringify(result, null, 2)}</pre>
           </div>
-        )}
-      </div>
+        ) : null}
+      </section>
 
-      {/* CLI info */}
-      <div className="mt-8 p-4 bg-blue-50 rounded-lg border border-blue-200">
-        <h3 className="font-semibold text-blue-900 mb-2">💡 Mode CLI (alternative)</h3>
-        <p className="text-sm text-blue-800 mb-2">Traite tout en une seule commande (capture + queue + worker):</p>
-        <pre className="text-sm bg-white p-2 rounded overflow-auto border border-blue-200">
-{`npm run telemetry:batch -- --clan ${clanId} --all-matches
-npm run telemetry:batch -- --check`}
-        </pre>
-      </div>
-    </main>
+      <section className="app-panel-muted flex flex-col gap-2 px-3.5 py-3" aria-label="Ligne de commande">
+        <p className="t-body m-0 flex items-center gap-2 font-semibold text-gray-900">
+          <Terminal className="h-4 w-4 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+          En ligne de commande
+        </p>
+        <p className="t-meta m-0">Tout le clan en une commande (capture, file et worker) :</p>
+        <pre className="app-panel m-0 overflow-auto p-2.5 text-xs">{`npm run telemetry:batch -- --clan ${clanId} --all-matches
+npm run telemetry:batch -- --check`}</pre>
+      </section>
+    </div>
   )
 }

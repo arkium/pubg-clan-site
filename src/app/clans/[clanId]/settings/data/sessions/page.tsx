@@ -1,12 +1,12 @@
 'use client'
 
+import { CalendarDays, ChevronRight } from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
 
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
+import DataSectionHeader from '@/components/clan-settings/DataSectionHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
@@ -26,7 +26,18 @@ function formatDateLabel(value: string) {
   return date.toLocaleDateString('fr-FR', { dateStyle: 'full' })
 }
 
-export default function TelemetryMatchesPage() {
+/** État de la télémétrie d'une soirée : couleur et libellé de la pastille (jetons de jeu de la charte). */
+const SESSION_STATUS = {
+  complete: { label: 'Complète', color: 'var(--game-pos)', background: 'var(--game-pos-soft)' },
+  partial: { label: 'Partielle', color: 'var(--game-sky)', background: 'var(--game-sky-soft)' },
+  none: { label: 'À récupérer', color: 'var(--game-warn)', background: 'var(--game-warn-soft)' },
+} as const
+
+/**
+ * Soirées de télémétrie du clan (onglet de « Données », SuperUser seul), selon la charte UI (docs/ui/index.html) :
+ * chaque soirée de la période avec la part de ses parties analysées ; une soirée ouvre son panneau d'exploitation.
+ */
+export default function TelemetrySessionsPage() {
   const params = useParams()
   const router = useRouter()
   const { setClanId } = useSelectedClan({ redirectIfMissing: true, redirectPath: '/clans' })
@@ -55,22 +66,30 @@ export default function TelemetryMatchesPage() {
   }, [sessions])
 
   if (!clanId) return null
+  const analysed = sessionsWithTelemetry.reduce((sum, session) => sum + session.telemetryCount, 0)
+  const total = sessionsWithTelemetry.reduce((sum, session) => sum + session.matches.length, 0)
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
-      <div className="app-container app-gutter">
-        <NavigationTrail
-          currentLabel="Soirées de télémétrie"
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-main-flush game-ui charte flex-1">
+      <div className="app-container app-gutter flex flex-col gap-4">
+        <DataSectionHeader
+          clanId={clanId}
+          title="Soirées"
+          subtitle="Soirées de jeu du clan, état de leur télémétrie et panneau d’exploitation de chaque soirée."
+          icon={CalendarDays}
           currentHref={`/clans/${clanId}/settings/data/sessions`}
-          fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données du clan', altHref: '/clans' }}
+          pills={
+            total > 0
+              ? [
+                  <>
+                    <span className="t-num">{analysed}</span>/<span className="t-num">{total}</span> parties analysées
+                  </>,
+                ]
+              : []
+          }
         />
-        <section className="app-panel p-4">
-          <SettingsPageHeader
-            title="Télémétrie — Soirées"
-            subtitle="Soirées de jeu du clan, état de la télémétrie et panneau d’exploitation de chaque soirée."
-          />
-        </section>
       </div>
 
       <DockingToolbar ariaLabel="Période des soirées">
@@ -79,65 +98,59 @@ export default function TelemetryMatchesPage() {
 
       <div className="app-container app-gutter">
         {loading && sessionsWithTelemetry.length === 0 ? (
-          <div className="space-y-3">
+          <div className="flex flex-col gap-2.5">
             <CardSkeleton />
             <CardSkeleton />
             <CardSkeleton />
           </div>
         ) : null}
-        {error ? <p className="mb-4 text-sm text-red-600">{error}</p> : null}
+        {error ? <p className="t-body t-neg m-0 mb-4">{error}</p> : null}
 
         {/* Rechargement : les résultats précédents restent affichés, estompés (la page ne se replie pas). */}
         {!error && (!loading || sessionsWithTelemetry.length > 0) ? (
           sessionsWithTelemetry.length > 0 ? (
-            <section aria-busy={loading} className={loading ? 'space-y-3 opacity-60' : 'space-y-3'}>
+            <ul aria-busy={loading} className={`m-0 flex list-none flex-col gap-2.5 p-0 ${loading ? 'opacity-60' : ''}`}>
               {sessionsWithTelemetry.map((session) => {
-                const allSynced = session.pendingCount === 0
-                const noneSynced = session.telemetryCount === 0
-                const sessionHref = `/clans/${clanId}/settings/data/sessions/${session.date}?period=${period}`
-
+                const status =
+                  SESSION_STATUS[session.pendingCount === 0 ? 'complete' : session.telemetryCount === 0 ? 'none' : 'partial']
                 return (
-                  <Link
-                    key={session.date}
-                    href={sessionHref}
-                    className="app-panel flex items-center justify-between gap-4 p-4 transition hover:bg-gray-50"
-                  >
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{formatDateLabel(session.date)}</p>
-                      <p className="text-xs text-slate-500">{session.date}</p>
-                    </div>
-                    <div className="flex items-center gap-3 text-right">
-                      <div>
-                        <p className="text-xs text-slate-500">Matchs</p>
-                        <p className="text-lg font-bold tabular-nums text-slate-900">{session.matches.length}</p>
-                      </div>
-                      <div>
-                        <p className="text-xs text-slate-500">Télémétrie</p>
-                        <p className={`text-lg font-bold tabular-nums ${allSynced ? 'text-emerald-600' : noneSynced ? 'text-amber-600' : 'text-sky-600'}`}>
-                          {session.telemetryCount}/{session.matches.length}
-                        </p>
-                      </div>
-                      <span className={`hidden sm:inline-flex items-center rounded-full border px-2 py-1 text-xs font-medium ${
-                        allSynced
-                          ? 'border-emerald-200 bg-emerald-50 text-emerald-800'
-                          : noneSynced
-                            ? 'border-amber-200 bg-amber-50 text-amber-800'
-                            : 'border-sky-200 bg-sky-50 text-sky-800'
-                      }`}>
-                        {allSynced ? 'Complet' : noneSynced ? 'À récupérer' : 'Partiel'}
+                  <li key={session.date}>
+                    <Link
+                      href={`/clans/${clanId}/settings/data/sessions/${session.date}?period=${period}`}
+                      className="app-panel flex items-center justify-between gap-4 p-3.5 transition-colors hover:bg-gray-50"
+                    >
+                      <span className="flex min-w-0 flex-col gap-0.5">
+                        <span className="t-card-title first-letter:uppercase">{formatDateLabel(session.date)}</span>
+                        <span className="t-meta">{session.date}</span>
                       </span>
-                      <svg viewBox="0 0 20 20" className="h-4 w-4 shrink-0 text-slate-400" aria-hidden="true">
-                        <path fill="currentColor" d="M7.21 14.77a.75.75 0 0 1 .02-1.06L11.168 10 7.23 6.29a.75.75 0 1 1 1.04-1.08l4.5 4.25a.75.75 0 0 1 0 1.08l-4.5 4.25a.75.75 0 0 1-1.06-.02Z" />
-                      </svg>
-                    </div>
-                  </Link>
+                      <span className="flex shrink-0 items-center gap-4 text-right">
+                        <span className="flex flex-col">
+                          <span className="t-label">Matchs</span>
+                          <span className="t-hero t-hero--sm text-gray-900">{session.matches.length}</span>
+                        </span>
+                        <span className="flex flex-col">
+                          <span className="t-label">Télémétrie</span>
+                          <span className="t-hero t-hero--sm" style={{ color: status.color }}>
+                            {session.telemetryCount}/{session.matches.length}
+                          </span>
+                        </span>
+                        <span
+                          className="hidden rounded-full px-2.5 py-0.5 text-xs font-semibold sm:inline-flex"
+                          style={{ background: status.background, color: status.color }}
+                        >
+                          {status.label}
+                        </span>
+                        <ChevronRight className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+                      </span>
+                    </Link>
+                  </li>
                 )
               })}
-            </section>
+            </ul>
           ) : (
-            <section className="app-panel p-8 text-center">
-              <p className="text-sm text-slate-600">Aucune soirée trouvée pour cette période.</p>
-            </section>
+            <p className="t-body m-0 rounded-[14px] border border-dashed border-gray-200 p-6 text-center text-gray-500">
+              Aucune soirée sur cette période.
+            </p>
           )
         ) : null}
       </div>

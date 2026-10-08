@@ -6,10 +6,10 @@ import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
-  ArrowLeft,
   CheckCircle2,
   Clock,
   Database,
+  Download,
   FileJson,
   Gauge,
   HardDrive,
@@ -20,19 +20,20 @@ import {
   Play,
   RefreshCw,
   Server,
+  Swords,
   Timer,
   TrendingUp,
-  Users,
   Wrench,
+  X,
   XCircle,
   Zap,
 } from 'lucide-react'
 
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
-import FilterDropdown from '@/components/ui/FilterDropdown'
+import DataSectionHeader, { BANNER_GLASS_BUTTON } from '@/components/clan-settings/DataSectionHeader'
+import { Callout, ChoiceMenu, EmptyState, ErrorState, ListSkeleton, SectionCard, Tag, type Tone } from '@/components/ui/CharteKit'
+import Pagination from '@/components/ui/Pagination'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { resolveGameMode } from '@/lib/pubg-assets'
@@ -356,57 +357,22 @@ function extractDateSegment(value: string) {
   return Number.isNaN(Date.parse(value)) ? null : sessionDateOf(value)
 }
 
-function StatusPill({ status, labelOverride }: { status: string; labelOverride?: string }) {
-  let modifier = 'status-pill--offline'
-  let label = labelOverride ?? status
-
-  switch (status.toLowerCase()) {
-    case 'success':
-    case 'completed':
-    case 'ok':
-      modifier = 'status-pill--online'
-      label = labelOverride ?? 'Succès'
-      break
-    case 'running':
-      modifier = 'status-pill--pending'
-      label = labelOverride ?? 'En cours'
-      break
-    case 'queued':
-      modifier = 'status-pill--pending'
-      label = labelOverride ?? 'En file'
-      break
-    case 'pending':
-      modifier = 'status-pill--pending'
-      label = labelOverride ?? 'En attente'
-      break
-    case 'failed':
-    case 'error':
-      modifier = 'status-pill--error'
-      label = labelOverride ?? 'Échec'
-      break
-    case 'expired':
-      modifier = 'status-pill--offline'
-      label = labelOverride ?? 'Expiré (PUBG)'
-      break
-    default:
-      modifier = 'status-pill--offline'
-      label = labelOverride ?? status
-  }
-
-  return (
-    <span className={`status-pill ${modifier}`}>
-      <span className="status-dot" />
-      {label}
-    </span>
-  )
+const STATUS_TAGS: Record<string, { tone: Tone; label: string }> = {
+  success: { tone: 'pos', label: 'Succès' },
+  completed: { tone: 'pos', label: 'Succès' },
+  ok: { tone: 'pos', label: 'Succès' },
+  running: { tone: 'sky', label: 'En cours' },
+  queued: { tone: 'warn', label: 'En file' },
+  pending: { tone: 'warn', label: 'En attente' },
+  failed: { tone: 'neg', label: 'Échec' },
+  error: { tone: 'neg', label: 'Échec' },
+  expired: { tone: 'neutral', label: 'Expirée (PUBG)' },
 }
 
-function healthAlertClass(status: 'ok' | 'warning') {
-  if (status === 'ok') {
-    return 'border-emerald-200 dark:border-emerald-800/60 bg-emerald-50 dark:bg-emerald-950/30 text-emerald-800 dark:text-emerald-200'
-  }
-
-  return 'border-amber-200 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/30 text-amber-800 dark:text-amber-200'
+/** Statut d'un job ou d'une ligne, en pastille de la charte. */
+function StatusTag({ status }: { status: string }) {
+  const entry = STATUS_TAGS[status.toLowerCase()] ?? { tone: 'neutral' as const, label: status }
+  return <Tag tone={entry.tone}>{entry.label}</Tag>
 }
 
 function extractObservabilityError(payload: unknown) {
@@ -540,8 +506,8 @@ export default function TelemetryRecoveriesPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [primarySortKey, setPrimarySortKey] = useState<SortKey>('updatedAt')
   const [primarySortDirection, setPrimarySortDirection] = useState<SortDirection>('desc')
-  const [secondarySortKey, setSecondarySortKey] = useState<SortKey | 'none'>('status')
-  const [secondarySortDirection, setSecondarySortDirection] = useState<SortDirection>('asc')
+  const [secondarySortKey] = useState<SortKey | 'none'>('status')
+  const [secondarySortDirection] = useState<SortDirection>('asc')
   const [historyPage, setHistoryPage] = useState(1)
   const [historyPageSize, setHistoryPageSize] =
     useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(15)
@@ -893,735 +859,445 @@ export default function TelemetryRecoveriesPage() {
     }
   }, [kpiWindow, payload, refreshedAt])
 
-  if (loading) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-        <NavigationTrail
-          currentLabel="Récupérations télémétrie"
-          currentHref={`/clans/${clanId}/settings/data/recoveries`}
-          fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
-        />
-        <TableSkeleton rows={4} />
-      </main>
-    )
+  function changeSort(key: SortKey) {
+    if (key === primarySortKey) {
+      setPrimarySortDirection((direction) => (direction === 'asc' ? 'desc' : 'asc'))
+    } else {
+      setPrimarySortKey(key)
+      setPrimarySortDirection(key === 'status' ? 'asc' : 'desc')
+    }
+    setHistoryPage(1)
   }
+
+  function refreshAll() {
+    if (!clanId) return
+    setRefreshing(true)
+    void loadRecoveries(clanId)
+    void loadObservability(clanId, observabilityWindow)
+  }
+
+  if (!clanId) return null
 
   const backlog = payload?.backlog
   const engineStatus = payload?.engineStatus
 
+  const header = (
+    <DataSectionHeader
+      clanId={clanId}
+      title="Récupérations"
+      subtitle="Téléchargement des fichiers de télémétrie PUBG du clan : file du worker, backlog récupérable, observabilité et historique."
+      icon={HardDriveDownload}
+      currentHref={`/clans/${clanId}/settings/data/recoveries`}
+      pills={backlog ? [<>{formatPercent(backlog.completionRate)} complété</>] : []}
+      action={
+        <button type="button" className={BANNER_GLASS_BUTTON} onClick={refreshAll} disabled={refreshing}>
+          <RefreshCw className={`h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
+          {refreshing ? 'Actualisation…' : 'Actualiser'}
+        </button>
+      }
+    />
+  )
+
+  if (loading) {
+    return (
+      <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+        {header}
+        <ListSkeleton rows={4} />
+      </div>
+    )
+  }
+
   return (
-    <main className="app-container app-main flex-1 space-y-6">
-      <NavigationTrail
-        currentLabel="Récupérations télémétrie"
-        currentHref={`/clans/${clanId}/settings/data/recoveries`}
-        fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
-      />
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    // `.game-ui` : jetons --game-* (couleurs des indicateurs et des états).
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+      {header}
 
-      {/* Header avec sélecteur de clan et actions globales */}
-      <section className="app-panel p-5 space-y-4">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-          <div>
-            <div className="flex flex-wrap items-center gap-2">
-              <SettingsPageHeader
-                title="Récupérations télémétrie"
-                subtitle="Pilotage du téléchargement des fichiers télémétrie PUBG, audit du backlog et surveillance du parser."
-              />
-            </div>
-            {payload?.clan && (
-              <div className="mt-2 flex items-center gap-2">
-                <span className="app-meta-pill font-semibold">
-                  Clan #{payload.clan.id} {payload.clan.tag ? `[${payload.clan.tag}]` : ''} {payload.clan.name}
-                </span>
-              </div>
-            )}
+      <div className="flex flex-wrap items-end justify-between gap-3">
+        {clansList.length > 0 ? (
+          <div className="flex w-full flex-col gap-1 sm:w-80">
+            <span className="t-label">Clan</span>
+            <ChoiceMenu
+              label="Clan"
+              value={String(clanId)}
+              options={clansList.map((clan) => ({
+                value: String(clan.id),
+                label: `${clan.tag ? `[${clan.tag}] ` : ''}${clan.name}`,
+              }))}
+              onChange={(value) => router.push(`/clans/${value}/settings/data/recoveries`)}
+            />
           </div>
-
-          <div className="flex flex-wrap items-center gap-2">
-            {/* Sélecteur rapide de clan */}
-            {clansList.length > 0 && (
-              <div className="flex items-center gap-1.5 p-1.5 rounded-xl bg-slate-100 dark:bg-slate-900 border border-slate-300 dark:border-slate-700">
-                <Users className="h-4 w-4 text-indigo-500 ml-1.5" />
-                <select
-                  value={String(clanId)}
-                  onChange={(e) => {
-                    const target = e.target.value
-                    if (target) {
-                      router.push(`/clans/${target}/settings/data/recoveries`)
-                    }
-                  }}
-                  className="rounded-lg border-0 bg-transparent px-2 py-1 text-xs font-bold text-slate-900 dark:text-white focus:ring-2 focus:ring-indigo-500"
-                >
-                  {clansList.map((c) => (
-                    <option key={c.id} value={String(c.id)} className="bg-white dark:bg-slate-900 text-slate-900 dark:text-white">
-                      Clan #{c.id} — {c.name} {c.tag ? `[${c.tag}]` : ''}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => {
-                if (!clanId) return
-                setRefreshing(true)
-                void loadRecoveries(clanId)
-                void loadObservability(clanId, observabilityWindow)
-              }}
-              disabled={refreshing}
-              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-            >
-              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden />
-              {refreshing ? 'Actualisation...' : 'Actualiser'}
-            </button>
-
-            {isSuperUser && (
-              <Link
-                href="/settings/telemetry"
-                className="app-btn app-btn--sm app-btn--secondary gap-1.5 font-semibold text-indigo-600 dark:text-indigo-400"
-              >
-                <Server className="h-4 w-4" />
-                Console globale
-              </Link>
-            )}
-
-            {clanId ? (
-              <Link
-                href={`/clans/${clanId}/matches?period=week`}
-                className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-              >
-                <ArrowLeft className="h-4 w-4" aria-hidden />
-                Matchs
-              </Link>
-            ) : null}
-          </div>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {isSuperUser ? (
+            <Link href="/settings/telemetry" className="app-btn app-btn--sm app-btn--secondary gap-1.5">
+              <Server className="h-4 w-4" aria-hidden="true" />
+              Tous les clans
+            </Link>
+          ) : null}
+          <Link href={`/clans/${clanId}/matches?period=week`} className="app-btn app-btn--sm app-btn--secondary gap-1.5">
+            <Swords className="h-4 w-4" aria-hidden="true" />
+            Matchs du clan
+          </Link>
         </div>
-      </section>
+      </div>
 
       {error ? (
-        <section className="app-panel p-4 text-sm text-rose-700 dark:text-rose-300 border border-rose-500/30 bg-rose-500/10 rounded-xl">
-          {error}
+        <section className="app-panel">
+          <ErrorState message={error} onRetry={refreshAll} />
         </section>
       ) : null}
 
-      {/* 1. MOTEUR TÉLÉMÉTRIE & FILE GLOBALE (Identique à la page globale) */}
-      {engineStatus && (
-        <section className="app-panel p-5 space-y-4 border-l-4 border-indigo-500">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-            <div>
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <Server className="h-4 w-4 text-indigo-500" />
-                Moteur Télémétrie & File d&apos;attente
-              </h2>
-              <p className="text-xs text-slate-600 dark:text-slate-300 mt-0.5">
-                Statut du worker d&apos;ingestion, charge de la file globale et estimation de traitement.
-              </p>
-            </div>
-            <div className="flex items-center gap-2">
-              <StatusPill
-                status={engineStatus.worker.alive ? 'success' : 'failed'}
-                labelOverride={
-                  engineStatus.worker.alive
-                    ? `Worker actif (PID ${engineStatus.worker.pid ?? '?'})`
-                    : 'Worker inactif'
-                }
-              />
-            </div>
-          </div>
-
-          <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-3">
-            <MetricCard
-              icon={Clock}
-              label="En attente"
-              value={String(engineStatus.queue.queued)}
-              tone="amber"
-              compact
-            />
-            <MetricCard
-              icon={Activity}
-              label="En cours"
-              value={String(engineStatus.queue.running)}
-              tone="indigo"
-              compact
-            />
+      {engineStatus ? (
+        <SectionCard
+          id="recoveries-engine"
+          icon={Server}
+          title="Moteur et file d’attente"
+          meta="Worker d’ingestion, charge de la file commune et estimation de traitement."
+          aside={
+            <Tag tone={engineStatus.worker.alive ? 'pos' : 'neg'}>
+              {engineStatus.worker.alive ? `Worker actif · PID ${engineStatus.worker.pid ?? '?'}` : 'Worker inactif'}
+            </Tag>
+          }
+        >
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+            <MetricCard icon={Clock} label="En attente" value={String(engineStatus.queue.queued)} tone="warn" />
+            <MetricCard icon={Activity} label="En cours" value={String(engineStatus.queue.running)} tone="sky" />
             <MetricCard
               icon={ListOrdered}
-              label="Restant à traiter"
+              label="Restant"
               value={String(engineStatus.queue.remaining)}
-              tone={engineStatus.queue.remaining > 0 ? 'amber' : 'slate'}
-              compact
+              tone={engineStatus.queue.remaining > 0 ? 'warn' : 'neutral'}
             />
-            <MetricCard
-              icon={Timer}
-              label="Durée estimée (ETA)"
-              value={formatDuration(engineStatus.etaSeconds)}
-              compact
-            />
-            <MetricCard
-              icon={Zap}
-              label="Prochain cron estimé"
-              value={formatTime(engineStatus.scheduler.nextDailySyncEstimate)}
-              compact
-            />
-            <MetricCard
-              icon={CheckCircle2}
-              label="Total traités"
-              value={String(engineStatus.queue.total)}
-              compact
-            />
+            <MetricCard icon={Timer} label="Durée estimée" value={formatDuration(engineStatus.etaSeconds)} />
+            <MetricCard icon={Zap} label="Prochain cron" value={formatTime(engineStatus.scheduler.nextDailySyncEstimate)} />
+            <MetricCard icon={CheckCircle2} label="Total traités" value={String(engineStatus.queue.total)} />
           </div>
-        </section>
-      )}
+        </SectionCard>
+      ) : null}
 
-      {/* 2. AUDIT DE COUVERTURE & ACTIONS BACKLOG POUR CE CLAN */}
-      {backlog && (
-        <section className="app-panel p-5 space-y-4 border-2 border-indigo-500/20 dark:border-indigo-500/30">
-          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 pb-3 border-b border-slate-200 dark:border-slate-800">
-            <div>
-              <div className="flex items-center gap-2">
-                <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                  <Database className="h-4 w-4 text-indigo-500" />
-                  Couverture Télémétrie & Backlog du Clan
-                </h2>
-                <span className="app-meta-pill text-xs font-bold font-mono">
-                  {formatPercent(backlog.completionRate)} complété
-                </span>
-              </div>
-              <p className="mt-1 text-xs text-slate-600 dark:text-slate-300">
-                Audit de l&apos;intégralité des matchs enregistrés pour ce clan. Seuls les matchs de moins de 14 jours sont encore récupérables via l&apos;API PUBG.
-              </p>
-            </div>
-
-            {/* Actions d'enfilage pour ce clan */}
-            <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                onClick={() => void handleEnqueue('urgent')}
-                disabled={enqueueLoading !== null || backlog.urgentBacklog === 0}
-                className="app-btn app-btn--sm app-btn--primary gap-1.5"
-                title="Met en file les matchs entre 7 et 14 jours avant leur expiration définitive"
-              >
-                <Play className={`h-3.5 w-3.5 ${enqueueLoading === 'urgent' ? 'animate-spin' : ''}`} />
-                {enqueueLoading === 'urgent'
-                  ? 'Enfilage...'
-                  : `Mettre en file urgences (${backlog.urgentBacklog})`}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void handleEnqueue('backlog')}
-                disabled={enqueueLoading !== null || backlog.toQueueCount === 0}
-                className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-                title="Met en file tous les matchs récupérables non encore traités"
-              >
-                <HardDriveDownload className={`h-3.5 w-3.5 ${enqueueLoading === 'backlog' ? 'animate-spin' : ''}`} />
-                {enqueueLoading === 'backlog'
-                  ? 'Enfilage...'
-                  : `Mettre en file le backlog (${backlog.toQueueCount})`}
-              </button>
-
-              <button
-                type="button"
-                onClick={() => void runNullJsonBackfill()}
-                disabled={backfillLoading}
-                className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-                title="Réanalyse les fichiers déjà téléchargés dont le JSON parsé est manquant"
-              >
-                <Wrench className={`h-3.5 w-3.5 ${backfillLoading ? 'animate-spin' : ''}`} />
-                {backfillLoading ? 'Réparation...' : 'Backfill JSON manquants'}
-              </button>
-            </div>
-          </div>
-
-          {/* Feedback d'actions */}
-          {enqueueFeedback && (
-            <div
-              className={`p-3 rounded-xl text-xs font-semibold flex items-center justify-between gap-2 ${
-                enqueueFeedback.type === 'success'
-                  ? 'telemetry-toast-success'
-                  : 'telemetry-toast-error'
-              }`}
+      {backlog ? (
+        <SectionCard
+          id="recoveries-backlog"
+          icon={Database}
+          title="Couverture et backlog du clan"
+          meta="Toutes les parties enregistrées du clan. Seules celles de moins de 14 jours sont encore récupérables chez PUBG."
+          aside={<span className="app-meta-pill">{formatPercent(backlog.completionRate)} complété</span>}
+        >
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => void handleEnqueue('urgent')}
+              disabled={enqueueLoading !== null || backlog.urgentBacklog === 0}
+              className="app-btn app-btn--sm app-btn--primary gap-1.5"
+              title="Met en file les parties de 7 à 14 jours, avant leur expiration définitive"
             >
-              <span>{enqueueFeedback.message}</span>
+              <Play className={`h-3.5 w-3.5 ${enqueueLoading === 'urgent' ? 'animate-pulse' : ''}`} aria-hidden="true" />
+              {enqueueLoading === 'urgent' ? 'Mise en file…' : `Mettre en file les urgences (${backlog.urgentBacklog})`}
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleEnqueue('backlog')}
+              disabled={enqueueLoading !== null || backlog.toQueueCount === 0}
+              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+              title="Met en file toutes les parties récupérables non encore traitées"
+            >
+              <HardDriveDownload className={`h-3.5 w-3.5 ${enqueueLoading === 'backlog' ? 'animate-pulse' : ''}`} aria-hidden="true" />
+              {enqueueLoading === 'backlog' ? 'Mise en file…' : `Mettre en file le backlog (${backlog.toQueueCount})`}
+            </button>
+            <button
+              type="button"
+              onClick={() => void runNullJsonBackfill()}
+              disabled={backfillLoading}
+              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+              title="Réanalyse les fichiers déjà téléchargés dont le JSON analysé manque"
+            >
+              <Wrench className={`h-3.5 w-3.5 ${backfillLoading ? 'animate-pulse' : ''}`} aria-hidden="true" />
+              {backfillLoading ? 'Réparation…' : 'Réparer les JSON manquants'}
+            </button>
+          </div>
+
+          {enqueueFeedback ? (
+            <div className="flex items-start justify-between gap-2" role="status">
+              <p className={`t-body m-0 ${enqueueFeedback.type === 'success' ? 't-pos' : 't-neg'}`}>{enqueueFeedback.message}</p>
               <button
                 type="button"
                 onClick={() => setEnqueueFeedback(null)}
-                className="opacity-70 hover:opacity-100"
+                className="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-[8px] text-gray-500 hover:bg-gray-100 hover:text-gray-900"
+                aria-label="Fermer le message"
               >
-                ✕
+                <X className="h-4 w-4" aria-hidden="true" />
               </button>
             </div>
-          )}
+          ) : null}
 
-          {backfillMessage && (
-            <div className="p-3 rounded-xl text-xs font-semibold bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200">
+          {backfillMessage ? (
+            <Callout tone="warn" icon={Wrench} title="Réparation des JSON manquants">
               {backfillMessage}
-            </div>
-          )}
+            </Callout>
+          ) : null}
 
-          {/* Barre de progression tricolore */}
-          {backlog.totalMatches > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex h-2 w-full overflow-hidden rounded-full bg-slate-200 dark:bg-slate-800">
+          {backlog.totalMatches > 0 ? (
+            <div className="flex flex-col gap-1.5">
+              <div className="flex h-2 w-full overflow-hidden rounded-full" style={{ background: 'var(--game-track)' }} aria-hidden="true">
+                <div style={{ width: `${(backlog.completedMatches / backlog.totalMatches) * 100}%`, background: 'var(--game-pos)' }} />
                 <div
-                  className="h-full bg-emerald-500 transition-all duration-300"
-                  style={{ width: `${(backlog.completedMatches / backlog.totalMatches) * 100}%` }}
-                  title={`Complétés: ${backlog.completedMatches}`}
+                  style={{ width: `${(backlog.expiredMatches / backlog.totalMatches) * 100}%`, background: 'var(--theme-ui-text-muted)' }}
                 />
-                <div
-                  className="h-full bg-slate-400 dark:bg-slate-600 transition-all duration-300"
-                  style={{ width: `${(backlog.expiredMatches / backlog.totalMatches) * 100}%` }}
-                  title={`Expirés PUBG: ${backlog.expiredMatches}`}
-                />
-                <div
-                  className="h-full bg-indigo-500 transition-all duration-300"
-                  style={{ width: `${(backlog.recoverableBacklog / backlog.totalMatches) * 100}%` }}
-                  title={`Backlog récupérable: ${backlog.recoverableBacklog}`}
-                />
+                <div style={{ width: `${(backlog.recoverableBacklog / backlog.totalMatches) * 100}%`, background: 'var(--game-sky)' }} />
               </div>
-              <div className="flex flex-wrap items-center justify-between text-[11px] text-slate-500 dark:text-slate-400">
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-emerald-500" />
-                  Complétés ({backlog.completedMatches})
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-slate-400 dark:bg-slate-600" />
-                  Expirés définitifs ({backlog.expiredMatches})
-                </span>
-                <span className="flex items-center gap-1">
-                  <span className="h-2 w-2 rounded-full bg-indigo-500" />
-                  Récupérables ({backlog.recoverableBacklog})
-                </span>
+              <div className="t-meta flex flex-wrap items-center gap-x-4 gap-y-1">
+                <LegendDot color="var(--game-pos)" label={`Complétées (${backlog.completedMatches})`} />
+                <LegendDot color="var(--theme-ui-text-muted)" label={`Expirées définitivement (${backlog.expiredMatches})`} />
+                <LegendDot color="var(--game-sky)" label={`Récupérables (${backlog.recoverableBacklog})`} />
               </div>
             </div>
-          )}
+          ) : null}
 
-          {/* Grille des 6 indicateurs macro */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
-            <MetricCard
-              icon={Activity}
-              label="Matchs totaux"
-              value={String(backlog.totalMatches)}
-              hint="Historique complet du clan"
-              compact
-            />
-            <MetricCard
-              icon={CheckCircle2}
-              label="Complétés"
-              value={String(backlog.completedMatches)}
-              tone="emerald"
-              hint="Télémétrie parsée"
-              compact
-            />
-            <MetricCard
-              icon={History}
-              label="Expirés (>14j)"
-              value={String(backlog.expiredMatches)}
-              hint="Irrévocables (PUBG)"
-              compact
-            />
+          <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+            <MetricCard icon={Activity} label="Parties" value={String(backlog.totalMatches)} hint="Historique complet du clan" />
+            <MetricCard icon={CheckCircle2} label="Complétées" value={String(backlog.completedMatches)} tone="pos" hint="Télémétrie analysée" />
+            <MetricCard icon={History} label="Expirées" value={String(backlog.expiredMatches)} hint="Plus de 14 jours chez PUBG" />
             <MetricCard
               icon={HardDriveDownload}
-              label="Backlog récupérable"
+              label="Récupérables"
               value={String(backlog.recoverableBacklog)}
-              tone={backlog.recoverableBacklog > 0 ? 'indigo' : 'slate'}
-              hint="Prêts à télécharger"
-              compact
+              tone={backlog.recoverableBacklog > 0 ? 'sky' : 'neutral'}
+              hint="Prêtes à télécharger"
             />
             <MetricCard
               icon={AlertTriangle}
-              label="Urgents (< 14j)"
+              label="Urgentes"
               value={String(backlog.urgentBacklog)}
-              tone={backlog.urgentBacklog > 0 ? 'rose' : 'slate'}
-              hint="Expire sous 7 jours !"
-              compact
+              tone={backlog.urgentBacklog > 0 ? 'neg' : 'neutral'}
+              hint="Expirent sous 7 jours"
             />
             <MetricCard
               icon={ListOrdered}
-              label="En file d'attente"
+              label="En file"
               value={`${backlog.inQueueCount} / ${backlog.toQueueCount}`}
-              hint="En file / Restant"
-              compact
+              hint="En file / restant"
             />
           </div>
-        </section>
-      )}
+        </SectionCard>
+      ) : null}
 
-      {/* 3. ÉCHANTILLON CHARGÉ (150 DERNIÈRES LIGNES) */}
       {payload ? (
         <>
-          <section className="app-panel p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
-              <h2 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                <FileJson className="h-4 w-4 text-indigo-500" />
-                Échantillon récent ({payload.rows.length} lignes)
-              </h2>
-              <span className="text-xs text-slate-500 dark:text-slate-400">
-                Extraction des {payload.limit} derniers événements
-              </span>
+          <SectionCard
+            id="recoveries-sample"
+            icon={FileJson}
+            title="Échantillon récent"
+            meta={`${payload.rows.length} lignes, les ${payload.limit} derniers événements du clan.`}
+          >
+            <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-6">
+              <MetricCard icon={Activity} label="Lignes" value={String(payload.summary.total)} />
+              <MetricCard icon={CheckCircle2} label="Succès" value={String(payload.summary.success)} tone="pos" />
+              <MetricCard icon={XCircle} label="Échecs" value={String(payload.summary.failed)} tone="neg" />
+              <MetricCard icon={History} label="Expirées" value={String(payload.summary.expired)} />
+              <MetricCard icon={Clock} label="En attente" value={String(payload.summary.pending)} tone="warn" />
+              <MetricCard icon={FileJson} label="JSON analysé" value={String(payload.summary.withParsedPayload)} />
             </div>
+          </SectionCard>
 
-            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 lg:grid-cols-6">
-              <MetricCard icon={Activity} label="Lignes chargées" value={String(payload.summary.total)} compact />
-              <MetricCard
-                icon={CheckCircle2}
-                label="Succès"
-                value={String(payload.summary.success)}
-                tone="emerald"
-                compact
-              />
-              <MetricCard icon={XCircle} label="Échecs" value={String(payload.summary.failed)} tone="rose" compact />
-              <MetricCard icon={History} label="Expirées (PUBG)" value={String(payload.summary.expired)} compact />
-              <MetricCard icon={Clock} label="En attente" value={String(payload.summary.pending)} tone="amber" compact />
-              <MetricCard
-                icon={FileJson}
-                label="Avec parser JSON"
-                value={String(payload.summary.withParsedPayload)}
-                compact
-              />
-            </div>
-          </section>
-
-          {/* 4. KPIS DE SANTÉ TÉLÉMÉTRIE */}
-          <section className="app-panel p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
-                <Gauge className="h-4 w-4 text-indigo-500" aria-hidden />
-                KPIs de santé télémétrie
-              </h2>
-              <SegmentedControl size="sm" value={kpiWindow} onChange={setKpiWindow} options={WINDOW_OPTIONS} />
-            </div>
-
-            <p className="text-xs text-slate-500 dark:text-slate-400">
-              Échantillon de calcul : {telemetryKpis.scopedCount} ligne(s) sur la fenêtre sélectionnée.
-            </p>
-
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-              <MetricCard
-                icon={TrendingUp}
-                label="Taux succès"
-                value={formatPercent(telemetryKpis.successRate)}
-                tone="emerald"
-              />
+          <SectionCard
+            id="recoveries-health"
+            icon={Gauge}
+            title="Santé de la télémétrie"
+            meta={`Calcul sur ${telemetryKpis.scopedCount} ligne(s) de la période.`}
+            aside={<SegmentedControl size="sm" value={kpiWindow} onChange={setKpiWindow} options={WINDOW_OPTIONS} />}
+          >
+            <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+              <MetricCard icon={TrendingUp} label="Taux de succès" value={formatPercent(telemetryKpis.successRate)} tone="pos" />
               <MetricCard icon={Database} label="Lignes observées" value={String(telemetryKpis.scopedCount)} />
-              <MetricCard icon={HardDrive} label="Médiane taille" value={formatBytes(telemetryKpis.medianBytes)} />
+              <MetricCard icon={HardDrive} label="Taille médiane" value={formatBytes(telemetryKpis.medianBytes)} />
               <MetricCard
                 icon={Timer}
-                label="Médiane délai source->parse"
+                label="Délai médian"
                 value={formatDurationMinutes(telemetryKpis.medianSourceToParseMinutes)}
+                hint="De la partie à l’analyse"
               />
             </div>
-          </section>
+          </SectionCard>
 
-          {/* 5. DASHBOARD OBSERVABILITÉ */}
-          <section className="app-panel p-5 space-y-4">
-            <div className="flex flex-wrap items-center justify-between gap-3 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
-                <Server className="h-4 w-4 text-indigo-500" aria-hidden />
-                Observabilité des jobs télémétrie
-              </h2>
-              <SegmentedControl
-                size="sm"
-                value={observabilityWindow}
-                onChange={setObservabilityWindow}
-                options={WINDOW_OPTIONS}
-              />
-            </div>
-
-            {loadingObservability ? (
-              <p className="text-sm text-slate-600 dark:text-slate-400">Chargement de l&apos;observabilité...</p>
-            ) : null}
-
+          <SectionCard
+            id="recoveries-observability"
+            icon={Activity}
+            title="Observabilité des jobs"
+            meta="Un job = une partie traitée par le worker de télémétrie (file telemetry_live_sync)."
+            aside={
+              <SegmentedControl size="sm" value={observabilityWindow} onChange={setObservabilityWindow} options={WINDOW_OPTIONS} />
+            }
+          >
+            {loadingObservability ? <ListSkeleton rows={2} /> : null}
             {observabilityError ? (
-              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-sm text-amber-800 dark:text-amber-200">
+              <Callout tone="warn" icon={AlertTriangle} title="Observabilité indisponible">
                 {observabilityError}
-              </div>
+              </Callout>
             ) : null}
-
             {!loadingObservability && !observabilityError && observabilityPayload ? (
               <>
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Un job = un match traité par le worker telemetry (file <code className="bg-slate-100 dark:bg-slate-800 px-1 py-0.5 rounded text-indigo-500 font-mono">telemetry_live_sync</code>).
-                </p>
-
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
-                  <MetricCard icon={Activity} label="Jobs" value={String(observabilityPayload.summary.runs)} compact />
-                  <MetricCard
-                    icon={CheckCircle2}
-                    label="Succès"
-                    value={String(observabilityPayload.summary.success)}
-                    tone="emerald"
-                    compact
-                  />
-                  <MetricCard
-                    icon={XCircle}
-                    label="Échecs"
-                    value={String(observabilityPayload.summary.failed)}
-                    tone="rose"
-                    compact
-                  />
-                  <MetricCard
-                    icon={History}
-                    label="Expirées (PUBG)"
-                    value={String(observabilityPayload.summary.expired)}
-                    compact
-                  />
-                  <MetricCard
-                    icon={HardDriveDownload}
-                    label="Octets téléchargés"
-                    value={formatBytes(observabilityPayload.summary.bytesDownloaded)}
-                    compact
-                  />
+                <div className="grid grid-cols-2 gap-2.5 sm:grid-cols-3 lg:grid-cols-5">
+                  <MetricCard icon={Activity} label="Jobs" value={String(observabilityPayload.summary.runs)} />
+                  <MetricCard icon={CheckCircle2} label="Succès" value={String(observabilityPayload.summary.success)} tone="pos" />
+                  <MetricCard icon={XCircle} label="Échecs" value={String(observabilityPayload.summary.failed)} tone="neg" />
+                  <MetricCard icon={History} label="Expirées" value={String(observabilityPayload.summary.expired)} />
+                  <MetricCard icon={HardDriveDownload} label="Téléchargé" value={formatBytes(observabilityPayload.summary.bytesDownloaded)} />
+                </div>
+                <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+                  <MetricCard icon={Database} label="Jobs notés" value={String(observabilityPayload.health.ratedRuns)} hint="Hors expirés" />
+                  <MetricCard icon={TrendingUp} label="Taux de succès" value={formatPercent(observabilityPayload.health.successRate)} tone="pos" />
+                  <MetricCard icon={AlertTriangle} label="Taux d’échec" value={formatPercent(observabilityPayload.health.failedRate)} tone="neg" />
+                  <MetricCard icon={Timer} label="Durée p95" value={formatMilliseconds(observabilityPayload.latency.p95DurationMs)} />
                 </div>
 
-                <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                  <MetricCard
-                    icon={Database}
-                    label="Jobs notés (hors expirés)"
-                    value={String(observabilityPayload.health.ratedRuns)}
-                    compact
-                  />
-                  <MetricCard
-                    icon={TrendingUp}
-                    label="Taux succès"
-                    value={formatPercent(observabilityPayload.health.successRate)}
-                    tone="emerald"
-                    compact
-                  />
-                  <MetricCard
-                    icon={AlertTriangle}
-                    label="Taux échec"
-                    value={formatPercent(observabilityPayload.health.failedRate)}
-                    tone="rose"
-                    compact
-                  />
-                  <MetricCard
-                    icon={Timer}
-                    label="Durée job p95"
-                    value={formatMilliseconds(observabilityPayload.latency.p95DurationMs)}
-                    compact
-                  />
-                </div>
+                {observabilityPayload.health.alerts.length > 0 ? (
+                  <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+                    {observabilityPayload.health.alerts.map((alert) => {
+                      const tone = alert.status === 'ok' ? 'pos' : 'warn'
+                      const format = alert.key === 'duration_p95_ms' ? formatMilliseconds : formatPercent
+                      return (
+                        <li key={alert.key} className="app-panel-muted flex items-start gap-2.5 px-3 py-2.5">
+                          {alert.status === 'ok' ? (
+                            <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" style={{ color: `var(--game-${tone})` }} aria-hidden="true" />
+                          ) : (
+                            <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" style={{ color: `var(--game-${tone})` }} aria-hidden="true" />
+                          )}
+                          <span className="flex min-w-0 flex-col">
+                            <span className="t-body font-semibold text-gray-900">{alert.label}</span>
+                            <span className="t-meta">
+                              Valeur : {format(alert.value)} · seuil : {format(alert.threshold)}
+                            </span>
+                          </span>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                ) : null}
 
-                <div className="grid gap-2 sm:grid-cols-2">
-                  {observabilityPayload.health.alerts.map((alert) => (
-                    <article
-                      key={alert.key}
-                      className={`rounded-xl border p-3 text-sm ${healthAlertClass(alert.status)}`}
-                    >
-                      <p className="flex items-center gap-1.5 font-semibold">
-                        {alert.status === 'ok' ? (
-                          <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden />
-                        ) : (
-                          <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden />
-                        )}
-                        {alert.label}
-                      </p>
-                      <p className="text-xs mt-0.5 opacity-90">
-                        Valeur : {alert.key === 'duration_p95_ms' ? formatMilliseconds(alert.value) : formatPercent(alert.value)}
-                        {' · '}Seuil :{' '}
-                        {alert.key === 'duration_p95_ms'
-                          ? formatMilliseconds(alert.threshold)
-                          : formatPercent(alert.threshold)}
-                      </p>
-                    </article>
-                  ))}
-                </div>
-
-                <div className="app-table-shell overflow-x-auto">
-                  <table className="min-w-full text-left text-sm">
-                    <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
+                <div className="app-table-shell hidden md:block">
+                  <table className="w-full text-left text-sm">
+                    <thead className="app-table-head">
                       <tr>
-                        <th className="px-3 py-2">Job</th>
-                        <th className="px-3 py-2">Match PUBG</th>
-                        <th className="px-3 py-2">Statut</th>
-                        <th className="px-3 py-2 text-right">Taille</th>
-                        <th className="px-3 py-2 text-right">Durée</th>
+                        <th className="t-label px-3 py-2">Début</th>
+                        <th className="t-label px-3 py-2">Partie PUBG</th>
+                        <th className="t-label px-3 py-2">Statut</th>
+                        <th className="t-label px-3 py-2 text-right">Taille</th>
+                        <th className="t-label px-3 py-2 text-right">Durée</th>
                       </tr>
                     </thead>
                     <tbody>
                       {observabilityPayload.series.slice(0, 8).map((row) => (
                         <tr key={row.id} className="app-table-row align-top">
-                          <td className="px-3 py-2 text-slate-700 dark:text-slate-300">{formatDateTime(row.startedAt)}</td>
-                          <td className="px-3 py-2 font-mono text-xs text-slate-900 dark:text-white">{row.pubgMatchId ?? '-'}</td>
+                          <td className="px-3 py-2 text-gray-700">{formatDateTime(row.startedAt)}</td>
+                          <td className="px-3 py-2 font-mono text-xs text-gray-900">{row.pubgMatchId ?? '—'}</td>
                           <td className="px-3 py-2">
-                            <StatusPill
-                              status={row.expired ? 'expired' : row.status}
-                              labelOverride={row.expired ? 'Expiré (PUBG)' : row.status}
-                            />
+                            <StatusTag status={row.expired ? 'expired' : row.status} />
                           </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                            {formatBytes(row.bytesDownloaded)}
-                          </td>
-                          <td className="px-3 py-2 text-right tabular-nums text-slate-700 dark:text-slate-300">
-                            {row.durationMs !== null ? formatMilliseconds(row.durationMs) : '-'}
+                          <td className="t-num px-[9px] py-2 text-right text-gray-700">{formatBytes(row.bytesDownloaded)}</td>
+                          <td className="t-num px-[9px] py-2 text-right text-gray-700">
+                            {row.durationMs !== null ? formatMilliseconds(row.durationMs) : '—'}
                           </td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
                 </div>
+                <ul className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
+                  {observabilityPayload.series.slice(0, 8).map((row) => (
+                    <li key={row.id} className="app-panel-muted flex flex-col gap-1 px-3 py-2.5">
+                      <span className="flex items-center justify-between gap-2">
+                        <StatusTag status={row.expired ? 'expired' : row.status} />
+                        <span className="t-meta">{formatDateTime(row.startedAt)}</span>
+                      </span>
+                      <span className="truncate font-mono text-xs text-gray-900">{row.pubgMatchId ?? '—'}</span>
+                      <span className="t-meta">
+                        {formatBytes(row.bytesDownloaded)} · {row.durationMs !== null ? formatMilliseconds(row.durationMs) : '—'}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
               </>
             ) : null}
-          </section>
+          </SectionCard>
 
-          {/* 6. HISTORIQUE DÉTAILLÉ DES RÉCUPÉRATIONS */}
-          <section className="app-panel p-5 space-y-4">
-            <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-slate-200 dark:border-slate-800">
-              <div>
-                <h2 className="flex items-center gap-2 text-base font-bold text-slate-900 dark:text-white">
-                  <History className="h-4 w-4 text-indigo-500" aria-hidden />
-                  Historique détaillé des récupérations
-                </h2>
-                <p className="text-xs text-slate-600 dark:text-slate-400 mt-0.5">
-                  Liste des {payload.rows.length} derniers enregistrements télémétrie de ce clan.
-                </p>
-              </div>
-            </div>
-
+          <SectionCard
+            id="recoveries-history"
+            icon={History}
+            title="Historique des récupérations"
+            meta={`Les ${payload.rows.length} derniers enregistrements de télémétrie du clan. Tri par les en-têtes du tableau.`}
+          >
             <div className="grid gap-3 md:grid-cols-3">
-              <FilterDropdown
-                id="recoveries-status-filter"
-                label="Statut"
-                value={statusFilter}
-                onChange={(value) => {
-                  setStatusFilter(value as 'all' | 'success' | 'failed' | 'pending')
-                  setHistoryPage(1)
-                }}
-                options={[
-                  { value: 'all', label: 'Tous' },
-                  { value: 'success', label: 'Succès' },
-                  { value: 'failed', label: 'Échecs' },
-                  { value: 'pending', label: 'En attente' },
-                ]}
-              />
-
-              <FilterDropdown
-                id="recoveries-parser-filter"
-                label="Parser JSON"
-                value={parserFilter}
-                onChange={(value) => {
-                  setParserFilter(value as 'all' | 'with-json' | 'without-json')
-                  setHistoryPage(1)
-                }}
-                options={[
-                  { value: 'all', label: 'Tous' },
-                  { value: 'with-json', label: 'Avec JSON' },
-                  { value: 'without-json', label: 'Sans JSON' },
-                ]}
-              />
-
-              <label className="flex flex-col gap-1 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                Recherche
+              <div className="flex flex-col gap-1">
+                <span className="t-label">Statut</span>
+                <ChoiceMenu
+                  label="Statut"
+                  value={statusFilter}
+                  onChange={(value) => {
+                    setStatusFilter(value)
+                    setHistoryPage(1)
+                  }}
+                  options={[
+                    { value: 'all', label: 'Tous' },
+                    { value: 'success', label: 'Succès' },
+                    { value: 'failed', label: 'Échecs' },
+                    { value: 'pending', label: 'En attente' },
+                  ]}
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <span className="t-label">JSON analysé</span>
+                <ChoiceMenu
+                  label="JSON analysé"
+                  value={parserFilter}
+                  onChange={(value) => {
+                    setParserFilter(value)
+                    setHistoryPage(1)
+                  }}
+                  options={[
+                    { value: 'all', label: 'Tous' },
+                    { value: 'with-json', label: 'Avec JSON' },
+                    { value: 'without-json', label: 'Sans JSON' },
+                  ]}
+                />
+              </div>
+              <label className="flex flex-col gap-1">
+                <span className="t-label">Recherche</span>
                 <input
                   value={searchTerm}
                   onChange={(event) => {
                     setSearchTerm(event.target.value)
                     setHistoryPage(1)
                   }}
-                  placeholder="ID match, carte, mode, erreur..."
-                  className="h-10 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 px-3 text-sm font-medium text-slate-900 dark:text-white placeholder:text-slate-400 focus:ring-2 focus:ring-indigo-500"
+                  placeholder="Partie, carte, mode, erreur…"
+                  className="app-input"
                 />
               </label>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-4">
-              <FilterDropdown
-                id="recoveries-primary-sort-key"
-                label="Tri principal"
-                value={primarySortKey}
-                onChange={(value) => {
-                  setPrimarySortKey(value as SortKey)
-                  setHistoryPage(1)
-                }}
-                options={[
-                  { value: 'updatedAt', label: 'Date MAJ' },
-                  { value: 'status', label: 'Statut' },
-                  { value: 'bytesDownloaded', label: 'Taille (octets)' },
-                ]}
-              />
-
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Ordre principal</p>
-                <SegmentedControl
-                  size="sm"
-                  value={primarySortDirection}
-                  onChange={(value) => {
-                    setPrimarySortDirection(value)
-                    setHistoryPage(1)
-                  }}
-                  options={[
-                    { value: 'desc', label: 'Décroissant' },
-                    { value: 'asc', label: 'Croissant' },
-                  ]}
-                />
-              </div>
-
-              <FilterDropdown
-                id="recoveries-secondary-sort-key"
-                label="Tri secondaire"
-                value={secondarySortKey}
-                onChange={(value) => {
-                  setSecondarySortKey(value as SortKey | 'none')
-                  setHistoryPage(1)
-                }}
-                options={[
-                  { value: 'none', label: 'Aucun' },
-                  { value: 'updatedAt', label: 'Date MAJ' },
-                  { value: 'status', label: 'Statut' },
-                  { value: 'bytesDownloaded', label: 'Taille (octets)' },
-                ]}
-              />
-
-              <div>
-                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">Ordre secondaire</p>
-                <SegmentedControl
-                  size="sm"
-                  value={secondarySortDirection}
-                  onChange={(value) => {
-                    setSecondarySortDirection(value)
-                    setHistoryPage(1)
-                  }}
-                  options={[
-                    { value: 'desc', label: 'Décroissant', disabled: secondarySortKey === 'none' },
-                    { value: 'asc', label: 'Croissant', disabled: secondarySortKey === 'none' },
-                  ]}
-                />
-              </div>
-            </div>
-
-            <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex flex-wrap items-center gap-2">
-                <span className="app-meta-pill text-xs font-bold">
-                  {sortedRows.length} résultat(s) / {payload.rows.length}
+                <span className="app-meta-pill">
+                  <span className="t-num">{sortedRows.length}</span>&nbsp;/&nbsp;<span className="t-num">{payload.rows.length}</span>
+                  &nbsp;résultat(s)
                 </span>
                 <button
                   type="button"
-                  onClick={() => {
-                    if (!clanId || sortedRows.length === 0) {
-                      return
-                    }
-
-                    downloadRecoveriesCsv(clanId, sortedRows)
-                  }}
-                  disabled={!clanId || sortedRows.length === 0}
-                  className="app-btn app-btn--xs app-btn--secondary"
+                  onClick={() => downloadRecoveriesCsv(clanId, sortedRows)}
+                  disabled={sortedRows.length === 0}
+                  className="app-btn app-btn--sm app-btn--secondary gap-1.5"
                 >
-                  Exporter CSV ({sortedRows.length})
+                  <Download className="h-3.5 w-3.5" aria-hidden="true" />
+                  Exporter en CSV
                 </button>
                 {searchTerm.trim() ? (
-                  <button
-                    type="button"
-                    onClick={() => setSearchTerm('')}
-                    className="app-btn app-btn--xs app-btn--secondary"
-                  >
-                    Effacer recherche
+                  <button type="button" onClick={() => setSearchTerm('')} className="app-link text-xs font-semibold">
+                    Effacer la recherche
                   </button>
                 ) : null}
               </div>
-
               <div className="flex items-center gap-2">
-                <span className="text-xs text-slate-500 dark:text-slate-400">Lignes :</span>
+                <span className="t-meta">Lignes par page</span>
                 <SegmentedControl
                   size="sm"
                   value={String(historyPageSize)}
@@ -1629,191 +1305,183 @@ export default function TelemetryRecoveriesPage() {
                     setHistoryPageSize(Number(value) as (typeof HISTORY_PAGE_SIZE_OPTIONS)[number])
                     setHistoryPage(1)
                   }}
-                  options={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
-                    value: String(value),
-                    label: String(value),
-                  }))}
+                  options={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({ value: String(value), label: String(value) }))}
                 />
               </div>
             </div>
 
-            <div className="app-table-shell overflow-x-auto">
-              <table className="min-w-full text-left text-sm">
-                <thead className="app-table-head text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                  <tr>
-                    <th className="px-3 py-2">Statut</th>
-                    <th className="px-3 py-2">Match PUBG</th>
-                    <th className="px-3 py-2">Carte / mode</th>
-                    <th className="px-3 py-2">Taille</th>
-                    <th className="px-3 py-2">Parser</th>
-                    <th className="px-3 py-2">Analysé le</th>
-                    <th className="px-3 py-2">Erreur</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {paginatedRows.map((row) => {
-                    const telemetryDataExpired =
-                      row.status === 'failed' && isTelemetryDataExpiredError(row.errorCode, row.errorMessage)
-
-                    return (
-                      <tr key={row.id} className="app-table-row align-top">
-                        <td className="px-3 py-2">
-                          <StatusPill
-                            status={telemetryDataExpired ? 'expired' : row.status}
-                            labelOverride={telemetryDataExpired ? 'Expiré (PUBG)' : row.status}
-                          />
-                        </td>
-                        <td className="px-3 py-2 text-slate-800 dark:text-slate-200">
-                          <p className="font-mono text-xs font-bold text-slate-900 dark:text-white">{row.pubgMatchId}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">{formatDateTime(row.squadCreatedAt)}</p>
-                          {clanId ? (
-                            <div className="mt-1 flex flex-wrap gap-1.5 text-xs">
-                              {extractDateSegment(row.squadCreatedAt) ? (
-                                <Link
-                                  href={`/clans/${clanId}/matches/session/${extractDateSegment(row.squadCreatedAt)}?period=week`}
-                                  className="inline-flex items-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                                >
-                                  Session
-                                </Link>
-                              ) : null}
-                              {extractDateSegment(row.squadCreatedAt) ? (
-                                <Link
-                                  href={`/clans/${clanId}/matches/session/${extractDateSegment(row.squadCreatedAt)}?period=week#match-${row.squadMatchId}`}
-                                  className="inline-flex items-center rounded-md border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 px-2 py-0.5 font-medium text-slate-700 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-700"
-                                >
-                                  Match
-                                </Link>
-                              ) : null}
-                            </div>
-                          ) : null}
-                        </td>
-                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                          <p className="font-semibold text-slate-900 dark:text-white">{row.mapName}</p>
-                          <p className="text-xs uppercase tracking-wide text-slate-500 dark:text-slate-400">
-                            {resolveGameMode(row.gameMode)} · #{row.placement}
-                          </p>
-                        </td>
-                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                          <p className="font-medium text-slate-900 dark:text-white">{formatBytes(row.bytesDownloaded)}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">Header : {formatBytes(row.contentLength)}</p>
-                        </td>
-                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300">
-                          <p className="font-mono text-xs">{row.parserVersion}</p>
-                          <p className="text-xs text-slate-500 dark:text-slate-400">JSON : {row.hasParsedPayload ? 'oui' : 'non'}</p>
-                        </td>
-                        <td className="px-3 py-2 text-slate-700 dark:text-slate-300 text-xs">
-                          {formatDateTime(row.parsedAt)}
-                        </td>
-                        <td className="px-3 py-2">
-                          {row.errorCode || row.errorMessage ? (
-                            <div className="max-w-xs space-y-1">
-                              {row.errorCode ? (
-                                <span className="inline-block rounded-md bg-rose-500/10 border border-rose-500/30 px-1.5 py-0.5 font-mono text-[11px] font-bold text-rose-700 dark:text-rose-300">
-                                  {row.errorCode}
-                                </span>
-                              ) : null}
-                              {row.errorMessage ? (
-                                <p className="line-clamp-2 text-xs text-slate-600 dark:text-slate-400" title={row.errorMessage}>
-                                  {row.errorMessage}
-                                </p>
-                              ) : null}
-                            </div>
-                          ) : (
-                            <span className="text-xs text-slate-400 dark:text-slate-500">-</span>
-                          )}
-                        </td>
+            {sortedRows.length === 0 ? (
+              <EmptyState icon={History} title="Aucun résultat" text="Aucun enregistrement ne correspond aux filtres actuels." />
+            ) : (
+              <>
+                <div className="app-table-shell hidden md:block">
+                  <table className="w-full text-left text-sm">
+                    <thead className="app-table-head">
+                      <tr>
+                        <SortableTh<SortKey> column="status" sortKey={primarySortKey} sortDir={primarySortDirection} onSort={changeSort}>
+                          Statut
+                        </SortableTh>
+                        <th className="t-label px-3 py-2">Partie</th>
+                        <th className="t-label px-3 py-2">Carte · mode</th>
+                        <SortableTh<SortKey>
+                          column="bytesDownloaded"
+                          sortKey={primarySortKey}
+                          sortDir={primarySortDirection}
+                          onSort={changeSort}
+                          align="right"
+                        >
+                          Taille
+                        </SortableTh>
+                        <SortableTh<SortKey> column="updatedAt" sortKey={primarySortKey} sortDir={primarySortDirection} onSort={changeSort}>
+                          Mise à jour
+                        </SortableTh>
+                        <th className="t-label px-3 py-2">Erreur</th>
                       </tr>
-                    )
-                  })}
-                  {sortedRows.length === 0 ? (
-                    <tr className="app-table-row">
-                      <td colSpan={7} className="px-3 py-8 text-center text-sm text-slate-500 dark:text-slate-400">
-                        Aucun résultat avec les filtres actuels.
-                      </td>
-                    </tr>
-                  ) : null}
-                </tbody>
-              </table>
-            </div>
-
-            {sortedRows.length > 0 ? (
-              <div className="flex flex-wrap items-center justify-between gap-2 pt-2">
-                <p className="text-xs text-slate-500 dark:text-slate-400">
-                  Affichage de {(historyPageClamped - 1) * historyPageSize + 1} à{' '}
-                  {Math.min(historyPageClamped * historyPageSize, sortedRows.length)} sur {sortedRows.length}
-                </p>
-                <div className="app-pagination">
-                  <button
-                    type="button"
-                    disabled={historyPageClamped <= 1}
-                    onClick={() => setHistoryPage(Math.max(1, historyPageClamped - 1))}
-                    aria-label="Page précédente"
-                    title="Page précédente"
-                    className="app-pagination-button"
-                  >
-                    ←
-                  </button>
-                  <span className="app-pagination-label">
-                    {historyPageClamped} sur {historyTotalPages}
-                  </span>
-                  <button
-                    type="button"
-                    disabled={historyPageClamped >= historyTotalPages}
-                    onClick={() => setHistoryPage(Math.min(historyTotalPages, historyPageClamped + 1))}
-                    aria-label="Page suivante"
-                    title="Page suivante"
-                    className="app-pagination-button"
-                  >
-                    →
-                  </button>
+                    </thead>
+                    <tbody>
+                      {paginatedRows.map((row) => (
+                        <tr key={row.id} className="app-table-row align-top">
+                          <td className="px-3 py-2">
+                            <StatusTag status={rowStatus(row)} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <RecoveryMatchCell clanId={clanId} row={row} />
+                          </td>
+                          <td className="px-3 py-2">
+                            <p className="m-0 font-semibold text-gray-900">{row.mapName}</p>
+                            <p className="t-meta m-0">
+                              {resolveGameMode(row.gameMode)} · #{row.placement}
+                            </p>
+                          </td>
+                          <td className="px-[9px] py-2 text-right">
+                            <p className="t-num m-0 font-semibold text-gray-900">{formatBytes(row.bytesDownloaded)}</p>
+                            <p className="t-meta m-0">JSON : {row.hasParsedPayload ? 'oui' : 'non'}</p>
+                          </td>
+                          <td className="px-3 py-2">
+                            <p className="m-0 text-xs text-gray-700">{formatDateTime(row.updatedAt)}</p>
+                            <p className="t-meta m-0">Analyse : {formatDateTime(row.parsedAt)}</p>
+                          </td>
+                          <td className="px-3 py-2">
+                            <RecoveryError row={row} />
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
                 </div>
-              </div>
-            ) : null}
-          </section>
+                <ul className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
+                  {paginatedRows.map((row) => (
+                    <li key={row.id} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+                      <span className="flex items-center justify-between gap-2">
+                        <StatusTag status={rowStatus(row)} />
+                        <span className="t-meta">{formatDateTime(row.updatedAt)}</span>
+                      </span>
+                      <RecoveryMatchCell clanId={clanId} row={row} />
+                      <span className="t-meta">
+                        {row.mapName} · {resolveGameMode(row.gameMode)} · #{row.placement} · {formatBytes(row.bytesDownloaded)}
+                      </span>
+                      <RecoveryError row={row} />
+                    </li>
+                  ))}
+                </ul>
+                <Pagination
+                  page={historyPageClamped}
+                  pageCount={historyTotalPages}
+                  total={sortedRows.length}
+                  pageSize={historyPageSize}
+                  onPageChange={setHistoryPage}
+                  ariaLabel="Pages de l’historique"
+                  itemLabel="Lignes"
+                />
+              </>
+            )}
+          </SectionCard>
         </>
       ) : null}
-    </main>
+    </div>
   )
 }
 
+/** Statut affiché d'une ligne : un échec dû à un fichier expiré chez PUBG se lit « Expirée ». */
+function rowStatus(row: TelemetryRecoveryRow) {
+  return row.status === 'failed' && isTelemetryDataExpiredError(row.errorCode, row.errorMessage) ? 'expired' : row.status
+}
+
+function LegendDot({ color, label }: { color: string; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="h-2 w-2 rounded-full" style={{ background: color }} aria-hidden="true" />
+      {label}
+    </span>
+  )
+}
+
+function RecoveryMatchCell({ clanId, row }: { clanId: number; row: TelemetryRecoveryRow }) {
+  const sessionDate = extractDateSegment(row.squadCreatedAt)
+  return (
+    <div className="flex min-w-0 flex-col gap-0.5">
+      <p className="m-0 truncate font-mono text-xs font-bold text-gray-900">{row.pubgMatchId}</p>
+      <p className="t-meta m-0">{formatDateTime(row.squadCreatedAt)}</p>
+      {sessionDate ? (
+        <span className="flex flex-wrap gap-2 text-xs">
+          <Link href={`/clans/${clanId}/matches/session/${sessionDate}?period=week`} className="app-link font-semibold">
+            Soirée
+          </Link>
+          <Link
+            href={`/clans/${clanId}/matches/session/${sessionDate}?period=week#match-${row.squadMatchId}`}
+            className="app-link font-semibold"
+          >
+            Partie
+          </Link>
+        </span>
+      ) : null}
+    </div>
+  )
+}
+
+function RecoveryError({ row }: { row: TelemetryRecoveryRow }) {
+  if (!row.errorCode && !row.errorMessage) return <span className="t-meta">—</span>
+  return (
+    <div className="flex max-w-xs flex-col gap-1">
+      {row.errorCode ? (
+        <span className="self-start">
+          <Tag tone="neg">{row.errorCode}</Tag>
+        </span>
+      ) : null}
+      {row.errorMessage ? (
+        <p className="t-meta m-0 line-clamp-2" title={row.errorMessage}>
+          {row.errorMessage}
+        </p>
+      ) : null}
+    </div>
+  )
+}
+
+/** Indicateur compact (charte) : intitulé et icône teintée, valeur en chiffres héros, précision atténuée. */
 function MetricCard({
   icon: Icon,
   label,
   value,
-  tone = 'slate',
-  compact = false,
+  tone = 'neutral',
   hint,
 }: {
   icon: LucideIcon
   label: string
   value: string
-  tone?: 'slate' | 'emerald' | 'amber' | 'rose' | 'indigo'
-  compact?: boolean
+  tone?: Tone
   hint?: string
 }) {
-  const toneClass =
-    tone === 'emerald'
-      ? 'text-emerald-700 dark:text-emerald-400'
-      : tone === 'amber'
-        ? 'text-amber-700 dark:text-amber-400'
-        : tone === 'rose'
-          ? 'text-rose-700 dark:text-rose-400'
-          : tone === 'indigo'
-            ? 'text-indigo-700 dark:text-indigo-400'
-            : 'text-slate-900 dark:text-white'
-
+  const color = tone === 'neutral' ? undefined : `var(--game-${tone})`
   return (
-    <article className="app-panel-muted rounded-xl p-4 flex flex-col justify-between">
-      <div>
-        <div className="flex items-center justify-between gap-2">
-          <p className="text-xs uppercase font-semibold tracking-wider text-slate-500 dark:text-slate-400">{label}</p>
-          <Icon className="h-4 w-4 shrink-0 text-slate-400 dark:text-slate-500" aria-hidden />
-        </div>
-        <p className={`mt-2 font-bold ${compact ? 'text-xl' : 'text-2xl'} ${toneClass}`}>{value}</p>
-      </div>
-      {hint ? (
-        <p className="mt-1 text-[11px] text-slate-400 dark:text-slate-500 leading-tight">{hint}</p>
-      ) : null}
-    </article>
+    <div className="app-panel-muted flex min-w-0 flex-col gap-1 px-3 py-2.5">
+      <p className="t-label m-0 flex items-center gap-1.5">
+        <Icon className="h-[13px] w-[13px] shrink-0" style={{ color: color ?? 'var(--theme-ui-text-muted)' }} aria-hidden="true" />
+        <span className="truncate">{label}</span>
+      </p>
+      <p className="t-hero t-hero--sm m-0 truncate text-gray-900" style={color ? { color } : undefined}>
+        {value}
+      </p>
+      {hint ? <p className="t-meta m-0 leading-tight">{hint}</p> : null}
+    </div>
   )
 }

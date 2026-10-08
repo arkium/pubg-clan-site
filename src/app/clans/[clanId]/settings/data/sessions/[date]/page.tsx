@@ -1,11 +1,25 @@
 'use client'
 
+import {
+  ArrowLeft,
+  CalendarDays,
+  ChevronLeft,
+  ChevronRight,
+  HardDriveDownload,
+  type LucideIcon,
+  RefreshCw,
+  Trash2,
+  Workflow,
+  Wrench,
+  XCircle,
+} from 'lucide-react'
 import Link from 'next/link'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
+import DataSectionHeader from '@/components/clan-settings/DataSectionHeader'
 import SquadMatchList from '@/components/SquadMatchList'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { ConfirmDialog, EmptyState, SectionCard, Tag, toneStyle, type Tone } from '@/components/ui/CharteKit'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -279,6 +293,8 @@ export default function TelemetrySessionDatePage() {
   } | null>(null)
   const [directQueueLiveStatusLoading, setDirectQueueLiveStatusLoading] = useState(false)
   const [directQueueLiveStatusError, setDirectQueueLiveStatusError] = useState<string | null>(null)
+  // Confirmation (modale de la charte) avant un effacement de télémétrie ou une annulation des jobs en cours.
+  const [confirming, setConfirming] = useState<'clear' | 'cancel' | null>(null)
 
   useEffect(() => {
     if (!clanId) {
@@ -1023,63 +1039,55 @@ export default function TelemetrySessionDatePage() {
 
   if (!clanId || !date) return null
 
+  const busy = telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading
+  const dayLabel = formatDateLabel(date)
+
   return (
-    <main className="app-container app-main">
-      <NavigationTrail
-        currentLabel={`Session du ${date}`}
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    // `.game-ui` : jetons --game-* (couleurs des états de la file).
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+      <DataSectionHeader
+        clanId={clanId}
+        title={dayLabel.charAt(0).toUpperCase() + dayLabel.slice(1)}
+        subtitle={`${clanName || `Clan #${clanId}`} — parties de la soirée et panneau d’exploitation de leur télémétrie.`}
+        icon={CalendarDays}
         currentHref={`/clans/${clanId}/settings/data/sessions/${date}`}
-        fallbackParent={{ href: `/clans/${clanId}/settings/data/sessions`, label: 'Soirées de télémétrie', altHref: '/clans' }}
+        pills={sessionMatches.length > 0 ? [<><span className="t-num">{sessionMatches.length}</span> partie(s)</>] : []}
       />
-      <header className="mb-5 overflow-hidden rounded-2xl border border-slate-200 bg-gradient-to-br from-slate-950 via-slate-900 to-cyan-950 px-5 py-5 text-white shadow-lg mt-4">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Télémétrie — Soirée</p>
-          <h1 className="text-2xl font-bold tracking-tight">{clanName || `Clan #${clanId}`} | {formatDateLabel(date)}</h1>
-          <p className="mt-1 text-sm text-slate-300">
-            Récupération télémétrie pour les matchs de cette soirée.
-          </p>
-        </div>
-        <div className="mt-3">
-        </div>
-      </header>
 
-      <section className="app-panel mb-5 p-4">
-        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-          <Link
-            href={backHref}
-            className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50 sm:w-auto"
-          >
-            ← Retour aux soirées
-          </Link>
-
-          <div className="grid w-full grid-cols-2 gap-2 md:w-auto md:grid-flow-col md:justify-end">
-            {previousDate ? (
-              <Link href={sessionHref(previousDate)} className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
-                <span className="sm:hidden">← Précédente</span>
-                <span className="hidden sm:inline">← Soirée précédente</span>
-              </Link>
-            ) : (
-              <span className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-400">
-                <span className="sm:hidden">← Précédente</span>
-                <span className="hidden sm:inline">← Soirée précédente</span>
-              </span>
-            )}
-            {nextDate ? (
-              <Link href={sessionHref(nextDate)} className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-700 transition hover:bg-gray-50">
-                <span className="sm:hidden">Suivante →</span>
-                <span className="hidden sm:inline">Soirée suivante →</span>
-              </Link>
-            ) : (
-              <span className="inline-flex h-10 w-full items-center justify-center rounded-lg border border-gray-200 px-3 py-2 text-sm font-medium text-gray-400">
-                <span className="sm:hidden">Suivante →</span>
-                <span className="hidden sm:inline">Soirée suivante →</span>
-              </span>
-            )}
-          </div>
+      <nav aria-label="Soirées voisines" className="flex flex-wrap items-center justify-between gap-2">
+        <Link href={backHref} className="app-btn app-btn--sm app-btn--secondary gap-1.5">
+          <ArrowLeft className="h-4 w-4" aria-hidden="true" />
+          Toutes les soirées
+        </Link>
+        <div className="flex gap-2">
+          {previousDate ? (
+            <Link href={sessionHref(previousDate)} className="app-btn app-btn--sm app-btn--secondary gap-1.5">
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Précédente
+            </Link>
+          ) : (
+            <span className="app-btn app-btn--sm app-btn--secondary cursor-not-allowed gap-1.5 opacity-45" aria-disabled="true">
+              <ChevronLeft className="h-4 w-4" aria-hidden="true" />
+              Précédente
+            </span>
+          )}
+          {nextDate ? (
+            <Link href={sessionHref(nextDate)} className="app-btn app-btn--sm app-btn--secondary gap-1.5">
+              Suivante
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </Link>
+          ) : (
+            <span className="app-btn app-btn--sm app-btn--secondary cursor-not-allowed gap-1.5 opacity-45" aria-disabled="true">
+              Suivante
+              <ChevronRight className="h-4 w-4" aria-hidden="true" />
+            </span>
+          )}
         </div>
-      </section>
+      </nav>
 
-      {loading ? <TableSkeleton className="mb-5" /> : null}
-      {error ? <p className="mb-5 text-sm text-red-600">{error}</p> : null}
+      {loading ? <TableSkeleton /> : null}
+      {error ? <p className="t-body t-neg m-0">{error}</p> : null}
 
       {!loading && !error && sessionMatches.length > 0 ? (
         <>
@@ -1088,9 +1096,9 @@ export default function TelemetrySessionDatePage() {
             period={period}
             matches={sessionMatches}
             mapLabels={mapLabels}
-            title="Matchs de la soirée"
-            description={`${sessionMatches.length} match(s) détecté(s) pour le ${formatDateLabel(date)}.`}
-            emptyMessage="Aucun match trouvé pour cette date."
+            title="Parties de la soirée"
+            description={`${sessionMatches.length} partie(s) le ${dayLabel}. Cochez celles à traiter.`}
+            emptyMessage="Aucune partie ce jour-là."
             limit={sessionMatches.length}
             selectable
             selectedMatchIds={selectedMatchIds}
@@ -1099,323 +1107,390 @@ export default function TelemetrySessionDatePage() {
             showAuditLink
           />
 
-          <section className="mt-5 app-panel p-4">
-            <div className="mb-6">
-              <h2 className="text-lg font-semibold text-gray-900">Récupération télémétrie manuelle</h2>
-              <p className="mt-1 text-sm text-gray-600">Trois modes de récupération adapté à vos besoins.</p>
-            </div>
+          <SectionCard
+            id="soiree-recovery"
+            icon={Wrench}
+            title="Récupération manuelle de la télémétrie"
+            meta="Trois modes, appliqués aux parties cochées dans la liste."
+            aside={
+              runtimeStatus ? (
+                <Tag tone="pos">
+                  Serveur actif · PID {runtimeStatus.pid} · {formatRuntimeUptime(runtimeStatus.uptimeSec)}
+                </Tag>
+              ) : runtimeStatusError ? (
+                <Tag tone="warn">{runtimeStatusError}</Tag>
+              ) : null
+            }
+          >
+            {runtimeStatus ? (
+              <p className="t-meta m-0">
+                {runtimeStatus.nodeVersion} · {runtimeStatus.hostname}
+              </p>
+            ) : null}
 
-            <div className="mb-6 grid gap-4 md:grid-cols-3">
-              <div
-                onClick={() => setTelemetrySyncMode('direct')}
-                className={`border-2 rounded-lg p-4 cursor-pointer transition ${telemetrySyncMode === 'direct' ? 'border-green-500 bg-green-50' : 'border-gray-300 hover:border-gray-400'}`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg">⚡ Direct Sync</h3>
-                  <span className="text-xs bg-green-100 text-green-800 px-2 py-1 rounded">Worker</span>
-                </div>
-                <p className="text-sm text-gray-700 mb-3">Met en file pour le worker télémétrie (traitement en arrière-plan).</p>
-                <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                  <li>✓ Non-bloquant pour le web</li>
-                  <li>✓ Pas de fichiers locaux</li>
-                  <li>✓ Traité automatiquement par le worker</li>
-                </ul>
-                <div className="text-xs text-gray-500">Reco: toutes tailles de batch</div>
-              </div>
-
-              <div
-                onClick={() => setTelemetrySyncMode('capture')}
-                className={`border-2 rounded-lg p-4 cursor-pointer transition ${telemetrySyncMode === 'capture' ? 'border-blue-500 bg-blue-50' : 'border-gray-300 hover:border-gray-400'}`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg">📁 Capture seule</h3>
-                  <span className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded">Stockage</span>
-                </div>
-                <p className="text-sm text-gray-700 mb-3">Télécharge et sauvegarde localement (sans traitement).</p>
-                <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                  <li>✓ Non-bloquant</li>
-                  <li>✓ Fichiers conservés</li>
-                  <li>✓ Rejouer anytime</li>
-                </ul>
-                <div className="text-xs text-gray-500">Reco: 50-1000 matchs</div>
-              </div>
-
-              <div
-                onClick={() => setTelemetrySyncMode('queue')}
-                className={`border-2 rounded-lg p-4 cursor-pointer transition ${telemetrySyncMode === 'queue' ? 'border-purple-500 bg-purple-50' : 'border-gray-300 hover:border-gray-400'}`}
-              >
-                <div className="flex items-start justify-between mb-2">
-                  <h3 className="font-semibold text-lg">🔄 Queue Resync</h3>
-                  <span className="text-xs bg-purple-100 text-purple-800 px-2 py-1 rounded">Worker</span>
-                </div>
-                <p className="text-sm text-gray-700 mb-3">Traite fichiers capturés (worker asynchrone).</p>
-                <ul className="text-xs text-gray-600 space-y-1 mb-3">
-                  <li>✓ Non-bloquant</li>
-                  <li>✓ Scalable</li>
-                  <li>✓ Reprise auto</li>
-                </ul>
-                <div className="text-xs text-gray-500">Reco: 100+ matchs</div>
-              </div>
-            </div>
-
-            <div className="mb-4 flex flex-wrap items-center gap-2 text-xs">
-              {runtimeStatus ? (
-                <>
-                  <span className="inline-flex items-center rounded-full border border-emerald-200 bg-emerald-50 px-2 py-1 font-medium text-emerald-800">
-                    Serveur dev actif - PID {runtimeStatus.pid} - uptime {formatRuntimeUptime(runtimeStatus.uptimeSec)}
-                  </span>
-                  <span className="inline-flex items-center rounded-full border border-gray-200 bg-gray-50 px-2 py-1 text-gray-700">
-                    {runtimeStatus.nodeVersion} - {runtimeStatus.hostname}
-                  </span>
-                </>
-              ) : null}
-              {runtimeStatusError ? (
-                <span className="inline-flex items-center rounded-full border border-amber-200 bg-amber-50 px-2 py-1 text-amber-800">{runtimeStatusError}</span>
-              ) : null}
-            </div>
-
-            <div className="mb-4">
-              <p className="mb-2 text-sm font-medium text-gray-700">{selectedMatchIds.length} match(s) sélectionné(s)</p>
-              <div className="flex flex-wrap gap-2">
-                <button type="button" onClick={selectAllSessionMatches} className="app-btn app-btn--sm app-btn--secondary"
-                  disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryFileSyncLoading || sessionMatches.length === 0}>
-                  Tout sélectionner
-                </button>
-                <button type="button" onClick={clearSelectedSessionMatches} className="app-btn app-btn--sm app-btn--secondary"
-                  disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0}>
-                  Vider sélection
-                </button>
-                <Link href={`/clans/${clanId}/settings/data/recoveries`} className="app-btn app-btn--sm app-btn--secondary">
-                  Suivi récupérations
-                </Link>
-              </div>
-            </div>
-
-            {telemetrySyncMode === 'direct' && (
-              <div className="mb-4 rounded-lg bg-green-50 border border-green-200 p-4">
-                <h3 className="font-semibold text-green-900 mb-2">Mode Direct Sync</h3>
-                <p className="text-sm text-green-800 mb-3">
-                  Met les matchs sélectionnés en file pour le worker télémétrie (telemetry-resync-worker), qui les télécharge et les traite en arrière-plan. Non bloquant pour le serveur web.
-                </p>
-                <button type="button" onClick={runManualTelemetrySync} className="app-btn app-btn--md app-btn--primary"
-                  disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0}>
-                  {telemetrySyncLoading ? 'Mise en file...' : `Direct Sync (${selectedMatchIds.length} matchs)`}
-                </button>
-
-                <div className="mt-3 rounded-lg border border-green-200 bg-white/70 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-green-900">Etat de la file en direct (telemetry_live_sync)</p>
-                    <p className="text-[11px] text-green-700">Actualisation auto: 5s</p>
-                  </div>
-                  {directQueueLiveStatusLoading && !directQueueLiveStatus ? <span className="ml-2 animate-pulse text-xs text-green-700">Chargement...</span> : null}
-                  {directQueueLiveStatus ? (
-                    <>
-                      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
-                        <div className="rounded border border-green-200 bg-green-50 px-2 py-1 text-green-900">Restants: <strong>{directQueueLiveStatus.remaining}</strong></div>
-                        <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-sky-900">En attente: <strong>{directQueueLiveStatus.queued}</strong></div>
-                        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">En cours: <strong>{directQueueLiveStatus.running}</strong></div>
-                        <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-900">Succès: <strong>{directQueueLiveStatus.success}</strong></div>
-                        <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-rose-900">Echecs: <strong>{directQueueLiveStatus.failed}</strong></div>
-                        <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-900">Total: <strong>{directQueueLiveStatus.total}</strong></div>
-                      </div>
-                      <p className="mt-2 text-[11px] text-green-700">Derniere mise à jour: {new Date(directQueueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}</p>
-                      {directQueueLiveStatus.recentJobs.length > 0 ? (
-                        <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-[11px] text-green-800">
-                          {directQueueLiveStatus.recentJobs.map((job) => (
-                            <li key={job.id} className="rounded border border-green-100 bg-green-50/60 px-2 py-1">
-                              <span className="font-medium">{job.status.toUpperCase()}</span>{' - '}{job.message ?? 'Sans message'}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {directQueueLiveStatusError ? <p className="mt-2 text-xs text-amber-800">{directQueueLiveStatusError}</p> : null}
-                </div>
-              </div>
-            )}
-
-            {telemetrySyncMode === 'capture' && (
-              <div className="mb-4 rounded-lg bg-blue-50 border border-blue-200 p-4">
-                <h3 className="font-semibold text-blue-900 mb-2">Mode Capture seule</h3>
-                <p className="text-sm text-blue-800 mb-3">
-                  Télécharge et sauvegarde les matchs localement dans <code className="bg-white px-1 rounded text-xs">.telemetry-captured/</code> sans les traiter.
-                </p>
-                <button type="button" onClick={runFetchTelemetryFilesFromPubg} className="app-btn app-btn--md app-btn--primary"
-                  disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0 || telemetryFileStatusLoading || importEligibleIds.length === 0}>
-                  {telemetryFetchFilesLoading ? 'Capture en cours...' : `Capturer fichiers (${importEligibleIds.length})`}
-                </button>
-                <p className="mt-2 text-xs text-blue-700">Ensuite: utilisez le mode "Queue Resync" pour traiter les fichiers capturés.</p>
-              </div>
-            )}
-
-            {telemetrySyncMode === 'queue' && (
-              <div className="mb-4 rounded-lg bg-purple-50 border border-purple-200 p-4">
-                <h3 className="font-semibold text-purple-900 mb-2">Mode File (Queue) Resync</h3>
-                <p className="text-sm text-purple-800 mb-3">Ajoute les matchs dans une file traitée en asynchrone par le worker. Non bloquant et scalable.</p>
-                <div className="flex flex-wrap gap-2 mb-3">
-                  <button type="button" onClick={enqueueResyncTelemetryFromImportedFiles} className="app-btn app-btn--md app-btn--primary"
-                    disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading || telemetryFileQueueLoading || selectedMatchIds.length === 0}>
-                    {telemetryFileQueueLoading ? 'Mise en file...' : `Mettre en file (${selectedMatchIds.length})`}
+            <div className="grid gap-2.5 md:grid-cols-3" role="radiogroup" aria-label="Mode de récupération">
+              {SOIREE_MODES.map((mode) => {
+                const selected = mode.value === telemetrySyncMode
+                const Icon = mode.icon
+                return (
+                  <button
+                    key={mode.value}
+                    type="button"
+                    role="radio"
+                    aria-checked={selected}
+                    onClick={() => setTelemetrySyncMode(mode.value)}
+                    // Teinte de la tuile choisie en style : les utilitaires perdent contre le fond de `.app-panel-muted`.
+                    className={`app-panel-muted flex flex-col gap-1.5 p-3 text-left transition-colors ${selected ? '' : 'hover:bg-gray-50'}`}
+                    style={
+                      selected
+                        ? {
+                            borderColor: 'var(--theme-ui-accent-ring)',
+                            backgroundColor: 'var(--theme-ui-accent-soft)',
+                            boxShadow: '0 0 0 1px var(--theme-ui-accent-ring)',
+                          }
+                        : undefined
+                    }
+                  >
+                    <span className="flex items-center gap-2">
+                      <Icon
+                        className={`h-[18px] w-[18px] shrink-0 ${selected ? 'text-[var(--theme-ui-accent-text)]' : 'text-gray-500'}`}
+                        aria-hidden="true"
+                      />
+                      <span className="t-card-title">{mode.title}</span>
+                    </span>
+                    <span className="t-meta">{mode.description}</span>
                   </button>
-                  <button type="button" onClick={runResyncTelemetryFromImportedFiles} className="app-btn app-btn--md app-btn--secondary"
-                    disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0}>
-                    {telemetryFileSyncLoading ? 'Resync fichiers en cours...' : `Resync immédiat (${selectedMatchIds.length})`}
+                )
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="t-meta mr-1">
+                <span className="t-num">{selectedMatchIds.length}</span> partie(s) cochée(s)
+              </span>
+              <button
+                type="button"
+                onClick={selectAllSessionMatches}
+                className="app-btn app-btn--sm app-btn--secondary"
+                disabled={busy || sessionMatches.length === 0}
+              >
+                Tout cocher
+              </button>
+              <button
+                type="button"
+                onClick={clearSelectedSessionMatches}
+                className="app-btn app-btn--sm app-btn--secondary"
+                disabled={busy || selectedMatchIds.length === 0}
+              >
+                Tout décocher
+              </button>
+              <Link href={`/clans/${clanId}/settings/data/recoveries`} className="app-link text-xs font-semibold">
+                Suivi des récupérations
+              </Link>
+            </div>
+
+            {telemetrySyncMode === 'direct' ? (
+              <div className="flex flex-col gap-3">
+                <p className="t-body m-0 text-gray-700">
+                  Met les parties cochées en file pour le worker de télémétrie, qui les télécharge et les traite en
+                  arrière-plan, sans bloquer le site.
+                </p>
+                <div>
+                  <button
+                    type="button"
+                    onClick={runManualTelemetrySync}
+                    className="app-btn app-btn--md app-btn--primary gap-2"
+                    disabled={busy || selectedMatchIds.length === 0}
+                  >
+                    <Workflow className="h-4 w-4" aria-hidden="true" />
+                    {telemetrySyncLoading ? 'Mise en file…' : `Mettre en file (${selectedMatchIds.length})`}
+                  </button>
+                </div>
+                <LiveQueue
+                  status={directQueueLiveStatus}
+                  loading={directQueueLiveStatusLoading}
+                  error={directQueueLiveStatusError}
+                />
+              </div>
+            ) : null}
+
+            {telemetrySyncMode === 'capture' ? (
+              <div className="flex flex-col gap-3">
+                <p className="t-body m-0 text-gray-700">
+                  Télécharge et conserve les fichiers des parties cochées (dossier .telemetry-captured/), sans les traiter.
+                  Ensuite : mode « Traiter les fichiers ».
+                </p>
+                <div>
+                  <button
+                    type="button"
+                    onClick={runFetchTelemetryFilesFromPubg}
+                    className="app-btn app-btn--md app-btn--primary gap-2"
+                    disabled={busy || selectedMatchIds.length === 0 || telemetryFileStatusLoading || importEligibleIds.length === 0}
+                  >
+                    <HardDriveDownload className="h-4 w-4" aria-hidden="true" />
+                    {telemetryFetchFilesLoading ? 'Capture en cours…' : `Capturer les fichiers (${importEligibleIds.length})`}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {telemetrySyncMode === 'queue' ? (
+              <div className="flex flex-col gap-3">
+                <p className="t-body m-0 text-gray-700">
+                  Traite les fichiers déjà capturés : mise en file pour le worker, ou traitement immédiat.
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={enqueueResyncTelemetryFromImportedFiles}
+                    className="app-btn app-btn--md app-btn--primary gap-2"
+                    disabled={busy || telemetryFileQueueLoading || selectedMatchIds.length === 0}
+                  >
+                    <RefreshCw className="h-4 w-4" aria-hidden="true" />
+                    {telemetryFileQueueLoading ? 'Mise en file…' : `Mettre en file (${selectedMatchIds.length})`}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={runResyncTelemetryFromImportedFiles}
+                    className="app-btn app-btn--md app-btn--secondary"
+                    disabled={busy || selectedMatchIds.length === 0}
+                  >
+                    {telemetryFileSyncLoading ? 'Traitement en cours…' : `Traiter maintenant (${selectedMatchIds.length})`}
                   </button>
                 </div>
                 <div className="flex flex-col gap-2">
-                  <label className="inline-flex items-start gap-2 text-xs text-purple-700">
-                    <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      checked={resetBeforeResync} onChange={(e) => setResetBeforeResync(e.target.checked)}
-                      disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading} />
-                    <span>Réinitialiser DB avant resync (recommandé en dev)</span>
+                  <label className="t-body flex items-start gap-2 text-gray-900">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-[var(--theme-ui-accent)]"
+                      checked={resetBeforeResync}
+                      onChange={(event) => setResetBeforeResync(event.target.checked)}
+                      disabled={busy}
+                    />
+                    Effacer la télémétrie existante avant le traitement
                   </label>
-                  <label className="inline-flex items-start gap-2 text-xs text-purple-700">
-                    <input type="checkbox" className="mt-0.5 h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
-                      checked={forceResync} onChange={(e) => setForceResync(e.target.checked)}
-                      disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading} />
-                    <span>Forcer le resync même si déjà Parser OK</span>
+                  <label className="t-body flex items-start gap-2 text-gray-900">
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-[var(--theme-ui-accent)]"
+                      checked={forceResync}
+                      onChange={(event) => setForceResync(event.target.checked)}
+                      disabled={busy}
+                    />
+                    Retraiter même les parties déjà analysées
                   </label>
                 </div>
-                <p className="mt-2 text-xs text-purple-700">
-                  Lancez <code className="bg-white px-1 rounded">npm run telemetry:worker</code> dans un terminal séparé pour traiter les jobs.
-                </p>
-
-                <div className="mt-3 rounded-lg border border-purple-200 bg-white/70 p-3">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-xs font-semibold text-purple-900">Etat de la file en direct</p>
-                    <div className="flex items-center gap-2">
-                      <p className="text-[11px] text-purple-700">Actualisation auto: 5s</p>
-                      <button
-                        type="button"
-                        onClick={runQueueCleanup}
-                        disabled={queueCleanupLoading}
-                        className="text-[11px] rounded border border-rose-200 bg-rose-50 px-2 py-0.5 text-rose-700 transition hover:bg-rose-100 disabled:opacity-50"
-                      >
-                        {queueCleanupLoading ? 'Nettoyage...' : 'Annuler jobs bloqués'}
-                      </button>
-                    </div>
-                  </div>
-                  {queueCleanupMessage ? (
-                    <p className="mt-1 text-[11px] text-rose-700">{queueCleanupMessage}</p>
-                  ) : null}
-                  {queueLiveStatusLoading && !queueLiveStatus ? <span className="ml-2 animate-pulse text-xs text-purple-700">Chargement...</span> : null}
-                  {queueLiveStatus ? (
-                    <>
-                      <div className="mt-2 grid gap-2 text-xs sm:grid-cols-2 lg:grid-cols-3">
-                        <div className="rounded border border-purple-200 bg-purple-50 px-2 py-1 text-purple-900">Restants: <strong>{queueLiveStatus.remaining}</strong></div>
-                        <div className="rounded border border-sky-200 bg-sky-50 px-2 py-1 text-sky-900">En attente: <strong>{queueLiveStatus.queued}</strong></div>
-                        <div className="rounded border border-amber-200 bg-amber-50 px-2 py-1 text-amber-900">En cours: <strong>{queueLiveStatus.running}</strong></div>
-                        <div className="rounded border border-emerald-200 bg-emerald-50 px-2 py-1 text-emerald-900">Succès: <strong>{queueLiveStatus.success}</strong></div>
-                        <div className="rounded border border-rose-200 bg-rose-50 px-2 py-1 text-rose-900">Echecs: <strong>{queueLiveStatus.failed}</strong></div>
-                        <div className="rounded border border-gray-200 bg-gray-50 px-2 py-1 text-gray-900">Total: <strong>{queueLiveStatus.total}</strong></div>
-                      </div>
-                      <p className="mt-2 text-[11px] text-purple-700">Derniere mise à jour: {new Date(queueLiveStatus.updatedAt).toLocaleTimeString('fr-FR')}</p>
-                      {queueLiveStatus.recentJobs.length > 0 ? (
-                        <ul className="mt-2 max-h-24 space-y-1 overflow-y-auto text-[11px] text-purple-800">
-                          {queueLiveStatus.recentJobs.map((job) => (
-                            <li key={job.id} className="rounded border border-purple-100 bg-purple-50/60 px-2 py-1">
-                              <span className="font-medium">{job.status.toUpperCase()}</span>{' - '}{job.message ?? 'Sans message'}
-                            </li>
-                          ))}
-                        </ul>
-                      ) : null}
-                    </>
-                  ) : null}
-                  {queueLiveStatusError ? <p className="mt-2 text-xs text-amber-800">{queueLiveStatusError}</p> : null}
-                </div>
+                <LiveQueue
+                  status={queueLiveStatus}
+                  loading={queueLiveStatusLoading}
+                  error={queueLiveStatusError}
+                  action={
+                    <button
+                      type="button"
+                      onClick={() => setConfirming('cancel')}
+                      disabled={queueCleanupLoading}
+                      className="app-btn app-btn--sm app-btn--danger"
+                    >
+                      {queueCleanupLoading ? 'Annulation…' : 'Annuler les jobs en cours'}
+                    </button>
+                  }
+                />
+                {queueCleanupMessage ? <p className="t-meta m-0">{queueCleanupMessage}</p> : null}
               </div>
-            )}
+            ) : null}
 
             {telemetryFetchFilesMessage && telemetrySyncMode === 'capture' ? (
-              <div className="mb-4 p-3 rounded-lg bg-blue-50 border border-blue-200">
-                <p className="text-sm text-blue-800">{telemetryFetchFilesMessage}</p>
-              </div>
+              <Notice tone="sky">{telemetryFetchFilesMessage}</Notice>
             ) : null}
-
-            {telemetryFileQueueMessage && telemetrySyncMode === 'queue' ? (
-              <div className="mb-4 p-3 rounded-lg bg-purple-50 border border-purple-200">
-                <p className="text-sm text-purple-800">{telemetryFileQueueMessage}</p>
-              </div>
-            ) : null}
-
-            {telemetrySyncMessage && telemetrySyncMode === 'direct' ? (
-              <div className="mb-4 p-3 rounded-lg bg-green-50 border border-green-200">
-                <p className="text-sm text-green-800">{telemetrySyncMessage}</p>
-              </div>
-            ) : null}
-
+            {telemetryFileQueueMessage && telemetrySyncMode === 'queue' ? <Notice tone="sky">{telemetryFileQueueMessage}</Notice> : null}
+            {telemetrySyncMessage && telemetrySyncMode === 'direct' ? <Notice tone="pos">{telemetrySyncMessage}</Notice> : null}
             {telemetryFileSyncMessage && telemetrySyncMode === 'queue' ? (
-              <div className={`mb-4 p-3 rounded-lg border ${telemetryFileSyncTone === 'success' ? 'bg-emerald-50 border-emerald-200' : telemetryFileSyncTone === 'error' ? 'bg-rose-50 border-rose-200' : 'bg-amber-50 border-amber-200'}`}>
-                <p className={`text-sm ${telemetryFileSyncTone === 'success' ? 'text-emerald-800 font-medium' : telemetryFileSyncTone === 'error' ? 'text-rose-800' : 'text-amber-800'}`}>
-                  {telemetryFileSyncMessage}
-                </p>
-              </div>
+              <Notice tone={telemetryFileSyncTone === 'success' ? 'pos' : telemetryFileSyncTone === 'error' ? 'neg' : 'warn'}>
+                {telemetryFileSyncMessage}
+              </Notice>
             ) : null}
-
-            {telemetryClearMessage ? (
-              <div className="mb-4 p-3 rounded-lg bg-amber-50 border border-amber-200">
-                <p className="text-sm text-amber-800">{telemetryClearMessage}</p>
-              </div>
-            ) : null}
+            {telemetryClearMessage ? <Notice tone="warn">{telemetryClearMessage}</Notice> : null}
 
             {telemetrySyncErrors.length > 0 && telemetrySyncMode === 'direct' ? (
-              <div className="mb-4 p-3 rounded-lg bg-rose-50 border border-rose-200">
-                <p className="text-xs font-medium text-rose-900 mb-2">Ignorés:</p>
-                <ul className="text-xs text-rose-800 space-y-1 list-disc pl-5">
-                  {telemetrySyncErrors.slice(0, 5).map((line) => <li key={line}>{line}</li>)}
-                </ul>
-              </div>
+              <LineList tone="neg" title="Ignorées" lines={telemetrySyncErrors.slice(0, 5)} />
             ) : null}
-
             {telemetryFileSyncProgress && telemetrySyncMode === 'queue' ? (
-              <div className="mb-4 p-3 rounded-lg bg-sky-50 border border-sky-200">
-                <p className="text-xs text-sky-900">
-                  Progression: {telemetryFileSyncProgress.completed}/{telemetryFileSyncProgress.total}
-                  {' '}| ✓ {telemetryFileSyncProgress.success} | ✗ {telemetryFileSyncProgress.failed}
-                </p>
-                {telemetryFileSyncProgress.currentMatchId ? (
-                  <p className="text-xs font-medium text-sky-900 mt-1">En cours: {telemetryFileSyncProgress.currentMatchId}</p>
-                ) : null}
-              </div>
+              <Notice tone="sky">
+                Progression : {telemetryFileSyncProgress.completed}/{telemetryFileSyncProgress.total} · {telemetryFileSyncProgress.success}{' '}
+                réussie(s) · {telemetryFileSyncProgress.failed} échouée(s)
+                {telemetryFileSyncProgress.currentMatchId ? ` · en cours : ${telemetryFileSyncProgress.currentMatchId}` : ''}
+              </Notice>
             ) : null}
-
             {telemetryFileSyncLogs.length > 0 && telemetrySyncMode === 'queue' ? (
-              <div className="mb-4 p-3 rounded-lg bg-gray-50 border border-gray-200">
-                <p className="text-xs font-medium text-gray-900 mb-2">Logs:</p>
-                <ul className="text-xs text-gray-700 space-y-1 max-h-40 overflow-y-auto list-disc pl-5">
-                  {telemetryFileSyncLogs.slice(-20).map((line, index) => <li key={`${index}-${line}`}>{line}</li>)}
-                </ul>
-              </div>
+              <LineList tone="neutral" title="Journal" lines={telemetryFileSyncLogs.slice(-20)} scroll />
             ) : null}
-
             {telemetryFileSyncErrors.length > 0 && telemetrySyncMode === 'queue' ? (
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200">
-                <p className="text-xs font-medium text-rose-900 mb-2">Erreurs:</p>
-                <ul className="text-xs text-rose-800 space-y-1 list-disc pl-5">
-                  {telemetryFileSyncErrors.slice(0, 5).map((line) => <li key={line}>{line}</li>)}
-                </ul>
-              </div>
+              <LineList tone="neg" title="Erreurs" lines={telemetryFileSyncErrors.slice(0, 5)} />
             ) : null}
 
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <button type="button" onClick={runClearTelemetryOk} className="app-btn app-btn--md app-btn--danger"
-                disabled={telemetrySyncLoading || telemetryFetchFilesLoading || telemetryClearLoading || telemetryFileSyncLoading || selectedMatchIds.length === 0}>
-                {telemetryClearLoading ? 'Suppression en cours...' : `⚠ Effacer télémétrie (${selectedMatchIds.length})`}
-              </button>
-              <p className="mt-2 text-xs text-gray-600">
-                Supprime les fichiers capturés ET les données télémétrie de la sélection. Cette action est irréversible.
+            <div className="flex flex-col gap-2 border-t border-gray-200 pt-4">
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setConfirming('clear')}
+                  className="app-btn app-btn--md app-btn--danger gap-2"
+                  disabled={busy || selectedMatchIds.length === 0}
+                >
+                  <Trash2 className="h-4 w-4" aria-hidden="true" />
+                  {telemetryClearLoading ? 'Effacement…' : `Effacer la télémétrie (${selectedMatchIds.length})`}
+                </button>
+              </div>
+              <p className="t-meta m-0">
+                Supprime les fichiers capturés et les données de télémétrie des parties cochées. Irréversible au-delà des 14
+                jours de conservation de PUBG.
               </p>
             </div>
-          </section>
+          </SectionCard>
         </>
       ) : null}
 
       {!loading && !error && sessionMatches.length === 0 ? (
-        <section className="app-panel p-4">
-          <p className="text-sm text-slate-600">Aucun match trouvé pour cette date avec les filtres actuels.</p>
-        </section>
+        <EmptyState icon={CalendarDays} title="Aucune partie" text="Aucune partie trouvée pour cette date avec les filtres actuels." />
       ) : null}
-    </main>
+
+      {confirming === 'clear' ? (
+        <ConfirmDialog
+          icon={Trash2}
+          title={`Effacer la télémétrie de ${selectedMatchIds.length} partie(s) ?`}
+          confirmLabel="Effacer"
+          tone="danger"
+          busy={telemetryClearLoading}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            setConfirming(null)
+            void runClearTelemetryOk()
+          }}
+        >
+          Les fichiers capturés et les données de télémétrie de ces parties sont supprimés. Au-delà de 14 jours, PUBG ne
+          fournit plus le fichier : la perte est définitive.
+        </ConfirmDialog>
+      ) : null}
+      {confirming === 'cancel' ? (
+        <ConfirmDialog
+          icon={XCircle}
+          title="Annuler les jobs en cours ?"
+          confirmLabel="Annuler les jobs"
+          tone="danger"
+          busy={queueCleanupLoading}
+          onCancel={() => setConfirming(null)}
+          onConfirm={() => {
+            setConfirming(null)
+            void runQueueCleanup()
+          }}
+        >
+          Tous les jobs de traitement du clan en cours d’exécution passent en échec ; ils pourront être relancés depuis
+          l’onglet Erreurs.
+        </ConfirmDialog>
+      ) : null}
+    </div>
+  )
+}
+
+const SOIREE_MODES: Array<{ value: TelemetrySyncMode; title: string; description: string; icon: LucideIcon }> = [
+  { value: 'direct', title: 'Mise en file directe', description: 'Le worker télécharge et traite en arrière-plan.', icon: Workflow },
+  { value: 'capture', title: 'Capture seule', description: 'Télécharge et conserve les fichiers, sans traitement.', icon: HardDriveDownload },
+  { value: 'queue', title: 'Traiter les fichiers', description: 'Traite les fichiers déjà capturés.', icon: RefreshCw },
+]
+
+type LiveQueueStatus = {
+  queued: number
+  running: number
+  remaining: number
+  success: number
+  failed: number
+  total: number
+  updatedAt: number
+  recentJobs: Array<{ id: string; status: string; message: string | null }>
+}
+
+const JOB_TONES: Record<string, Tone> = { success: 'pos', failed: 'neg', running: 'sky', queued: 'warn' }
+
+/** État de la file en direct (actualisé toutes les 5 s par la page) : tuiles de chiffres et derniers jobs. */
+function LiveQueue({
+  status,
+  loading,
+  error,
+  action,
+}: {
+  status: LiveQueueStatus | null
+  loading: boolean
+  error: string | null
+  action?: React.ReactNode
+}) {
+  const tiles: Array<{ label: string; value: number; tone: Tone }> = status
+    ? [
+        { label: 'Restants', value: status.remaining, tone: 'sky' },
+        { label: 'En attente', value: status.queued, tone: 'warn' },
+        { label: 'En cours', value: status.running, tone: 'sky' },
+        { label: 'Réussis', value: status.success, tone: 'pos' },
+        { label: 'Échecs', value: status.failed, tone: 'neg' },
+        { label: 'Total', value: status.total, tone: 'neutral' },
+      ]
+    : []
+  return (
+    <div className="app-panel-muted flex flex-col gap-2.5 p-3">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="t-label">File en direct · actualisée toutes les 5 s</span>
+        {action}
+      </div>
+      {loading && !status ? <span className="t-meta">Chargement…</span> : null}
+      {status ? (
+        <>
+          <div className="grid grid-cols-3 gap-2 sm:grid-cols-6">
+            {tiles.map((tile) => (
+              <div key={tile.label} className="app-stat-tile">
+                <span className="app-stat-tile__value" style={tile.tone === 'neutral' ? undefined : { color: `var(--game-${tile.tone})` }}>
+                  {tile.value}
+                </span>
+                <span className="app-stat-tile__label">{tile.label}</span>
+              </div>
+            ))}
+          </div>
+          <span className="t-meta">Mise à jour : {new Date(status.updatedAt).toLocaleTimeString('fr-FR')}</span>
+          {status.recentJobs.length > 0 ? (
+            <ul className="m-0 flex max-h-28 list-none flex-col gap-1 overflow-y-auto p-0">
+              {status.recentJobs.map((job) => (
+                <li key={job.id} className="t-meta flex items-start gap-2">
+                  <Tag tone={JOB_TONES[job.status] ?? 'neutral'}>{job.status}</Tag>
+                  <span className="min-w-0 break-words">{job.message ?? 'Sans message'}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </>
+      ) : null}
+      {error ? <span className="t-meta t-warn">{error}</span> : null}
+    </div>
+  )
+}
+
+/** Message d'une action : texte coloré par le jeton de jeu, sur fond doux. */
+function Notice({ tone, children }: { tone: Exclude<Tone, 'neutral'>; children: React.ReactNode }) {
+  return (
+    <p className="t-body m-0 rounded-[10px] px-3 py-2" style={toneStyle(tone)} role="status">
+      {children}
+    </p>
+  )
+}
+
+function LineList({ tone, title, lines, scroll = false }: { tone: Tone; title: string; lines: string[]; scroll?: boolean }) {
+  return (
+    <div className="app-panel-muted flex flex-col gap-1.5 p-3">
+      <span className="t-label" style={tone === 'neutral' ? undefined : { color: `var(--game-${tone})` }}>
+        {title}
+      </span>
+      <ul className={`t-meta m-0 flex list-disc flex-col gap-1 pl-5 ${scroll ? 'max-h-40 overflow-y-auto' : ''}`}>
+        {lines.map((line, index) => (
+          <li key={`${index}-${line}`} className="break-words">
+            {line}
+          </li>
+        ))}
+      </ul>
+    </div>
   )
 }

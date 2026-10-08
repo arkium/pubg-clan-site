@@ -1,194 +1,199 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { AlertTriangle, Info, RotateCcw, XCircle } from 'lucide-react'
 import { useParams } from 'next/navigation'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { useCallback, useEffect, useState } from 'react'
+
+import DataSectionHeader from '@/components/clan-settings/DataSectionHeader'
+import SegmentedControl from '@/components/ui/SegmentedControl'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 
-interface FailedJob {
+/**
+ * Erreurs de télémétrie d'un clan (onglet de « Données », SuperUser seul), selon la charte UI (docs/ui/index.html) :
+ * jobs en échec parmi les 20 derniers jobs du clan (`GET …/telemetry/sync-batch-manual`), relance un par un ou en bloc
+ * (`POST …/telemetry/dead-letter`, 50 au plus).
+ */
+
+type RecentJob = {
   id: string
-  message: string
-  details: Record<string, unknown> | null
-  finishedAt: string
+  status: string
+  message: string | null
   createdAt: string
+  finishedAt: string | null
 }
+
+type Range = 'all' | 'hour' | 'day' | 'week'
+
+const WINDOW_MS: Record<Exclude<Range, 'all'>, number> = {
+  hour: 60 * 60 * 1000,
+  day: 24 * 60 * 60 * 1000,
+  week: 7 * 24 * 60 * 60 * 1000,
+}
+
+const dateTimeFormat = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'medium', timeStyle: 'short', timeZone: 'Europe/Paris' })
+
+async function fetchFailedJobs(clanId: string): Promise<RecentJob[]> {
+  const response = await fetch(`/api/clans/${clanId}/telemetry/sync-batch-manual`, { cache: 'no-store' })
+  const payload = (await response.json().catch(() => null)) as { recentJobs?: RecentJob[]; error?: string } | null
+  if (!response.ok) throw new Error(payload?.error ?? `HTTP ${response.status}`)
+  return (payload?.recentJobs ?? []).filter((job) => job.status === 'failed')
+}
+
+const jobTime = (job: RecentJob) => new Date(job.finishedAt ?? job.createdAt).getTime()
 
 export default function TelemetryErrorsPage() {
   const params = useParams()
-  const clanId = params.clanId as string
+  const clanId = typeof params.clanId === 'string' ? params.clanId : ''
+  const [jobs, setJobs] = useState<RecentJob[] | null>(null)
+  const [error, setError] = useState('')
+  const [range, setRange] = useState<Range>('all')
+  const [retrying, setRetrying] = useState<string | null>(null)
+  const [notice, setNotice] = useState<{ tone: 'pos' | 'neg'; text: string } | null>(null)
+  const [now, setNow] = useState(() => Date.now())
 
-  const [failedJobs, setFailedJobs] = useState<FailedJob[]>([])
-  const [loading, setLoading] = useState(true)
-  const [expandedId, setExpandedId] = useState<string | null>(null)
-  const [filter, setFilter] = useState('all') // all, hour, day, week
-
-  const fetchFailedJobs = async () => {
+  const reload = useCallback(async () => {
+    if (!clanId) return
     try {
-      setLoading(true)
-      const response = await fetch(`/api/clans/${clanId}/telemetry/sync-batch-manual`)
-      if (response.ok) {
-        const data = await response.json()
-        // Filter to only failed jobs
-        if (data.recentJobs) {
-          const failed = data.recentJobs.filter((j: any) => j.status === 'failed')
-          setFailedJobs(failed)
-        }
+      setJobs(await fetchFailedJobs(clanId))
+      setNow(Date.now())
+      setError('')
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Chargement impossible.')
+    }
+  }, [clanId])
+
+  useEffect(() => {
+    if (!clanId) return
+    let cancelled = false
+    fetchFailedJobs(clanId).then(
+      (next) => {
+        if (cancelled) return
+        setJobs(next)
+        setNow(Date.now())
+      },
+      (caught: unknown) => {
+        if (!cancelled) setError(caught instanceof Error ? caught.message : 'Chargement impossible.')
       }
-    } catch (err) {
-      console.error('Failed to fetch jobs:', err)
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [clanId])
+
+  async function retry(jobIds: string[], key: string) {
+    setRetrying(key)
+    setNotice(null)
+    try {
+      const response = await fetch(`/api/clans/${clanId}/telemetry/dead-letter`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ jobIds }),
+      })
+      const payload = (await response.json().catch(() => null)) as { jobsRetried?: number; error?: string } | null
+      if (!response.ok) throw new Error(payload?.error ?? `HTTP ${response.status}`)
+      setNotice({ tone: 'pos', text: `${payload?.jobsRetried ?? 0} job(s) remis en file d’attente.` })
+      await reload()
+    } catch (caught) {
+      setNotice({ tone: 'neg', text: caught instanceof Error ? caught.message : 'Relance impossible.' })
     } finally {
-      setLoading(false)
+      setRetrying(null)
     }
   }
 
-  useEffect(() => {
-    fetchFailedJobs()
-  }, [])
-
-  const getFilteredJobs = () => {
-    const now = Date.now()
-    return failedJobs.filter((job) => {
-      const jobAge = now - new Date(job.finishedAt).getTime()
-      switch (filter) {
-        case 'hour':
-          return jobAge < 60 * 60 * 1000
-        case 'day':
-          return jobAge < 24 * 60 * 60 * 1000
-        case 'week':
-          return jobAge < 7 * 24 * 60 * 60 * 1000
-        default:
-          return true
-      }
-    })
-  }
-
-  const filtered = getFilteredJobs()
-
-  if (loading) {
-    return (
-      <main className="app-container app-main flex-1 space-y-4">
-        <NavigationTrail
-          currentLabel="Erreurs"
-          currentHref={`/clans/${clanId}/settings/data/errors`}
-          fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
-        />
-        <TableSkeleton rows={3} />
-      </main>
-    )
-  }
+  if (!clanId) return null
+  const visible = (jobs ?? []).filter((job) => range === 'all' || now - jobTime(job) < WINDOW_MS[range])
 
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Erreurs"
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+      <DataSectionHeader
+        clanId={clanId}
+        title="Erreurs"
+        subtitle="Jobs de télémétrie en échec parmi les 20 derniers jobs du clan, à relancer une fois la cause corrigée."
+        icon={AlertTriangle}
         currentHref={`/clans/${clanId}/settings/data/errors`}
-        fallbackParent={{ href: `/clans/${clanId}/settings/data`, label: 'Données' }}
+        pills={jobs ? [<><span className="t-num">{jobs.length}</span> en échec</>] : []}
       />
-      <section className="app-panel p-4">
-        <SettingsPageHeader
-          title="Logs d'erreurs télémétrie"
-          subtitle="Consultez et relancez les jobs échoués."
-        />
-      </section>
 
-      <section className="app-panel p-4">
-        <div className="flex gap-2 mb-4">
-          <button
-            onClick={() => setFilter('all')}
-            className={`px-4 py-2 rounded text-sm ${
-              filter === 'all' ? 'bg-blue-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Tous
-          </button>
-          <button
-            onClick={() => setFilter('hour')}
-            className={`px-4 py-2 rounded text-sm ${
-              filter === 'hour' ? 'bg-blue-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Dernière heure
-          </button>
-          <button
-            onClick={() => setFilter('day')}
-            className={`px-4 py-2 rounded text-sm ${
-              filter === 'day' ? 'bg-blue-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Dernier jour
-          </button>
-          <button
-            onClick={() => setFilter('week')}
-            className={`px-4 py-2 rounded text-sm ${
-              filter === 'week' ? 'bg-blue-500 text-white' : 'bg-gray-100'
-            }`}
-          >
-            Dernière semaine
-          </button>
-        </div>
-      </section>
+      {error ? <p className="t-body t-neg m-0">{error}</p> : null}
 
-      {filtered.length === 0 ? (
-        <div className="border rounded-lg p-8 text-center text-gray-500">
-          Aucune erreur {filter !== 'all' ? `dans la période sélectionnée` : ''}
+      <section className="flex flex-col gap-2.5" aria-labelledby="errors-title">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="errors-title" className="t-section-title m-0">
+            Jobs en échec
+          </h2>
+          <SegmentedControl<Range>
+            value={range}
+            onChange={setRange}
+            options={[
+              { value: 'all', label: 'Tous' },
+              { value: 'hour', label: '1 h' },
+              { value: 'day', label: '24 h' },
+              { value: 'week', label: '7 j' },
+            ]}
+          />
         </div>
-      ) : (
-        <div className="space-y-2">
-          {filtered.map((job) => (
-            <div key={job.id} className="border rounded-lg p-4 bg-rose-50">
-              <div
-                className="cursor-pointer flex items-start justify-between"
-                onClick={() => setExpandedId(expandedId === job.id ? null : job.id)}
-              >
-                <div className="flex-1">
-                  <div className="font-semibold text-rose-900">{job.message}</div>
-                  <div className="text-sm text-rose-700 mt-1">
-                    Job ID: {job.id.slice(0, 12)}... • Finished:{' '}
-                    {new Date(job.finishedAt).toLocaleString('fr-FR')}
+
+        {jobs === null ? (
+          error ? null : <TableSkeleton rows={3} />
+        ) : visible.length === 0 ? (
+          <p className="t-body m-0 rounded-[14px] border border-dashed border-gray-200 p-6 text-center text-gray-500">
+            {range === 'all' ? 'Aucun job en échec parmi les derniers jobs du clan.' : 'Aucun job en échec sur cette période.'}
+          </p>
+        ) : (
+          <>
+            <ul className="app-panel m-0 flex list-none flex-col p-0">
+              {visible.map((job) => (
+                <li key={job.id} className="flex flex-wrap items-start gap-3 border-t border-gray-200 px-3.5 py-3 first:border-t-0">
+                  <XCircle className="t-neg mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+                  <div className="min-w-0 flex-1 basis-[240px]">
+                    <p className="t-body m-0 break-words font-semibold text-gray-900">{job.message || 'Échec sans message'}</p>
+                    <p className="t-meta m-0">
+                      {dateTimeFormat.format(new Date(jobTime(job)))} · job <span className="font-mono">{job.id.slice(0, 12)}</span>
+                    </p>
                   </div>
-                </div>
-                <div className="text-rose-700 ml-4">
-                  {expandedId === job.id ? '▼' : '▶'}
-                </div>
-              </div>
-
-              {expandedId === job.id && (
-                <div className="mt-4 pt-4 border-t border-rose-200">
-                  {job.details && (
-                    <div className="bg-white rounded p-3 overflow-auto max-h-48">
-                      <pre className="text-xs font-mono whitespace-pre-wrap break-words">
-                        {JSON.stringify(job.details, null, 2)}
-                      </pre>
-                    </div>
-                  )}
                   <button
-                    onClick={async () => {
-                      await fetch(`/api/clans/${clanId}/telemetry/dead-letter`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({ jobIds: [job.id] }),
-                      })
-                      await fetchFailedJobs()
-                    }}
-                    className="mt-3 px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 text-sm"
+                    type="button"
+                    className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+                    disabled={retrying !== null}
+                    onClick={() => void retry([job.id], job.id)}
                   >
-                    Relancer ce job
+                    <RotateCcw className={`h-3.5 w-3.5 ${retrying === job.id ? 'animate-spin' : ''}`} aria-hidden="true" />
+                    Relancer
                   </button>
-                </div>
-              )}
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-wrap items-center justify-between gap-2">
+              <span className="t-meta">
+                <span className="t-num">{visible.length}</span> job(s) affiché(s)
+              </span>
+              <button
+                type="button"
+                className="app-btn app-btn--md app-btn--secondary gap-2"
+                disabled={retrying !== null}
+                onClick={() => void retry(visible.map((job) => job.id).slice(0, 50), 'all')}
+              >
+                <RotateCcw className={`h-4 w-4 ${retrying === 'all' ? 'animate-spin' : ''}`} aria-hidden="true" />
+                Tout relancer
+              </button>
             </div>
-          ))}
-        </div>
-      )}
+          </>
+        )}
+        {notice ? (
+          <p className={`t-body m-0 ${notice.tone === 'pos' ? 't-pos' : 't-neg'}`} role="status">
+            {notice.text}
+          </p>
+        ) : null}
+      </section>
 
-      <div className="mt-6 p-4 bg-blue-50 rounded-lg text-sm">
-        <p className="font-semibold mb-2">💡 Conseil:</p>
-        <p>
-          Cliquez sur une erreur pour voir les détails complets. Si vous avez corrigé le
-          problème, utilisez le bouton "Relancer" pour remettre le job en file d'attente.
-        </p>
-      </div>
-    </main>
+      <p className="app-panel-muted t-body m-0 flex items-start gap-2.5 px-3.5 py-3 text-gray-700">
+        <Info className="mt-0.5 h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+        <span>
+          Un job relancé repasse en file d’attente et sera repris par le worker. Corrigez d’abord la cause (fichier
+          expiré chez PUBG, partie introuvable…) : sinon il échouera de nouveau.
+        </span>
+      </p>
+    </div>
   )
 }

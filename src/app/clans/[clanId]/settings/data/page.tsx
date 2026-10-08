@@ -1,14 +1,17 @@
 'use client'
 
+import { AlertTriangle, CheckCircle2, Clock, HeartPulse, Hourglass, RefreshCw, Swords, XCircle } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useCallback, useEffect, useState } from 'react'
 
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import DataSectionHeader from '@/components/clan-settings/DataSectionHeader'
+import { KpiGrid, SectionTitle, type Kpi } from '@/components/matches/MatchesUi'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 
 /**
- * Santé des données d'un clan (docs/TODO/administration.md Q17, lot 3b) : état de la télémétrie en lecture seule et
- * demande de resynchronisation plafonnée (50 parties par 24 h et par clan, à basse priorité dans la file commune).
+ * Santé des données d'un clan (docs/TODO/administration.md Q17, lot 3b ; SuperUser seul depuis le 2026-10-08), selon la
+ * charte UI (docs/ui/index.html) : état de la télémétrie des parties et resynchronisation rapide (50 parties par 24 h
+ * et par clan, à basse priorité dans la file commune).
  */
 
 type DataHealth = {
@@ -23,6 +26,8 @@ type DataHealth = {
   resync: { used: number; limit: number; remaining: number; resetsAt: string | null }
 }
 
+const dayFormat = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })
+const timeFormat = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 const dateTimeFormat = new Intl.DateTimeFormat('fr-FR', { dateStyle: 'long', timeStyle: 'short', timeZone: 'Europe/Paris' })
 
 function parseClanId(value: string | string[] | undefined) {
@@ -38,14 +43,58 @@ async function fetchDataHealth(clanId: number): Promise<DataHealth> {
   return payload
 }
 
-function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
-  return (
-    <div className="app-panel-muted p-4">
-      <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">{label}</p>
-      <p className="mt-1 text-2xl font-bold text-gray-900">{value}</p>
-      {hint ? <p className="mt-1 text-xs text-gray-500">{hint}</p> : null}
-    </div>
-  )
+function telemetryKpis(health: DataHealth): Kpi[] {
+  const share = health.totalMatches > 0 ? Math.round((health.withTelemetry / health.totalMatches) * 100) : null
+  const last = health.lastTelemetryAt ? new Date(health.lastTelemetryAt) : null
+  return [
+    {
+      label: 'Parties',
+      value: String(health.totalMatches),
+      detail: `${health.windowDays} derniers jours`,
+      icon: Swords,
+      color: 'var(--game-sky)',
+    },
+    {
+      label: 'Avec télémétrie',
+      value: String(health.withTelemetry),
+      detail: share === null ? 'aucune partie sur la période' : `${share} % des parties`,
+      icon: CheckCircle2,
+      color: 'var(--game-pos)',
+    },
+    {
+      label: 'Sans télémétrie',
+      value: String(health.missing),
+      detail: health.expired > 0 ? `dont ${health.expired} expirée(s) chez PUBG` : 'aucune expirée chez PUBG',
+      icon: AlertTriangle,
+      color: 'var(--game-warn)',
+    },
+    {
+      label: 'Dernière télémétrie',
+      value: last ? dayFormat.format(last) : '—',
+      detail: last ? `à ${timeFormat.format(last)}` : 'aucune sur la période',
+      icon: Clock,
+      color: 'var(--game-gold)',
+    },
+  ]
+}
+
+function queueKpis(health: DataHealth): Kpi[] {
+  return [
+    {
+      label: 'En file d’attente',
+      value: String(health.queuedJobs),
+      detail: 'parties du clan à traiter par le worker',
+      icon: Hourglass,
+      color: 'var(--game-warn)',
+    },
+    {
+      label: 'Échecs',
+      value: String(health.failedJobsLast7Days),
+      detail: '7 derniers jours',
+      icon: XCircle,
+      color: 'var(--game-neg)',
+    },
+  ]
 }
 
 export default function ClanDataHealthPage() {
@@ -109,67 +158,103 @@ export default function ClanDataHealthPage() {
     }
   }
 
-  return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="Données"
-        currentHref={clanId ? `/clans/${clanId}/settings/data` : '/clans'}
-        fallbackParent={{ href: clanId ? `/clans/${clanId}/settings` : '/clans', label: 'Paramètres' }}
-      />
-      <section className="app-panel p-4 sm:p-6">
-        <SettingsPageHeader
-          title="Santé des données"
-          subtitle="État de la télémétrie des parties du clan. La télémétrie alimente les cartes, le débriefing et les statistiques de combat."
-        />
-      </section>
+  if (!clanId) return null
+  const quotaUsedShare = health ? Math.min(100, Math.round((health.resync.used / Math.max(1, health.resync.limit)) * 100)) : 0
 
-      {error ? <p className="text-sm text-red-600">{error}</p> : null}
+  return (
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    // `.game-ui` : jetons --game-* (couleurs des indicateurs).
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-4">
+      <DataSectionHeader
+        clanId={clanId}
+        title="Santé des données"
+        subtitle="La télémétrie des parties alimente les cartes, le débriefing et les statistiques de combat du clan."
+        icon={HeartPulse}
+        currentHref={`/clans/${clanId}/settings/data`}
+        pills={
+          health
+            ? [
+                <>
+                  <span className="t-num">{health.withTelemetry}</span>/<span className="t-num">{health.totalMatches}</span> parties
+                  analysées
+                </>,
+              ]
+            : []
+        }
+      />
+
+      {error ? <p className="t-body t-neg m-0">{error}</p> : null}
 
       {health === null ? (
-        error ? null : <p className="text-sm text-gray-500">Chargement…</p>
+        error ? null : (
+          <div className="grid grid-cols-2 gap-2.5 lg:grid-cols-4">
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+            <CardSkeleton />
+          </div>
+        )
       ) : (
         <>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-            <Stat label={`Parties (${health.windowDays} j)`} value={String(health.totalMatches)} />
-            <Stat
-              label="Avec télémétrie"
-              value={String(health.withTelemetry)}
-              hint={health.totalMatches > 0 ? `${Math.round((health.withTelemetry / health.totalMatches) * 100)} %` : undefined}
-            />
-            <Stat label="Sans télémétrie" value={String(health.missing)} hint={health.expired > 0 ? `${health.expired} expirée(s) chez PUBG` : undefined} />
-            <Stat
-              label="Dernière télémétrie"
-              value={health.lastTelemetryAt ? dateTimeFormat.format(new Date(health.lastTelemetryAt)) : '—'}
-            />
-          </section>
-          <section className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-            <Stat label="En file d’attente" value={String(health.queuedJobs)} />
-            <Stat label="Échecs (7 j)" value={String(health.failedJobsLast7Days)} />
+          <section className="flex flex-col gap-2.5" aria-label="Télémétrie des parties">
+            <SectionTitle aside={`${health.windowDays} derniers jours`}>Télémétrie des parties</SectionTitle>
+            <KpiGrid items={telemetryKpis(health)} className="grid-cols-2 lg:grid-cols-4" />
           </section>
 
-          <section className="app-panel p-4 sm:p-6">
-            <h2 className="text-base font-semibold text-gray-900">Demander une resynchronisation</h2>
-            <p className="mt-1 text-sm text-gray-600">
+          <section className="flex flex-col gap-2.5" aria-label="File de traitement">
+            <SectionTitle>File de traitement</SectionTitle>
+            <KpiGrid items={queueKpis(health)} className="grid-cols-2" />
+          </section>
+
+          <section className="app-panel flex flex-col gap-3 p-4 sm:p-5" aria-labelledby="resync-title">
+            <div className="flex flex-wrap items-baseline justify-between gap-2">
+              <h2 id="resync-title" className="t-section-title m-0">
+                Resynchronisation rapide
+              </h2>
+              <span className="app-meta-pill">
+                <span className="t-num">{health.resync.remaining}</span>&nbsp;/&nbsp;<span className="t-num">{health.resync.limit}</span>
+                &nbsp;restantes
+              </span>
+            </div>
+            <p className="t-body m-0 text-gray-700">
               Met en file les parties des 14 derniers jours sans télémétrie, au plus {health.resync.limit} par 24 h pour le
-              clan. Elles passent après les traitements des autres clans. Restant :{' '}
-              <strong>{health.resync.remaining}</strong>
-              {health.resync.resetsAt && health.resync.remaining < health.resync.limit
-                ? ` (quota renouvelé à partir du ${dateTimeFormat.format(new Date(health.resync.resetsAt))})`
-                : ''}
-              .
+              clan. Elles passent après les traitements des autres clans.
             </p>
-            <button
-              type="button"
-              className="mt-4 app-btn app-btn--md app-btn--primary"
-              disabled={requesting || health.resync.remaining === 0 || health.missing === 0}
-              onClick={() => void requestResync()}
-            >
-              {requesting ? 'Demande en cours…' : 'Demander une resynchronisation'}
-            </button>
-            {message ? <p className="mt-3 text-sm text-gray-700">{message}</p> : null}
+            <div className="flex flex-col gap-1.5">
+              <div
+                className="h-2 overflow-hidden rounded-full"
+                style={{ background: 'var(--game-track)' }}
+                role="meter"
+                aria-label="Quota de 24 h utilisé"
+                aria-valuemin={0}
+                aria-valuemax={health.resync.limit}
+                aria-valuenow={health.resync.used}
+              >
+                <div className="h-full rounded-full" style={{ width: `${quotaUsedShare}%`, background: 'var(--theme-ui-accent)' }} />
+              </div>
+              <p className="t-meta m-0">
+                <span className="t-num">{health.resync.used}</span> utilisée(s) sur 24 h
+                {health.resync.resetsAt && health.resync.remaining < health.resync.limit
+                  ? ` · quota renouvelé à partir du ${dateTimeFormat.format(new Date(health.resync.resetsAt))}`
+                  : ''}
+              </p>
+            </div>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="app-btn app-btn--md app-btn--primary gap-2"
+                disabled={requesting || health.resync.remaining === 0 || health.missing === 0}
+                onClick={() => void requestResync()}
+              >
+                <RefreshCw className={`h-4 w-4 ${requesting ? 'animate-spin' : ''}`} aria-hidden="true" />
+                Demander une resynchronisation
+              </button>
+              {health.missing === 0 ? <span className="t-meta">Toutes les parties ont leur télémétrie.</span> : null}
+            </div>
+            {message ? <p className="t-body m-0 text-gray-700" role="status">{message}</p> : null}
           </section>
         </>
       )}
-    </main>
+    </div>
   )
 }

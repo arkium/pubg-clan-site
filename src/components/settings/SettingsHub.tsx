@@ -1,15 +1,17 @@
 'use client'
 
+import type { LucideIcon } from 'lucide-react'
+import { Info, LayoutGrid } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { useEffect } from 'react'
 
+import AdminPageBanner from '@/components/settings/AdminPageBanner'
 import SettingsHubCard from '@/components/settings/SettingsHubCard'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { Callout, EmptyState } from '@/components/ui/CharteKit'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
-import { useSettingsHubItems } from '@/hooks/useSettingsHubItems'
+import { useSettingsHubItems, type SettingsHubItem } from '@/hooks/useSettingsHubItems'
 import type { NavSection } from '@/lib/nav-permissions-registry'
 
 type HubGroup = { title: string; missingClanHint?: string }
@@ -17,18 +19,29 @@ type HubGroup = { title: string; missingClanHint?: string }
 /** Répartition des cartes globales en thèmes ; une entrée absente de la liste tombe dans « Autres ». */
 export type HubThemes = Array<{ title: string; navKeys: string[] }>
 
+function CardGrid({ items }: { items: SettingsHubItem[] }) {
+  return (
+    <div className="grid gap-2.5 sm:grid-cols-2 lg:grid-cols-3">
+      {items.map((item) => (
+        <SettingsHubCard key={item.navKey} item={item} />
+      ))}
+    </div>
+  )
+}
+
 /**
- * Accueil d'administration construit depuis les entrées de menu (`NavItem`) d'une section : cartes du clan
- * sélectionné et cartes globales, réparties par thème. Sert l'accueil Plateforme (`/settings`) ; l'accueil « Mon clan »
- * est une page serveur à part (`/clans/[clanId]/settings`). La garde serveur est dans la page ; la condition
- * ci-dessous ne fait que renvoyer ailleurs un visiteur sans session.
+ * Accueil d'administration construit depuis les entrées de menu (`NavItem`) d'une section, selon la charte UI
+ * (docs/ui/index.html) : bandeau photo, cartes globales réparties par thème, cartes du clan sélectionné. Sert l'accueil
+ * Plateforme (`/settings`) ; l'accueil « Mon clan » est une page serveur à part (`/clans/[clanId]/settings`). La garde
+ * serveur est dans la page ; la condition ci-dessous ne fait que renvoyer ailleurs un visiteur sans session.
  */
 export default function SettingsHub({
   section,
-  trailLabel,
   trailHref,
   title,
   subtitle,
+  icon,
+  image,
   clanGroup,
   globalGroup,
   globalFirst = false,
@@ -36,10 +49,11 @@ export default function SettingsHub({
   emptyMessage,
 }: {
   section: NavSection
-  trailLabel: string
   trailHref: string
   title: string
   subtitle: string
+  icon: LucideIcon
+  image: string
   clanGroup: HubGroup
   globalGroup: HubGroup
   globalFirst?: boolean
@@ -65,27 +79,21 @@ export default function SettingsHub({
 
   const clanBlock =
     clanItems.length > 0 ? (
-      <div key="clan" className="mt-8">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">
-          {clanGroup.title} {clanId ? '' : '(aucun clan sélectionné)'}
+      <section key="clan" className="flex flex-col gap-2.5" aria-labelledby="hub-clan-title">
+        <h2 id="hub-clan-title" className="t-section-title m-0">
+          {clanGroup.title}
         </h2>
         {clanId ? (
-          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {clanItems.map((item) => (
-              <SettingsHubCard key={item.navKey} item={item} />
-            ))}
-          </div>
+          <CardGrid items={clanItems} />
         ) : (
-          <div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center dark:border-amber-900 dark:bg-amber-900/20">
-            <p className="mb-3 text-amber-800 dark:text-amber-200">
-              {clanGroup.missingClanHint} ({clanItems.map((item) => item.label).join(', ')}).
-            </p>
-            <Link href="/clans" className="app-btn app-btn--sm app-btn--primary">
-              Sélectionner un clan
+          <Callout tone="sky" icon={Info} title="Aucun clan sélectionné">
+            {clanGroup.missingClanHint} ({clanItems.map((item) => item.label).join(', ')}).{' '}
+            <Link href="/clans" className="app-link font-semibold">
+              Choisir un clan
             </Link>
-          </div>
+          </Callout>
         )}
-      </div>
+      </section>
     ) : null
 
   const globalGroups = themes
@@ -104,36 +112,33 @@ export default function SettingsHub({
   const globalBlock = globalGroups
     .filter((group) => group.items.length > 0)
     .map((group) => (
-      <div key={`global-${group.title}`} className="mt-8">
-        <h2 className="mb-4 text-sm font-bold uppercase tracking-wider text-slate-500">{group.title}</h2>
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-          {group.items.map((item) => (
-            <SettingsHubCard key={item.navKey} item={item} />
-          ))}
-        </div>
-      </div>
+      <section key={`global-${group.title}`} className="flex flex-col gap-2.5" aria-label={group.title}>
+        <h2 className="t-section-title m-0">{group.title}</h2>
+        <CardGrid items={group.items} />
+      </section>
     ))
 
+  const toolCount = globalItems.length + (clanId ? clanItems.length : 0)
+
   return (
-    <main className="app-container app-main flex-1 space-y-6">
-      <NavigationTrail
-        currentLabel={trailLabel}
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-5">
+      <AdminPageBanner
+        title={title}
+        subtitle={subtitle}
+        icon={icon}
+        image={image}
         currentHref={trailHref}
-        fallbackParent={{ href: clanId ? `/clans/${clanId}/overview` : '/clans', label: clanId ? "Vue d'ensemble" : 'Les clans' }}
-        hidden
+        parent={{ href: clanId ? `/clans/${clanId}/overview` : '/clans', label: clanId ? "Vue d'ensemble" : 'Les clans' }}
+        hideTrail
+        pills={toolCount > 0 ? [<><span className="t-num">{toolCount}</span> outils</>, 'Réservé au SuperUser'] : ['Réservé au SuperUser']}
       />
 
-      <section className="app-panel p-6">
-        <SettingsPageHeader title={title} subtitle={subtitle} />
+      {globalFirst ? [globalBlock, clanBlock] : [clanBlock, globalBlock]}
 
-        {globalFirst ? [globalBlock, clanBlock] : [clanBlock, globalBlock]}
-
-        {clanItems.length === 0 && globalItems.length === 0 ? (
-          <div className="mt-8 rounded-xl border border-slate-200 p-6 text-center text-sm text-slate-500 dark:border-slate-800">
-            {emptyMessage}
-          </div>
-        ) : null}
-      </section>
-    </main>
+      {clanItems.length === 0 && globalItems.length === 0 ? (
+        <EmptyState icon={LayoutGrid} title={emptyMessage} />
+      ) : null}
+    </div>
   )
 }

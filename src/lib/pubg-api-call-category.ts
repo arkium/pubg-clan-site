@@ -27,15 +27,15 @@ export const PUBG_API_CALL_CATEGORIES: PubgApiCallCategory[] = [
 
 export const PUBG_API_CALL_CATEGORY_LABELS: Record<PubgApiCallCategory, string> = {
   player_search: 'Recherche joueur',
-  player_detail: 'Detail joueur',
-  weapon_mastery: 'Maitrise armes',
-  season_lifetime: 'Stats lifetime',
+  player_detail: 'Détail joueur',
+  weapon_mastery: 'Maîtrise des armes',
+  season_lifetime: 'Stats à vie',
   season_ranked: 'Stats ranked',
   season_normal: 'Stats saison',
   seasons_list: 'Liste des saisons',
   clan_members: 'Membres du clan',
   clan_lookup: 'Clan',
-  match_detail: 'Detail match',
+  match_detail: 'Détail du match',
   other: 'Autre',
 }
 

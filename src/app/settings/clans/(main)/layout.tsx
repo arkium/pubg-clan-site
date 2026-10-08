@@ -14,7 +14,8 @@ export default function PlatformClansLayout({ children }: { children: React.Reac
       <SettingsTabsShell
         title="Clans"
         subtitle="Clans suivis par la plateforme et clans adverses croisés en match."
-        trailLabel="Clans"
+        icon="clans"
+        image="/clan_banner.jpg"
         trailHref="/settings/clans"
         tabs={TABS}
       >

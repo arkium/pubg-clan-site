@@ -6,6 +6,7 @@
  */
 export {
   ButtonSpinner,
+  ClanLabel,
   Callout,
   ChoiceMenu,
   ConfirmDialog,

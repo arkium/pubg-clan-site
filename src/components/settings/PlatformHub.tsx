@@ -1,5 +1,7 @@
 'use client'
 
+import { Star } from 'lucide-react'
+
 import SettingsHub, { type HubThemes } from '@/components/settings/SettingsHub'
 
 /** Thèmes de l'accueil Plateforme (docs/TODO/administration.md §5.2) : Clans, Joueurs, Données, Référentiels, Site. */
@@ -36,10 +38,11 @@ export default function PlatformHub() {
   return (
     <SettingsHub
       section="superuser-menu"
-      trailLabel="Plateforme"
       trailHref="/settings"
       title="Plateforme"
-      subtitle="Gérez l’ensemble de la plateforme : clans, joueurs, données, référentiels et réglages du site."
+      subtitle="L’ensemble du site : clans, joueurs, données, référentiels et réglages."
+      icon={Star}
+      image="/trio.jpg"
       clanGroup={{
         title: 'Dépannage du clan sélectionné',
         missingClanHint: 'Sélectionnez un clan pour voir les outils de dépannage liés au clan',

@@ -2,29 +2,44 @@
 
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState, type CSSProperties } from 'react'
 import {
   Activity,
   AlertTriangle,
+  BarChart3,
   CheckCircle2,
   Gauge,
-  type LucideIcon,
+  Globe,
+  History,
+  ListOrdered,
   RefreshCw,
   RotateCcw,
+  Search,
+  ShieldAlert,
   Timer,
   Trash2,
+  TrendingUp,
+  Users,
   XCircle,
 } from 'lucide-react'
 
-import { useAuthSession } from '@/hooks/useAuthSession'
-import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
-import SegmentedControl from '@/components/ui/SegmentedControl'
+import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
+import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
 import {
-  categorizePubgApiCall,
-  PUBG_API_CALL_CATEGORY_LABELS,
-  type PubgApiCallCategory,
-} from '@/lib/pubg-api-call-category'
+  Callout,
+  ChoiceMenu,
+  ConfirmDialog,
+  EmptyState,
+  ListSkeleton,
+  SectionCard,
+  Tag,
+  type Tone,
+} from '@/components/ui/CharteKit'
+import Pagination from '@/components/ui/Pagination'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import SortableTh from '@/components/ui/SortableTh'
+import { useAuthSession } from '@/hooks/useAuthSession'
+import { categorizePubgApiCall, PUBG_API_CALL_CATEGORY_LABELS, type PubgApiCallCategory } from '@/lib/pubg-api-call-category'
 
 type ApiCallRow = {
   id: string
@@ -127,12 +142,22 @@ type CallsPayload = {
   history: ApiCallRow[]
 }
 
-const HISTORY_PAGE_SIZE_OPTIONS = [15, 25, 50] as const
+const HISTORY_PAGE_SIZE_OPTIONS = ['15', '25', '50'] as const
+type HistoryPageSize = (typeof HISTORY_PAGE_SIZE_OPTIONS)[number]
 
 function formatDateTime(value: string) {
   return new Date(value).toLocaleString('fr-FR')
 }
 
+function formatCount(value: number | null | undefined) {
+  return Number(value ?? 0).toLocaleString('fr-FR')
+}
+
+/**
+ * Suivi des appels à l'API PUBG (journée en cours) et réglage de la limite de débit, selon la charte UI
+ * (docs/ui/index.html) : bandeau photo, indicateurs, grille d'activité et barres aux couleurs des jetons de jeu,
+ * historique en tableau (cartes sous `md`), confirmation de purge dans la page.
+ */
 export default function PubgApiSettingsPage() {
   const router = useRouter()
   const { loading, authenticated, isSuperUser } = useAuthSession()
@@ -150,7 +175,7 @@ export default function PubgApiSettingsPage() {
   const [historyActionMessage, setHistoryActionMessage] = useState('')
   const [errorsOnly, setErrorsOnly] = useState(false)
   const [historyPage, setHistoryPage] = useState(1)
-  const [historyPageSize, setHistoryPageSize] = useState<(typeof HISTORY_PAGE_SIZE_OPTIONS)[number]>(15)
+  const [historyPageSize, setHistoryPageSize] = useState<HistoryPageSize>('15')
   const [historyQueryInput, setHistoryQueryInput] = useState('')
   const [historyClanIdInput, setHistoryClanIdInput] = useState('')
   const [appliedHistoryQuery, setAppliedHistoryQuery] = useState('')
@@ -178,7 +203,7 @@ export default function PubgApiSettingsPage() {
 
         const searchParams = new URLSearchParams({
           page: String(historyPage),
-          pageSize: String(historyPageSize),
+          pageSize: historyPageSize,
           errorsOnly: errorsOnly ? '1' : '0',
         })
         if (appliedHistoryQuery) searchParams.set('q', appliedHistoryQuery)
@@ -268,18 +293,16 @@ export default function PubgApiSettingsPage() {
         body: JSON.stringify({ rpm }),
       })
 
-      const body = (await response.json().catch(() => null)) as
-        | { error?: string; rpm?: number }
-        | null
+      const body = (await response.json().catch(() => null)) as { error?: string; rpm?: number } | null
 
       if (!response.ok) {
-        throw new Error(body?.error ?? 'Impossible de mettre a jour le RPM')
+        throw new Error(body?.error ?? 'Impossible de mettre à jour la limite')
       }
 
       setRpmInput(String(body?.rpm ?? rpm))
-      setSaveMessage('Limite RPM mise à jour.')
+      setSaveMessage('Limite de débit mise à jour.')
     } catch (saveError) {
-      setError(saveError instanceof Error ? saveError.message : 'Impossible de mettre a jour le RPM')
+      setError(saveError instanceof Error ? saveError.message : 'Impossible de mettre à jour la limite')
     } finally {
       setSavingRpm(false)
     }
@@ -299,9 +322,7 @@ export default function PubgApiSettingsPage() {
         method: 'DELETE',
       })
 
-      const body = (await response.json().catch(() => null)) as
-        | { error?: string; deletedCount?: number }
-        | null
+      const body = (await response.json().catch(() => null)) as { error?: string; deletedCount?: number } | null
 
       if (!response.ok) {
         throw new Error(body?.error ?? 'Purge impossible')
@@ -310,7 +331,7 @@ export default function PubgApiSettingsPage() {
       const deletedCount = body?.deletedCount ?? 0
       setHistoryPage(1)
       setReloadToken((current) => current + 1)
-      setHistoryActionMessage(`${deletedCount} ligne(s) supprimee(s) de l historique.`)
+      setHistoryActionMessage(`${formatCount(deletedCount)} ligne(s) supprimée(s) de l’historique.`)
       setPurgeDialogOpen(false)
     } catch (purgeError) {
       setError(purgeError instanceof Error ? purgeError.message : 'Purge impossible')
@@ -319,11 +340,11 @@ export default function PubgApiSettingsPage() {
     }
   }
 
-  if (loading || loadingData) {
+  if (loading || (loadingData && !payload)) {
     return (
-      <main className="app-container app-main flex flex-1 items-center justify-center">
-        <p className="text-sm text-slate-600">Chargement du monitoring PUBG API...</p>
-      </main>
+      <div className="app-container app-main game-ui charte flex flex-1 flex-col">
+        <ListSkeleton rows={4} />
+      </div>
     )
   }
 
@@ -333,487 +354,269 @@ export default function PubgApiSettingsPage() {
 
   if (!isSuperUser) {
     return (
-      <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="API PUBG"
-        currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
-      />
-        <section className="app-panel p-6">
-          <h1 className="text-xl font-bold text-amber-900">Accès restreint</h1>
-          <p className="mt-2 text-sm text-amber-800">
-            Cette page est réservée au SuperUser.
-          </p>
-          <Link
-            href="/"
-            className="mt-5 app-btn app-btn--md app-btn--secondary"
-          >
-            Retour à l&apos;accueil
-          </Link>
-        </section>
-      </main>
+      <div className="app-container app-main game-ui charte flex flex-1 flex-col">
+        <EmptyState
+          icon={ShieldAlert}
+          title="Accès restreint"
+          text={
+            <>
+              Cette page est réservée au SuperUser.{' '}
+              <Link href="/" className="app-link font-semibold">
+                Retour à l’accueil
+              </Link>
+            </>
+          }
+        />
+      </div>
     )
   }
 
+  const totals = payload?.totals
+  const kpis: Kpi[] = [
+    { label: 'Appels', value: formatCount(totals?.total), detail: 'depuis minuit', icon: Activity, color: 'var(--game-sky)' },
+    { label: 'Succès', value: formatCount(totals?.success), detail: 'réponses 2xx', icon: CheckCircle2, color: 'var(--game-pos)' },
+    { label: '429', value: formatCount(totals?.rateLimited), detail: 'limite de débit atteinte', icon: AlertTriangle, color: 'var(--game-warn)' },
+    { label: 'Erreurs', value: formatCount(totals?.errors), detail: '429 compris', icon: XCircle, color: 'var(--game-neg)' },
+    { label: 'Retries', value: formatCount(totals?.retriesTotal), detail: 'nouvelles tentatives', icon: RotateCcw, color: 'var(--theme-ui-text-muted)' },
+    {
+      label: 'Latence',
+      value: totals?.avgDurationMs != null ? `${formatCount(totals.avgDurationMs)} ms` : '—',
+      detail: 'durée moyenne d’un appel',
+      icon: Timer,
+      color: 'var(--game-sky)',
+    },
+  ]
+  const latest = payload?.latestRateLimit ?? null
+  const hasHistoryFilter = Boolean(appliedHistoryQuery || appliedHistoryClanId)
+
   return (
-    <main className="app-container app-main flex-1 space-y-4">
-      <NavigationTrail
-        currentLabel="API PUBG"
+    // `.charte` : page écrite selon la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    <div className="app-container app-main game-ui charte flex flex-1 flex-col gap-5">
+      <AdminPageBanner
+        title="API PUBG"
+        subtitle="Appels à l’API PUBG de la journée, erreurs 429, latence et limite de débit."
+        icon={Globe}
+        image="/cartographie-tactique.jpg"
         currentHref="/settings/pubg-api"
-        fallbackParent={{ href: '/settings', label: 'Plateforme' }}
+        parent={{ href: '/settings', label: 'Plateforme' }}
+        pills={[
+          <>
+            <span className="t-num">{payload?.rpm ?? '—'}</span> requêtes / min
+          </>,
+          'Réservé au SuperUser',
+        ]}
+        action={
+          <button
+            type="button"
+            onClick={() => setReloadToken((current) => current + 1)}
+            disabled={loadingData}
+            className={BANNER_GLASS_BUTTON}
+          >
+            <RefreshCw className={`h-3.5 w-3.5 ${loadingData ? 'animate-spin' : ''}`} aria-hidden="true" />
+            Actualiser
+          </button>
+        }
       />
-      <section className="app-panel mb-4 p-4">
-        <SettingsPageHeader
-          title="API PUBG"
-          subtitle="Suivi en temps réel des appels API, des erreurs 429 et de la latence moyenne."
-        />
-      </section>
-      <section className="app-panel p-6 sm:p-8">
 
-        <div className="mt-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-          <MetricCard icon={Activity} label="Appels fenetre" value={String(payload?.totals.total ?? 0)} />
-          <MetricCard
-            icon={CheckCircle2}
-            label="Succes"
-            value={String(payload?.totals.success ?? 0)}
-            tone="emerald"
-          />
-          <MetricCard
-            icon={AlertTriangle}
-            label="429"
-            value={String(payload?.totals.rateLimited ?? 0)}
-            tone="amber"
-          />
-          <MetricCard icon={XCircle} label="Erreurs" value={String(payload?.totals.errors ?? 0)} tone="rose" />
-          <MetricCard icon={RotateCcw} label="Retries" value={String(payload?.totals.retriesTotal ?? 0)} />
-          <MetricCard
-            icon={Timer}
-            label="Latence moyenne"
-            value={payload?.totals.avgDurationMs != null ? `${payload.totals.avgDurationMs} ms` : '-'}
-          />
-        </div>
-
-        <div className="app-panel-muted mt-8 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-2">
-            <div>
-              <h2 className="text-sm font-bold text-slate-900">Activite du jour</h2>
-              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-500">
-                Aujourd&apos;hui (24 h)
-              </p>
-            </div>
-            <button
-              type="button"
-              onClick={() => setReloadToken((current) => current + 1)}
-              className="app-btn app-btn--sm app-btn--secondary gap-1.5"
-            >
-              <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-              Actualiser
-            </button>
-          </div>
-
-          <p className="mt-3 text-xs text-slate-500">
-            Vue de la journee en cours (00:00-23:59), en tranches de 30 minutes. A minuit, la grille repart a zero.
+      <div
+        aria-busy={loadingData}
+        className={`flex flex-col gap-5 ${loadingData ? 'pointer-events-none opacity-60 transition-opacity duration-200' : ''}`}
+      >
+        {error ? (
+          <p className="t-body t-neg m-0 flex items-center gap-2" role="alert">
+            <AlertTriangle className="h-4 w-4 shrink-0" aria-hidden="true" />
+            {error}
           </p>
+        ) : null}
 
-          <div className="mt-6">
-            <div className="app-panel-muted space-y-2 p-3">
-              <div className="hidden items-stretch gap-3 md:flex lg:hidden">
-                <div className="grid w-16 shrink-0 self-stretch grid-rows-3 gap-1 text-[10px] font-semibold text-slate-500">
-                  <span className="flex h-full items-center rounded-md border border-slate-700/40 px-2">00h-08h</span>
-                  <span className="flex h-full items-center rounded-md border border-slate-700/40 px-2">08h-16h</span>
-                  <span className="flex h-full items-center rounded-md border border-slate-700/40 px-2">16h-24h</span>
-                </div>
+        <KpiGrid items={kpis} className="grid-cols-2 sm:grid-cols-3 lg:grid-cols-6" />
 
-                <div
-                  className="grid flex-1 gap-1"
-                  style={{
-                    gridTemplateColumns: 'repeat(16, minmax(0, 1fr))',
-                  }}
-                >
-                  {(payload?.series ?? []).map((point) => {
-                    const level = getIntensityLevel(point.total, chartMax)
-                    const hasError = point.errors > 0
-                    const hasRateLimit = point.rateLimited > 0
-                    const status = hasError ? 'error' : hasRateLimit ? 'rateLimit' : 'normal'
-                    const cellTone = hasError
-                      ? ERROR_LEVEL_CLASSES[level]
-                      : hasRateLimit
-                        ? RATE_LIMIT_LEVEL_CLASSES[level]
-                        : SUCCESS_LEVEL_CLASSES[level]
-
-                    return (
-                      <div
-                        key={point.minute}
-                        title={`${new Date(point.minute).toLocaleTimeString('fr-FR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })} • ${point.total} appels • ${point.errors} erreurs • ${point.rateLimited} x 429`}
-                        className={`group relative aspect-square rounded-md border transition-transform duration-150 hover:z-10 hover:scale-110 ${cellTone}`}
-                      >
-                        {status === 'error' ? (
-                          <span className="absolute -right-1 -top-1 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-rose-300 bg-rose-600 px-0.5 text-[8px] font-bold leading-none text-white shadow-sm">
-                            !
-                          </span>
-                        ) : status === 'rateLimit' ? (
-                          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-amber-200 bg-amber-400 shadow-sm" />
-                        ) : null}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="hidden items-stretch gap-3 lg:flex">
-                <div className="grid w-16 shrink-0 self-stretch grid-rows-2 gap-1 text-[10px] font-semibold text-slate-500">
-                  <span className="flex h-full items-center rounded-md border border-slate-700/40 px-2">00h-12h</span>
-                  <span className="flex h-full items-center rounded-md border border-slate-700/40 px-2">12h-24h</span>
-                </div>
-
-                <div
-                  className="grid flex-1 gap-1"
-                  style={{
-                    gridTemplateColumns: 'repeat(24, minmax(0, 1fr))',
-                  }}
-                >
-                  {(payload?.series ?? []).map((point) => {
-                    const level = getIntensityLevel(point.total, chartMax)
-                    const hasError = point.errors > 0
-                    const hasRateLimit = point.rateLimited > 0
-                    const status = hasError ? 'error' : hasRateLimit ? 'rateLimit' : 'normal'
-                    const cellTone = hasError
-                      ? ERROR_LEVEL_CLASSES[level]
-                      : hasRateLimit
-                        ? RATE_LIMIT_LEVEL_CLASSES[level]
-                        : SUCCESS_LEVEL_CLASSES[level]
-
-                    return (
-                      <div
-                        key={point.minute}
-                        title={`${new Date(point.minute).toLocaleTimeString('fr-FR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })} • ${point.total} appels • ${point.errors} erreurs • ${point.rateLimited} x 429`}
-                        className={`group relative aspect-square rounded-md border transition-transform duration-150 hover:z-10 hover:scale-110 ${cellTone}`}
-                      >
-                        {status === 'error' ? (
-                          <span className="absolute -right-1 -top-1 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-rose-300 bg-rose-600 px-0.5 text-[8px] font-bold leading-none text-white shadow-sm">
-                            !
-                          </span>
-                        ) : status === 'rateLimit' ? (
-                          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-amber-200 bg-amber-400 shadow-sm" />
-                        ) : null}
-                      </div>
-                    )
-                  })}
-                </div>
-              </div>
-
-              <div className="space-y-2 md:hidden">
-                <div className="grid grid-cols-8 gap-1 sm:grid-cols-12">
-                  {(payload?.series ?? []).map((point) => {
-                    const level = getIntensityLevel(point.total, chartMax)
-                    const hasError = point.errors > 0
-                    const hasRateLimit = point.rateLimited > 0
-                    const status = hasError ? 'error' : hasRateLimit ? 'rateLimit' : 'normal'
-                    const cellTone = hasError
-                      ? ERROR_LEVEL_CLASSES[level]
-                      : hasRateLimit
-                        ? RATE_LIMIT_LEVEL_CLASSES[level]
-                        : SUCCESS_LEVEL_CLASSES[level]
-
-                    return (
-                      <div
-                        key={point.minute}
-                        title={`${new Date(point.minute).toLocaleTimeString('fr-FR', {
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })} • ${point.total} appels • ${point.errors} erreurs • ${point.rateLimited} x 429`}
-                        className={`group relative aspect-square rounded-md border ${cellTone}`}
-                      >
-                        {status === 'error' ? (
-                          <span className="absolute -right-1 -top-1 inline-flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-rose-300 bg-rose-600 px-0.5 text-[8px] font-bold leading-none text-white shadow-sm">
-                            !
-                          </span>
-                        ) : status === 'rateLimit' ? (
-                          <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full border border-amber-200 bg-amber-400 shadow-sm" />
-                        ) : null}
-                      </div>
-                    )
-                  })}
-                </div>
-                <p className="text-[11px] text-slate-500">Mobile: 8 colonnes (12 colonnes sur grands telephones).</p>
-              </div>
-
-              <div className="mt-3 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
-                <LegendPill label="Normal" className="border-emerald-200 bg-emerald-200" />
-                <LegendPill label="429" className="border-amber-200 bg-amber-200" />
-                <LegendPill label="Erreur" className="border-rose-200 bg-rose-200" />
-                <span className="text-slate-500">Pastille ambre: 429 • Badge rouge: erreur</span>
-                <span className="text-slate-500">Plus la couleur est soutenue, plus le volume est eleve.</span>
-              </div>
-            </div>
+        <SectionCard
+          id="pubg-api-activity"
+          icon={Activity}
+          title="Activité du jour"
+          meta="Journée en cours (00:00 – 23:59) par tranches de 30 minutes ; la grille repart à zéro à minuit."
+        >
+          <div className="flex flex-col gap-1.5 md:hidden">
+            <HeatRows series={payload?.series ?? []} perRow={8} max={chartMax} />
           </div>
-        </div>
-
-        <div className="app-panel-muted mt-8 p-5">
-          <h2 className="text-sm font-bold text-slate-900">Tendance 14 jours</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Volume d&apos;appels par jour, hauteur proportionnelle au maximum de la période.
-          </p>
-          <div className="mt-4 flex items-end gap-1" style={{ height: 96 }}>
-            {(payload?.dailySeries ?? []).map((point) => {
-              const max = Math.max(1, ...(payload?.dailySeries ?? []).map((item) => item.total))
-              const heightPct = point.total > 0 ? Math.max(6, Math.round((point.total / max) * 100)) : 2
-              const hasError = point.errors > 0
-              const hasRateLimit = point.rateLimited > 0
-              const barTone = hasError
-                ? 'bg-rose-500'
-                : hasRateLimit
-                  ? 'bg-amber-400'
-                  : 'bg-emerald-400'
-
-              return (
-                <div key={point.date} className="flex flex-1 flex-col items-center justify-end gap-1">
-                  <div
-                    title={`${new Date(point.date).toLocaleDateString('fr-FR')} • ${point.total} appels • ${point.errors} erreurs • ${point.rateLimited} x 429`}
-                    className={`w-full rounded-t ${barTone}`}
-                    style={{ height: `${heightPct}%` }}
-                  />
-                  <span className="text-[9px] text-slate-500">
-                    {new Date(point.date).toLocaleDateString('fr-FR', { day: '2-digit', month: '2-digit' })}
-                  </span>
-                </div>
-              )
-            })}
+          <div className="hidden flex-col gap-1.5 md:flex lg:hidden">
+            <HeatRows series={payload?.series ?? []} perRow={16} max={chartMax} />
           </div>
-        </div>
-
-        <div className="mt-8 grid gap-5 lg:grid-cols-2">
-          <div className="app-panel p-5">
-            <h2 className="text-sm font-bold text-slate-900">Repartition par type d&apos;appel</h2>
-            <p className="mt-1 text-xs text-slate-500">
-              Aujourd&apos;hui (24 h), par ressource PUBG appelee (joueur, clan, saison, arme, match).
-            </p>
-            <div className="mt-3 space-y-2">
-              {(payload?.byCategory.length ?? 0) === 0 ? (
-                <p className="app-panel-muted p-3 text-xs text-slate-600">Aucun appel aujourd&apos;hui.</p>
-              ) : (
-                (payload?.byCategory ?? []).map((entry) => {
-                  // `errors` (success === false) inclut déjà les 429 : on isole les erreurs
-                  // non-429 pour que les trois segments totalisent bien 100 %.
-                  const otherErrors = Math.max(0, entry.errors - entry.rateLimited)
-                  const successPct = entry.count > 0 ? (entry.success / entry.count) * 100 : 0
-                  const rateLimitedPct = entry.count > 0 ? (entry.rateLimited / entry.count) * 100 : 0
-                  const errorPct = entry.count > 0 ? (otherErrors / entry.count) * 100 : 0
-
-                  return (
-                    <div key={entry.category} className="app-panel-muted p-3 text-xs">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="font-semibold text-slate-900">{entry.label}</p>
-                        <div className="flex items-center gap-1.5">
-                          {entry.errors > 0 ? (
-                            <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">
-                              {entry.errors} err.
-                            </span>
-                          ) : null}
-                          {entry.rateLimited > 0 ? (
-                            <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
-                              {entry.rateLimited} x 429
-                            </span>
-                          ) : null}
-                          <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">
-                            {entry.success} ok
-                          </span>
-                        </div>
-                      </div>
-                      <p className="mt-0.5 text-slate-500">
-                        {entry.count} appel(s) • {entry.avgDurationMs ?? '-'} ms moy.
-                      </p>
-                      <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                        <div className="h-full bg-emerald-400" style={{ width: `${successPct}%` }} />
-                        <div className="h-full bg-amber-400" style={{ width: `${rateLimitedPct}%` }} />
-                        <div className="h-full bg-rose-500" style={{ width: `${errorPct}%` }} />
-                      </div>
-                    </div>
-                  )
-                })
-              )}
-            </div>
+          <div className="hidden flex-col gap-1.5 lg:flex">
+            <HeatRows series={payload?.series ?? []} perRow={24} max={chartMax} />
           </div>
+          <div className="t-meta flex flex-wrap items-center gap-x-4 gap-y-1.5">
+            <LegendSwatch tone="pos" label="Appels réussis" />
+            <LegendSwatch tone="warn" label="Tranche avec des 429" />
+            <LegendSwatch tone="neg" label="Tranche avec des erreurs" />
+            <span>Plus la case est soutenue, plus le volume est élevé.</span>
+          </div>
+        </SectionCard>
 
-          <div className="app-panel p-5">
-            <h2 className="text-sm font-bold text-slate-900">Top erreurs</h2>
-            <p className="mt-1 text-xs text-slate-500">Aujourd&apos;hui (24 h), messages regroupes par occurrence.</p>
-            <div className="mt-3 space-y-2">
-              {(payload?.topErrors.length ?? 0) === 0 ? (
-                <p className="app-panel-muted p-3 text-xs text-slate-600">Aucune erreur aujourd&apos;hui.</p>
-              ) : (
-                (() => {
+        <SectionCard
+          id="pubg-api-trend"
+          icon={TrendingUp}
+          title="Tendance sur 14 jours"
+          meta="Appels par jour, hauteur relative au jour le plus chargé de la période."
+        >
+          <DailyBars points={payload?.dailySeries ?? []} />
+        </SectionCard>
+
+        <div className="grid gap-5 lg:grid-cols-2">
+          <SectionCard id="pubg-api-categories" icon={BarChart3} title="Par type d’appel" meta="Aujourd’hui, par ressource PUBG appelée.">
+            {(payload?.byCategory.length ?? 0) === 0 ? (
+              <EmptyState icon={BarChart3} title="Aucun appel aujourd’hui" />
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {(payload?.byCategory ?? []).map((entry) => (
+                  <li key={entry.category} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+                    <BreakdownHead label={entry.label} entry={entry} />
+                    <StackedBar entry={entry} />
+                  </li>
+                ))}
+              </ul>
+            )}
+          </SectionCard>
+
+          <SectionCard id="pubg-api-top-errors" icon={XCircle} title="Erreurs les plus fréquentes" meta="Aujourd’hui, messages regroupés.">
+            {(payload?.topErrors.length ?? 0) === 0 ? (
+              <EmptyState icon={CheckCircle2} title="Aucune erreur aujourd’hui" />
+            ) : (
+              <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                {(() => {
                   const maxCount = Math.max(1, ...(payload?.topErrors ?? []).map((entry) => entry.count))
                   return (payload?.topErrors ?? []).map((entry) => (
-                    <div key={entry.message} className="app-panel-muted p-3 text-xs">
-                      <div className="flex items-start justify-between gap-3">
-                        <p className="break-all text-slate-700">{entry.message}</p>
-                        <span className="shrink-0 rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">
-                          x{entry.count}
-                        </span>
-                      </div>
-                      <div className="mt-2 h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                        <div
-                          className="h-full rounded-full bg-rose-500"
-                          style={{ width: `${Math.round((entry.count / maxCount) * 100)}%` }}
+                    <li key={entry.message} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+                      <span className="flex items-start justify-between gap-3">
+                        <span className="t-body break-all text-gray-700">{entry.message}</span>
+                        <Tag tone="neg">× {formatCount(entry.count)}</Tag>
+                      </span>
+                      <span className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]">
+                        <span
+                          className="block h-full rounded-full"
+                          style={{ width: `${Math.round((entry.count / maxCount) * 100)}%`, backgroundColor: 'var(--game-neg)' }}
                         />
-                      </div>
-                    </div>
+                      </span>
+                    </li>
                   ))
-                })()
-              )}
-            </div>
-          </div>
+                })()}
+              </ul>
+            )}
+          </SectionCard>
         </div>
 
-        <div className="app-panel mt-8 p-5">
-          <h2 className="text-sm font-bold text-slate-900">Repartition par clan</h2>
-          <p className="mt-1 text-xs text-slate-500">
-            Aujourd&apos;hui (24 h) — clique sur un clan pour filtrer l&apos;historique ci-dessous.
-          </p>
-          <div className="mt-3 space-y-2">
-            {(payload?.byClan.length ?? 0) === 0 ? (
-              <p className="app-panel-muted p-3 text-xs text-slate-600">Aucun appel aujourd&apos;hui.</p>
-            ) : (
-              (payload?.byClan ?? []).map((entry) => {
-                const otherErrors = Math.max(0, entry.errors - entry.rateLimited)
-                const successPct = entry.count > 0 ? (entry.success / entry.count) * 100 : 0
-                const rateLimitedPct = entry.count > 0 ? (entry.rateLimited / entry.count) * 100 : 0
-                const errorPct = entry.count > 0 ? (otherErrors / entry.count) * 100 : 0
+        <SectionCard
+          id="pubg-api-clans"
+          icon={Users}
+          title="Par clan"
+          meta="Aujourd’hui. Choisir un clan filtre l’historique ci-dessous ; bordure rouge au-delà de 10 % d’échecs."
+        >
+          {(payload?.byClan.length ?? 0) === 0 ? (
+            <EmptyState icon={Users} title="Aucun appel aujourd’hui" />
+          ) : (
+            <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-2">
+              {(payload?.byClan ?? []).map((entry) => {
                 const problemRatio = entry.count > 0 ? (entry.errors + entry.rateLimited) / entry.count : 0
                 const isProblematic = entry.clanId !== null && problemRatio > 0.1
-
+                const selected = entry.clanId !== null && appliedHistoryClanId === String(entry.clanId)
                 return (
-                  <button
-                    key={entry.clanId ?? 'unassigned'}
-                    type="button"
-                    disabled={entry.clanId === null}
-                    onClick={() => {
-                      if (entry.clanId === null) return
-                      setHistoryPage(1)
-                      setHistoryClanIdInput(String(entry.clanId))
-                      setAppliedHistoryClanId(String(entry.clanId))
-                    }}
-                    className={`app-panel-muted block w-full p-3 text-left text-xs transition-colors ${
-                      entry.clanId === null ? 'cursor-default' : 'cursor-pointer hover:bg-gray-100'
-                    } ${isProblematic ? 'border border-rose-300' : ''}`}
-                  >
-                    <div className="flex items-center justify-between gap-3">
-                      <p className="flex items-center gap-1.5 font-semibold text-slate-900">
-                        {isProblematic ? (
-                          <AlertTriangle className="h-3.5 w-3.5 shrink-0 text-rose-600" aria-hidden />
-                        ) : null}
-                        {entry.label}
-                      </p>
-                      <div className="flex items-center gap-1.5">
-                        {entry.errors > 0 ? (
-                          <span className="rounded-full border border-rose-200 bg-rose-50 px-2 py-0.5 font-semibold text-rose-800">
-                            {entry.errors} err.
+                  <li key={entry.clanId ?? 'unassigned'} className="flex">
+                    <button
+                      type="button"
+                      disabled={entry.clanId === null}
+                      aria-pressed={entry.clanId === null ? undefined : selected}
+                      onClick={() => {
+                        if (entry.clanId === null) return
+                        setHistoryPage(1)
+                        setHistoryClanIdInput(String(entry.clanId))
+                        setAppliedHistoryClanId(String(entry.clanId))
+                      }}
+                      title={entry.clanId === null ? 'Appels sans clan rattaché' : 'Filtrer l’historique sur ce clan'}
+                      className="app-panel-muted flex w-full flex-col gap-1.5 px-3 py-2.5 text-left transition-colors enabled:hover:bg-gray-100 disabled:cursor-default"
+                      style={
+                        selected
+                          ? { borderColor: 'var(--theme-ui-accent)', backgroundColor: 'var(--theme-ui-accent-tint)' }
+                          : isProblematic
+                            ? { borderColor: 'color-mix(in srgb, var(--game-neg) 60%, transparent)' }
+                            : undefined
+                      }
+                    >
+                      <BreakdownHead
+                        label={
+                          <span className="inline-flex items-center gap-1.5">
+                            {isProblematic ? (
+                              <AlertTriangle className="h-3.5 w-3.5 shrink-0" style={{ color: 'var(--game-neg)' }} aria-hidden="true" />
+                            ) : null}
+                            {entry.label}
                           </span>
-                        ) : null}
-                        {entry.rateLimited > 0 ? (
-                          <span className="rounded-full border border-amber-200 bg-amber-50 px-2 py-0.5 font-semibold text-amber-800">
-                            {entry.rateLimited} x 429
-                          </span>
-                        ) : null}
-                        <span className="rounded-full border border-emerald-200 bg-emerald-50 px-2 py-0.5 font-semibold text-emerald-800">
-                          {entry.success} ok
-                        </span>
-                      </div>
-                    </div>
-                    <p className="mt-0.5 text-slate-500">
-                      {entry.count} appel(s) • {entry.avgDurationMs ?? '-'} ms moy.
-                    </p>
-                    <div className="mt-2 flex h-1.5 w-full overflow-hidden rounded-full bg-gray-100">
-                      <div className="h-full bg-emerald-400" style={{ width: `${successPct}%` }} />
-                      <div className="h-full bg-amber-400" style={{ width: `${rateLimitedPct}%` }} />
-                      <div className="h-full bg-rose-500" style={{ width: `${errorPct}%` }} />
-                    </div>
-                  </button>
+                        }
+                        entry={entry}
+                      />
+                      <StackedBar entry={entry} />
+                    </button>
+                  </li>
                 )
-              })
-            )}
-          </div>
-        </div>
+              })}
+            </ul>
+          )}
+        </SectionCard>
 
-        <div className="app-panel mt-8 p-5">
-          <h2 className="flex items-center gap-1.5 text-sm font-bold text-slate-900">
-            <Gauge className="h-4 w-4 text-slate-500" aria-hidden />
-            Configuration du rate limit
-          </h2>
-          <p className="mt-1 text-xs text-slate-600">
-            Valeur actuelle: {payload?.rpm ?? '-'} RPM (min {payload?.bounds.min ?? '-'} / max{' '}
-            {payload?.bounds.max ?? '-'})
-          </p>
-          <p className="mt-1 text-xs text-slate-600">
-            Reference officielle:{' '}
-            <a
-              href="https://documentation.pubg.com/en/rate-limits.html"
-              target="_blank"
-              rel="noreferrer"
-              className="font-semibold text-cyan-700 underline decoration-cyan-300 underline-offset-2 hover:text-cyan-800"
-            >
-              PUBG API Rate Limits
-            </a>
-          </p>
+        <SectionCard
+          id="pubg-api-rate-limit"
+          icon={Gauge}
+          title="Limite de débit"
+          meta={
+            <>
+              Débit configuré : <span className="t-num font-semibold text-gray-900">{payload?.rpm ?? '—'}</span> requêtes / min (entre{' '}
+              {payload?.bounds.min ?? '—'} et {payload?.bounds.max ?? '—'}). Référence :{' '}
+              <a href="https://documentation.pubg.com/en/rate-limits.html" target="_blank" rel="noreferrer" className="app-link font-semibold">
+                limites de l’API PUBG
+              </a>
+              .
+            </>
+          }
+        >
+          <dl className="m-0 grid gap-2.5 sm:grid-cols-3">
+            <RateLimitStat label="X-RateLimit-Limit" value={latest?.limit != null ? formatCount(latest.limit) : '—'} />
+            <RateLimitStat label="X-RateLimit-Remaining" value={latest?.remaining != null ? formatCount(latest.remaining) : '—'} />
+            <RateLimitStat
+              label="X-RateLimit-Reset"
+              value={latest?.resetAt ? formatDateTime(latest.resetAt) : '—'}
+              detail={latest?.observedAt ? `Observé le ${formatDateTime(latest.observedAt)}` : undefined}
+              small
+            />
+          </dl>
 
-          <div className="mt-3 grid gap-2 sm:grid-cols-3">
-            <article className="app-panel-muted p-3">
-              <p className="text-[11px] uppercase tracking-wide text-slate-500">X-RateLimit-Limit</p>
-              <p className="mt-1 text-lg font-black text-slate-900">{payload?.latestRateLimit?.limit ?? '-'}</p>
-            </article>
-            <article className="app-panel-muted p-3">
-              <p className="text-[11px] uppercase tracking-wide text-slate-500">X-RateLimit-Remaining</p>
-              <p className="mt-1 text-lg font-black text-slate-900">{payload?.latestRateLimit?.remaining ?? '-'}</p>
-            </article>
-            <article className="app-panel-muted p-3">
-              <p className="text-[11px] uppercase tracking-wide text-slate-500">X-RateLimit-Reset</p>
-              <p className="mt-1 text-sm font-semibold text-slate-900">
-                {payload?.latestRateLimit?.resetAt ? formatDateTime(payload.latestRateLimit.resetAt) : '-'}
-              </p>
-              <p className="mt-1 text-[11px] text-slate-500">
-                Observe: {payload?.latestRateLimit?.observedAt ? formatDateTime(payload.latestRateLimit.observedAt) : '-'}
-              </p>
-            </article>
-          </div>
-
-          {payload?.latestRateLimit?.limit ? (
-            <div className="mt-3 app-panel-muted p-3">
-              <div className="flex items-center justify-between text-[11px] text-slate-500">
-                <span>Quota consomme</span>
-                <span>
-                  {Math.max(0, payload.latestRateLimit.limit - (payload.latestRateLimit.remaining ?? payload.latestRateLimit.limit))}{' '}
-                  / {payload.latestRateLimit.limit}
+          {latest?.limit ? (
+            <div className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+              <span className="t-meta flex items-center justify-between gap-2">
+                <span>Quota consommé</span>
+                <span className="t-num">
+                  {formatCount(Math.max(0, latest.limit - (latest.remaining ?? latest.limit)))} / {formatCount(latest.limit)}
                 </span>
-              </div>
-              <div className="mt-1.5 h-2 w-full overflow-hidden rounded-full bg-gray-100">
-                <div
-                  className={`h-full rounded-full ${getQuotaGaugeTone(payload.latestRateLimit.remaining, payload.latestRateLimit.limit)}`}
+              </span>
+              <span className="h-2 w-full overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]">
+                <span
+                  className="block h-full rounded-full"
                   style={{
-                    width: `${getQuotaConsumedPct(payload.latestRateLimit.remaining, payload.latestRateLimit.limit)}%`,
+                    width: `${getQuotaConsumedPct(latest.remaining, latest.limit)}%`,
+                    backgroundColor: `var(--game-${getQuotaTone(latest.remaining, latest.limit)})`,
                   }}
                 />
-              </div>
+              </span>
             </div>
           ) : null}
 
-          {payload?.latestRateLimit?.limit != null && payload.rpm > payload.latestRateLimit.limit ? (
-            <p className="mt-3 flex items-start gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-              <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-              Le RPM configure ({payload.rpm}) depasse la limite observee cote PUBG ({payload.latestRateLimit.limit}
-              ) — risque accru de 429.
-            </p>
+          {latest?.limit != null && payload && payload.rpm > latest.limit ? (
+            <Callout tone="warn" icon={AlertTriangle} title="Débit supérieur à la limite PUBG">
+              Le débit configuré ({payload.rpm}) dépasse la limite observée côté PUBG ({latest.limit}) : risque accru de 429.
+            </Callout>
           ) : null}
 
-          <form className="mt-4 flex flex-wrap items-end gap-3" onSubmit={handleSaveRpm}>
-            <label className="text-sm font-medium text-slate-700">
-              RPM
+          <form className="flex flex-wrap items-end gap-2.5" onSubmit={handleSaveRpm}>
+            <label className="flex flex-col gap-1">
+              <span className="t-label">Requêtes par minute</span>
               <input
                 type="number"
                 min={payload?.bounds.min ?? 1}
@@ -822,311 +625,353 @@ export default function PubgApiSettingsPage() {
                 value={rpmInput}
                 onChange={(event) => setRpmInput(event.target.value)}
                 disabled={!canWriteSettings || savingRpm}
-                className="mt-1 block w-32 rounded-xl border border-slate-300 px-3 py-2 text-sm"
+                className="app-input w-32"
               />
             </label>
-            <button
-              type="submit"
-              disabled={!canWriteSettings || savingRpm}
-              className="app-btn app-btn--md app-btn--secondary"
-            >
-              {savingRpm ? 'Enregistrement...' : 'Mettre a jour'}
+            <button type="submit" disabled={!canWriteSettings || savingRpm} className="app-btn app-btn--md app-btn--primary">
+              {savingRpm ? 'Enregistrement…' : 'Enregistrer'}
             </button>
           </form>
+          {saveMessage ? (
+            <p className="t-body t-pos m-0 flex items-center gap-2" role="status">
+              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {saveMessage}
+            </p>
+          ) : null}
+        </SectionCard>
 
-          {saveMessage ? <p className="mt-3 text-sm text-emerald-700">{saveMessage}</p> : null}
-        </div>
-
-        <div className="app-panel mt-8 p-5">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <h2 className="text-sm font-bold text-slate-900">Historique recent</h2>
-            <div className="flex flex-wrap items-center gap-3">
-              <SegmentedControl
-                size="sm"
-                value={errorsOnly ? 'errors' : 'all'}
-                onChange={(value) => {
-                  setHistoryPage(1)
-                  setErrorsOnly(value === 'errors')
-                }}
-                options={[
-                  { value: 'all', label: 'Tout' },
-                  { value: 'errors', label: 'Erreurs' },
-                ]}
-              />
-              <SegmentedControl
-                size="sm"
-                value={String(historyPageSize)}
-                onChange={(value) => {
-                  setHistoryPage(1)
-                  setHistoryPageSize(Number(value) as (typeof HISTORY_PAGE_SIZE_OPTIONS)[number])
-                }}
-                options={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({
-                  value: String(value),
-                  label: String(value),
-                }))}
-              />
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeDialogOpen(true)
-                }}
-                disabled={purgingHistory}
-                className="app-btn app-btn--sm app-btn--danger gap-1.5"
-              >
-                <Trash2 className="h-3.5 w-3.5" aria-hidden />
-                {purgingHistory ? 'Purge...' : 'Purger'}
-              </button>
-            </div>
-          </div>
-          <form
-            className="mt-3 flex flex-wrap items-end gap-2"
-            onSubmit={handleApplyHistoryFilters}
-          >
-            <label className="text-xs font-medium text-slate-700">
-              Endpoint / source
-              <input
-                type="text"
-                value={historyQueryInput}
-                onChange={(event) => setHistoryQueryInput(event.target.value)}
-                placeholder="ex: sync-matches"
-                className="mt-1 block w-48 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
-              />
+        <SectionCard
+          id="pubg-api-history"
+          icon={History}
+          title={`Historique des appels (${formatCount(payload?.historyPagination.total)})`}
+          meta="Survoler un statut affiche le message d’erreur ; le type d’appel, son point d’accès."
+          aside={
+            <button
+              type="button"
+              onClick={() => setPurgeDialogOpen(true)}
+              disabled={purgingHistory}
+              className="app-btn app-btn--sm app-btn--danger gap-1.5"
+            >
+              <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
+              {purgingHistory ? 'Purge…' : 'Purger'}
+            </button>
+          }
+        >
+          <form className="flex flex-wrap items-end gap-2.5" onSubmit={handleApplyHistoryFilters}>
+            <label className="flex w-full flex-col gap-1 sm:w-56">
+              <span className="t-label">Point d’accès ou source</span>
+              <span className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-500" aria-hidden="true" />
+                <input
+                  type="text"
+                  value={historyQueryInput}
+                  onChange={(event) => setHistoryQueryInput(event.target.value)}
+                  placeholder="sync-matches…"
+                  className="app-input pl-9"
+                />
+              </span>
             </label>
-            <label className="text-xs font-medium text-slate-700">
-              Clan ID
+            <label className="flex flex-col gap-1">
+              <span className="t-label">N° de clan</span>
               <input
                 type="number"
                 min={1}
                 value={historyClanIdInput}
                 onChange={(event) => setHistoryClanIdInput(event.target.value)}
-                placeholder="ex: 1"
-                className="mt-1 block w-24 rounded-lg border border-slate-300 px-2 py-1.5 text-xs"
+                placeholder="1"
+                className="app-input w-24"
               />
             </label>
-            <button type="submit" className="app-btn app-btn--sm app-btn--secondary">
+            <button type="submit" className="app-btn app-btn--md app-btn--secondary">
               Filtrer
             </button>
-            {appliedHistoryQuery || appliedHistoryClanId ? (
-              <button
-                type="button"
-                onClick={handleClearHistoryFilters}
-                className="app-btn app-btn--sm app-btn--secondary"
-              >
+            {hasHistoryFilter ? (
+              <button type="button" onClick={handleClearHistoryFilters} className="app-btn app-btn--md app-btn--secondary">
                 Effacer les filtres
               </button>
             ) : null}
           </form>
-          <p className="mt-2 text-xs text-slate-500">
-            Page {payload?.historyPagination.page ?? 1} / {payload?.historyPagination.totalPages ?? 1} •{' '}
-            {payload?.historyPagination.total ?? 0} ligne(s) au total
-          </p>
-          <p className="mt-1 text-xs text-slate-500">
-            Astuce: survole ACTEUR pour voir l endpoint et survole STATUT pour le detail erreur.
-          </p>
-          <div className="mt-2 flex flex-wrap items-center gap-3 text-[11px] text-slate-600">
-            <LegendPill label="2xx: succès" className="border-emerald-200 bg-emerald-100" />
-            <LegendPill label="429: limite de debit atteinte" className="border-amber-200 bg-amber-100" />
-            <LegendPill label="4xx/5xx/n-a: erreur" className="border-rose-200 bg-rose-100" />
-          </div>
-          {historyActionMessage ? <p className="mt-1 text-xs text-emerald-700">{historyActionMessage}</p> : null}
-          {error ? <p className="mt-2 text-sm text-rose-700">{error}</p> : null}
 
-          <div className="mt-4 space-y-2 md:hidden">
-            {(payload?.history.length ?? 0) === 0 ? (
-              <p className="app-panel-muted p-3 text-xs text-slate-600">
-                Aucune ligne pour ce filtre.
-              </p>
-            ) : (
-              (payload?.history ?? []).map((row) => (
-                <article key={row.id} className="app-panel-muted p-3 text-xs text-slate-700">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="break-all font-semibold text-slate-900">{row.actorLabel}</p>
-                    <span
-                      title={row.errorMessage ?? 'Aucune erreur'}
-                      className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-semibold ${getApiStatusBadgeClass(row)}`}
-                    >
-                      {row.statusCode ?? 'n/a'}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-[11px] text-slate-500">{formatDateTime(row.startedAt)}</p>
-                  <div className="mt-2 grid grid-cols-2 gap-2 text-[11px]">
-                    <p>Duree: {row.durationMs ?? '-'} ms</p>
-                    <p>Retries: {row.retryCount}</p>
-                    <p>Requetes dispo: {row.rateLimitRemaining ?? '-'}</p>
-                    <p>
-                      Type:{' '}
-                      <span
-                        className={`inline-flex rounded-full px-2 py-0.5 font-semibold ${getCategoryBadgeMeta(row).className}`}
-                      >
-                        {getCategoryBadgeMeta(row).label}
-                      </span>
-                    </p>
-                  </div>
-                  <p className="mt-2 text-[11px] text-slate-500">Endpoint: {row.method} {row.endpoint}</p>
-                </article>
-              ))
-            )}
+          <div className="flex flex-wrap items-center justify-between gap-2.5">
+            <SegmentedControl
+              size="sm"
+              value={errorsOnly ? 'errors' : 'all'}
+              onChange={(value) => {
+                setHistoryPage(1)
+                setErrorsOnly(value === 'errors')
+              }}
+              options={[
+                { value: 'all', label: 'Tous' },
+                { value: 'errors', label: 'Erreurs' },
+              ]}
+            />
+            <div className="w-36">
+              <ChoiceMenu<HistoryPageSize>
+                label="Lignes par page"
+                value={historyPageSize}
+                onChange={(value) => {
+                  setHistoryPage(1)
+                  setHistoryPageSize(value)
+                }}
+                options={HISTORY_PAGE_SIZE_OPTIONS.map((value) => ({ value, label: `${value} par page` }))}
+              />
+            </div>
           </div>
 
-          <div className="app-table-shell mt-4 hidden overflow-x-auto md:block">
-            <table className="min-w-full table-fixed text-left text-xs text-slate-700">
-              <thead>
-                <tr className="app-table-head text-[11px] uppercase tracking-wide text-slate-500">
-                  <th className="w-[145px] px-2 py-2">Date</th>
-                  <th className="w-[90px] px-2 py-2">Statut</th>
-                  <th className="w-[85px] px-2 py-2">Duree</th>
-                  <th className="w-[75px] px-2 py-2">Retries</th>
-                  <th className="w-[110px] px-2 py-2">Dispo API</th>
-                  <th className="px-2 py-2">Type</th>
-                </tr>
-              </thead>
-              <tbody>
-                {(payload?.history ?? []).map((row) => (
-                  <tr key={row.id} className="app-table-row align-top">
-                    <td className="px-2 py-2 whitespace-nowrap">{formatDateTime(row.startedAt)}</td>
-                    <td className="px-2 py-2">
-                      <span
-                        title={row.errorMessage ?? 'Aucune erreur'}
-                        className={`inline-flex rounded-full border px-2 py-1 text-[11px] font-semibold ${getApiStatusBadgeClass(row)}`}
-                      >
-                        {row.statusCode ?? 'n/a'}
-                      </span>
-                    </td>
-                    <td className="px-2 py-2 whitespace-nowrap">{row.durationMs ?? '-'} ms</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{row.retryCount}</td>
-                    <td className="px-2 py-2 whitespace-nowrap">{row.rateLimitRemaining ?? '-'}</td>
-                    <td
-                      title={`${row.method} ${row.endpoint}${row.shard ? ` | Shard: ${row.shard}` : ''}`}
-                      className="px-2 py-2 break-words text-slate-700"
-                    >
-                      <div className="flex flex-wrap items-center gap-2">
-                        <span
-                          className={`inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${getCategoryBadgeMeta(row).className}`}
-                        >
-                          {getCategoryBadgeMeta(row).label}
-                        </span>
-                        <span className="text-[11px] text-slate-500">{row.actorLabel}</span>
-                      </div>
-                      <p className="mt-1 break-all font-mono text-[10px] text-slate-500">
-                        {row.method} {row.endpoint}
-                      </p>
-                    </td>
-                  </tr>
-                ))}
-                {(payload?.history.length ?? 0) === 0 ? (
-                  <tr>
-                    <td colSpan={6} className="px-2 py-4 text-center text-slate-500">
-                      Aucune ligne pour ce filtre.
-                    </td>
-                  </tr>
-                ) : null}
-              </tbody>
-            </table>
-          </div>
-
-          <div className="mt-4 flex flex-wrap items-center justify-between gap-2 text-xs">
-            <p className="text-slate-500">
-              Page {payload?.historyPagination.page ?? 1} sur {payload?.historyPagination.totalPages ?? 1}
+          {historyActionMessage ? (
+            <p className="t-body t-pos m-0 flex items-center gap-2" role="status">
+              <CheckCircle2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+              {historyActionMessage}
             </p>
-            <div className="flex items-center gap-2">
-              <button
-                type="button"
-                disabled={(payload?.historyPagination.page ?? 1) <= 1}
-                onClick={() => setHistoryPage((current) => Math.max(1, current - 1))}
-                className="app-btn app-btn--sm app-btn--secondary"
-              >
-                Precedent
-              </button>
-              <button
-                type="button"
-                disabled={(payload?.historyPagination.page ?? 1) >= (payload?.historyPagination.totalPages ?? 1)}
-                onClick={() =>
-                  setHistoryPage((current) =>
-                    Math.min(payload?.historyPagination.totalPages ?? 1, current + 1)
-                  )
-                }
-                className="app-btn app-btn--sm app-btn--secondary"
-              >
-                Suivant
-              </button>
-            </div>
-          </div>
-        </div>
+          ) : null}
 
-        {purgeDialogOpen ? (
-          <div
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/70 p-4"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="purge-history-title"
-          >
-            <div className="app-panel w-full max-w-md p-5">
-              <h3 id="purge-history-title" className="text-base font-bold text-slate-900">
-                Confirmer la purge
-              </h3>
-              <p className="mt-2 text-sm text-slate-600">
-                Cette action supprimera definitivement tout l historique PUBG API. Elle est irreversible.
-              </p>
-              <div className="mt-4 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setPurgeDialogOpen(false)}
-                  disabled={purgingHistory}
-                  className="app-btn app-btn--md app-btn--secondary"
-                >
-                  Annuler
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    void handlePurgeHistory()
-                  }}
-                  disabled={purgingHistory}
-                  className="app-btn app-btn--md app-btn--danger-solid"
-                >
-                  {purgingHistory ? 'Suppression...' : 'Confirmer la purge'}
-                </button>
+          {(payload?.history.length ?? 0) === 0 ? (
+            <EmptyState icon={ListOrdered} title="Aucun appel pour ce filtre" />
+          ) : (
+            <>
+              <ul className="m-0 flex list-none flex-col gap-2 p-0 md:hidden">
+                {(payload?.history ?? []).map((row) => (
+                  <li key={row.id} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+                    <span className="flex items-start justify-between gap-2">
+                      <CategoryLabel row={row} />
+                      <StatusTag row={row} />
+                    </span>
+                    <span className="t-meta">
+                      {formatDateTime(row.startedAt)} · {row.durationMs != null ? `${formatCount(row.durationMs)} ms` : '—'} · {row.retryCount}{' '}
+                      retry · {row.rateLimitRemaining ?? '—'} dispo
+                    </span>
+                    <span className="t-meta break-all font-mono">
+                      {row.method} {row.endpoint}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+              <div className="app-table-shell hidden md:block">
+                <table className="w-full text-left text-sm">
+                  <thead className="app-table-head">
+                    <tr>
+                      <SortableTh align="left">Date</SortableTh>
+                      <SortableTh align="left">Statut</SortableTh>
+                      <SortableTh>Durée</SortableTh>
+                      <SortableTh title="Nouvelles tentatives de l’appel">Retries</SortableTh>
+                      <SortableTh title="Requêtes encore disponibles selon PUBG (X-RateLimit-Remaining)">Dispo API</SortableTh>
+                      <SortableTh align="left">Type</SortableTh>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {(payload?.history ?? []).map((row) => (
+                      <tr key={row.id} className="app-table-row align-top">
+                        <td className="whitespace-nowrap px-[9px] py-2 text-gray-700">{formatDateTime(row.startedAt)}</td>
+                        <td className="px-[9px] py-2">
+                          <StatusTag row={row} />
+                        </td>
+                        <td className="t-num whitespace-nowrap px-[9px] py-2 text-right text-gray-700">
+                          {row.durationMs != null ? `${formatCount(row.durationMs)} ms` : '—'}
+                        </td>
+                        <td className="t-num px-[9px] py-2 text-right text-gray-700">{row.retryCount}</td>
+                        <td className="t-num px-[9px] py-2 text-right text-gray-700">{row.rateLimitRemaining ?? '—'}</td>
+                        <td className="px-[9px] py-2" title={`${row.method} ${row.endpoint}${row.shard ? ` | Shard : ${row.shard}` : ''}`}>
+                          <CategoryLabel row={row} />
+                          <span className="t-meta mt-0.5 block break-all font-mono">
+                            {row.method} {row.endpoint}
+                          </span>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </div>
-            </div>
-          </div>
-        ) : null}
-      </section>
-    </main>
+            </>
+          )}
+
+          {payload ? (
+            <Pagination
+              page={payload.historyPagination.page}
+              pageCount={payload.historyPagination.totalPages}
+              total={payload.historyPagination.total}
+              pageSize={payload.historyPagination.pageSize}
+              onPageChange={setHistoryPage}
+              ariaLabel="Pages de l’historique des appels"
+              itemLabel="Appels"
+            />
+          ) : null}
+        </SectionCard>
+      </div>
+
+      {purgeDialogOpen ? (
+        <ConfirmDialog
+          icon={Trash2}
+          title="Purger l’historique ?"
+          confirmLabel="Purger l’historique"
+          tone="danger"
+          busy={purgingHistory}
+          onCancel={() => setPurgeDialogOpen(false)}
+          onConfirm={() => void handlePurgeHistory()}
+        >
+          Tout l’historique des appels à l’API PUBG sera supprimé définitivement. Les indicateurs du jour repartiront de zéro.
+        </ConfirmDialog>
+      ) : null}
+    </div>
   )
 }
 
-const CATEGORY_BADGE_CLASSES: Record<PubgApiCallCategory, string> = {
-  player_search: 'border-cyan-200 bg-cyan-50 text-cyan-800',
-  player_detail: 'border-sky-200 bg-sky-50 text-sky-800',
-  weapon_mastery: 'border-orange-200 bg-orange-50 text-orange-800',
-  season_lifetime: 'border-violet-200 bg-violet-50 text-violet-800',
-  season_ranked: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-800',
-  season_normal: 'border-indigo-200 bg-indigo-50 text-indigo-800',
-  seasons_list: 'border-teal-200 bg-teal-50 text-teal-800',
-  clan_members: 'border-lime-200 bg-lime-50 text-lime-800',
-  clan_lookup: 'border-emerald-200 bg-emerald-50 text-emerald-800',
-  match_detail: 'border-amber-200 bg-amber-50 text-amber-800',
-  other: 'border-slate-200 bg-slate-50 text-slate-700',
+/** Ton d'une tranche ou d'un jour : erreur l'emporte sur 429, qui l'emporte sur succès. */
+function pointTone(point: { errors: number; rateLimited: number }): 'pos' | 'warn' | 'neg' {
+  // `errors` (success === false) inclut déjà les 429 : une tranche n'est « en erreur » que pour d'autres échecs.
+  if (point.errors > point.rateLimited) return 'neg'
+  if (point.rateLimited > 0) return 'warn'
+  return 'pos'
 }
 
-function getCategoryBadgeMeta(row: ApiCallRow) {
-  const category = categorizePubgApiCall(row.source, row.endpoint)
+function getIntensityLevel(value: number, max: number) {
+  if (value <= 0 || max <= 0) return 0
+  const ratio = value / max
+  if (ratio <= 0.25) return 1
+  if (ratio <= 0.5) return 2
+  if (ratio <= 0.75) return 3
+  return 4
+}
+
+const INTENSITY_MIX = [0, 28, 48, 70, 100]
+
+function heatCellStyle(point: MinutePoint, max: number): CSSProperties {
+  const level = getIntensityLevel(point.total, max)
+  if (level === 0) return { backgroundColor: 'var(--theme-ui-surface-strong)', borderColor: 'var(--theme-ui-border)' }
+  const tone = pointTone(point)
   return {
-    label: PUBG_API_CALL_CATEGORY_LABELS[category],
-    className: CATEGORY_BADGE_CLASSES[category],
+    backgroundColor: `color-mix(in srgb, var(--game-${tone}) ${INTENSITY_MIX[level]}%, transparent)`,
+    borderColor: `color-mix(in srgb, var(--game-${tone}) ${Math.min(100, INTENSITY_MIX[level] + 25)}%, transparent)`,
   }
 }
 
-function getApiStatusBadgeClass(row: ApiCallRow) {
-  if (row.statusCode === 429) {
-    return 'border-amber-200 bg-amber-50 text-amber-800'
-  }
+function slotTitle(point: MinutePoint) {
+  const time = new Date(point.minute).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
+  return `${time} · ${point.total} appel(s) · ${point.errors} erreur(s) · ${point.rateLimited} × 429`
+}
 
-  if (row.success) {
-    return 'border-emerald-200 bg-emerald-50 text-emerald-800'
-  }
+/** Grille d'activité découpée en lignes de `perRow` tranches de 30 min, chaque ligne repérée par son heure de début. */
+function HeatRows({ series, perRow, max }: { series: MinutePoint[]; perRow: number; max: number }) {
+  const rows: MinutePoint[][] = []
+  for (let index = 0; index < series.length; index += perRow) rows.push(series.slice(index, index + perRow))
+  return (
+    <>
+      {rows.map((row) => (
+        <div key={row[0].minute} className="flex items-center gap-2">
+          <span className="t-meta t-num w-10 shrink-0">
+            {new Date(row[0].minute).toLocaleTimeString('fr-FR', { hour: '2-digit' }).replace(/\s/g, ' ')}
+          </span>
+          <div className="grid flex-1 gap-1" style={{ gridTemplateColumns: `repeat(${perRow}, minmax(0, 1fr))` }}>
+            {row.map((point) => (
+              <span key={point.minute} title={slotTitle(point)} className="aspect-square rounded-[6px] border" style={heatCellStyle(point, max)} />
+            ))}
+          </div>
+        </div>
+      ))}
+    </>
+  )
+}
 
-  return 'border-rose-200 bg-rose-50 text-rose-800'
+function LegendSwatch({ tone, label }: { tone: 'pos' | 'warn' | 'neg'; label: string }) {
+  return (
+    <span className="inline-flex items-center gap-1.5">
+      <span className="inline-block h-3 w-3 rounded-[4px]" style={{ backgroundColor: `var(--game-${tone})` }} aria-hidden="true" />
+      {label}
+    </span>
+  )
+}
+
+function DailyBars({ points }: { points: DayPoint[] }) {
+  if (points.length === 0) return <EmptyState icon={TrendingUp} title="Aucun appel sur la période" />
+  const max = Math.max(1, ...points.map((item) => item.total))
+  return (
+    <div className="flex items-end gap-1" style={{ height: 120 }}>
+      {points.map((point) => {
+        const heightPct = point.total > 0 ? Math.max(6, Math.round((point.total / max) * 100)) : 2
+        const date = new Date(point.date)
+        return (
+          <div key={point.date} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
+            <div
+              title={`${date.toLocaleDateString('fr-FR')} · ${point.total} appel(s) · ${point.errors} erreur(s) · ${point.rateLimited} × 429`}
+              className="w-full rounded-t-[4px]"
+              style={{ height: `${heightPct}%`, backgroundColor: `var(--game-${pointTone(point)})` }}
+            />
+            <span className="t-meta t-num">{date.toLocaleDateString('fr-FR', { day: '2-digit' })}</span>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
+
+function BreakdownHead({
+  label,
+  entry,
+}: {
+  label: React.ReactNode
+  entry: { count: number; success: number; errors: number; rateLimited: number; avgDurationMs: number | null }
+}) {
+  return (
+    <>
+      <span className="flex flex-wrap items-center justify-between gap-2">
+        <span className="t-body font-semibold text-gray-900">{label}</span>
+        <span className="flex flex-wrap items-center gap-1.5">
+          {entry.errors > 0 ? <Tag tone="neg">{formatCount(entry.errors)} err.</Tag> : null}
+          {entry.rateLimited > 0 ? <Tag tone="warn">{formatCount(entry.rateLimited)} × 429</Tag> : null}
+          <Tag tone="pos">{formatCount(entry.success)} ok</Tag>
+        </span>
+      </span>
+      <span className="t-meta">
+        {formatCount(entry.count)} appel(s) · {entry.avgDurationMs != null ? `${formatCount(entry.avgDurationMs)} ms en moyenne` : 'durée inconnue'}
+      </span>
+    </>
+  )
+}
+
+/** Barre empilée succès / 429 / autres erreurs, dont les trois segments totalisent 100 %. */
+function StackedBar({ entry }: { entry: { count: number; success: number; errors: number; rateLimited: number } }) {
+  // `errors` (success === false) inclut déjà les 429 : on isole les erreurs non-429.
+  const otherErrors = Math.max(0, entry.errors - entry.rateLimited)
+  const pct = (value: number) => (entry.count > 0 ? (value / entry.count) * 100 : 0)
+  return (
+    <span className="flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]" aria-hidden="true">
+      <span className="h-full" style={{ width: `${pct(entry.success)}%`, backgroundColor: 'var(--game-pos)' }} />
+      <span className="h-full" style={{ width: `${pct(entry.rateLimited)}%`, backgroundColor: 'var(--game-warn)' }} />
+      <span className="h-full" style={{ width: `${pct(otherErrors)}%`, backgroundColor: 'var(--game-neg)' }} />
+    </span>
+  )
+}
+
+function RateLimitStat({ label, value, detail, small = false }: { label: string; value: string; detail?: string; small?: boolean }) {
+  return (
+    <div className="app-panel-muted flex flex-col gap-1 px-3 py-2.5">
+      <dt className="t-label">{label}</dt>
+      <dd className={`m-0 text-gray-900 ${small ? 't-body t-num font-semibold' : 't-hero t-hero--sm'}`}>{value}</dd>
+      {detail ? <dd className="t-meta m-0">{detail}</dd> : null}
+    </div>
+  )
+}
+
+function statusTone(row: ApiCallRow): Tone {
+  if (row.statusCode === 429) return 'warn'
+  return row.success ? 'pos' : 'neg'
+}
+
+function StatusTag({ row }: { row: ApiCallRow }) {
+  return (
+    <span title={row.errorMessage ?? 'Aucune erreur'}>
+      <Tag tone={statusTone(row)}>{row.statusCode ?? 'n/a'}</Tag>
+    </span>
+  )
+}
+
+function CategoryLabel({ row }: { row: ApiCallRow }) {
+  const category = categorizePubgApiCall(row.source, row.endpoint)
+  return (
+    <span className="flex flex-wrap items-center gap-1.5">
+      <Tag tone="neutral">{PUBG_API_CALL_CATEGORY_LABELS[category]}</Tag>
+      <span className="t-meta">{row.actorLabel}</span>
+    </span>
+  )
 }
 
 function getQuotaConsumedPct(remaining: number | null, limit: number) {
@@ -1135,85 +980,9 @@ function getQuotaConsumedPct(remaining: number | null, limit: number) {
   return Math.min(100, Math.round((consumed / limit) * 100))
 }
 
-function getQuotaGaugeTone(remaining: number | null, limit: number) {
+function getQuotaTone(remaining: number | null, limit: number): 'pos' | 'warn' | 'neg' {
   const pct = getQuotaConsumedPct(remaining, limit)
-  if (pct >= 90) return 'bg-rose-500'
-  if (pct >= 70) return 'bg-amber-400'
-  return 'bg-emerald-400'
-}
-
-function getIntensityLevel(value: number, max: number) {
-  if (value <= 0 || max <= 0) {
-    return 0
-  }
-
-  const ratio = value / max
-  if (ratio <= 0.25) return 1
-  if (ratio <= 0.5) return 2
-  if (ratio <= 0.75) return 3
-  return 4
-}
-
-const SUCCESS_LEVEL_CLASSES = [
-  'border-slate-200 bg-slate-100',
-  'border-emerald-200 bg-emerald-100',
-  'border-emerald-300 bg-emerald-200',
-  'border-emerald-400 bg-emerald-300',
-  'border-emerald-600 bg-emerald-500',
-]
-
-const RATE_LIMIT_LEVEL_CLASSES = [
-  'border-slate-200 bg-slate-100',
-  'border-amber-200 bg-amber-100',
-  'border-amber-300 bg-amber-200',
-  'border-amber-400 bg-amber-300',
-  'border-amber-600 bg-amber-500',
-]
-
-const ERROR_LEVEL_CLASSES = [
-  'border-slate-200 bg-slate-100',
-  'border-rose-200 bg-rose-100',
-  'border-rose-300 bg-rose-200',
-  'border-rose-400 bg-rose-300',
-  'border-rose-600 bg-rose-500',
-]
-
-function LegendPill({ label, className }: { label: string; className: string }) {
-  return (
-    <span className="inline-flex items-center gap-1">
-      <span className={`inline-block h-3 w-3 rounded-sm border ${className}`} />
-      {label}
-    </span>
-  )
-}
-
-function MetricCard({
-  icon: Icon,
-  label,
-  value,
-  tone = 'slate',
-}: {
-  icon: LucideIcon
-  label: string
-  value: string
-  tone?: 'slate' | 'emerald' | 'amber' | 'rose'
-}) {
-  const toneClass =
-    tone === 'emerald'
-      ? 'border-emerald-200 bg-emerald-50 text-emerald-900'
-      : tone === 'amber'
-        ? 'border-amber-200 bg-amber-50 text-amber-900'
-        : tone === 'rose'
-          ? 'border-rose-200 bg-rose-50 text-rose-900'
-          : 'border-slate-200 bg-slate-50 text-slate-900'
-
-  return (
-    <article className={`app-panel-muted p-4 ${toneClass}`}>
-      <div className="flex items-center justify-between gap-2">
-        <p className="text-[11px] uppercase tracking-wide opacity-70">{label}</p>
-        <Icon className="h-4 w-4 shrink-0 opacity-60" aria-hidden />
-      </div>
-      <p className="mt-1 text-2xl font-black">{value}</p>
-    </article>
-  )
+  if (pct >= 90) return 'neg'
+  if (pct >= 70) return 'warn'
+  return 'pos'
 }

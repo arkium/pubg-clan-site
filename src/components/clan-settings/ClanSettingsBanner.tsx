@@ -1,24 +1,18 @@
 import type { LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import AdminPageBanner from '@/components/settings/AdminPageBanner'
+
+export { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
 
 /**
- * Fil d'Ariane et bandeau photo d'une page des paramètres d'un clan, selon la charte (docs/ui/index.html, En-têtes de
- * page) : titre Teko et icône à l'accent en bas à gauche sur un dégradé sombre, pastilles, action principale en verre
- * dépoli en haut à droite. Le retour mène à l'accueil « Paramètres du clan ».
+ * Bandeau d'une page des paramètres d'un clan (charte, En-têtes de page) : `AdminPageBanner`, dont le retour mène par
+ * défaut à l'accueil « Paramètres du clan ».
  */
 export default function ClanSettingsBanner({
   clanId,
-  title,
-  subtitle,
-  icon: Icon,
-  image,
-  imagePosition = 'center 35%',
-  currentHref,
-  pills = [],
-  action,
   parent,
+  ...banner
 }: {
   clanId: string | number
   title: string
@@ -33,39 +27,9 @@ export default function ClanSettingsBanner({
   parent?: { href: string; label: string }
 }) {
   return (
-    <>
-      <NavigationTrail
-        currentLabel={title}
-        currentHref={currentHref}
-        fallbackParent={parent ?? { href: `/clans/${clanId}/settings`, label: 'Paramètres du clan', altHref: '/clans' }}
-      />
-      <header
-        className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"
-        style={{ backgroundImage: `url('${image}')`, backgroundPosition: imagePosition }}
-      >
-        <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/30 to-transparent" />
-        {action ? <div className="absolute right-2 top-2 z-10 sm:right-4 sm:top-4">{action}</div> : null}
-        <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-2 px-3.5 py-3 sm:px-5 sm:py-4">
-          <div className="flex items-center gap-2">
-            <Icon className="h-5 w-5 shrink-0 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
-            <h1 className="t-banner-title text-white drop-shadow-md">{title}</h1>
-          </div>
-          <p className="text-[13px] text-white/80 drop-shadow-md">{subtitle}</p>
-          {pills.length > 0 ? (
-            <div className="flex flex-wrap gap-1.5 text-xs font-semibold text-white">
-              {pills.map((pill, index) => (
-                <span key={index} className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5">
-                  {pill}
-                </span>
-              ))}
-            </div>
-          ) : null}
-        </div>
-      </header>
-    </>
+    <AdminPageBanner
+      {...banner}
+      parent={parent ?? { href: `/clans/${clanId}/settings`, label: 'Paramètres du clan', altHref: '/clans' }}
+    />
   )
 }
-
-/** Bouton d'action du bandeau, en verre dépoli (charte, En-têtes de page). */
-export const BANNER_GLASS_BUTTON =
-  'inline-flex items-center gap-1.5 rounded-lg border border-white/30 bg-black/50 px-2.5 py-1 text-xs font-semibold text-white shadow-sm backdrop-blur-md transition-colors hover:bg-black/70 disabled:opacity-45 sm:px-3 sm:py-1.5 sm:text-sm'

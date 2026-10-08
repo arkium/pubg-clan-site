@@ -1,111 +1,92 @@
 'use client'
 
-import Link from 'next/link'
 import {
-  Users,
-  Monitor,
-  Map,
-  Swords,
   Activity,
-  UserPlus,
-  Trophy,
-  LayoutDashboard,
-  History,
   AlertTriangle,
-  RefreshCw,
-  Mail,
-  Globe,
-  ShieldAlert,
-  Crosshair,
-  Wrench,
+  ChevronRight,
   Clock,
-  Download,
-  Target,
+  Crosshair,
   Database,
-  Search,
-  Settings,
+  Download,
+  Globe,
+  History,
+  KeyRound,
+  LayoutDashboard,
+  type LucideIcon,
+  Mail,
+  Map,
   MessageSquare,
+  Monitor,
+  RefreshCw,
   ScrollText,
+  Settings,
+  ShieldAlert,
+  ShieldCheck,
+  Swords,
+  Target,
+  Trophy,
+  UserPlus,
+  Users,
+  Wrench,
 } from 'lucide-react'
-import type { ComponentType } from 'react'
+import Link from 'next/link'
+
+import { Tag, toneStyle, type Tone } from '@/components/ui/CharteKit'
 import type { SettingsHubItem } from '@/hooks/useSettingsHubItems'
 
-function getCardVisual(navKey: string): {
-  Icon: ComponentType<{ className?: string }>
-  color: string
-} {
-  switch (navKey) {
-    case 'admin.players-roles':
-    case 'clan.members':
-      return { Icon: Users, color: 'text-blue-500' }
-    case 'admin.login-welcome':
-      return { Icon: Monitor, color: 'text-emerald-500' }
-    case 'admin.discord-notifications':
-      return { Icon: MessageSquare, color: 'text-indigo-500' }
-    case 'admin.map-labels':
-      return { Icon: Map, color: 'text-amber-500' }
-    case 'admin.weapon-labels':
-      return { Icon: Swords, color: 'text-red-500' }
-    case 'admin.phase-labels':
-      return { Icon: Activity, color: 'text-sky-500' }
-    case 'admin.add-player':
-      return { Icon: UserPlus, color: 'text-indigo-500' }
-    case 'clan.tournaments':
-      return { Icon: Trophy, color: 'text-amber-500' }
-    case 'owner.telemetry-dashboard':
-      return { Icon: LayoutDashboard, color: 'text-blue-500' }
-    case 'owner.telemetry-matches':
-      return { Icon: History, color: 'text-indigo-500' }
-    case 'owner.telemetry-errors':
-      return { Icon: AlertTriangle, color: 'text-red-500' }
-    case 'owner.telemetry-sync-batch':
-      return { Icon: RefreshCw, color: 'text-emerald-500' }
-    case 'owner.email-delivery':
-      return { Icon: Mail, color: 'text-purple-500' }
-    case 'owner.pubg-api':
-      return { Icon: Globe, color: 'text-sky-500' }
-    case 'owner.nav-permissions':
-    case 'superuser.platform-settings':
-      return { Icon: ShieldAlert, color: 'text-violet-500' }
-    case 'owner.encountered-opponents':
-      return { Icon: Crosshair, color: 'text-orange-500' }
-    case 'owner.telemetry-recoveries':
-      return { Icon: Wrench, color: 'text-teal-500' }
-    case 'owner.switch-clan':
-    case 'superuser.switch-clan':
-      return { Icon: Search, color: 'text-slate-500' }
-    case 'superuser.cron':
-      return { Icon: Clock, color: 'text-rose-500' }
-    case 'superuser.match-import':
-      return { Icon: Download, color: 'text-blue-500' }
-    case 'superuser.opponents':
-      return { Icon: Target, color: 'text-amber-500' }
-    case 'superuser.telemetry-recoveries':
-      return { Icon: RefreshCw, color: 'text-emerald-500' }
-    case 'superuser.database':
-      return { Icon: Database, color: 'text-cyan-500' }
-    case 'superuser.admin-journal':
-      return { Icon: ScrollText, color: 'text-slate-500' }
-    default:
-      return { Icon: Settings, color: 'text-blue-500' }
-  }
+/** Icône et couleur (jetons de jeu de la charte) d'une carte d'accueil d'administration, d'après son entrée de menu. */
+const CARD_VISUALS: Record<string, { icon: LucideIcon; tone: Tone }> = {
+  'admin.players-roles': { icon: Users, tone: 'pos' },
+  'clan.members': { icon: Users, tone: 'pos' },
+  'admin.login-welcome': { icon: Monitor, tone: 'sky' },
+  'admin.discord-notifications': { icon: MessageSquare, tone: 'sky' },
+  'admin.map-labels': { icon: Map, tone: 'warn' },
+  'admin.weapon-labels': { icon: Swords, tone: 'neg' },
+  'admin.phase-labels': { icon: Activity, tone: 'sky' },
+  'admin.add-player': { icon: UserPlus, tone: 'pos' },
+  'clan.tournaments': { icon: Trophy, tone: 'warn' },
+  'owner.telemetry-dashboard': { icon: LayoutDashboard, tone: 'sky' },
+  'owner.telemetry-matches': { icon: History, tone: 'sky' },
+  'owner.telemetry-errors': { icon: AlertTriangle, tone: 'neg' },
+  'owner.telemetry-sync-batch': { icon: RefreshCw, tone: 'pos' },
+  'owner.telemetry-recoveries': { icon: Wrench, tone: 'pos' },
+  'owner.email-delivery': { icon: Mail, tone: 'sky' },
+  'owner.pubg-api': { icon: Globe, tone: 'sky' },
+  'owner.encountered-opponents': { icon: Crosshair, tone: 'warn' },
+  'superuser.platform-settings': { icon: ShieldAlert, tone: 'neutral' },
+  'superuser.delegation': { icon: KeyRound, tone: 'warn' },
+  'superuser.admin-journal': { icon: ScrollText, tone: 'neutral' },
+  'superuser.privacy-requests': { icon: ShieldCheck, tone: 'pos' },
+  'superuser.cron': { icon: Clock, tone: 'neg' },
+  'superuser.match-import': { icon: Download, tone: 'sky' },
+  'superuser.opponents': { icon: Target, tone: 'warn' },
+  'superuser.clan-lifecycle': { icon: History, tone: 'warn' },
+  'superuser.players': { icon: Users, tone: 'pos' },
+  'superuser.telemetry-recoveries': { icon: RefreshCw, tone: 'pos' },
+  'superuser.database': { icon: Database, tone: 'sky' },
+  'superuser.league-settings': { icon: Trophy, tone: 'warn' },
 }
 
-type SettingsHubCardProps = {
-  item: SettingsHubItem
-}
-
-export default function SettingsHubCard({ item }: SettingsHubCardProps) {
-  const { Icon, color } = getCardVisual(item.navKey)
-
+/**
+ * Carte d'un outil sur un accueil d'administration, selon la charte (docs/ui/index.html) : tuile d'icône teintée,
+ * libellé, description, chevron. Une entrée masquée (`hidden`, Q18) porte la pastille « Masquée » (vue du SuperUser).
+ */
+export default function SettingsHubCard({ item }: { item: SettingsHubItem }) {
+  const visual = CARD_VISUALS[item.navKey] ?? { icon: Settings, tone: 'neutral' as const }
+  const Icon = visual.icon
   return (
-    <Link
-      href={item.href}
-      className="flex flex-col items-center justify-center rounded-xl border border-gray-100 bg-gray-50 p-6 text-center shadow-xs transition-colors hover:bg-gray-100 dark:border-slate-800 dark:bg-slate-900/50 dark:hover:bg-slate-900"
-    >
-      <Icon className={`mb-3 h-8 w-8 ${color}`} />
-      <h3 className="text-base font-semibold text-gray-900 dark:text-gray-100">{item.label}</h3>
-      <p className="mt-2 text-sm text-gray-500 dark:text-gray-400">{item.description}</p>
+    <Link href={item.href} className="app-panel flex items-start gap-3 p-3.5 transition-colors hover:bg-gray-50">
+      <span className="grid h-[34px] w-[34px] shrink-0 place-items-center rounded-[10px]" style={toneStyle(visual.tone)} aria-hidden="true">
+        <Icon className="h-[18px] w-[18px]" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className="flex flex-wrap items-center gap-1.5">
+          <span className="t-card-title">{item.label}</span>
+          {item.role === 'hidden' ? <Tag tone="neutral">Masquée</Tag> : null}
+        </span>
+        {item.description ? <span className="t-meta">{item.description}</span> : null}
+      </span>
+      <ChevronRight className="h-4 w-4 shrink-0 self-center text-gray-500" aria-hidden="true" />
     </Link>
   )
 }

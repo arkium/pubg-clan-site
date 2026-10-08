@@ -15,7 +15,8 @@ export default function PlatformPlayersLayout({ children }: { children: React.Re
       <SettingsTabsShell
         title="Joueurs"
         subtitle="Annuaire de tous les joueurs croisés, résolution de leur clan PUBG et comptes en échec."
-        trailLabel="Joueurs"
+        icon="players"
+        image="/members.jpg"
         trailHref="/settings/players"
         tabs={TABS}
       >

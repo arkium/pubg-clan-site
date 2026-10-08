@@ -17,7 +17,8 @@ export function resetHomeTournamentsCache() {
 
 export function getHomeTournaments(now: number = Date.now()): Promise<HomeTournamentsPayload> {
   if (cache && now - cache.at < HOME_TOURNAMENTS_CACHE_TTL_MS) return cache.value
-  const value = listTournamentOverviews(new Date(now)).then(buildHomeTournaments)
+  const date = new Date(now)
+  const value = listTournamentOverviews(date).then((overviews) => buildHomeTournaments(overviews, date))
   cache = { at: now, value }
   value.catch(() => {
     if (cache?.value === value) cache = null

@@ -1,14 +1,15 @@
 'use client'
 
-import { ArrowRight, CalendarClock, ChevronRight, Info } from 'lucide-react'
+import { ArrowRight, ChevronRight, Info, Trophy } from 'lucide-react'
 import Link from 'next/link'
 
 import TournamentModeBadge from '@/components/tournaments/TournamentModeBadge'
 import { organizerLabel, tournamentDates, tournamentFormatLabel } from '@/components/tournaments/TournamentListSections'
 import RankCell from '@/components/ui/RankCell'
 import {
+  hasHomeTournaments,
   roundCountLabel,
-  type HomeLiveTournament,
+  type HomeRankedTournament,
   type HomeTournament,
   type HomeTournamentsPayload,
 } from '@/lib/home-tournaments'
@@ -26,8 +27,9 @@ import {
  * Tournois de la vitrine (`/`) — maquette Claude Design « Accueil - Tournois » (2026-10-08), docs/features/accueil.md.
  * Trois points d'accès : la pastille du lien « Tournois » (« En direct », sinon le nombre de tournois à venir), le
  * ticket du héros (bandeau sous le héros sur mobile et tablette) et la section « En ce moment et à venir », juste avant
- * les Chicken Dinners. Le direct est sombre par construction (photo de la carte) ; les tournois à venir suivent le
- * thème, en cartes à partir de 768 px et en agenda en dessous.
+ * les Chicken Dinners. Tout disparaît sans tournoi en direct, sans début dans les 14 jours ni fin depuis moins de
+ * 3 jours (résultats). Direct et résultats sont sombres par construction (photo de la carte) ; les tournois à venir
+ * suivent le thème, en cartes à partir de 768 px et en agenda en dessous.
  */
 
 const weekdayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
@@ -113,7 +115,7 @@ function TicketButton({ tournament, live, label }: { tournament: HomeTournament;
   )
 }
 
-function liveSubline(tournament: HomeLiveTournament) {
+function liveSubline(tournament: HomeRankedTournament) {
   const leader = tournament.leaders[0]
   return [TOURNAMENT_MODE_DISPLAY[tournament.mode].label, tournamentMapLabel(tournament.mapName), leader ? `1er ${leader.label}` : null]
     .filter(Boolean)
@@ -184,7 +186,7 @@ export function MobileTournamentBanner({ data, now }: { data: HomeTournamentsPay
 
 // ── Section « En ce moment et à venir » ─────────────────────────────────────────────────────────────
 
-function LiveTournamentBlock({ tournament, now }: { tournament: HomeLiveTournament; now: Date }) {
+function LiveTournamentBlock({ tournament, now }: { tournament: HomeRankedTournament; now: Date }) {
   const details = [
     tournamentFormatLabel(tournament),
     tournamentDates(tournament),
@@ -225,29 +227,77 @@ function LiveTournamentBlock({ tournament, now }: { tournament: HomeLiveTourname
         </Link>
       </div>
 
-      <div className="relative flex flex-col justify-center gap-2 p-5 pt-0 md:pt-5 lg:p-7">
-        <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/70">Classement en cours</span>
-        {tournament.leaders.length === 0 ? (
-          <span className="text-sm text-white/70">Aucun point marqué pour l’instant.</span>
-        ) : (
-          <ol className="m-0 flex list-none flex-col gap-2 p-0">
-            {tournament.leaders.map((leader, index) => (
-              <li
-                key={leader.key}
-                className={`grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2 ${
-                  index === 0 ? 'border-amber-400/50 bg-amber-400/10' : 'border-white/10 bg-slate-950/55'
-                }`}
-              >
-                <RankCell rank={index + 1} />
-                <b className="truncate text-sm">{leader.label}</b>
-                <span className="whitespace-nowrap text-sm font-bold tabular-nums">
-                  {formatTournamentPoints(leader.points)} <span className="text-[11px] font-semibold text-white/60">pts</span>
-                </span>
-              </li>
-            ))}
-          </ol>
-        )}
+      <LeadersPanel title="Classement en cours" leaders={tournament.leaders} empty="Aucun point marqué pour l’instant." />
+    </div>
+  )
+}
+
+/** Trois premiers d'un classement, sur la photo d'un bloc sombre (direct ou résultats). */
+function LeadersPanel({ title, leaders, empty }: { title: string; leaders: HomeRankedTournament['leaders']; empty: string }) {
+  return (
+    <div className="relative flex flex-col justify-center gap-2 p-5 pt-0 md:pt-5 lg:p-7">
+      <span className="text-[11px] font-bold uppercase tracking-[0.12em] text-white/70">{title}</span>
+      {leaders.length === 0 ? (
+        <span className="text-sm text-white/70">{empty}</span>
+      ) : (
+        <ol className="m-0 flex list-none flex-col gap-2 p-0">
+          {leaders.map((leader, index) => (
+            <li
+              key={leader.key}
+              className={`grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-[10px] border px-3 py-2 ${
+                index === 0 ? 'border-amber-400/50 bg-amber-400/10' : 'border-white/10 bg-slate-950/55'
+              }`}
+            >
+              <RankCell rank={index + 1} />
+              <b className="truncate text-sm">{leader.label}</b>
+              <span className="whitespace-nowrap text-sm font-bold tabular-nums">
+                {formatTournamentPoints(leader.points)} <span className="text-[11px] font-semibold text-white/60">pts</span>
+              </span>
+            </li>
+          ))}
+        </ol>
+      )}
+    </div>
+  )
+}
+
+/** Tournoi terminé depuis moins de `HOME_RESULTS_WINDOW_DAYS` jours : vainqueur et podium final, en or. */
+function ResultsTournamentBlock({ tournament }: { tournament: HomeRankedTournament }) {
+  const winner = tournament.leaders[0]
+  const details = [tournamentFormatLabel(tournament), tournamentDates(tournament), roundCountLabel(tournament.roundCount)].join(' · ')
+
+  return (
+    <div
+      className="relative grid overflow-hidden rounded-[18px] border border-amber-400/45 bg-cover bg-center text-white md:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)]"
+      style={{ backgroundImage: `url('${tournamentImage(tournament.mapName)}')`, backgroundColor: '#0b1120' }}
+      data-testid="home-tournament-results"
+    >
+      <div className="absolute inset-0 bg-gradient-to-r from-[rgb(20_13_5/0.96)] via-[rgb(20_13_5/0.86)] to-[rgb(20_13_5/0.72)]" aria-hidden="true" />
+      <div className="relative flex flex-col gap-3 p-5 lg:p-7">
+        <span className="inline-flex items-center gap-1.5 self-start rounded-full border border-amber-400/50 bg-amber-400/15 px-2.5 py-0.5 text-xs font-bold text-amber-200">
+          <Trophy className="h-3.5 w-3.5" aria-hidden="true" />
+          Terminé · résultats
+        </span>
+        <h3 className="home-display m-0 text-[34px] font-semibold uppercase leading-[0.92] lg:text-[44px]">{tournament.title}</h3>
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-1.5 text-[13px] text-white/80">
+          <TournamentModeBadge mode={tournament.mode} onImage />
+          {details}
+        </span>
+        {winner ? (
+          <span className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+            <span className="home-display text-lg leading-none text-white/70">Vainqueur</span>
+            <b className="home-display text-[26px] font-semibold leading-none text-amber-400">{winner.label}</b>
+          </span>
+        ) : null}
+        <Link
+          href={tournamentHref(tournament)}
+          className="mt-1 inline-flex h-10 items-center gap-1.5 self-start rounded-[10px] bg-amber-400 px-4 text-sm font-bold text-amber-950 hover:bg-amber-300"
+        >
+          Voir le classement final
+          <ArrowRight className="h-4 w-4" aria-hidden="true" />
+        </Link>
       </div>
+      <LeadersPanel title="Classement final" leaders={tournament.leaders} empty="Aucun point marqué." />
     </div>
   )
 }
@@ -347,39 +397,33 @@ function SectionHeader({ title }: { title: string }) {
   )
 }
 
-export function HomeTournamentsSection({
-  data,
-  loading,
-  now,
-}: {
-  data: HomeTournamentsPayload | null
-  loading: boolean
-  now: Date
-}) {
-  if (!data) {
-    if (!loading) return null
-    // Réserve la place pendant la lecture : la section arrive avant les Chicken Dinners, sans faire sauter la page.
-    return (
-      <section className="px-4 pt-10 md:px-8 md:pt-16 lg:px-14 lg:pt-20" aria-label="Tournois" aria-busy="true">
-        <div className="app-panel mx-auto min-h-[260px] max-w-[1200px] animate-pulse motion-reduce:animate-none" />
-      </section>
-    )
-  }
+export function HomeTournamentsSection({ data, now }: { data: HomeTournamentsPayload | null; now: Date }) {
+  // Fenêtres de la vitrine (home-tournaments.ts) : direct, début dans 14 jours, fin depuis moins de 3 jours. Rien sinon.
+  if (!data || !hasHomeTournaments(data)) return null
 
-  const [live, ...otherLive] = data.live
   const upcoming = data.upcoming.slice(0, 3)
-  const hasAny = data.live.length > 0 || upcoming.length > 0
-  const title = live ? 'En ce moment et à venir' : upcoming.length > 0 ? 'Prochains tournois' : 'Tournois'
+  const hasLive = data.live.length > 0
+  const hasResults = data.results.length > 0
+  const title = hasLive
+    ? 'En ce moment et à venir'
+    : upcoming.length > 0
+      ? hasResults
+        ? 'Résultats et prochains tournois'
+        : 'Prochains tournois'
+      : 'Derniers résultats'
 
   return (
     <section className="px-4 pt-10 md:px-8 md:pt-16 lg:px-14 lg:pt-20" aria-labelledby="home-tournaments-title" data-testid="home-tournaments">
       <div className="mx-auto flex max-w-[1200px] flex-col gap-4">
         <SectionHeader title={title} />
 
-        {live ? <LiveTournamentBlock tournament={live} now={now} /> : null}
-        {/* Plusieurs directs à la fois : le plus animé en grand, les autres dans la même forme, plus petite. */}
-        {otherLive.map((tournament) => (
+        {/* Plusieurs directs à la fois : le plus animé d'abord, les autres dans la même forme. */}
+        {data.live.map((tournament) => (
           <LiveTournamentBlock key={tournament.id} tournament={tournament} now={now} />
+        ))}
+
+        {data.results.map((tournament) => (
+          <ResultsTournamentBlock key={tournament.id} tournament={tournament} />
         ))}
 
         {upcoming.length > 0 ? (
@@ -397,34 +441,12 @@ export function HomeTournamentsSection({
           </>
         ) : null}
 
-        {!hasAny ? (
-          <div className="app-panel flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between lg:p-5" data-testid="home-tournaments-empty">
-            <div className="flex items-start gap-3">
-              <span className="app-panel-muted grid h-10 w-10 shrink-0 place-items-center" aria-hidden="true">
-                <CalendarClock className="h-5 w-5 text-gray-500" />
-              </span>
-              <div className="flex flex-col gap-0.5">
-                <p className="m-0 text-[15px] font-bold text-gray-900">Aucun tournoi prévu pour l’instant.</p>
-                <p className="m-0 text-sm text-gray-500">
-                  {data.lastWinner ? (
-                    <>
-                      Dernier vainqueur : <b className="text-gray-900">{data.lastWinner.label}</b>, {data.lastWinner.title}.{' '}
-                    </>
-                  ) : null}
-                  Les prochains tournois s’afficheront ici dès leur création.
-                </p>
-              </div>
-            </div>
-            <Link href="/tournaments" className="home-link shrink-0 text-sm font-semibold">
-              Voir les tournois terminés →
-            </Link>
-          </div>
-        ) : (
+        {hasLive || upcoming.length > 0 ? (
           <p className="m-0 flex items-start gap-2 text-[13px] text-gray-500">
             <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
             Pas d’inscription : joue tes parties personnalisées pendant les dates, elles sont comptées automatiquement.
           </p>
-        )}
+        ) : null}
       </div>
     </section>
   )

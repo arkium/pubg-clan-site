@@ -1,6 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-import { buildHomeTournaments, roundCountLabel, HOME_UPCOMING_LIMIT } from '@/lib/home-tournaments'
+import {
+  buildHomeTournaments,
+  hasHomeTournaments,
+  roundCountLabel,
+  HOME_RESULTS_WINDOW_DAYS,
+  HOME_UPCOMING_LIMIT,
+  HOME_UPCOMING_WINDOW_DAYS,
+} from '@/lib/home-tournaments'
 import type { TournamentOverview, TournamentStandingSummary } from '@/lib/tournament-overview'
 
 // Le service et la route lisent `listTournamentOverviews` : simulé, aucune lecture en base.
@@ -56,28 +63,43 @@ function overview(id: string, phase: TournamentOverview['phase'], extra: Partial
   }
 }
 
+const NOW = new Date('2026-10-08T12:00:00.000Z')
+const inDays = (days: number) => new Date(NOW.getTime() + days * 86_400_000).toISOString()
+
 describe('buildHomeTournaments', () => {
-  it('ne montre ni brouillon ni tournoi terminé dans le direct et l’à-venir', () => {
-    const payload = buildHomeTournaments([overview('d', 'draft'), overview('f', 'finished'), overview('u', 'upcoming'), overview('l', 'live')])
-    expect(payload.live.map((t) => t.id)).toEqual(['l'])
-    expect(payload.upcoming.map((t) => t.id)).toEqual(['u'])
-    expect(payload.upcomingCount).toBe(1)
+  it('ne montre jamais un brouillon', () => {
+    const payload = buildHomeTournaments([overview('d', 'draft', { startDate: inDays(1) })], NOW)
+    expect(payload).toEqual({ live: [], upcoming: [], upcomingCount: 0, results: [] })
   })
 
   it('met en avant le direct le plus animé, puis le plus ancien à égalité', () => {
-    const payload = buildHomeTournaments([
-      overview('calme', 'live', { lastRoundAt: '2026-10-05T20:00:00.000Z' }),
-      overview('anime', 'live', { lastRoundAt: '2026-10-08T21:00:00.000Z' }),
-      overview('vide', 'live', { lastRoundAt: null }),
-    ])
+    const payload = buildHomeTournaments(
+      [
+        overview('calme', 'live', { lastRoundAt: '2026-10-05T20:00:00.000Z' }),
+        overview('anime', 'live', { lastRoundAt: '2026-10-08T11:00:00.000Z' }),
+        overview('vide', 'live', { lastRoundAt: null }),
+      ],
+      NOW
+    )
     expect(payload.live.map((t) => t.id)).toEqual(['anime', 'calme', 'vide'])
   })
 
-  it('classe les tournois à venir du plus proche au plus lointain, plafonnés, en gardant le total', () => {
-    const upcoming = Array.from({ length: HOME_UPCOMING_LIMIT + 2 }, (_, index) =>
-      overview(`u${index}`, 'upcoming', { startDate: `2026-11-${String(20 - index).padStart(2, '0')}T00:00:00.000Z` })
+  it(`n'annonce un tournoi à venir que ${HOME_UPCOMING_WINDOW_DAYS} jours avant son début, et ne compte que ceux-là`, () => {
+    const payload = buildHomeTournaments(
+      [
+        overview('demain', 'upcoming', { startDate: inDays(1) }),
+        overview('limite', 'upcoming', { startDate: inDays(HOME_UPCOMING_WINDOW_DAYS) }),
+        overview('trop-tot', 'upcoming', { startDate: inDays(HOME_UPCOMING_WINDOW_DAYS + 1) }),
+      ],
+      NOW
     )
-    const payload = buildHomeTournaments(upcoming)
+    expect(payload.upcoming.map((t) => t.id)).toEqual(['demain', 'limite'])
+    expect(payload.upcomingCount).toBe(2)
+  })
+
+  it('classe les tournois à venir du plus proche au plus lointain, plafonnés, en gardant le total', () => {
+    const upcoming = Array.from({ length: HOME_UPCOMING_LIMIT + 2 }, (_, index) => overview(`u${index}`, 'upcoming', { startDate: inDays(10 - index) }))
+    const payload = buildHomeTournaments(upcoming, NOW)
     expect(payload.upcoming).toHaveLength(HOME_UPCOMING_LIMIT)
     expect(payload.upcoming[0].id).toBe(`u${HOME_UPCOMING_LIMIT + 1}`)
     expect(payload.upcomingCount).toBe(HOME_UPCOMING_LIMIT + 2)
@@ -85,7 +107,7 @@ describe('buildHomeTournaments', () => {
 
   it('ne garde que les trois premiers qui ont marqué, sans le classement complet', () => {
     const leaders = [standing('c1', '[LMT] La Meute', 412), standing('c2', '[DEMO] Clan Démo', 389), standing('c3', '[RATZ] Les-Ratz', 0)]
-    const payload = buildHomeTournaments([overview('l', 'live', { leaders, standings: leaders })])
+    const payload = buildHomeTournaments([overview('l', 'live', { leaders, standings: leaders })], NOW)
     expect(payload.live[0].leaders).toEqual([
       { key: 'c1', label: '[LMT] La Meute', points: 412 },
       { key: 'c2', label: '[DEMO] Clan Démo', points: 389 },
@@ -93,13 +115,23 @@ describe('buildHomeTournaments', () => {
     expect(payload.live[0]).not.toHaveProperty('standings')
   })
 
-  it('retient le vainqueur du dernier tournoi terminé', () => {
-    const payload = buildHomeTournaments([
-      overview('ete', 'finished', { title: 'Coupe d’été', endDate: '2026-08-31T00:00:00.000Z', winner: standing('c1', '[LMT] La Meute', 300) }),
-      overview('printemps', 'finished', { endDate: '2026-05-31T00:00:00.000Z', winner: standing('c2', '[DEMO] Clan Démo', 280) }),
-      overview('sans', 'finished', { endDate: '2026-09-30T00:00:00.000Z', winner: null }),
-    ])
-    expect(payload.lastWinner).toEqual({ tournamentId: 'ete', title: 'Coupe d’été', label: '[LMT] La Meute' })
+  it(`garde les résultats d'un tournoi terminé ${HOME_RESULTS_WINDOW_DAYS} jours après son dernier jour, le plus récent d'abord`, () => {
+    const podium = [standing('c1', '[LMT] La Meute', 300), standing('c2', '[DEMO] Clan Démo', 280)]
+    const finished = (id: string, endDays: number, extra: Partial<TournamentOverview> = {}) =>
+      overview(id, 'finished', { endDate: inDays(endDays), leaders: podium, winner: podium[0], ...extra })
+    const payload = buildHomeTournaments(
+      [
+        finished('avant-hier', -2),
+        finished('hier', -1),
+        // Dernier jour il y a 3 jours (date à minuit) : la fenêtre court jusqu'à la fin du 3e jour suivant.
+        finished('limite', -HOME_RESULTS_WINDOW_DAYS - 0.5),
+        finished('trop-vieux', -HOME_RESULTS_WINDOW_DAYS - 2),
+        finished('sans-vainqueur', -1, { winner: null }),
+      ],
+      NOW
+    )
+    expect(payload.results.map((t) => t.id)).toEqual(['hier', 'avant-hier', 'limite'])
+    expect(payload.results[0].leaders.map((leader) => leader.label)).toEqual(['[LMT] La Meute', '[DEMO] Clan Démo'])
   })
 
   it('compte les manches sans total prévu', () => {
@@ -107,12 +139,19 @@ describe('buildHomeTournaments', () => {
     expect(roundCountLabel(1)).toBe('1 manche')
     expect(roundCountLabel(5)).toBe('5 manches')
   })
+
+  it('ne montre rien sans direct, sans tournoi proche ni résultat récent', () => {
+    expect(hasHomeTournaments(buildHomeTournaments([overview('loin', 'upcoming', { startDate: inDays(40) })], NOW))).toBe(false)
+    expect(hasHomeTournaments(null)).toBe(false)
+  })
 })
 
 describe('GET /api/home/tournaments', () => {
   beforeEach(() => {
     resetHomeTournamentsCache()
-    mocks.listTournamentOverviews.mockReset().mockResolvedValue([overview('l', 'live'), overview('u', 'upcoming')])
+    mocks.listTournamentOverviews
+      .mockReset()
+      .mockResolvedValue([overview('l', 'live'), overview('u', 'upcoming', { startDate: new Date(Date.now() + 86_400_000).toISOString() })])
     mocks.getSessionFromRequest.mockReset().mockResolvedValue(null)
     mocks.isAuthDisabled.mockReset().mockReturnValue(false)
   })

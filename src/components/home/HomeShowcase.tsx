@@ -661,7 +661,7 @@ export default function HomeShowcase({
 }) {
   const { data, loading, error } = useHomeShowcase()
   // Tournois : mêmes droits que la liste `/tournaments` (session ou mode visiteur), maquette « Accueil - Tournois ».
-  const { data: tournaments, loading: tournamentsLoading } = useHomeTournaments(visitorMode || accountHref !== null)
+  const { data: tournaments } = useHomeTournaments(visitorMode || accountHref !== null)
   const [now] = useState(() => new Date())
   const reducedMotion = usePrefersReducedMotion()
   const [menuOpen, setMenuOpen] = useState(false)
@@ -813,7 +813,7 @@ export default function HomeShowcase({
         </div>
       </section>
 
-      <HomeTournamentsSection data={tournaments} loading={tournamentsLoading} now={now} />
+      <HomeTournamentsSection data={tournaments} now={now} />
 
       <DinnerSection
         dinners={data?.dinners ?? []}

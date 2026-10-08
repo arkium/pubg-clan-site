@@ -233,7 +233,7 @@ test('tournois : rien en cours, le prochain tournoi et le nombre de tournois à 
     await expect(banner).toContainText('dans 5 h')
     await expect(banner.getByRole('link', { name: /Voir/ })).toHaveAttribute('href', '/tournaments/scrims-jeudi')
   } else {
-    await expect(page.getByRole('navigation', { name: 'Navigation publique' }).getByLabel('5 tournois à venir')).toBeVisible()
+    await expect(page.getByRole('navigation', { name: 'Navigation publique' }).getByLabel('4 tournois à venir')).toBeVisible()
     const ticket = page.getByTestId('home-tournament-ticket')
     await expect(ticket).toContainText('Prochain tournoi')
     await expect(ticket).toContainText('Scrims du jeudi')
@@ -241,15 +241,34 @@ test('tournois : rien en cours, le prochain tournoi et le nombre de tournois à 
   }
 })
 
-test('tournois : aucun prévu, le dernier vainqueur, sans pastille ni ticket', async ({ api, page }) => {
+test('tournois : un tournoi terminé depuis moins de 3 jours, ses résultats seuls', async ({ api, page }) => {
+  api.on('GET', '/api/home/tournaments', { body: homeTournaments('results') })
+  await page.reload()
+  await expect(page.getByTestId('home-dinner')).toBeVisible()
+  const section = page.getByTestId('home-tournaments')
+  await expect(section.getByRole('heading', { name: 'Derniers résultats' })).toBeVisible()
+  const results = page.getByTestId('home-tournament-results')
+  await expect(results).toContainText('Coupe d’été 2026')
+  await expect(results).toContainText('Vainqueur')
+  await expect(results).toContainText('Classement final')
+  await expect(results.getByRole('listitem')).toHaveCount(3)
+  await expect(results.getByRole('link', { name: 'Voir le classement final' })).toHaveAttribute('href', '/tournaments/coupe-ete')
+  await expect(section).not.toContainText('Pas d’inscription')
+  // Pas de direct ni de tournoi proche : ni ticket, ni bandeau, ni pastille.
+  await expect(page.getByTestId('home-tournament-ticket')).toHaveCount(0)
+  await expect(page.getByTestId('home-tournament-banner')).toHaveCount(0)
+  expect(await overflowOf(page)).toBeLessThanOrEqual(0)
+})
+
+test('tournois : rien en direct, rien dans les 14 jours, aucun résultat récent, la vitrine n’en montre rien', async ({ api, page }, testInfo) => {
   api.on('GET', '/api/home/tournaments', { body: homeTournaments('none') })
   await page.reload()
   await expect(page.getByTestId('home-dinner')).toBeVisible()
-  const empty = page.getByTestId('home-tournaments-empty')
-  await expect(empty).toContainText('Aucun tournoi prévu pour l’instant.')
-  await expect(empty).toContainText('Dernier vainqueur : [LMT] La Meute, Coupe d’été 2026.')
-  await expect(empty.getByRole('link', { name: 'Voir les tournois terminés →' })).toHaveAttribute('href', '/tournaments')
-  await expect(page.getByTestId('home-tournaments').getByRole('heading', { name: 'Tournois', exact: true })).toBeVisible()
+  await expect(page.getByTestId('home-tournaments')).toHaveCount(0)
   await expect(page.getByTestId('home-tournament-ticket')).toHaveCount(0)
   await expect(page.getByTestId('home-tournament-banner')).toHaveCount(0)
+  if (!isNarrow(testInfo)) {
+    const link = page.getByRole('navigation', { name: 'Navigation publique' }).getByRole('link', { name: /Tournois/ })
+    await expect(link).toHaveText('Tournois')
+  }
 })

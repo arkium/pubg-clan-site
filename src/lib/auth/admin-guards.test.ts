@@ -100,7 +100,7 @@ describe('admin-guards', () => {
       mocks.hasAnyRole.mockResolvedValue(true)
 
       mocks.getOwnerFeatureAccess.mockResolvedValue('superuser')
-      expect(await decideClanFeature(session(), 7, 'clan-telemetry-tools')).toMatchObject({ status: 403 })
+      expect(await decideClanFeature(session(), 7, 'clan-competition')).toMatchObject({ status: 403 })
 
       mocks.getOwnerFeatureAccess.mockResolvedValue('owner')
       expect(await decideClanFeature(session(), 7, 'clan-members')).toMatchObject({ allowed: true })
@@ -111,7 +111,7 @@ describe('admin-guards', () => {
 
     it('accepte toujours le SuperUser, même sur une fonctionnalité fermée aux Owners', async () => {
       mocks.getOwnerFeatureAccess.mockResolvedValue('superuser')
-      expect(await decideClanFeature(superUserWithoutMember, 7, 'clan-telemetry-tools')).toMatchObject({
+      expect(await decideClanFeature(superUserWithoutMember, 7, 'clan-competition')).toMatchObject({
         allowed: true,
       })
     })
@@ -132,7 +132,7 @@ describe('admin-guards', () => {
 
       expect(await requirePlatformAdmin(request())).toBeNull()
       expect(await requireClanAccess(request(), 7, 'owner')).toBeNull()
-      expect(await requireClanFeature(request(), 7, 'clan-telemetry-tools')).toBeNull()
+      expect(await requireClanFeature(request(), 7, 'clan-competition')).toBeNull()
     })
 
     it('renvoient 403 à une session valide refusée', async () => {

@@ -157,8 +157,10 @@ const PLATFORM_ROUTES: Array<[string, Handler]> = [
   ['PATCH settings/privacy-requests/[id]', () => patchPrivacyRequest(req('/api/settings/privacy-requests/3', 'PATCH', { status: 'done' }), { params: Promise.resolve({ id: '3' }) })],
 ]
 
-// Outils de télémétrie d'un clan : fonctionnalité verrouillée au SuperUser (clan-telemetry-tools)
+// Télémétrie d'un clan (données, resynchronisation, outils) : SuperUser seul, jamais déléguée (2026-10-08)
 const TELEMETRY_TOOL_ROUTES: Array<[string, Handler]> = [
+  ['GET settings/data-health', () => getDataHealth(req('/api/clans/7/settings/data-health'), clan)],
+  ['POST settings/data-health/resync', () => postDataHealthResync(req('/api/clans/7/settings/data-health/resync', 'POST'), clan)],
   ['POST backfill-null-json', () => postBackfillNullJson(req(`${T}/backfill-null-json`, 'POST') as never, clan)],
   ['POST clear-selected', () => postClearSelected(req(`${T}/clear-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['POST dead-letter', () => postDeadLetter(req(`${T}/dead-letter`, 'POST') as never, clan)],
@@ -196,8 +198,6 @@ const CLAN_OWNER_ROUTES: Array<[string, Handler]> = [
   ['POST tournaments/[id]/discord', () => postTournamentDiscord(req('/api/clans/7/tournaments/t1/discord', 'POST'), clanTournament)],
   ['POST tournaments/[id]/sync', () => postTournamentSync(req('/api/clans/7/tournaments/t1/sync', 'POST'), clanTournament)],
   ['GET encountered-players', () => getEncounteredPlayers(req('/api/clans/7/encountered-players'), clan)],
-  ['GET settings/data-health', () => getDataHealth(req('/api/clans/7/settings/data-health'), clan)],
-  ['POST settings/data-health/resync', () => postDataHealthResync(req('/api/clans/7/settings/data-health/resync', 'POST'), clan)],
   ['POST /api/members (clan 7)', () => postMembers(req('/api/members', 'POST', { pubgPlayerName: 'Joueur', clanId: 7 }))],
 ]
 

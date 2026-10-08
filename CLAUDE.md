@@ -341,6 +341,8 @@ pseudo ni le compte d'un joueur extérieur au site — voir [accueil.md](docs/fe
 membre, Owner, SuperUser. Toute route d'administration passe par `src/lib/auth/admin-guards.ts` :
 `requirePlatformAdmin` (outil qui touche toute la plateforme), `requireClanFeature(clanId, feature)` (outil d'un clan
 que le SuperUser peut ouvrir ou fermer aux Owners — catalogue `src/lib/auth/owner-features.ts`) ou `requireClanAccess`.
+La télémétrie d'un clan (`/clans/[clanId]/settings/data/**`, routes `telemetry/*`) est `requirePlatformAdmin` : jamais
+déléguée aux Owners (décision du 2026-10-08).
 Ces gardes ne sont **jamais** ouvertes par le mode visiteur et acceptent le SuperUser sans membre actif. Page
 d'administration → `<AdminAccessGate>` (`src/components/settings/AdminAccessGate.tsx`) dans le `layout.tsx` **de son
 propre dossier** : un layout parent ne se ré-exécute pas quand on navigue entre ses pages enfants. Elle ne refuse

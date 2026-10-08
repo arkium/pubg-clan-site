@@ -6,8 +6,8 @@ import { usePathname } from 'next/navigation'
 export type DataSectionTab = { href: string; label: string }
 
 /**
- * Onglets de « Données » d'un clan (docs/TODO/administration.md Q17, Q20) : la liste est calculée côté serveur selon
- * la délégation (santé : `clan-data-health`, outils : `clan-telemetry-tools`) ; ici, seulement l'onglet actif.
+ * Onglets de « Données » d’un clan (docs/TODO/administration.md Q17, Q20), section réservée au SuperUser : la liste
+ * vient du layout serveur ; ici, seulement l'onglet actif.
  */
 export default function DataSectionTabs({ tabs }: { tabs: DataSectionTab[] }) {
   const pathname = usePathname()

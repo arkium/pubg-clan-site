@@ -1,6 +1,6 @@
 
 import { prisma } from '@/lib/prisma'
-import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -19,7 +19,7 @@ export async function GET(
       return Response.json({ error: 'Invalid clan id' }, { status: 400 })
     }
 
-    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }

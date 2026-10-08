@@ -1,7 +1,9 @@
 # Administration du site — audit et réorganisation
 
 > **Étape 1 — analyse, rédigée le 2026-10-06. Étape 2 — décisions du 2026-10-07 (§5.3, §5.4, §7).**
-> **Étape 3 — lots 0, 1, 2, 3a, 3b et 3c-1 réalisés le 2026-10-07** (branche `fix/admin-rights`, §6). Reste le 3c-2.
+> **Étape 3 — lots 0, 1, 2, 3a, 3b et 3c réalisés les 2026-10-07 et 08** (branche `fix/admin-rights`, §6).
+> **Révision du 2026-10-08** : la télémétrie d'un clan (santé des données, resynchronisation, outils) est réservée au
+> SuperUser et n'est plus délégable aux Owners (Q1, Q17 révisées).
 > Aucune donnée ni entrée de menu n'a été modifiée en base : les deux scripts du lot 2 n'ont tourné qu'en simulation
 > (lecture seule). Seule écriture : la migration du journal (3c-1, une table vide), appliquée le 2026-10-07 sur accord.
 >
@@ -362,20 +364,25 @@ recompter juste avant d'écrire). Conséquences :
 | `clan-members` | membres, invitations, demandes, ajout dans le clan de l'adresse | `owner` |
 | `clan-announcements` | Discord, écran d'accueil login | `owner` |
 | `clan-competition` | tournois | `owner` |
-| `clan-data-health` | santé des données (lecture) + demande de resynchronisation plafonnée | `owner` |
-| `clan-telemetry-tools` | état de la télémétrie, erreurs, synchronisation manuelle, récupérations, panneau d'exploitation des soirées, actions de la page « État » ; routes `T/backfill-null-json`, `clear-selected`, `dead-letter`, `fetch-files-selected`, `import-file`, `metrics`, `observability`, `recoveries`, `resync-files-queue`, `resync-files-selected`, `sync-batch-manual`, `sync-selected`, `sync-selected-enqueue` | `superuser` |
+
+`clan-data-health` (santé des données, demande de resynchronisation) et `clan-telemetry-tools` (outils de télémétrie)
+figuraient dans ce catalogue jusqu'au 2026-10-08 : **retirées**, la télémétrie d'un clan rejoint les outils jamais
+délégables ci-dessous.
 
 **Jamais délégables** (`requirePlatformAdmin`, agissent sur toute la plateforme) : navigation et délégation, email
 d'envoi (SMTP), base de données, planification des crons et `cron-control` (déclenchements, historique, état du
 worker), `queue-cleanup` (réordonnancement de la file commune, suppressions dans `CronExecution` — M8),
 `recalc-aggregates-batch`, `dev/runtime-status`, référentiels (cartes, armes, phases, lieux, ligue), cycle de vie des
 clans, annuaire et résolution des joueurs, quota et journal de l'API PUBG, import de matchs, demandes de
-confidentialité.
+confidentialité, et — depuis le 2026-10-08 — **la télémétrie de chaque clan** : santé des données, resynchronisation,
+soirées, outils (`/clans/[clanId]/settings/data/**`, routes `telemetry/*` et `settings/data-health*`).
 
-**Conditions avant d'ouvrir `clan-telemetry-tools` aux Owners** : M5 corrigé (lot 1) ; un plafond par clan sur les
-appels PUBG déclenchés par un Owner (le rattrapage `recoveries` est synchrone jusqu'à 150 parties) ; le journal des
-actions d'administration (Q10), pour savoir qui a consommé le quota commun. Tant que ces trois points ne sont pas faits,
-le bloc de délégation affiche cette fonctionnalité verrouillée.
+~~Conditions avant d'ouvrir `clan-telemetry-tools` aux Owners~~ (plafond PUBG par clan, journal) : sans objet depuis le
+2026-10-08. L'étude du 3c-2 avait montré que trois outils appellent PUBG **pendant la requête** et sans borne
+(`sync-selected`, `fetch-files-selected` ; `backfill-null-json` jusqu'à 500), dans la file du serveur web limitée à
+10 requêtes par minute et partagée par tous les clans ; que `clear-selected` efface définitivement une télémétrie
+que le CDN ne garde que 14 jours ; et qu'`import-file` permet d'injecter un fichier de télémétrie forgé. `recoveries`
+ne fait plus que mettre en file (jusqu'à 500), contrairement à ce que disait l'audit.
 
 ### 5.4 Accès du SuperUser à toutes les pages d'administration
 
@@ -632,8 +639,8 @@ anciens libellés anglais interdits).
 **Découpage décidé le 2026-10-07** : 3a Plateforme, 3b Mon clan (accueil, onglets des membres, Données, délégation,
 Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outils de télémétrie.
 
-**État au 2026-10-07 : 3a fait ; 3b fait ; 3c-1 (journal) fait, migration appliquée en production le 2026-10-07 ;
-3c-2 non commencé (branche `fix/admin-rights`).**
+**État au 2026-10-08 : lot 3 terminé (branche `fix/admin-rights`) — 3a, 3b, 3c-1 (journal, migration appliquée le
+2026-10-07), 3c-2 (télémétrie réservée au SuperUser).**
 
 3b-1 — accueil « Mon clan » et délégation :
 
@@ -726,10 +733,18 @@ Q11, Q5, Q17), 3c journal des actions (Q10) puis ouverture éventuelle des outil
   `src/lib/admin-action-log-routes.test.ts` (chaque écriture d'une route d'administration est enveloppée avec son
   gabarit), route de lecture ajoutée à `admin-route-guards.test.ts`.
 
-Reste du lot 3 :
+3c-2 — télémétrie réservée au SuperUser (décision du 2026-10-08, remplace le plafond par clan prévu) :
 
-- **3c-2** : plafond par clan des appels PUBG déclenchés par un Owner (le rattrapage `recoveries` est synchrone jusqu'à
-  150 parties), dernière condition (§5.3) avant de pouvoir ouvrir `clan-telemetry-tools` aux Owners.
+- Catalogue de délégation réduit à `clan-members`, `clan-announcements`, `clan-competition` ; le mécanisme de verrou
+  (`lockedReason`, 409 de `PUT /api/settings/owner-features`) disparaît avec la seule fonctionnalité qui l'utilisait.
+  Une valeur enregistrée pour une clé retirée est ignorée.
+- Les 13 routes `telemetry/*` du clan et `settings/data-health`, `…/resync` passent en `requirePlatformAdmin`.
+- `/clans/[clanId]/settings/data` : une seule garde Plateforme dans le `layout.tsx` du dossier (les gardes des
+  sous-dossiers, identiques, sont supprimées ; `clan-data-gates.test.ts` vérifie qu'aucune n'est réintroduite) ; tous
+  les onglets toujours affichés. Carte « Données et télémétrie » de l'accueil « Mon clan » visible du seul SuperUser ;
+  menu `owner.clan-data` en rôle `superuser` (le script de menus le crée ainsi).
+- La resynchronisation rapide garde son plafond et sa basse priorité (fonctions renommées `requestCappedResync`,
+  `computeResyncQuota` ; clé `AppConfig` `owner_resync_ledger:<clanId>` inchangée).
 
 3a — ce qui est livré :
 
@@ -771,7 +786,7 @@ Reste du lot 3 :
 
 - **Q1 — Outils de pipeline** : réservés au SuperUser **par défaut** (`clan-telemetry-tools` = `superuser`),
   ouvrables à tous les Owners par le SuperUser une fois les conditions du §5.3 remplies. `cron-control` et le
-  réordonnancement de la file : jamais délégables.
+  réordonnancement de la file : jamais délégables. **Révisée le 2026-10-08 : jamais délégables**, retirés du catalogue.
 - **Q2 — Référentiels** : sans objet pour les Admins (rôle supprimé) ; jamais délégables.
 - **Q3 — Navigation, email d'envoi, API PUBG** : jamais délégables ; l'Owner garde un statut email en lecture seule.
 - **Q4 — Partage Admin / Owner** : sans objet, quatre profils (§5.3).
@@ -800,7 +815,8 @@ Reste du lot 3 :
   l'adresse.
 - **Q16 — `GET /api/members`** : SuperUser, sinon limité au clan du membre actif.
 - **Q17 — Santé des données pour l'Owner** : lecture seule + demande de resynchronisation plafonnée à 50 parties par
-  24 h et par clan.
+  24 h et par clan. **Révisée le 2026-10-08 : toute la section « Données » (lecture comprise) est réservée au
+  SuperUser** ; la resynchronisation rapide (50 parties par 24 h, basse priorité) lui reste.
 - **Q9 — Mode visiteur en production** : confirmé (`DISABLE_AUTH_PERMISSIONS=true`). Les lectures gardées par
   `requireNavPermission` ou marquées `readOnly` restent publiques et inter-clans ; les gardes d'administration
   (`admin-guards.ts`) ne sont jamais ouvertes par ce mode.

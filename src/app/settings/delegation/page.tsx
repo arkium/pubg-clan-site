@@ -1,6 +1,5 @@
 'use client'
 
-import { Lock } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
@@ -10,7 +9,8 @@ import type { OwnerFeatureAccess } from '@/lib/auth/owner-feature-catalog'
 
 /**
  * Délégation aux Owners (docs/TODO/administration.md §5.3, lot 3b) : le SuperUser choisit, pour tous les Owners à la
- * fois, les outils de clan qui leur sont ouverts. Le réglage s'applique aux API, aux pages et aux menus.
+ * fois, les outils de clan qui leur sont ouverts. Le réglage s'applique aux API, aux pages et aux menus. La télémétrie
+ * d'un clan (données, resynchronisation, outils) n'y figure pas : réservée au SuperUser (décision du 2026-10-08).
  */
 
 type FeatureRow = {
@@ -19,7 +19,6 @@ type FeatureRow = {
   description: string
   access: OwnerFeatureAccess
   defaultAccess: OwnerFeatureAccess
-  lockedReason: string | null
 }
 
 export default function DelegationPage() {
@@ -72,7 +71,7 @@ export default function DelegationPage() {
       <section className="app-panel p-4 sm:p-6">
         <SettingsPageHeader
           title="Délégation aux Owners"
-          subtitle="Outils de clan ouverts aux Owners, pour tous les clans à la fois. Le SuperUser garde toujours l’accès. Un changement s’applique sous 30 secondes."
+          subtitle="Outils de clan ouverts aux Owners, pour tous les clans à la fois. Le SuperUser garde toujours l’accès ; la télémétrie des clans lui reste réservée. Un changement s’applique sous 30 secondes."
         />
       </section>
 
@@ -88,22 +87,12 @@ export default function DelegationPage() {
                 <div className="min-w-0 max-w-2xl space-y-1">
                   <p className="text-sm font-semibold text-gray-900">{feature.label}</p>
                   <p className="text-sm text-gray-600">{feature.description}</p>
-                  {feature.lockedReason ? (
-                    <p className="flex items-start gap-1.5 text-xs text-amber-700">
-                      <Lock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-                      {feature.lockedReason}
-                    </p>
-                  ) : null}
                 </div>
                 <SegmentedControl<OwnerFeatureAccess>
                   value={feature.access}
                   onChange={(access) => void save(feature.key, access)}
                   options={[
-                    {
-                      value: 'owner',
-                      label: 'Ouvert aux Owners',
-                      disabled: Boolean(feature.lockedReason) || savingKey === feature.key,
-                    },
+                    { value: 'owner', label: 'Ouvert aux Owners', disabled: savingKey === feature.key },
                     { value: 'superuser', label: 'SuperUser seul', disabled: savingKey === feature.key },
                   ]}
                 />

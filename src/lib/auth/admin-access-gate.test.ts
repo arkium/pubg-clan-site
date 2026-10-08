@@ -57,7 +57,7 @@ describe('AdminAccessGate', () => {
     expect(isPage(await render({ kind: 'clan-owner', clanId: '8' }))).toBe(false)
 
     mocks.getOwnerFeatureAccess.mockResolvedValue('superuser')
-    expect(isPage(await render({ kind: 'clan-feature', clanId: '7', feature: 'clan-telemetry-tools' }))).toBe(false)
+    expect(isPage(await render({ kind: 'clan-feature', clanId: '7', feature: 'clan-competition' }))).toBe(false)
   })
 
   it('affiche la page à l’Owner du clan de l’adresse et au SuperUser sans membre actif', async () => {
@@ -67,6 +67,6 @@ describe('AdminAccessGate', () => {
 
     mocks.session = { ...ownerOfClan7(), activeMemberId: null, isSuperUser: true }
     expect(isPage(await render({ kind: 'platform' }))).toBe(true)
-    expect(isPage(await render({ kind: 'clan-feature', clanId: '42', feature: 'clan-telemetry-tools' }))).toBe(true)
+    expect(isPage(await render({ kind: 'clan-feature', clanId: '42', feature: 'clan-competition' }))).toBe(true)
   })
 })

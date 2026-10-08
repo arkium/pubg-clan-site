@@ -5,37 +5,38 @@ import { TELEMETRY_LIVE_SYNC_QUEUE_ACTION } from '@/lib/pubg-telemetry/live-sync
 import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 
 /**
- * « Santé des données » d'un clan pour son Owner (docs/TODO/administration.md Q17, lot 3b) : état de la télémétrie en
- * lecture seule et demande de resynchronisation plafonnée — 50 parties par 24 h et par clan, mises en file à basse
+ * « Santé des données » d'un clan (docs/TODO/administration.md Q17, lot 3b ; SuperUser seul depuis le 2026-10-08) :
+ * état de la télémétrie et demande de resynchronisation rapide — 50 parties par 24 h et par clan, mises en file à basse
  * priorité, sans appel PUBG dans la requête ni réordonnancement de la file commune.
  *
- * Le plafond se compte dans un registre `AppConfig` par clan (`owner_resync_ledger:<clanId>`) : le worker réécrit
- * `source` et `details` des jobs, qui ne gardent donc pas la trace de leur origine. Le registre note aussi l'auteur.
+ * Le plafond se compte dans un registre `AppConfig` par clan (`owner_resync_ledger:<clanId>`, nom d'origine gardé) : le
+ * worker réécrit `source` et `details` des jobs, qui ne gardent donc pas la trace de leur origine. Le registre note
+ * aussi l'auteur.
  */
 
-export const OWNER_RESYNC_LIMIT = 50
-export const OWNER_RESYNC_WINDOW_MS = 24 * 60 * 60 * 1000
+export const RESYNC_REQUEST_LIMIT = 50
+export const RESYNC_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000
 const HEALTH_WINDOW_DAYS = 30
 const RESYNC_LOOKBACK_DAYS = 14
 
-export type OwnerResyncLedgerEntry = { at: string; count: number; userId: number }
+export type ResyncLedgerEntry = { at: string; count: number; userId: number }
 
-export function ownerResyncLedgerKey(clanId: number) {
+export function resyncLedgerKey(clanId: number) {
   return `owner_resync_ledger:${clanId}`
 }
 
-export function parseOwnerResyncLedger(raw: string | null): OwnerResyncLedgerEntry[] {
+export function parseResyncLedger(raw: string | null): ResyncLedgerEntry[] {
   if (!raw) return []
   try {
     const parsed: unknown = JSON.parse(raw)
     if (!Array.isArray(parsed)) return []
     return parsed.filter(
-      (entry): entry is OwnerResyncLedgerEntry =>
+      (entry): entry is ResyncLedgerEntry =>
         !!entry &&
         typeof entry === 'object' &&
-        typeof (entry as OwnerResyncLedgerEntry).at === 'string' &&
-        Number.isFinite((entry as OwnerResyncLedgerEntry).count) &&
-        Number.isFinite((entry as OwnerResyncLedgerEntry).userId)
+        typeof (entry as ResyncLedgerEntry).at === 'string' &&
+        Number.isFinite((entry as ResyncLedgerEntry).count) &&
+        Number.isFinite((entry as ResyncLedgerEntry).userId)
     )
   } catch {
     return []
@@ -43,8 +44,8 @@ export function parseOwnerResyncLedger(raw: string | null): OwnerResyncLedgerEnt
 }
 
 /** Quota restant sur la fenêtre glissante, et date à laquelle la plus ancienne demande comptée en sort. */
-export function computeOwnerResyncQuota(ledger: readonly OwnerResyncLedgerEntry[], now = new Date()) {
-  const since = now.getTime() - OWNER_RESYNC_WINDOW_MS
+export function computeResyncQuota(ledger: readonly ResyncLedgerEntry[], now = new Date()) {
+  const since = now.getTime() - RESYNC_REQUEST_WINDOW_MS
   const recent = ledger.filter((entry) => new Date(entry.at).getTime() > since)
   const used = recent.reduce((sum, entry) => sum + entry.count, 0)
   const oldest = recent.reduce<number | null>((min, entry) => {
@@ -53,16 +54,16 @@ export function computeOwnerResyncQuota(ledger: readonly OwnerResyncLedgerEntry[
   }, null)
   return {
     used,
-    limit: OWNER_RESYNC_LIMIT,
-    remaining: Math.max(0, OWNER_RESYNC_LIMIT - used),
-    resetsAt: oldest === null ? null : new Date(oldest + OWNER_RESYNC_WINDOW_MS).toISOString(),
+    limit: RESYNC_REQUEST_LIMIT,
+    remaining: Math.max(0, RESYNC_REQUEST_LIMIT - used),
+    resetsAt: oldest === null ? null : new Date(oldest + RESYNC_REQUEST_WINDOW_MS).toISOString(),
     recent,
   }
 }
 
 async function readLedger(clanId: number) {
-  const record = await prisma.appConfig.findUnique({ where: { key: ownerResyncLedgerKey(clanId) }, select: { value: true } })
-  return parseOwnerResyncLedger(record?.value ?? null)
+  const record = await prisma.appConfig.findUnique({ where: { key: resyncLedgerKey(clanId) }, select: { value: true } })
+  return parseResyncLedger(record?.value ?? null)
 }
 
 const clanMatchFilter = (clanId: number) => ({ members: { some: { member: { clanId } } } })
@@ -91,7 +92,7 @@ export async function getClanDataHealth(clanId: number) {
     readLedger(clanId),
   ])
 
-  const quota = computeOwnerResyncQuota(ledger, now)
+  const quota = computeResyncQuota(ledger, now)
   return {
     windowDays: HEALTH_WINDOW_DAYS,
     totalMatches,
@@ -109,9 +110,9 @@ export async function getClanDataHealth(clanId: number) {
  * Met en file, à basse priorité, jusqu'au quota restant des parties récentes du clan sans télémétrie (les plus récentes
  * d'abord, celles dont la télémétrie a expiré chez PUBG exclues), puis l'inscrit au registre.
  */
-export async function requestOwnerResync(clanId: number, userId: number) {
+export async function requestCappedResync(clanId: number, userId: number) {
   const ledger = await readLedger(clanId)
-  const quota = computeOwnerResyncQuota(ledger)
+  const quota = computeResyncQuota(ledger)
   if (quota.remaining === 0) {
     return { queuedCount: 0, remaining: 0, resetsAt: quota.resetsAt, reason: 'quota' as const }
   }
@@ -166,11 +167,11 @@ export async function requestOwnerResync(clanId: number, userId: number) {
   const nextLedger = [...quota.recent, { at: now.toISOString(), count: result.queuedCount, userId }]
   const value = JSON.stringify(nextLedger)
   await prisma.appConfig.upsert({
-    where: { key: ownerResyncLedgerKey(clanId) },
+    where: { key: resyncLedgerKey(clanId) },
     update: { value },
-    create: { key: ownerResyncLedgerKey(clanId), value },
+    create: { key: resyncLedgerKey(clanId), value },
   })
 
-  const after = computeOwnerResyncQuota(nextLedger, now)
+  const after = computeResyncQuota(nextLedger, now)
   return { queuedCount: result.queuedCount, remaining: after.remaining, resetsAt: after.resetsAt, reason: null }
 }

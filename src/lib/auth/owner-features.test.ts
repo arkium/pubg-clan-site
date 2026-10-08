@@ -32,8 +32,6 @@ describe('parseOwnerFeatureAccess', () => {
       'clan-members': 'owner',
       'clan-announcements': 'owner',
       'clan-competition': 'owner',
-      'clan-data-health': 'owner',
-      'clan-telemetry-tools': 'superuser',
     })
   })
 
@@ -46,10 +44,10 @@ describe('parseOwnerFeatureAccess', () => {
     expect(Object.keys(parsed).sort()).toEqual([...OWNER_FEATURE_KEYS].sort())
   })
 
-  it('garde une fonctionnalité verrouillée réservée au SuperUser même si la base dit owner', () => {
-    expect(parseOwnerFeatureAccess(JSON.stringify({ 'clan-telemetry-tools': 'owner' }))['clan-telemetry-tools']).toBe(
-      'superuser'
-    )
+  it('ignore les anciennes fonctionnalités de télémétrie, retirées de la délégation (2026-10-08)', () => {
+    const parsed = parseOwnerFeatureAccess(JSON.stringify({ 'clan-telemetry-tools': 'owner', 'clan-data-health': 'owner' }))
+    expect(parsed).not.toHaveProperty('clan-telemetry-tools')
+    expect(parsed).not.toHaveProperty('clan-data-health')
   })
 
   it('retombe sur les valeurs par défaut quand le JSON est invalide', () => {
@@ -82,11 +80,6 @@ describe('lecture et écriture du réglage', () => {
     )
   })
 
-  it('refuse d’ouvrir aux Owners une fonctionnalité verrouillée', async () => {
-    await expect(setOwnerFeatureAccess('clan-telemetry-tools', 'owner')).rejects.toThrow(/locked/)
-    expect(mocks.appConfigUpsert).not.toHaveBeenCalled()
-  })
-
   it('enregistre un réglage en conservant les autres', async () => {
     mocks.appConfigFindUnique.mockResolvedValue({ value: JSON.stringify({ 'clan-competition': 'superuser' }) })
     mocks.appConfigUpsert.mockResolvedValue({})
@@ -104,12 +97,13 @@ describe('lecture et écriture du réglage', () => {
 describe('menus et fonctionnalités', () => {
   it('rattache chaque entrée de menu d’administration de clan à sa fonctionnalité', () => {
     expect(ownerFeatureOfNavKey('admin.discord-notifications')).toBe('clan-announcements')
-    expect(ownerFeatureOfNavKey('owner.telemetry-errors')).toBe('clan-telemetry-tools')
+    // Télémétrie d'un clan : jamais déléguée, ses entrées de menu restent en rôle superuser
+    expect(ownerFeatureOfNavKey('owner.telemetry-errors')).toBeNull()
+    expect(ownerFeatureOfNavKey('owner.clan-data')).toBeNull()
     expect(ownerFeatureOfNavKey('clan.overview')).toBeNull()
   })
 
   it('masque aux Owners une entrée dont la fonctionnalité leur est fermée', () => {
-    expect(isNavKeyClosedToOwners('owner.telemetry-dashboard', null)).toBe(true)
     expect(isNavKeyClosedToOwners('clan.tournaments', null)).toBe(false)
     expect(isNavKeyClosedToOwners('clan.tournaments', { 'clan-competition': 'superuser' })).toBe(true)
     expect(isNavKeyClosedToOwners('clan.overview', { 'clan-competition': 'superuser' })).toBe(false)

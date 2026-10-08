@@ -4,27 +4,38 @@ import path from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 /**
- * « Données » d'un clan (docs/TODO/administration.md Q17, Q20) : le layout du dossier ne garde que la santé des
- * données, ouverte aux Owners. Chaque outil rangé dessous doit poser sa propre garde `clan-telemetry-tools` — un
- * dossier ajouté sans elle serait ouvert à tout Owner, y compris quand le SuperUser ne lui a pas délégué les outils.
+ * « Données » d'un clan (docs/TODO/administration.md Q17, Q20) : réservées au SuperUser depuis le 2026-10-08, jamais
+ * déléguées aux Owners. Le layout du dossier pose la garde Plateforme pour toutes ses pages ; aucun sous-dossier ne
+ * doit poser une garde différente (un layout parent ne se ré-exécute pas entre ses pages, mais la garde est la même).
  */
 const DATA_DIR = path.join(process.cwd(), 'src', 'app', 'clans', '[clanId]', 'settings', 'data')
 
-describe('outils des Données du clan', () => {
-  const tools = fs
-    .readdirSync(DATA_DIR, { withFileTypes: true })
-    .filter((entry) => entry.isDirectory())
-    .map((entry) => entry.name)
+function listLayouts(dir: string): string[] {
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) return listLayouts(full)
+    return entry.name === 'layout.tsx' ? [full] : []
+  })
+}
 
-  it('liste les outils attendus', () => {
-    expect(tools.sort()).toEqual(['errors', 'recoveries', 'sessions', 'state', 'sync'])
+describe('Données du clan', () => {
+  it('le layout du dossier réserve toute la section au SuperUser', () => {
+    const source = fs.readFileSync(path.join(DATA_DIR, 'layout.tsx'), 'utf8')
+    expect(source).toContain("<AdminAccessGate requirement={{ kind: 'platform' }}>")
+    expect(source).not.toMatch(/clan-feature|decideClanFeature/)
   })
 
-  it.each(tools)('%s porte la garde « Outils de télémétrie » dans son propre layout', (tool) => {
-    const layout = path.join(DATA_DIR, tool, 'layout.tsx')
-    expect(fs.existsSync(layout)).toBe(true)
-    const source = fs.readFileSync(layout, 'utf8')
-    expect(source).toContain('<AdminAccessGate')
-    expect(source).toMatch(/kind: 'clan-feature', clanId, feature: 'clan-telemetry-tools'/)
+  it('aucun sous-dossier ne pose une autre garde', () => {
+    const nested = listLayouts(DATA_DIR).filter((file) => path.dirname(file) !== DATA_DIR)
+    expect(nested.map((file) => path.relative(DATA_DIR, file))).toEqual([])
+  })
+
+  it('les outils attendus sont bien dans le dossier', () => {
+    const tools = fs
+      .readdirSync(DATA_DIR, { withFileTypes: true })
+      .filter((entry) => entry.isDirectory())
+      .map((entry) => entry.name)
+      .sort()
+    expect(tools).toEqual(['errors', 'recoveries', 'sessions', 'state', 'sync'])
   })
 })

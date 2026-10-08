@@ -35,14 +35,14 @@ describe('route de délégation aux Owners', () => {
     mocks.setOwnerFeatureAccess.mockResolvedValue({})
   })
 
-  it('décrit chaque fonctionnalité, son réglage et son verrou', async () => {
+  it('décrit chaque fonctionnalité et son réglage, sans la télémétrie (jamais déléguée)', async () => {
     const payload = await (await GET(new Request('http://localhost:3000/api/settings/owner-features'))).json()
-    const tools = payload.features.find((feature: { key: string }) => feature.key === 'clan-telemetry-tools')
-    expect(tools).toMatchObject({ access: 'superuser', defaultAccess: 'superuser', lockedReason: expect.any(String) })
-    expect(payload.features.find((feature: { key: string }) => feature.key === 'clan-members')).toMatchObject({
-      access: 'owner',
-      lockedReason: null,
-    })
+    expect(payload.features.map((feature: { key: string }) => feature.key)).toEqual([
+      'clan-members',
+      'clan-announcements',
+      'clan-competition',
+    ])
+    expect(payload.features[0]).toMatchObject({ access: 'owner', defaultAccess: 'owner' })
   })
 
   it('enregistre un réglage valide', async () => {
@@ -51,8 +51,8 @@ describe('route de délégation aux Owners', () => {
     expect(mocks.setOwnerFeatureAccess).toHaveBeenCalledWith('clan-competition', 'superuser')
   })
 
-  it('refuse d’ouvrir une fonctionnalité verrouillée (409) et une saisie invalide (400)', async () => {
-    expect((await put({ feature: 'clan-telemetry-tools', access: 'owner' })).status).toBe(409)
+  it('refuse une fonctionnalité inconnue ou retirée et une saisie invalide (400)', async () => {
+    expect((await put({ feature: 'clan-telemetry-tools', access: 'owner' })).status).toBe(400)
     expect((await put({ feature: 'inconnue', access: 'owner' })).status).toBe(400)
     expect((await put({ feature: 'clan-members', access: 'admin' })).status).toBe(400)
     expect(mocks.setOwnerFeatureAccess).not.toHaveBeenCalled()

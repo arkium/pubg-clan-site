@@ -3,8 +3,9 @@
  * (docs/TODO/administration.md §5.3) — partie pure, lisible côté client (menus). La lecture et l'écriture du réglage en
  * base sont dans `owner-features.ts` ; la garde serveur est `requireClanFeature` (`admin-guards.ts`).
  *
- * Le réglage est commun à tous les Owners (pas de réglage par clan). Les outils qui agissent sur toute la plateforme
- * ne figurent pas ici : ils restent derrière `requirePlatformAdmin`, sans réglage possible.
+ * Le réglage est commun à tous les Owners (pas de réglage par clan). Ne figurent pas ici, faute de pouvoir être ouverts
+ * aux Owners : les outils qui agissent sur toute la plateforme, et — décision du 2026-10-08 — la télémétrie d'un clan
+ * (santé des données, resynchronisation, outils de télémétrie). Tous restent derrière `requirePlatformAdmin`.
  */
 
 export type OwnerFeatureAccess = 'owner' | 'superuser'
@@ -15,8 +16,6 @@ type OwnerFeatureDefinition = {
   defaultAccess: OwnerFeatureAccess
   /** Entrées de menu (`NavItem`) qui suivent ce réglage : masquées aux Owners quand la fonctionnalité leur est fermée. */
   navKeys: readonly string[]
-  /** Présent : la fonctionnalité reste réservée au SuperUser quel que soit le réglage enregistré. */
-  lockedReason?: string
 }
 
 export const OWNER_FEATURES = {
@@ -38,28 +37,6 @@ export const OWNER_FEATURES = {
     defaultAccess: 'owner',
     navKeys: ['clan.tournaments'],
   },
-  'clan-data-health': {
-    label: 'Santé des données',
-    description:
-      'État de la télémétrie du clan en lecture seule et demande de resynchronisation plafonnée (50 parties par 24 h)',
-    defaultAccess: 'owner',
-    navKeys: ['owner.clan-data'],
-  },
-  'clan-telemetry-tools': {
-    label: 'Outils de télémétrie',
-    description:
-      'État de la télémétrie, soirées et leur panneau d’exploitation, erreurs, synchronisation manuelle, récupérations, actions de resynchronisation',
-    defaultAccess: 'superuser',
-    navKeys: [
-      'owner.telemetry-dashboard',
-      'owner.telemetry-matches',
-      'owner.telemetry-errors',
-      'owner.telemetry-sync-batch',
-      'owner.telemetry-recoveries',
-    ],
-    lockedReason:
-      'Ces outils consomment le quota PUBG commun à tous les clans : ils ne s’ouvrent aux Owners qu’avec un plafond par clan et le journal des actions d’administration.',
-  },
 } as const satisfies Record<string, OwnerFeatureDefinition>
 
 export type OwnerFeature = keyof typeof OWNER_FEATURES
@@ -78,18 +55,10 @@ export function isOwnerFeature(value: unknown): value is OwnerFeature {
   return typeof value === 'string' && Object.prototype.hasOwnProperty.call(OWNER_FEATURES, value)
 }
 
-export function isOwnerFeatureLocked(feature: OwnerFeature) {
-  return Boolean(getDefinition(feature).lockedReason)
-}
-
-export function ownerFeatureLockedReason(feature: OwnerFeature) {
-  return getDefinition(feature).lockedReason ?? null
-}
-
 /**
  * Lit la valeur JSON de `AppConfig` : `{ "<fonctionnalité>": "owner" | "superuser" }`. Une clé absente,
- * inconnue ou mal formée prend la valeur par défaut du catalogue ; une fonctionnalité verrouillée reste
- * toujours `superuser`.
+ * inconnue ou mal formée prend la valeur par défaut du catalogue (une clé retirée du catalogue, comme les anciennes
+ * `clan-data-health` et `clan-telemetry-tools`, est ignorée).
  */
 export function parseOwnerFeatureAccess(raw: string | null): OwnerFeatureAccessMap {
   let stored: Record<string, unknown> = {}
@@ -108,9 +77,7 @@ export function parseOwnerFeatureAccess(raw: string | null): OwnerFeatureAccessM
   for (const feature of OWNER_FEATURE_KEYS) {
     const definition = getDefinition(feature)
     const value = stored[feature]
-    const access: OwnerFeatureAccess =
-      value === 'owner' || value === 'superuser' ? value : definition.defaultAccess
-    result[feature] = definition.lockedReason ? 'superuser' : access
+    result[feature] = value === 'owner' || value === 'superuser' ? value : definition.defaultAccess
   }
   return result
 }

@@ -5,8 +5,8 @@ Ce document décrit les pages d'administration et de monitoring du pipeline tél
 ## Pages disponibles
 
 > Depuis le 2026-10-07 ([administration.md](../TODO/administration.md), Q20) : les outils sont des onglets de « Données »
-> (`/clans/[clanId]/settings/data`), réservés au SuperUser par la fonctionnalité verrouillée `clan-telemetry-tools`.
-> L'Owner a l'onglet « Santé des données » (lecture seule, resynchronisation plafonnée à 50 parties par 24 h).
+> (`/clans/[clanId]/settings/data`), réservés au SuperUser (`requirePlatformAdmin`), jamais délégués aux Owners depuis
+> le 2026-10-08 — onglet « Santé des données » et resynchronisation rapide (50 parties par 24 h) compris.
 > Les anciennes adresses `/clans/[clanId]/telemetry/…` sont redirigées.
 
 | URL | Rôle requis | Description |
@@ -144,7 +144,7 @@ Pour un historique durable, il faudrait soit écrire les samples en DB, soit exp
 
 ## Page soirées — `/clans/[clanId]/settings/data/sessions`
 
-Onglet « Soirées » des Données du clan (fonctionnalité `clan-telemetry-tools`, SuperUser par défaut). L'ancienne
+Onglet « Soirées » des Données du clan (SuperUser seul). L'ancienne
 adresse `/clans/[clanId]/telemetry/matches` redirige vers la liste joueur `/clans/[clanId]/matches`.
 
 Liste des matchs du clan avec leur statut de télémétrie. Chaque match affiche :

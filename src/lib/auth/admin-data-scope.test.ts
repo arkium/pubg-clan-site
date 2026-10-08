@@ -16,7 +16,7 @@ vi.mock('@/lib/prisma', () => ({
     challengeParticipant: { upsert: mocks.participantUpsert },
   },
 }))
-vi.mock('@/lib/auth/admin-guards', () => ({ requireClanFeature: async () => null }))
+vi.mock('@/lib/auth/admin-guards', () => ({ requirePlatformAdmin: async () => null }))
 vi.mock('@/lib/pubg-telemetry/resync-files', () => ({
   resolveCaptureDirectory: () => '/tmp/capture-tests',
   resyncTelemetryFromCapturedFile: mocks.resyncFromFile,

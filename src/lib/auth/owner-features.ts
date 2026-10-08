@@ -1,6 +1,5 @@
 import {
   closedOwnerFeatureAccessMap,
-  isOwnerFeatureLocked,
   OWNER_FEATURE_ACCESS_CONFIG_KEY,
   parseOwnerFeatureAccess,
   type OwnerFeature,
@@ -16,7 +15,6 @@ import { prisma } from '@/lib/prisma'
 
 export {
   isOwnerFeature,
-  isOwnerFeatureLocked,
   OWNER_FEATURE_ACCESS_CONFIG_KEY,
   OWNER_FEATURE_KEYS,
   OWNER_FEATURES,
@@ -58,10 +56,6 @@ export async function getOwnerFeatureAccess(feature: OwnerFeature): Promise<Owne
 }
 
 export async function setOwnerFeatureAccess(feature: OwnerFeature, access: OwnerFeatureAccess) {
-  if (access === 'owner' && isOwnerFeatureLocked(feature)) {
-    throw new Error(`Feature ${feature} is locked to SuperUser`)
-  }
-
   const record = await prisma.appConfig.findUnique({
     where: { key: OWNER_FEATURE_ACCESS_CONFIG_KEY },
     select: { value: true },

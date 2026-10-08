@@ -86,10 +86,10 @@ Le SuperUser choisit les outils de clan ouverts aux Owners (réglage commun à t
 | `clan-members` | membres, invitations, demandes, ajout de joueurs | ouverte |
 | `clan-announcements` | Discord, écran d'accueil login | ouverte |
 | `clan-competition` | tournois | ouverte |
-| `clan-telemetry-tools` | état de la télémétrie, erreurs, synchronisation manuelle, récupérations | **verrouillée** au SuperUser |
 
-Jamais délégables (toute la plateforme) : navigation, email d'envoi, base, crons, file commune, référentiels, cycle de
-vie des clans, joueurs, quota PUBG.
+Jamais délégables : navigation, email d'envoi, base, crons, file commune, référentiels, cycle de vie des clans,
+joueurs, quota PUBG, et la télémétrie de chaque clan — santé des données, resynchronisation, soirées, outils
+(`/clans/[clanId]/settings/data`, SuperUser seul depuis le 2026-10-08).
 
 ### Implémentation
 

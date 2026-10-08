@@ -20,18 +20,18 @@ vi.mock('@/lib/prisma', () => ({
 vi.mock('@/lib/pubg-telemetry/manual-sync', () => ({ enqueueTelemetryForSelectedSquadMatches: mocks.enqueue }))
 
 import {
-  computeOwnerResyncQuota,
-  OWNER_RESYNC_LIMIT,
-  parseOwnerResyncLedger,
-  requestOwnerResync,
+  computeResyncQuota,
+  RESYNC_REQUEST_LIMIT,
+  parseResyncLedger,
+  requestCappedResync,
 } from '@/lib/clan-data-health'
 
 const NOW = new Date('2026-10-07T12:00:00Z')
 const hoursAgo = (hours: number) => new Date(NOW.getTime() - hours * 3600_000).toISOString()
 
-describe('quota de resynchronisation de l’Owner', () => {
+describe('quota de la resynchronisation rapide', () => {
   it('compte les demandes des dernières 24 h seulement', () => {
-    const quota = computeOwnerResyncQuota(
+    const quota = computeResyncQuota(
       [
         { at: hoursAgo(30), count: 50, userId: 1 },
         { at: hoursAgo(5), count: 20, userId: 1 },
@@ -39,17 +39,17 @@ describe('quota de resynchronisation de l’Owner', () => {
       ],
       NOW
     )
-    expect(quota).toMatchObject({ used: 30, remaining: 20, limit: OWNER_RESYNC_LIMIT })
+    expect(quota).toMatchObject({ used: 30, remaining: 20, limit: RESYNC_REQUEST_LIMIT })
     expect(quota.resetsAt).toBe(new Date(NOW.getTime() + 19 * 3600_000).toISOString())
   })
 
   it('ignore un registre illisible', () => {
-    expect(parseOwnerResyncLedger('pas du json')).toEqual([])
-    expect(parseOwnerResyncLedger('[{"at":"2026-10-07T00:00:00Z","count":"x","userId":1}]')).toEqual([])
+    expect(parseResyncLedger('pas du json')).toEqual([])
+    expect(parseResyncLedger('[{"at":"2026-10-07T00:00:00Z","count":"x","userId":1}]')).toEqual([])
   })
 })
 
-describe('requestOwnerResync', () => {
+describe('requestCappedResync', () => {
   beforeEach(() => {
     Object.values(mocks).forEach((mock) => mock.mockReset())
     mocks.cronFindMany.mockResolvedValue([{ details: { squadMatchId: 'deja-en-file' } }])
@@ -63,7 +63,7 @@ describe('requestOwnerResync', () => {
       value: JSON.stringify([{ at: new Date(Date.now() - 3600_000).toISOString(), count: 45, userId: 9 }]),
     })
 
-    const result = await requestOwnerResync(7, 42)
+    const result = await requestCappedResync(7, 42)
 
     expect(mocks.squadMatchFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ take: 5, where: expect.objectContaining({ id: { notIn: ['deja-en-file'] } }) })
@@ -82,7 +82,7 @@ describe('requestOwnerResync', () => {
       value: JSON.stringify([{ at: new Date(Date.now() - 3600_000).toISOString(), count: 50, userId: 9 }]),
     })
 
-    expect(await requestOwnerResync(7, 42)).toMatchObject({ queuedCount: 0, reason: 'quota' })
+    expect(await requestCappedResync(7, 42)).toMatchObject({ queuedCount: 0, reason: 'quota' })
     expect(mocks.enqueue).not.toHaveBeenCalled()
     expect(mocks.appConfigUpsert).not.toHaveBeenCalled()
   })
@@ -91,7 +91,7 @@ describe('requestOwnerResync', () => {
     mocks.appConfigFindUnique.mockResolvedValue(null)
     mocks.squadMatchFindMany.mockResolvedValue([])
 
-    expect(await requestOwnerResync(7, 42)).toMatchObject({ queuedCount: 0, reason: 'nothing-to-sync', remaining: 50 })
+    expect(await requestCappedResync(7, 42)).toMatchObject({ queuedCount: 0, reason: 'nothing-to-sync', remaining: 50 })
     expect(mocks.appConfigUpsert).not.toHaveBeenCalled()
   })
 })

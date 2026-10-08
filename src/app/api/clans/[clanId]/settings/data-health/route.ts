@@ -1,4 +1,4 @@
-import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { getClanDataHealth } from '@/lib/clan-data-health'
 
 function parseClanId(clanId: string) {
@@ -14,7 +14,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const denied = await requireClanFeature(request, parsedClanId, 'clan-data-health')
+  const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
   try {

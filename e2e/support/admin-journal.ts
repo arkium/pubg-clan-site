@@ -1,6 +1,6 @@
 import type { ApiMock } from './api'
 import { mockMemberSession } from './session'
-import type { AdminActionPage, AdminActionRow } from '@/lib/admin-action-log'
+import type { AdminActionPage, AdminActionRow, AdminActionSummary } from '@/lib/admin-action-log'
 
 /**
  * Journal d'administration (e2e/admin-journal.spec.ts) : session SuperUser et 120 actions simulées, filtrées et
@@ -9,6 +9,9 @@ import type { AdminActionPage, AdminActionRow } from '@/lib/admin-action-log'
 
 const ROWS: AdminActionRow[] = Array.from({ length: 120 }, (_, index) => {
   const failed = index % 10 === 3
+  const summary: AdminActionSummary = failed
+    ? { error: 'PUBG indisponible' }
+    : { result: index % 2 === 0 ? { ok: true, queuedCount: 4 } : { ok: true } }
   return {
     id: 1000 - index,
     createdAt: new Date(Date.UTC(2026, 9, 7, 20, 0) - index * 600_000).toISOString(),
@@ -23,11 +26,7 @@ const ROWS: AdminActionRow[] = Array.from({ length: 120 }, (_, index) => {
     userLabel: index % 3 === 0 ? 'owner@example.com' : 'admin@example.com',
     memberId: index % 3 === 0 ? 4 : null,
     memberName: index % 3 === 0 ? 'Joueur Owner' : null,
-    summary: failed
-      ? { error: 'PUBG indisponible' }
-      : index % 2 === 0
-        ? { result: { ok: true, queuedCount: 4 } }
-        : { result: { ok: true } },
+    summary,
   }
 })
 

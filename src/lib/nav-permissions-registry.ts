@@ -424,8 +424,8 @@ export const NAV_REGISTRY: NavItemDef[] = [
     section: 'owner-menu',
     label: 'Données du clan',
     hrefTemplate: '/clans/:clanId/settings/data',
-    defaultRole: 'owner',
-    description: 'Santé de la télémétrie du clan et demande de resynchronisation plafonnée (50 parties par 24 h).',
+    defaultRole: 'superuser',
+    description: 'Santé des données, soirées et outils de télémétrie du clan — SuperUser seul, jamais délégué aux Owners.',
   },
   {
     navKey: 'owner.telemetry-dashboard',

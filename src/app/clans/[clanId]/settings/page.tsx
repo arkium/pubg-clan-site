@@ -6,24 +6,25 @@ import type { ReactNode } from 'react'
 import SelectedClanSync from '@/components/settings/SelectedClanSync'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
-import { decideClanFeature } from '@/lib/auth/admin-guards'
+import { decideClanFeature, decidePlatformAdmin } from '@/lib/auth/admin-guards'
 import type { OwnerFeature } from '@/lib/auth/owner-feature-catalog'
 import { getServerComponentSession } from '@/lib/auth-session'
 
 /**
  * Accueil « Mon clan » (docs/TODO/administration.md §5.2, lot 3b) : rendu serveur, une carte par outil que la
  * personne peut ouvrir — même décision que les gardes d'API (`decideClanFeature`), délégation aux Owners comprise.
- * Le sous-domaine et l'arrêt de suivi, réglages de plateforme, sont sur la fiche du clan côté Plateforme.
+ * « Données » (télémétrie du clan) est réservée au SuperUser, jamais déléguée (2026-10-08). Le sous-domaine et l'arrêt
+ * de suivi, réglages de plateforme, sont sur la fiche du clan côté Plateforme.
  */
 
-type HubCard = { feature: OwnerFeature; path: string; title: string; description: string; icon: ReactNode }
+type HubCard = { access: OwnerFeature | 'superuser'; path: string; title: string; description: string; icon: ReactNode }
 
 const GROUPS: Array<{ title: string; cards: HubCard[] }> = [
   {
     title: 'Membres',
     cards: [
       {
-        feature: 'clan-members',
+        access: 'clan-members',
         path: 'settings/members',
         title: 'Membres et invitations',
         description: 'Membres du clan, invitations, demandes d’adhésion et ajout de joueurs.',
@@ -35,14 +36,14 @@ const GROUPS: Array<{ title: string; cards: HubCard[] }> = [
     title: 'Apparence et annonces',
     cards: [
       {
-        feature: 'clan-announcements',
+        access: 'clan-announcements',
         path: 'settings/login-welcome',
         title: 'Accueil login',
         description: 'Écran d’accueil montré aux joueurs du clan avant leur connexion.',
         icon: <Monitor className="h-6 w-6" aria-hidden />,
       },
       {
-        feature: 'clan-announcements',
+        access: 'clan-announcements',
         path: 'settings/discord',
         title: 'Notifications Discord',
         description: 'Victoires Top 1 et résultats de tournoi publiés dans un canal Discord.',
@@ -54,7 +55,7 @@ const GROUPS: Array<{ title: string; cards: HubCard[] }> = [
     title: 'Compétition',
     cards: [
       {
-        feature: 'clan-competition',
+        access: 'clan-competition',
         path: 'settings/tournaments',
         title: 'Tournois',
         description: 'Créer, modifier et synchroniser les tournois organisés par le clan.',
@@ -66,10 +67,10 @@ const GROUPS: Array<{ title: string; cards: HubCard[] }> = [
     title: 'Données',
     cards: [
       {
-        feature: 'clan-data-health',
+        access: 'superuser',
         path: 'settings/data',
-        title: 'Santé des données',
-        description: 'Télémétrie des parties du clan et demande de resynchronisation plafonnée.',
+        title: 'Données et télémétrie',
+        description: 'Santé des données, soirées et outils de télémétrie du clan (SuperUser).',
         icon: <Database className="h-6 w-6" aria-hidden />,
       },
     ],
@@ -87,12 +88,15 @@ export default async function ClanSettingsHub({ params }: { params: Promise<{ cl
   if (!clanId) redirect('/clans')
 
   const session = await getServerComponentSession()
-  const features = [...new Set(GROUPS.flatMap((group) => group.cards.map((card) => card.feature)))]
+  const accesses = [...new Set(GROUPS.flatMap((group) => group.cards.map((card) => card.access)))]
   const decisions = await Promise.all(
-    features.map(async (feature) => [feature, (await decideClanFeature(session, clanId, feature)).allowed] as const)
+    accesses.map(async (access) => {
+      const decision = access === 'superuser' ? decidePlatformAdmin(session) : await decideClanFeature(session, clanId, access)
+      return [access, decision.allowed] as const
+    })
   )
-  const allowed = new Set(decisions.filter(([, ok]) => ok).map(([feature]) => feature))
-  const groups = GROUPS.map((group) => ({ ...group, cards: group.cards.filter((card) => allowed.has(card.feature)) })).filter(
+  const allowed = new Set(decisions.filter(([, ok]) => ok).map(([access]) => access))
+  const groups = GROUPS.map((group) => ({ ...group, cards: group.cards.filter((card) => allowed.has(card.access)) })).filter(
     (group) => group.cards.length > 0
   )
 

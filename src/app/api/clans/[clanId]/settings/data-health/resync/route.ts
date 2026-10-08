@@ -1,7 +1,7 @@
 import { withAdminActionLog } from '@/lib/admin-action-log'
-import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 import { getSessionFromRequest } from '@/lib/auth-session'
-import { requestOwnerResync } from '@/lib/clan-data-health'
+import { requestCappedResync } from '@/lib/clan-data-health'
 
 function parseClanId(clanId: string) {
   const parsed = Number(clanId)
@@ -9,8 +9,9 @@ function parseClanId(clanId: string) {
 }
 
 /**
- * Demande de resynchronisation de l'Owner (Q17) : met en file, à basse priorité, au plus le quota restant
- * (50 parties par 24 h et par clan). Aucun appel PUBG dans la requête ; 429 quand le quota est épuisé.
+ * Demande de resynchronisation rapide (Q17, SuperUser seul depuis le 2026-10-08) : met en file, à basse priorité, au
+ * plus le quota restant (50 parties par 24 h et par clan). Aucun appel PUBG dans la requête ; 429 quand le quota est
+ * épuisé.
  */
 async function handlePost(request: Request, { params }: { params: Promise<{ clanId: string }> }) {
   const { clanId } = await params
@@ -19,12 +20,12 @@ async function handlePost(request: Request, { params }: { params: Promise<{ clan
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const denied = await requireClanFeature(request, parsedClanId, 'clan-data-health')
+  const denied = await requirePlatformAdmin(request)
   if (denied) return denied
 
   try {
     const session = await getSessionFromRequest(request)
-    const result = await requestOwnerResync(parsedClanId, session?.userId ?? 0)
+    const result = await requestCappedResync(parsedClanId, session?.userId ?? 0)
     if (result.reason === 'quota') {
       return Response.json({ error: 'Quota de resynchronisation atteint pour 24 h', ...result }, { status: 429 })
     }

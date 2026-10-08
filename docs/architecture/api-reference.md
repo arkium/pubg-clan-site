@@ -30,8 +30,9 @@ Ce document liste les ~99 routes `src/app/api/**/route.ts` du projet, avec pour 
   - `requirePlatformAdmin` : SuperUser seulement (outils qui agissent sur toute la plateforme).
   - `requireClanAccess(clanId, 'owner' | 'member')` : Owner (ou membre) du clan de l'adresse.
   - `requireClanFeature(clanId, feature)` : Owner du clan de l'adresse, si la fonctionnalité est ouverte aux Owners
-    (`src/lib/auth/owner-features.ts` : `clan-members`, `clan-announcements`, `clan-competition` ouvertes par défaut ;
-    `clan-telemetry-tools` verrouillée au SuperUser).
+    (`src/lib/auth/owner-features.ts` : `clan-members`, `clan-announcements`, `clan-competition`, ouvertes par défaut).
+    La télémétrie d'un clan (`telemetry/*`, `settings/data-health*`) n'y figure pas : `requirePlatformAdmin`, jamais
+    déléguée (2026-10-08).
 - **Journal des actions** (Q10, lot 3c) : chaque écriture d'une route d'administration est exportée enveloppée par
   `withAdminActionLog('<gabarit de la route>', handler)` (`src/lib/admin-action-log.ts`) — une ligne `AdminActionLog`
   par réussite ou erreur ; refus (401, 403) et simulations (`validateOnly`, `dryRun`, `mode: 'preview'`) non notés.
@@ -368,30 +369,30 @@ Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/a
 | GET | `/drop-zones` | `requireNavPermission('clan.drop-zones')` | ✅ Pertinent | Points d'atterrissage + heatmap 40×40 — voir [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) |
 | GET | `/item-use` | `requireNavPermission('clan.items')` | ✅ Pertinent | Objets consommés par le clan, par famille, par objet et par membre (`?period=week\|month\|all`) — voir [Objets consommés](../features/objets-consommes.md) |
 | GET | `/zone-closures` | `requireNavPermission('clan.zone-closures')` | ✅ Pertinent | Positions d'arrivée à chaque fermeture de cercle (`?period=`, `?map=`, `?memberId=`, `?phase=`) — voir [Fin de zone](../features/fin-de-zone.md) |
-| GET | `/sync-batch-manual` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | État de la queue de traitement — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/sync-batch-manual` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | État de la queue de traitement — voir [Télémétrie API](../telemetry/api.md) |
 
 En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
 | GET | `/api/clans/[clanId]/city-insights` | `requireNavPermission('clan.overview')` | ✅ Pertinent | Villes et zones de combat du clan (Top 5 par métrique, ville favorite, évolution 8 semaines) — `?period=week\|month\|month-1\|month-2\|all`, `?matchType=`, `?mode=`. Lu dans `PositionMetricCell`, voir [Positions et villes](../features/positions-villes.md) |
-| POST | `/sync-batch-manual` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Enqueue/traite des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/resync-files-queue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Liste des jobs de resync fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/resync-files-queue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Enqueue des jobs de resync fichiers — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/sync-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Sync direct des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/resync-files-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Resync depuis fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/clear-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Réinitialise la télémétrie des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/fetch-files-selected` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Télécharge/capture les fichiers CDN sans parser — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/sync-selected-enqueue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Poll de progression du mode "Direct Sync" — non documenté ailleurs, détail ci-dessous |
-| POST | `/sync-selected-enqueue` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Enqueue des matchs pour sync live — détail ci-dessous |
-| POST | `/dead-letter` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Remet des jobs en queue depuis la dead-letter — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/sync-batch-manual` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Enqueue/traite des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/resync-files-queue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Liste des jobs de resync fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/resync-files-queue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Enqueue des jobs de resync fichiers — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/sync-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Sync direct des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/resync-files-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Resync depuis fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/clear-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Réinitialise la télémétrie des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/fetch-files-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Télécharge/capture les fichiers CDN sans parser — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/sync-selected-enqueue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Poll de progression du mode "Direct Sync" — non documenté ailleurs, détail ci-dessous |
+| POST | `/sync-selected-enqueue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Enqueue des matchs pour sync live — détail ci-dessous |
+| POST | `/dead-letter` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Remet des jobs en queue depuis la dead-letter — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/queue-cleanup` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Actions de maintenance (reorder/cleanup/cancel) — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/metrics` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Métriques queue (JSON ou Prometheus) — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/observability` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Totaux, p95, taux d'échec, alertes — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/recoveries` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Stats de récupération de jobs bloqués — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/metrics` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Métriques queue (JSON ou Prometheus) — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/observability` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Totaux, p95, taux d'échec, alertes — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/recoveries` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Stats de récupération de jobs bloqués — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/recalc-aggregates-batch` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Recalcule les agrégats périodiques — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/import-file` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/backfill-null-json` | `requireClanFeature('clan-telemetry-tools')` (SuperUser ; Owner du clan si ouvert — verrouillé) | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/import-file` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
+| POST | `/backfill-null-json` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
 
 > Les 4 routes `weapons`, `positions`, `heatmap` et `drop-zones` utilisent `requireNavPermission(...)`, un contrôle par rôle **configurable** via `/settings/nav-permissions` (clés `clan.stats-weapons`, `clan.positions`, `clan.heatmap-kills`, `clan.drop-zones`) — pas une restriction Owner figée. [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) ont été corrigés en conséquence (2026-07-05).
 

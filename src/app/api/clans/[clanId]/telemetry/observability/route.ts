@@ -7,7 +7,7 @@ import {
 } from '@/lib/pubg-telemetry/api-contract'
 import { TELEMETRY_LIVE_SYNC_QUEUE_ACTION } from '@/lib/pubg-telemetry/live-sync-queue'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
-import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 
 type TimeWindow = '24h' | '7d' | '30d' | 'all'
 
@@ -95,7 +95,7 @@ export async function GET(
       })
     }
 
-    const roleError = await requireClanFeature(request, parsedClanId, 'clan-telemetry-tools')
+    const roleError = await requirePlatformAdmin(request)
     if (roleError) {
       return roleError
     }

@@ -93,9 +93,9 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
     sitemap: { priority: 0.7, changeFrequency: 'weekly' },
   },
   '/join': {
-    title: 'Inscrire ou rejoindre son clan PUBG',
+    title: 'Inscrire son clan PUBG ou relier son compte',
     description:
-      'Donne ton pseudo PUBG : on retrouve ton compte et ton clan. Rejoins-le sur chickendinner.fr ou propose-le pour qu’il soit suivi.',
+      'Donne ton pseudo PUBG : on retrouve ton compte et ton clan. Relie ton compte à ton clan s’il est déjà suivi, ou inscris-le. Le site ne recrute pas de joueurs.',
     index: true,
     sitemap: { priority: 0.6, changeFrequency: 'monthly' },
   },

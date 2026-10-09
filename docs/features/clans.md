@@ -183,7 +183,9 @@ Génère un token d'invitation et envoie un email ou un lien Discord. Voir `docs
 
 ### Ajout d'un membre — flux auto-inscription (`/join`)
 
-Un nouveau joueur peut rejoindre ou créer un clan via la page `/join` sans intervention préalable d'un Owner.
+Un joueur relie son compte à son clan déjà suivi, ou inscrit son clan, via la page `/join`, sans intervention préalable
+d'un Owner. Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG (vocabulaire décidé le 2026-10-09,
+[accueil.md](accueil.md) § 2).
 
 **Page :** `/join`  
 **Endpoint :** `POST /api/join`  

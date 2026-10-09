@@ -57,9 +57,9 @@ export async function sendClanRejectedEmail(
       subject: `Votre demande de clan [${input.clanTag}] ${input.clanName} n'a pas été retenue`,
       text:
         `Bonjour ${input.playerName},\n\n` +
-        `Votre demande de création du clan "${input.clanName}" [${input.clanTag}] n'a pas été retenue.\n` +
+        `Votre demande d'inscription du clan "${input.clanName}" [${input.clanTag}] n'a pas été retenue.\n` +
         (input.reason ? `\nMotif : ${input.reason}\n` : '') +
-        `\nVous pouvez soumettre une nouvelle demande, ou rejoindre un clan déjà présent sur le site.\n`,
+        `\nVous pouvez soumettre une nouvelle demande depuis la page d'inscription du site.\n`,
     })
     return { sent: true }
   } catch (error) {

@@ -93,7 +93,7 @@ export async function POST(request: Request) {
       if (existingMember.joinStatus === 'pending') {
         return Response.json(
           {
-            error: `Une demande d'adhésion pour le joueur "${pubgPlayerName}" est déjà en attente de validation par l'administrateur du clan "${existingMember.clan?.name ?? 'ce clan'}".`,
+            error: `Une demande de rattachement du joueur "${pubgPlayerName}" est déjà en attente de validation par l'administrateur du clan "${existingMember.clan?.name ?? 'ce clan'}".`,
             code: 'JOIN_REQUEST_PENDING',
             clanId: existingMember.clan?.id,
             clanName: existingMember.clan?.name,
@@ -184,8 +184,8 @@ export async function POST(request: Request) {
     // Mode Join : nécessite une session connectée avec message adapté
     if (!session) {
       const actionDesc = clan
-        ? `envoyer votre demande d'adhésion au clan "${clan.name}"`
-        : `soumettre la création d'un nouveau clan`
+        ? `envoyer votre demande de rattachement au clan "${clan.name}"`
+        : `soumettre l'inscription d'un nouveau clan`
       return Response.json(
         {
           error: `Vous devez être connecté avec votre compte utilisateur pour ${actionDesc}.`,
@@ -294,7 +294,7 @@ export async function POST(request: Request) {
         memberId: clanMember.id,
         message: reopenedRejectedClan
           ? `Le clan "${clan.name}" avait été refusé : votre demande le soumet de nouveau à la validation du SuperUser.`
-          : `Votre demande d'adhésion au clan "${clan.name}" a été soumise avec succès. Elle est en attente d'approbation par les administrateurs.`,
+          : `Votre demande de rattachement au clan "${clan.name}" a été envoyée. Elle attend l'approbation de ses administrateurs.`,
       }
     } else {
       // CASE 2: Clan doesn't exist - create new clan and member
@@ -408,7 +408,7 @@ export async function POST(request: Request) {
         clanId: newClan.id,
         clanName: newClan.name,
         memberId: clanMember.id,
-        message: `Votre demande de création du clan "${newClan.name}" a été soumise avec succès. Elle est en attente de validation par le SuperUser avant son activation dans la ligue.`,
+        message: `Votre demande d'inscription du clan "${newClan.name}" a été envoyée. Elle attend la validation du SuperUser avant que le clan soit suivi par la ligue.`,
       }
     }
 

@@ -37,9 +37,11 @@ import { getPeriodStart } from '@/lib/period'
  * Vitrine publique de chickendinner.fr (`/`, visiteurs non connectés) — docs/features/accueil.md.
  * Maquette : Claude Design « Accueil chickendinner.dc.html » (écrans 4a à 4d).
  *
- * Plein écran, sans le shell : héros de jeu (boussole, compteurs, kill feed), Top 1 récents en carrousel, appel à
- * rejoindre, « Pourquoi atterrir ici » (Ligue, tournois, comparateur). Le héros, le bandeau « Rejoindre » et la carte
+ * Plein écran, sans le shell : héros de jeu (boussole, compteurs, kill feed), Top 1 récents en carrousel, inscription
+ * des clans, « Pourquoi atterrir ici » (Ligue, tournois, comparateur). Le héros, le bandeau « Inscription » et la carte
  * Tournois sont sombres par construction (photo) ; le reste suit le thème.
+ * Vocabulaire : le site ne recrute pas, il suit les clans qui existent déjà dans PUBG — « inscrire son clan », « relier
+ * son compte », jamais « rejoindre le squad » ni « recrutement » (décision du 2026-10-09, docs/features/accueil.md).
  * Affichée à tous : un membre connecté (`accountHref`) y trouve « Mon espace » au lieu de « Se connecter ».
  */
 
@@ -58,8 +60,8 @@ const NAV_LINKS = [
 const JOIN_STEPS = [
   { title: 'Donne ton pseudo PUBG', text: 'On retrouve ton compte et le clan PUBG auquel il appartient.' },
   {
-    title: 'Rejoins ton clan ou fais-le suivre',
-    text: 'Ton clan est déjà ici : demande à le rejoindre. Sinon, propose-le, un administrateur valide.',
+    title: 'Relie ton compte à ton clan, ou inscris-le',
+    text: 'Ton clan est déjà suivi : son admin valide ton compte. Sinon, inscris-le : un administrateur du site valide.',
   },
   { title: 'Tes stats arrivent ici', text: 'Kills, drops, armes, top 1 : ton tableau de bord se remplit tout seul.' },
 ]
@@ -341,7 +343,7 @@ function DinnerSection({
 }
 
 /**
- * « Pourquoi atterrir ici » : les trois pages publiques qui font venir un clan (maquette, section sous « Rejoindre »).
+ * « Pourquoi atterrir ici » : les trois pages publiques qui font venir un clan (maquette, section sous « Inscription »).
  * Textes vérifiés contre les pages le 2026-09-27 (Ligue revue le 2026-10-04) : la Ligue classe au Power score
  * (placement, dégâts, kills, knocks ; Normal, Ranked, Casual ou tournois) sur la semaine, le mois ou depuis le début ; un tournoi compte tout seul ses parties personnalisées, sans inscription ;
  * le comparateur met des clans face à face (pas des joueurs, et sans mesure de précision).
@@ -409,7 +411,7 @@ function WhyLandSection() {
         </div>
         <div className="grid gap-3.5 md:grid-cols-3">
           {card(plain[0])}
-          {/* Tournois : carte sombre sur photo, comme le bandeau « Rejoindre ». */}
+          {/* Tournois : carte sombre sur photo, comme le bandeau « Inscription ». */}
           <article aria-labelledby="why-02" className="home-join relative flex flex-col gap-3.5 overflow-hidden rounded-[18px] border border-amber-400/50 p-5 text-white lg:p-7">
             <div className="absolute inset-0 bg-cover bg-no-repeat opacity-[0.28]" style={{ backgroundImage: `url(${HERO_IMAGE})`, backgroundPosition: '70% 60%' }} aria-hidden="true" />
             <div className="absolute inset-0 bg-gradient-to-b from-[rgb(20_13_5/0.6)] to-[rgb(20_13_5/0.95)]" aria-hidden="true" />
@@ -547,7 +549,7 @@ const DISCORD_FEATURES = [
 function DiscordSection() {
   return (
     <section className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20" aria-labelledby="home-discord-title">
-      {/* Bandeau sombre sur photo, comme « Rejoindre ». */}
+      {/* Bandeau sombre sur photo, comme « Inscription ». */}
       <div className="home-join relative mx-auto max-w-[1200px] overflow-hidden rounded-[22px] text-white">
         <div className="home-join-bg absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: `url(${DISCORD_IMAGE})` }} aria-hidden="true" />
         <div className="home-join-shade absolute inset-0" aria-hidden="true" />
@@ -612,7 +614,7 @@ const ZONE_READING_POINTS = [
 function ZoneReadingSection() {
   return (
     <section className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20" aria-labelledby="home-zone-reading-title">
-      {/* Même bandeau sombre sur photo que Discord et « Rejoindre ». */}
+      {/* Même bandeau sombre sur photo que Discord et « Inscription ». */}
       <div className="home-join relative mx-auto max-w-[1200px] overflow-hidden rounded-[22px] text-white">
         <div className="home-join-bg absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: `url(${ZONE_READING_IMAGE})` }} aria-hidden="true" />
         <div className="home-join-shade absolute inset-0" aria-hidden="true" />
@@ -688,7 +690,7 @@ export default function HomeShowcase({
           </Link>
           <nav className="ml-6 hidden gap-1 lg:flex" aria-label="Navigation publique">
             {NAV_LINKS.map((link) => (
-              <Link key={link.href} href={link.href} className="home-hero-link inline-flex items-center rounded-lg px-3 py-2 text-sm font-medium">
+              <Link key={link.href} href={link.href} className="home-hero-link inline-flex items-center whitespace-nowrap rounded-lg px-3 py-2 text-sm font-medium">
                 {link.label}
                 {link.href === '/tournaments' ? <TournamentsNavBadge data={tournaments} /> : null}
               </Link>
@@ -697,7 +699,7 @@ export default function HomeShowcase({
           <div className="ml-auto flex items-center gap-2">
             <Link
               href={accountHref ?? '/login'}
-              className="home-glass hidden h-[38px] items-center rounded-[10px] px-3.5 text-sm font-semibold text-white lg:inline-flex"
+              className="home-glass hidden h-[38px] items-center whitespace-nowrap rounded-[10px] px-3.5 text-sm font-semibold text-white lg:inline-flex"
             >
               {accountHref ? 'Mon espace' : 'Se connecter'}
             </Link>
@@ -712,8 +714,10 @@ export default function HomeShowcase({
                 <LogIn className="h-[18px] w-[18px]" aria-hidden="true" />
               )}
             </Link>
-            <a href="#rejoindre" className="hidden h-[38px] items-center rounded-[10px] bg-amber-400 px-4 text-sm font-bold text-amber-950 hover:bg-amber-300 lg:inline-flex">
-              Rejoindre
+            <a href="#inscription" className="hidden h-[38px] items-center whitespace-nowrap rounded-[10px] bg-amber-400 px-4 text-sm font-bold text-amber-950 hover:bg-amber-300 lg:inline-flex">
+              {/* De 1 024 à 1 279 px, le libellé long ne laisse pas le menu tenir sur une ligne. */}
+              <span className="xl:hidden">Inscription</span>
+              <span className="hidden xl:inline">Inscrire mon clan</span>
             </a>
             <button
               type="button"
@@ -740,8 +744,8 @@ export default function HomeShowcase({
                 {link.href === '/tournaments' ? <TournamentsNavBadge data={tournaments} /> : null}
               </Link>
             ))}
-            <a href="#rejoindre" onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-bold text-amber-300">
-              Rejoindre
+            <a href="#inscription" onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-bold text-amber-300">
+              Inscrire mon clan
             </a>
           </nav>
         ) : null}
@@ -774,12 +778,12 @@ export default function HomeShowcase({
           </p>
           <div className="flex flex-wrap gap-2.5">
             <a
-              href="#rejoindre"
+              href="#inscription"
               className="relative inline-flex h-12 items-center gap-2 rounded-xl bg-amber-400 px-[22px] text-base font-bold text-amber-950 hover:bg-amber-300"
             >
               <span className="home-cta-glow absolute -inset-1 rounded-2xl" aria-hidden="true" />
               <Plane className="relative h-[18px] w-[18px]" aria-hidden="true" />
-              <span className="relative">Rejoindre le squad</span>
+              <span className="relative">Inscrire mon clan</span>
             </a>
             <Link
               href="/clans-leaderboard"
@@ -823,18 +827,21 @@ export default function HomeShowcase({
         weekWins={stats?.weekWins ?? null}
       />
 
-      {/* REJOINDRE */}
-      <section id="rejoindre" className="scroll-mt-4 px-4 py-10 md:px-8 md:py-16 lg:px-14 lg:py-20">
+      {/* INSCRIPTION */}
+      <section id="inscription" aria-labelledby="home-join-title" className="scroll-mt-4 px-4 py-10 md:px-8 md:py-16 lg:px-14 lg:py-20">
         <div className="home-join relative mx-auto max-w-[1200px] overflow-hidden rounded-[22px] text-white">
           <div className="home-join-bg absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: `url(${HERO_IMAGE})` }} aria-hidden="true" />
           <div className="home-join-shade absolute inset-0" aria-hidden="true" />
           <div className="relative flex max-w-[640px] flex-col gap-[22px] p-6 md:p-10 lg:p-14">
-            <span className="text-xs font-bold uppercase tracking-[0.14em] text-amber-400">Recrutement ouvert</span>
-            <h2 className="home-display m-0 text-[40px] font-semibold uppercase leading-[0.92] lg:text-[64px]">
-              Il reste une place
+            <span className="text-xs font-bold uppercase tracking-[0.14em] text-amber-400">Ton clan sur chickendinner.fr</span>
+            <h2 id="home-join-title" className="home-display m-0 text-[40px] font-semibold uppercase leading-[0.92] lg:text-[64px]">
+              Ton clan joue déjà.
               <br />
-              dans l&apos;avion.
+              Ses stats t&apos;attendent.
             </h2>
+            <p className="m-0 text-[15px] leading-normal text-white/80" data-testid="home-join-scope">
+              chickendinner.fr ne recrute pas : il suit les clans qui existent déjà dans PUBG.
+            </p>
             <ol className="flex flex-col gap-3">
               {JOIN_STEPS.map((step, index) => (
                 <li key={step.title} className="flex items-start gap-3.5">
@@ -853,7 +860,7 @@ export default function HomeShowcase({
                 href="/join"
                 className="inline-flex h-12 items-center gap-2 rounded-xl bg-amber-400 px-[22px] text-base font-bold text-amber-950 hover:bg-amber-300"
               >
-                Demander à rejoindre
+                Donner mon pseudo PUBG
               </Link>
               {accountHref || visitorMode ? (
                 <Link

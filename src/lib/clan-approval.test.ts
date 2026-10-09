@@ -52,18 +52,18 @@ describe('Clan approval logic', () => {
   it('adapte le message d’authentification selon qu’il s’agit d’un clan existant ou nouveau', () => {
     const formatAuthError = (clan: { name: string } | null) => {
       const actionDesc = clan
-        ? `envoyer votre demande d'adhésion au clan "${clan.name}"`
-        : `soumettre la création d'un nouveau clan`
+        ? `envoyer votre demande de rattachement au clan "${clan.name}"`
+        : `soumettre l'inscription d'un nouveau clan`
       return `Vous devez être connecté avec votre compte utilisateur pour ${actionDesc}.`
     }
 
     const msgExistingClan = formatAuthError({ name: 'SMK' })
     const msgNewClan = formatAuthError(null)
 
-    expect(msgExistingClan).toBe('Vous devez être connecté avec votre compte utilisateur pour envoyer votre demande d\'adhésion au clan "SMK".')
+    expect(msgExistingClan).toBe('Vous devez être connecté avec votre compte utilisateur pour envoyer votre demande de rattachement au clan "SMK".')
     expect(msgExistingClan).not.toContain('créer un clan')
 
-    expect(msgNewClan).toBe('Vous devez être connecté avec votre compte utilisateur pour soumettre la création d\'un nouveau clan.')
-    expect(msgNewClan).not.toContain('demande d\'adhésion')
+    expect(msgNewClan).toBe('Vous devez être connecté avec votre compte utilisateur pour soumettre l\'inscription d\'un nouveau clan.')
+    expect(msgNewClan).not.toContain('demande de rattachement')
   })
 })

@@ -6,7 +6,8 @@ import { mockClanLeaderboard, mockHomeShowcase } from './support/pages'
 
 /**
  * Vitrine publique de l'accueil (`/`, visiteur sans session) — docs/features/accueil.md.
- * Plein écran sans le shell, compteurs et kill feed, carrousel des Top 1, liens vers /join, /login et /clans ;
+ * Plein écran sans le shell, compteurs et kill feed, carrousel des Top 1, liens vers /join, /login et /clans, vocabulaire
+ * d'inscription des clans (jamais de recrutement) ;
  * entrée « Accueil » du menu latéral. Le cas « membre connecté » (« Mon espace ») exige une session en base : non couvert.
  */
 
@@ -107,8 +108,16 @@ test('le kill feed nomme le tueur, jamais la victime', async ({ page }) => {
   await expect(feed.locator('li')).toHaveCount(5)
 })
 
-test('les appels à l’action mènent à /join, /login et au mode visiteur', async ({ page }) => {
-  await expect(page.getByRole('link', { name: 'Demander à rejoindre' })).toHaveAttribute('href', '/join')
+test('les appels à l’action parlent d’inscrire son clan, jamais de recrutement, et mènent à /join, /login et au mode visiteur', async ({ page }) => {
+  // Le site suit les clans qui existent déjà dans PUBG : aucun texte ne doit ressembler à une annonce de recrutement.
+  await expect(page.locator('body')).not.toContainText(/recrutement|rejoindre le squad|une place dans l.avion|demander à rejoindre/i)
+  const signUp = page.getByRole('link', { name: 'Inscrire mon clan', exact: true }).filter({ visible: true })
+  await expect(signUp.first()).toHaveAttribute('href', '#inscription')
+  await signUp.first().click()
+  const section = page.getByRole('region', { name: /Ton clan joue déjà/ })
+  await expect(section).toBeInViewport()
+  await expect(page.getByTestId('home-join-scope')).toHaveText('chickendinner.fr ne recrute pas : il suit les clans qui existent déjà dans PUBG.')
+  await expect(section.getByRole('link', { name: 'Donner mon pseudo PUBG' })).toHaveAttribute('href', '/join')
   await expect(page.getByRole('link', { name: 'Parcourir en visiteur' })).toHaveAttribute('href', '/clans')
   await expect(page.getByRole('link', { name: 'Se connecter' }).filter({ visible: true })).toHaveAttribute('href', '/login')
   await expect(page.getByRole('link', { name: 'Voir le classement' })).toHaveAttribute('href', '/clans-leaderboard')

@@ -62,7 +62,7 @@ const GUIDE = [
       <>
         donner son pseudo PUBG pour{' '}
         <Link href="/join" className="app-link font-semibold">
-          rejoindre ou créer un clan
+          relier son compte ou inscrire son clan
         </Link>
         .
       </>
@@ -196,7 +196,7 @@ function LoginPageContent() {
           Retour à l’accueil du site
         </Link>
         <Link href="/join" className="app-link inline-flex items-center gap-1 text-xs font-semibold">
-          Rejoindre ou créer un clan
+          Inscrire son clan
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </div>
@@ -292,9 +292,9 @@ function LoginPageContent() {
             Retour à la page principale
           </Link>
           <p className="t-meta m-0 text-center">
-            Nouveau joueur ou nouveau clan ?{' '}
+            Pas encore de compte ?{' '}
             <Link href="/join" className="app-link font-semibold">
-              Rejoindre ou créer un clan
+              Relier son compte ou inscrire son clan
             </Link>
           </p>
         </div>

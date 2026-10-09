@@ -13,7 +13,8 @@ import { ButtonSpinner, Callout, ChoiceMenu, ClanLabel, ConfirmDialog, Tag, type
 import { useAuthSession } from '@/hooks/useAuthSession'
 
 /**
- * Rejoindre un clan ou en créer un — page plein écran, sans le shell. Selon la charte UI (docs/ui/index.html) et la mise
+ * Relier son compte à son clan, ou inscrire son clan — page plein écran, sans le shell. Le site ne recrute pas : il suit
+ * les clans qui existent déjà dans PUBG (vocabulaire décidé le 2026-10-09, docs/features/accueil.md). Selon la charte UI (docs/ui/index.html) et la mise
  * en page des pages d'accès (`AuthLayout`) : vérification du pseudo sur l'API PUBG (aperçu sans écriture), puis
  * confirmation dans la modale de la charte avant l'enregistrement de la demande.
  */
@@ -70,11 +71,11 @@ const HIGHLIGHTS: AuthHighlight[] = [
 ]
 
 const GUIDE = [
-  { tone: 'pos' as const, title: 'Rejoindre un clan existant', body: 'la demande d’adhésion est validée par l’administrateur du clan.' },
+  { tone: 'pos' as const, title: 'Clan déjà suivi', body: 'l’administrateur du clan valide le rattachement du compte.' },
   {
     tone: 'warn' as const,
-    title: 'Créer un nouveau clan',
-    body: 'pour écarter les bots et préserver l’intégrité de la ligue, toute création est validée par le SuperUser.',
+    title: 'Clan pas encore suivi',
+    body: 'pour écarter les bots et préserver l’intégrité de la ligue, toute inscription est validée par le SuperUser.',
   },
 ]
 
@@ -164,7 +165,7 @@ export default function JoinPage() {
       setIsConfirming(true)
       setConfirmError(null)
 
-      // Étape 2 : exécution définitive de l'adhésion ou de la création
+      // Étape 2 : enregistrement définitif du rattachement ou de l'inscription
       const response = await fetch('/api/join', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -230,9 +231,9 @@ export default function JoinPage() {
           <AuthVisual
             image="/squad.jpg"
             header={<img src={pubgLogo.src} alt="PUBG Battlegrounds" className="h-10 w-auto self-start object-contain" />}
-            kicker="Recrutement et clans"
-            title="Rejoignez l’escouade"
-            text="Intégrez un clan officiel PUBG ou fondez votre propre structure : statistiques, victoires et classements synchronisés en continu."
+            kicker="Inscription des clans"
+            title="Votre clan sur chickendinner.fr"
+            text="Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG. Reliez votre compte à votre clan, ou inscrivez-le : statistiques, victoires et classements synchronisés en continu."
           >
             <AuthHighlights items={HIGHLIGHTS} />
           </AuthVisual>
@@ -241,7 +242,7 @@ export default function JoinPage() {
         <div className="flex flex-col gap-1">
           <h2 className="t-section-title m-0 flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
-            Rejoindre ou créer un clan
+            Relier son compte ou inscrire son clan
           </h2>
           <p className="t-meta m-0">Le pseudo officiel PUBG identifie le profil et rattache le joueur à son clan.</p>
         </div>
@@ -328,7 +329,7 @@ export default function JoinPage() {
         </div>
       </AuthCard>
 
-      {/* Confirmation avant de rejoindre ou de créer un clan */}
+      {/* Confirmation avant de relier le compte ou d'inscrire le clan */}
       {previewData ? (
         <JoinConfirmDialog
           preview={previewData}
@@ -372,7 +373,7 @@ function JoinConfirmDialog({
   return (
     <ConfirmDialog
       icon={creating ? Crown : ShieldCheck}
-      title={creating ? 'Créer et diriger le clan' : 'Rejoindre le clan'}
+      title={creating ? 'Inscrire le clan' : 'Relier son compte au clan'}
       confirmLabel={!authenticated ? 'Se connecter pour continuer' : creating ? 'Soumettre au SuperUser' : 'Envoyer la demande à l’admin'}
       tone="primary"
       busy={busy}
@@ -386,13 +387,13 @@ function JoinConfirmDialog({
             <>Le clan {target} avait été refusé : la demande le soumet de nouveau à la validation du SuperUser.</>
           ) : creating ? (
             <>
-              Le clan {target} n’existe pas encore sur le site. Sa création est validée par le SuperUser ; une fois approuvé, le clan est
-              activé et vous en êtes le propriétaire (Owner).
+              Le clan {target} n’est pas encore suivi par le site. Son inscription est validée par le SuperUser ; une fois approuvée, le
+              clan est activé et vous en êtes le propriétaire (Owner).
             </>
           ) : (
             <>
-              Le clan {target} existe déjà : la demande d’adhésion est transmise à son administrateur, et vous devenez membre actif dès son
-              approbation.
+              Le clan {target} est déjà suivi : la demande de rattachement est transmise à son administrateur, et votre compte devient
+              membre actif dès son approbation.
             </>
           )}
         </p>

@@ -16,7 +16,7 @@ const DATA_ROWS = [
   { data: 'Matchs, statistiques, télémétrie (positions sur la carte comprises)', source: 'API PUBG, après la partie', usage: 'Stats, débriefings, ligue' },
   { data: 'Joueurs croisés en partie : pseudo, account_id, clan', source: 'Télémétrie des parties', usage: 'Kill feed, Némésis' },
   { data: 'Compte du site : e-mail, mot de passe chiffré, nom affiché, lien d’avatar', source: 'Toi, à l’inscription', usage: 'Connexion, invitations' },
-  { data: 'E-mail de contact d’une demande de clan', source: 'Toi, sur la page Rejoindre', usage: 'Réponse à la demande' },
+  { data: 'E-mail de contact d’une demande de clan', source: 'Toi, sur la page d’inscription', usage: 'Réponse à la demande' },
   { data: 'Commentaires sur la carte des ressources', source: 'Toi', usage: 'Validation des points' },
   { data: 'Résultats publiés sur Discord : pseudos de l’escouade, kills, dégâts, carte', source: 'Matchs et tournois du clan', usage: 'Canal Discord du clan, si un admin l’active' },
   { data: 'Demande de retrait : pseudo, e-mail, motif', source: 'Toi, par le formulaire', usage: 'Traitement de ta demande' },

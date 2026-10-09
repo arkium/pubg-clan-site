@@ -189,7 +189,7 @@ test('tournois : pastille « En direct » sur le lien et ticket du direct, avec 
   expect(await overflowOf(page)).toBeLessThanOrEqual(0)
 })
 
-test('tournois : le direct et son top 3, puis les trois prochains, avant les Chicken Dinners', async ({ page }, testInfo) => {
+test('tournois : le direct et son top 3, puis les prochains par pages de trois, avant les Chicken Dinners', async ({ page }, testInfo) => {
   const section = page.getByTestId('home-tournaments')
   await section.scrollIntoViewIfNeeded()
   await expect(section.getByRole('heading', { name: 'En ce moment et à venir' })).toBeVisible()
@@ -203,7 +203,7 @@ test('tournois : le direct et son top 3, puis les trois prochains, avant les Chi
   await expect(live.getByRole('listitem').first()).toContainText('[LMT] La Meute')
   await expect(live.getByRole('link', { name: 'Suivre le classement' })).toHaveAttribute('href', '/tournaments/coupe-automne')
 
-  // Cartes à partir de 768 px, agenda en dessous ; trois tournois au plus, le quatrième reste dans « Tous les tournois ».
+  // Cartes à partir de 768 px, agenda en dessous ; trois tournois par page, le quatrième derrière les chevrons.
   const shown = isUnder768(testInfo) ? page.getByTestId('home-tournament-row') : page.getByTestId('home-tournament-card')
   const hidden = isUnder768(testInfo) ? page.getByTestId('home-tournament-card') : page.getByTestId('home-tournament-row')
   await expect(shown.filter({ visible: true })).toHaveCount(3)
@@ -212,6 +212,15 @@ test('tournois : le direct et son top 3, puis les trois prochains, avant les Chi
   await expect(shown.first()).toContainText('dans 5 h')
   await expect(section).not.toContainText('Coupe d’hiver')
   await expect(section).toContainText('Pas d’inscription')
+
+  const pager = section.getByRole('navigation', { name: 'Pages des prochains tournois' })
+  await expect(pager).toContainText('1 / 2')
+  await expect(pager.getByRole('button', { name: 'Tournois précédents' })).toBeDisabled()
+  await pager.getByRole('button', { name: 'Tournois suivants' }).click()
+  await expect(pager).toContainText('2 / 2')
+  await expect(shown.filter({ visible: true })).toHaveCount(1)
+  await expect(shown.first()).toContainText('Coupe d’hiver')
+  await expect(pager.getByRole('button', { name: 'Tournois suivants' })).toBeDisabled()
 
   const order = await page.evaluate(() => {
     const ids = [...document.querySelectorAll('section[aria-labelledby]')].map((element) => element.getAttribute('aria-labelledby'))
@@ -239,6 +248,26 @@ test('tournois : rien en cours, le prochain tournoi et le nombre de tournois à 
     await expect(ticket).toContainText('Scrims du jeudi')
     await expect(ticket).toContainText('Puis : Solo Showdown #4 · dans 4 j')
   }
+})
+
+test('tournois : un tournoi à venir prend toute la largeur, deux se partagent la rangée, sans chevrons', async ({ api, page }, testInfo) => {
+  test.skip(isUnder768(testInfo), 'cartes à partir de 768 px, agenda en dessous')
+  const upcoming = homeTournaments('upcoming').upcoming
+  const section = page.getByTestId('home-tournaments')
+  const cards = page.getByTestId('home-tournament-card')
+  const widthOf = async (index: number) => (await cards.nth(index).boundingBox())?.width ?? 0
+
+  for (const count of [1, 2]) {
+    api.on('GET', '/api/home/tournaments', { body: { live: [], upcoming: upcoming.slice(0, count), upcomingCount: count, results: [] } })
+    await page.reload()
+    await section.scrollIntoViewIfNeeded()
+    await expect(cards).toHaveCount(count)
+    const rowWidth = (await page.getByTestId('home-tournament-cards').boundingBox())?.width ?? 0
+    // Une carte : toute la rangée ; deux : la moitié chacune (à l'écart près).
+    expect(Math.abs((await widthOf(0)) * count - rowWidth)).toBeLessThanOrEqual(16)
+    await expect(section.getByRole('navigation', { name: 'Pages des prochains tournois' })).toHaveCount(0)
+  }
+  expect(await overflowOf(page)).toBeLessThanOrEqual(0)
 })
 
 test('tournois : un tournoi terminé depuis moins de 3 jours, ses résultats seuls', async ({ api, page }) => {

@@ -17,8 +17,8 @@ import type { TournamentMode } from '@/lib/tournament-service'
 export const HOME_UPCOMING_WINDOW_DAYS = 14
 /** Les résultats d'un tournoi terminé restent 3 jours après son dernier jour (décision du 2026-10-08). */
 export const HOME_RESULTS_WINDOW_DAYS = 3
-/** Prochains tournois envoyés à la vitrine (trois affichés, un de plus pour « Ensuite » et « Puis »). */
-export const HOME_UPCOMING_LIMIT = 4
+/** Prochains tournois envoyés à la vitrine : trois pages de trois, parcourues par chevrons (le reste dans « Tous les tournois »). */
+export const HOME_UPCOMING_LIMIT = 9
 /** Lignes d'un classement (en cours ou final). */
 export const HOME_LEADERS_LIMIT = 3
 

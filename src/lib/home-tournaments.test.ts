@@ -98,7 +98,10 @@ describe('buildHomeTournaments', () => {
   })
 
   it('classe les tournois à venir du plus proche au plus lointain, plafonnés, en gardant le total', () => {
-    const upcoming = Array.from({ length: HOME_UPCOMING_LIMIT + 2 }, (_, index) => overview(`u${index}`, 'upcoming', { startDate: inDays(10 - index) }))
+    // Débuts de plus en plus proches, tous dans la fenêtre : le dernier créé est le prochain.
+    const upcoming = Array.from({ length: HOME_UPCOMING_LIMIT + 2 }, (_, index) =>
+      overview(`u${index}`, 'upcoming', { startDate: inDays(1 + (HOME_UPCOMING_LIMIT + 2 - index) / 2) })
+    )
     const payload = buildHomeTournaments(upcoming, NOW)
     expect(payload.upcoming).toHaveLength(HOME_UPCOMING_LIMIT)
     expect(payload.upcoming[0].id).toBe(`u${HOME_UPCOMING_LIMIT + 1}`)

@@ -95,6 +95,14 @@ Les rôles `owner` et `superuser` déplacent automatiquement l'item vers le menu
 > gardes (`src/lib/auth/admin-guards.ts`) : passer une entrée d'administration à `owner` ne l'ouvre pas aux Owners.
 > Le SuperUser passe toujours `requireNavPermission`, même sans membre actif et même sur une entrée `hidden`.
 
+> **Entrées personnelles (2026-10-10).** `PERSONAL_NAV_KEYS` (`member.notifications`, `member.notification-preferences`)
+> ne s'affichent que pour un membre lié au compte connecté — ni au visiteur, ni sur le profil d'un coéquipier —, quel
+> que soit leur rôle : leurs routes sont gardées par `requireOwnMember` ([notifications.md](../features/notifications.md)).
+>
+> **Écart relevé, non corrigé :** le tableau ci-dessus dit `member` = « session valide », mais le menu
+> (`canAccessRole`, `ClanNavigation.tsx`) affiche une entrée `member` à tout le monde, visiteur compris ; seule la garde
+> d'API la distingue de `none` (et le mode visiteur ouvre toutes les gardes `requireNavPermission`).
+
 ---
 
 ## Service `nav-permissions-service.ts`

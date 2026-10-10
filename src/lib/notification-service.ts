@@ -1,28 +1,31 @@
 import { Prisma } from '@prisma/client'
 
+import { DISTINCTION_BADGE_META, type DistinctionBadgeKey } from '@/lib/distinction-badges'
 import { sendEmail } from '@/lib/email-service'
+import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
+import { buildNotificationEmail } from '@/lib/notification-email'
+import { NOTIFICATION_PREFERENCE_DEFAULTS } from '@/lib/notification-preferences'
 import { prisma } from '@/lib/prisma'
 import type { NotificationType } from '@/types/notifications'
 
 type NotificationMetric = 'kills' | 'damage' | 'wr'
 
-const DEFAULT_PREFERENCES = {
-  squadDetected: true,
-  topPerformance: true,
-  challengeStarted: true,
-  inviteReminder: false,
-  emailNotifications: false,
-  pushNotifications: true,
-  inAppNotifications: true,
-} as const
-
+// Titres et messages en français : ils s'affichent dans la page des notifications et partent tels quels par e-mail.
 function metricLabel(metric: NotificationMetric) {
-  if (metric === 'kills') return 'kills'
-  if (metric === 'damage') return 'damage'
-  return 'win rate'
+  if (metric === 'kills') return 'en kills'
+  if (metric === 'damage') return 'en dégâts'
+  return 'en win rate'
 }
 
-function badgeForMetric(metric: NotificationMetric) {
+/** Période de `stats-calculator.ts` (`week`, `month`, `all`) ; une valeur inconnue n'ajoute rien. */
+function periodLabel(period: string) {
+  if (period === 'week') return ' cette semaine'
+  if (period === 'month') return ' ce mois-ci'
+  if (period === 'all') return ' depuis le début'
+  return ''
+}
+
+function badgeForMetric(metric: NotificationMetric): DistinctionBadgeKey {
   if (metric === 'kills') return 'top_killer'
   if (metric === 'damage') return 'top_damage'
   return 'best_wr'
@@ -34,7 +37,7 @@ async function getOrCreatePreferences(memberId: number) {
     update: {},
     create: {
       memberId,
-      ...DEFAULT_PREFERENCES,
+      ...NOTIFICATION_PREFERENCE_DEFAULTS,
     },
   })
 }
@@ -57,37 +60,40 @@ function isTypeEnabled(
   }
 }
 
-async function sendEmailNotification(memberId: number, title: string) {
+/**
+ * Destinataire des e-mails d'un membre : l'adresse du compte lié. `deliverable` seulement pour un compte actif, à
+ * l'adresse vérifiée et réelle (jamais l'adresse technique `@local.invalid` d'une invitation). `null` sans compte lié.
+ */
+export async function getNotificationEmailRecipient(memberId: number) {
   const identity = await prisma.memberIdentity.findUnique({
-    where: {
-      memberId,
-    },
+    where: { memberId },
     include: {
-      user: {
-        select: {
-          email: true,
-          emailVerifiedAt: true,
-          status: true,
-        },
-      },
-      member: {
-        select: {
-          displayName: true,
-        },
-      },
+      user: { select: { email: true, emailVerifiedAt: true, status: true } },
+      member: { select: { displayName: true } },
     },
   })
+  if (!identity) return null
 
-  if (!identity || !identity.user.emailVerifiedAt || identity.user.status !== 'active') {
+  const address = identity.user.email.trim()
+  const email = address.toLowerCase().endsWith('@local.invalid') ? null : address
+  return {
+    email,
+    displayName: identity.member.displayName,
+    deliverable: email !== null && Boolean(identity.user.emailVerifiedAt) && identity.user.status === 'active',
+  }
+}
+
+async function sendEmailNotification(memberId: number, title: string, message: string) {
+  const recipient = await getNotificationEmailRecipient(memberId)
+
+  if (!recipient?.deliverable || !recipient.email) {
     console.info(`[Notification] Email skipped for member ${memberId}: no verified account`)
     return
   }
 
-  await sendEmail({
-    to: identity.user.email,
-    subject: title,
-    text: `Bonjour ${identity.member.displayName},\n\n${title}`,
-  })
+  // Même gabarit que l'aperçu de la page des préférences, avec le lien de désabonnement et ses en-têtes.
+  const email = buildNotificationEmail({ memberId, displayName: recipient.displayName, title, message })
+  await sendEmail({ to: recipient.email, subject: email.subject, text: email.text, headers: email.headers })
 }
 
 async function sendPushNotification(memberId: number, title: string) {
@@ -126,7 +132,7 @@ export async function createNotificationForMember({
     : null
 
   if (preference.emailNotifications) {
-    await sendEmailNotification(memberId, title)
+    await sendEmailNotification(memberId, title, message)
   }
 
   if (preference.pushNotifications) {
@@ -150,13 +156,16 @@ export async function notifySquadDetected(squadMatchId: string) {
     return
   }
 
+  const mapLabel = mapDisplayName(squadMatch.mapName, await getMapLabels())
+  const placement = squadMatch.placement ? ` — top ${squadMatch.placement}` : ''
+
   await Promise.all(
     squadMatch.members.map((member) =>
       createNotificationForMember({
         memberId: member.memberId,
         type: 'squad_detected',
-        title: 'New squad match detected!',
-        message: `Your squad played together on ${squadMatch.mapName}.`,
+        title: 'Nouvelle partie en escouade',
+        message: `Ton escouade a joué ensemble sur ${mapLabel}${placement}.`,
         data: {
           squadMatchId: squadMatch.id,
           pubgMatchId: squadMatch.pubgMatchId,
@@ -173,7 +182,7 @@ export async function notifyTopPerformance(
   metric: NotificationMetric,
   period: string
 ) {
-  const title = `You were top ${metricLabel(metric)} this ${period}!`
+  const title = `Tu es en tête du clan ${metricLabel(metric)}${periodLabel(period)}`
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
@@ -195,7 +204,7 @@ export async function notifyTopPerformance(
     memberId,
     type: 'top_performance',
     title,
-    message: `Congratulations! You earned the ${badgeForMetric(metric)} badge.`,
+    message: `Bravo ! Tu décroches la distinction « ${DISTINCTION_BADGE_META[badgeForMetric(metric)].shortLabel} ».`,
     data: {
       memberId,
       metric,
@@ -226,8 +235,8 @@ export async function notifyChallengeStarted(challengeId: string, clanId: number
       createNotificationForMember({
         memberId: member.id,
         type: 'challenge_started',
-        title: 'New challenge started',
-        message: `New challenge started for clan ${clan.name}.`,
+        title: 'Nouveau défi lancé',
+        message: `Un nouveau défi a démarré pour le clan ${clan.name}.`,
         data: {
           challengeId,
           clanId,
@@ -358,8 +367,8 @@ export async function notifyInviteReminder(memberId: number) {
   await createNotificationForMember({
     memberId,
     type: 'invite_reminder',
-    title: 'Invite your friends to the clan!',
-    message: 'Your clan is online — invite your friends and squad up.',
+    title: 'Ton clan est en ligne',
+    message: 'Invite tes amis et forme ton escouade pour la soirée.',
     data: {
       memberId,
       sentAt: now.toISOString(),

@@ -1,20 +1,9 @@
-import { NextRequest } from 'next/server'
-
+import { requireOwnMember } from '@/lib/auth/own-member-guard'
+import { getEmailSenderStatus } from '@/lib/email-service'
+import { buildNotificationEmail, NOTIFICATION_EMAIL_EXAMPLE } from '@/lib/notification-email'
+import { NOTIFICATION_PREFERENCE_DEFAULTS, pickPreferenceUpdate } from '@/lib/notification-preferences'
+import { getNotificationEmailRecipient } from '@/lib/notification-service'
 import { prisma } from '@/lib/prisma'
-import { requireSameClanAsMember } from '@/middleware/auth-permission'
-
-const preferenceFields = [
-  'squadDetected',
-  'topPerformance',
-  'challengeStarted',
-  'reportReady',
-  'inviteReminder',
-  'emailNotifications',
-  'pushNotifications',
-  'inAppNotifications',
-] as const
-
-type PreferenceField = (typeof preferenceFields)[number]
 
 function parseMemberId(memberId: string) {
   const parsed = Number(memberId)
@@ -30,20 +19,36 @@ async function ensureMemberExists(memberId: number) {
   return !!member
 }
 
-function getDefaultPreferences(memberId: number) {
-  return {
+/**
+ * Canal e-mail vu par le joueur : son adresse, si un e-mail peut réellement partir (compte vérifié, envoi configuré sur
+ * le serveur), et l'aperçu d'un e-mail — construit par `buildNotificationEmail`, comme les vrais, liens compris.
+ */
+async function emailChannel(memberId: number) {
+  const [recipient, member] = await Promise.all([
+    getNotificationEmailRecipient(memberId),
+    prisma.clanMember.findUnique({ where: { id: memberId }, select: { displayName: true } }),
+  ])
+  const sender = getEmailSenderStatus()
+  const preview = buildNotificationEmail({
     memberId,
-    squadDetected: true,
-    topPerformance: true,
-    challengeStarted: true,
-    reportReady: true,
-    inviteReminder: false,
-    emailNotifications: false,
-    pushNotifications: true,
-    inAppNotifications: true,
+    displayName: recipient?.displayName ?? member?.displayName ?? 'joueur',
+    ...NOTIFICATION_EMAIL_EXAMPLE,
+  })
+
+  return {
+    address: recipient?.email ?? null,
+    deliverable: recipient?.deliverable ?? false,
+    senderReady: sender.ready,
+    preview: {
+      from: sender.from,
+      subject: preview.subject,
+      text: preview.text,
+      oneClickUnsubscribe: 'List-Unsubscribe' in preview.headers,
+    },
   }
 }
 
+// Préférences personnelles : seul le compte lié au membre (et le SuperUser) les lit et les modifie.
 export async function GET(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
@@ -56,7 +61,7 @@ export async function GET(
       return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    const authError = await requireOwnMember(parsedMemberId, request)
     if (authError) return authError
 
     if (!(await ensureMemberExists(parsedMemberId))) {
@@ -66,10 +71,10 @@ export async function GET(
     const preferences = await prisma.notificationPreference.upsert({
       where: { memberId: parsedMemberId },
       update: {},
-      create: getDefaultPreferences(parsedMemberId),
+      create: { memberId: parsedMemberId, ...NOTIFICATION_PREFERENCE_DEFAULTS },
     })
 
-    return Response.json({ preferences })
+    return Response.json({ preferences, email: await emailChannel(parsedMemberId) })
   } catch (error) {
     console.error('Error fetching notification preferences:', error)
     return Response.json(
@@ -91,7 +96,7 @@ export async function PATCH(
       return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    const authError = await requireOwnMember(parsedMemberId, request)
     if (authError) return authError
 
     if (!(await ensureMemberExists(parsedMemberId))) {
@@ -104,13 +109,7 @@ export async function PATCH(
       return Response.json({ error: 'Invalid request body' }, { status: 400 })
     }
 
-    const updateData: Partial<Record<PreferenceField, boolean>> = {}
-
-    for (const field of preferenceFields) {
-      if (typeof body[field] === 'boolean') {
-        updateData[field] = body[field] as boolean
-      }
-    }
+    const updateData = pickPreferenceUpdate(body)
 
     if (Object.keys(updateData).length === 0) {
       return Response.json({ error: 'No valid preference fields provided' }, { status: 400 })
@@ -120,7 +119,8 @@ export async function PATCH(
       where: { memberId: parsedMemberId },
       update: updateData,
       create: {
-        ...getDefaultPreferences(parsedMemberId),
+        memberId: parsedMemberId,
+        ...NOTIFICATION_PREFERENCE_DEFAULTS,
         ...updateData,
       },
     })

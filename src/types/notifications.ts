@@ -10,6 +10,17 @@ export const NOTIFICATION_TYPES = [
 
 export type NotificationType = (typeof NOTIFICATION_TYPES)[number]
 
+/** Libellé de chaque type, affiché aux joueurs (filtre et pastille de la page des notifications). */
+export const NOTIFICATION_TYPE_LABELS: Record<NotificationType, string> = {
+  squad_detected: 'Partie en escouade',
+  top_performance: 'Performance',
+  challenge_started: 'Défi lancé',
+  invite_reminder: 'Rappel d’invitation',
+  join_request: 'Demande d’adhésion',
+  clan_creation_request: 'Création de clan',
+  privacy_request: 'Demande sur les données',
+}
+
 export interface NotificationItem {
   id: string
   memberId: number

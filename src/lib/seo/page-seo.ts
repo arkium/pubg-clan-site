@@ -123,6 +123,7 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
     sitemap: LEGAL_SITEMAP,
   },
   '/login': { title: 'Connexion', description: DEFAULT_DESCRIPTION, index: false },
+  '/notifications/desabonnement': { title: 'Ne plus recevoir ces e-mails', description: DEFAULT_DESCRIPTION, index: false },
   '/activate': { title: 'Activation du compte', description: DEFAULT_DESCRIPTION, index: false },
   '/reset-password': { title: 'Nouveau mot de passe', description: DEFAULT_DESCRIPTION, index: false },
   '/account': { title: 'Mon compte', description: DEFAULT_DESCRIPTION, index: false },

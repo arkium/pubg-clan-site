@@ -16,7 +16,7 @@ import { useHeaderHeightPublisher } from '@/hooks/useStickyToolbar'
 import { usePageData } from '@/hooks/usePageData'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
 import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
-import { getItemRole, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
+import { getItemRole, PERSONAL_NAV_KEYS, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
 
 type ClanSummary = {
   id: number
@@ -442,6 +442,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     return null
   })()
 
+  function isOwnLinkedMember(memberId: number | null): boolean {
+    return authenticated && memberId !== null && members.some((member) => member.memberId === memberId)
+  }
+
   function getCtxSectionItems(section: NavSection): { regularItems: CtxItem[]; roleItems: CtxItem[] } {
     const memberId = section === 'member-section' ? memberIdForCtx : activeMemberId
     const native = navPerms.items.filter((i) => {
@@ -475,6 +479,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       .filter((i) => canAccessRole(getItemRole(i.navKey, navPerms.roles)))
       // Outil d'un clan fermé aux Owners par le SuperUser (délégation, §5.3)
       .filter((i) => isSuperUser || !isNavKeyClosedToOwners(i.navKey, ownerFeatures))
+      // Notifications et préférences : seulement pour un membre du compte connecté (garde `requireOwnMember`)
+      .filter((i) => !PERSONAL_NAV_KEYS.has(i.navKey) || isOwnLinkedMember(memberId))
       .map((i) => ({
         navKey: i.navKey,
         label: i.label,

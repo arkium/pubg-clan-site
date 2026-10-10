@@ -205,12 +205,12 @@ export function ClanOfMomentCard({ clan, leagueSize, onOpen }: { clan: Directory
   )
 }
 
-/** Carte compacte d'un clan actif. */
+/** Carte compacte d'un clan actif — `h-full` : même hauteur que sa voisine de rangée quand l'une passe sur 2 lignes. */
 export function ActiveClanCard({ clan, active, onOpen }: { clan: DirectoryClan; active: boolean; onOpen?: () => void }) {
   return (
     <CardShell
       onOpen={onOpen}
-      className={`app-panel flex w-full items-center gap-3 p-2.5 text-left transition-colors ${onOpen ? 'hover:bg-gray-50' : ''}`}
+      className={`app-panel flex h-full w-full items-center gap-3 p-2.5 text-left transition-colors ${onOpen ? 'hover:bg-gray-50' : ''}`}
       style={active ? { borderColor: 'var(--theme-ui-accent-ring)' } : undefined}
     >
       <span

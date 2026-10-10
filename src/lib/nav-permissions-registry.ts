@@ -269,7 +269,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     label: 'Préférences notifs',
     hrefTemplate: '/members/:memberId/notification-preferences',
     defaultRole: 'none',
-    description: 'Configuration des préférences de notifications.',
+    description: 'Préférences de notifications du joueur (visibles par lui seul).',
   },
   {
     navKey: 'member.dashboard',
@@ -357,7 +357,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     label: 'Notifications',
     hrefTemplate: '/members/:memberId/notifications',
     defaultRole: 'none',
-    description: 'Préférences de notifications du joueur.',
+    description: 'Notifications personnelles du joueur (visibles par lui seul).',
   },
 
   // --- Admin menu (sidebar) ---
@@ -591,6 +591,13 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Qui a fait quoi dans les outils d’administration, sur quel clan, avec quel résultat (12 mois).',
   },
 ]
+
+/**
+ * Entrées des données personnelles d'un membre, gardées côté API par `requireOwnMember` (seul le compte lié au membre,
+ * et le SuperUser) : le menu ne les montre que pour un membre du compte connecté — jamais au visiteur, ni sur le profil
+ * d'un coéquipier, où elles mèneraient à un refus. Leur rôle de menu n'y change rien.
+ */
+export const PERSONAL_NAV_KEYS: ReadonlySet<string> = new Set(['member.notifications', 'member.notification-preferences'])
 
 /** @deprecated Avec navPerms.roles chargé depuis la DB, le fallback NAV_REGISTRY n'est plus atteint. */
 export function getItemRole(navKey: string, overrides: Record<string, NavRole>): NavRole {

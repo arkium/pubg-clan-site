@@ -5,6 +5,8 @@ type EmailPayload = {
   to: string
   subject: string
   text: string
+  /** En-têtes ajoutés tels quels (ex. `List-Unsubscribe` des notifications). */
+  headers?: Record<string, string>
 }
 
 export type EmailSendResult = {
@@ -40,6 +42,12 @@ function readSmtpConfig() {
     from: from.length > 0 ? from : null,
     secure: secureRaw === 'true' || port === 465,
   }
+}
+
+/** L'envoi est-il configuré, et sous quelle adresse d'expéditeur — sans rien révéler d'autre de la configuration. */
+export function getEmailSenderStatus(): { ready: boolean; from: string | null } {
+  const config = readSmtpConfig()
+  return { ready: config.allRequiredSet, from: config.from }
 }
 
 async function getSmtpTransport(config: ReturnType<typeof readSmtpConfig>) {
@@ -93,6 +101,7 @@ export async function sendEmail(payload: EmailPayload) {
     to: payload.to,
     subject: payload.subject,
     text: payload.text,
+    ...(payload.headers ? { headers: payload.headers } : {}),
   })
 
   return {

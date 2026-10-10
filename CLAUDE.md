@@ -354,6 +354,11 @@ Toute écriture (POST, PUT, PATCH, DELETE) d'une route d'administration est expo
 `src/lib/admin-action-log-routes.test.ts` échoue sinon. Une route qui vérifie la session elle-même note son acteur par
 `rememberSessionActor` (`src/lib/auth/admin-actor.ts`).
 
+**Données personnelles d'un membre** (notifications, préférences — depuis le 2026-10-10) : `requireOwnMember`
+(`src/lib/auth/own-member-guard.ts`), le compte lié au membre ou le SuperUser. Jamais `requireSameClanAsMember`, faite
+pour les statistiques que tout le clan consulte. Une entrée de menu personnelle va dans `PERSONAL_NAV_KEYS`
+(`src/lib/nav-permissions-registry.ts`) — [notifications.md](docs/features/notifications.md).
+
 **SEO :** titres, descriptions, `noindex` et canoniques de **toutes** les pages viennent du layout racine
 (`generateMetadata` → `src/lib/seo/page-seo.ts`), pas des pages (presque toutes client). Nouvelle page publique → une
 entrée dans `STATIC_PAGES` ; page du menu d'un clan → `CLAN_PAGES`. Pages joueur toujours en `noindex`.
@@ -442,6 +447,7 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `SMTP_URL` (optional) | Email delivery (reports, notifications) | `.env` |
 | `ENABLE_CRON_JOBS` | Toggle cron scheduling | `.env` (default: `true`) |
 | `CLAN_SUBDOMAIN_ROOT` (optional) | Sous-domaines de clan (`chickendinner.fr`) ; absente = redirection désactivée | `.env` |
+| `NOTIFICATION_LINK_SECRET` (optional) | Signe le lien « Ne plus recevoir ces e-mails » des notifications ; à défaut `AUTH_BOOTSTRAP_SECRET` | `.env` |
 
 **Note:** Prisma CLI commands read `.env`, not `.env.local`. Keep `DATABASE_URL` in `.env` for migrations.
 

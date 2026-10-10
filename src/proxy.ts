@@ -14,7 +14,8 @@ const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
 const PENDING_ACTIVATION_ALLOWED_PATHS = new Set(['/', '/activate', '/login', '/reset-password', '/join', ...LEGAL_PATHS])
 // '/' : vitrine publique de l'accueil (docs/features/accueil.md), visible sans session même hors mode visiteur.
 // Pages légales (docs/features/pages-legales.md) : liées depuis tous les footers, donc lisibles par tous.
-const PUBLIC_PATHS = new Set(['/', '/login', '/activate', '/reset-password', '/join', ...LEGAL_PATHS])
+// '/notifications/desabonnement' : lien des e-mails de notification, ouvert sans session (jeton signé, docs/features/notifications.md).
+const PUBLIC_PATHS = new Set(['/', '/login', '/activate', '/reset-password', '/join', '/notifications/desabonnement', ...LEGAL_PATHS])
 const SESSION_COOKIE_NAME = 'pubg_clan_session'
 const AUTH_DISABLED = process.env.DISABLE_AUTH_PERMISSIONS === 'true'
 

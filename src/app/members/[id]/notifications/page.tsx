@@ -2,20 +2,65 @@
 
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { Bell, BellOff, Check, CheckCheck, Settings2, Trash2 } from 'lucide-react'
 
 import MemberPageHeader from '@/components/member/MemberPageHeader'
+import { NotificationAccessState, type NotificationAccess } from '@/components/notifications/NotificationAccessState'
+import { NotificationTypeTile, notificationTypeColors, notificationTypeLabel } from '@/components/notifications/NotificationTypeTile'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
-import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
+import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import Pagination from '@/components/ui/Pagination'
+import SegmentedControl from '@/components/ui/SegmentedControl'
+import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import type { NotificationItem, NotificationType } from '@/types/notifications'
-import { NOTIFICATION_TYPES } from '@/types/notifications'
+import { NOTIFICATION_TYPE_LABELS, NOTIFICATION_TYPES } from '@/types/notifications'
 
-type ReadFilter = 'all' | 'read' | 'unread'
+/**
+ * Notifications d'un joueur — matchs détectés, performances, défis, demandes à traiter.
+ *
+ * Charte UI (docs/ui/index.html, 10/10/2026) : bannière des pages joueur à titre Teko, bandeau à une seule hauteur
+ * (statut en segmented, type en menu compact, actions en `app-toolbar-btn`), notifications groupées par jour dans des
+ * panneaux, nature en tuile d'icône aux couleurs de jeu, pagination numérotée. Pendant un changement de filtre ou de
+ * page, la liste précédente reste affichée, estompée.
+ */
+
+const PAGE_SIZE = 20
+
+type ReadFilter = 'all' | 'unread' | 'read'
+type TypeFilter = 'all' | NotificationType
 
 type NotificationPayload = {
-  notifications: NotificationItem[]
-  unreadCount: number
+  notifications?: NotificationItem[]
+  total?: number
+  unreadCount?: number
+}
+
+const READ_OPTIONS: { value: ReadFilter; label: string }[] = [
+  { value: 'all', label: 'Toutes' },
+  { value: 'unread', label: 'Non lues' },
+  { value: 'read', label: 'Lues' },
+]
+
+const DAY_KEY = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Paris', year: 'numeric', month: '2-digit', day: '2-digit' })
+const DAY_LABEL = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
+const TIME_LABEL = new Intl.DateTimeFormat('fr-FR', { timeZone: 'Europe/Paris', hour: '2-digit', minute: '2-digit' })
+
+/** Jours calendaires de Paris, dans l'ordre de la liste (la plus récente d'abord). */
+function groupByDay(notifications: NotificationItem[]) {
+  const days: { day: string; label: string; notifications: NotificationItem[] }[] = []
+  for (const notification of notifications) {
+    const date = new Date(notification.createdAt)
+    const day = DAY_KEY.format(date)
+    const last = days.at(-1)
+    if (last?.day === day) {
+      last.notifications.push(notification)
+    } else {
+      days.push({ day, label: DAY_LABEL.format(date), notifications: [notification] })
+    }
+  }
+  return days
 }
 
 function parseMemberId(value: string | string[] | undefined) {
@@ -24,8 +69,74 @@ function parseMemberId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-function formatTypeLabel(type: string) {
-  return type.replaceAll('_', ' ')
+function NotificationRow({
+  notification,
+  onMarkRead,
+  onDelete,
+}: {
+  notification: NotificationItem
+  onMarkRead: () => void
+  onDelete: () => void
+}) {
+  return (
+    <li
+      className="flex items-start gap-3 border-t border-gray-200 px-3.5 py-3 first:border-t-0 sm:px-4"
+      data-testid="notification"
+      data-read={notification.read}
+    >
+      <span className="mt-0.5">
+        <NotificationTypeTile type={notification.type} />
+      </span>
+      <div className="min-w-0 flex-1">
+        <div className="flex items-baseline justify-between gap-3">
+          <span className="flex min-w-0 items-center gap-2">
+            {!notification.read ? (
+              <span className="h-2 w-2 shrink-0 rounded-full bg-[var(--theme-ui-accent)]" title="Non lue" aria-hidden="true" />
+            ) : null}
+            <span className={`t-card-title break-words ${notification.read ? 'text-gray-700' : ''}`}>
+              {notification.read ? null : <span className="sr-only">Non lue : </span>}
+              {notification.title}
+            </span>
+          </span>
+          <time className="t-meta shrink-0 tabular-nums" dateTime={notification.createdAt}>
+            {TIME_LABEL.format(new Date(notification.createdAt))}
+          </time>
+        </div>
+        <p className="t-body mt-1 break-words text-gray-700">{notification.message}</p>
+        <div className="mt-2 flex flex-wrap items-center gap-x-2 gap-y-1.5">
+          <span
+            className="rounded-md px-1.5 py-0.5 text-[11px] font-bold uppercase tracking-wide"
+            style={notificationTypeColors(notification.type)}
+          >
+            {notificationTypeLabel(notification.type)}
+          </span>
+          <span className="ml-auto flex items-center gap-1.5">
+            {!notification.read ? (
+              <button
+                type="button"
+                onClick={onMarkRead}
+                className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+                aria-label={`Marquer comme lue : ${notification.title}`}
+              >
+                <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                <span className="hidden sm:inline">Marquer comme lue</span>
+              </button>
+            ) : null}
+            {/* Icône seule : un libellé rouge par ligne alourdirait la liste ; le nom accessible garde « Supprimer ». */}
+            <button
+              type="button"
+              onClick={onDelete}
+              className="app-btn app-btn--sm app-btn--danger"
+              aria-label={`Supprimer : ${notification.title}`}
+              title="Supprimer"
+            >
+              <Trash2 className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+            </button>
+          </span>
+        </div>
+      </div>
+    </li>
+  )
 }
 
 export default function NotificationsPage() {
@@ -33,65 +144,68 @@ export default function NotificationsPage() {
   const memberId = useMemo(() => parseMemberId(params.id), [params.id])
 
   const [notifications, setNotifications] = useState<NotificationItem[]>([])
+  const [total, setTotal] = useState(0)
   const [unreadCount, setUnreadCount] = useState(0)
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState('')
   const [readFilter, setReadFilter] = useState<ReadFilter>('all')
-  const [typeFilter, setTypeFilter] = useState<'all' | NotificationType>('all')
-  const [offset, setOffset] = useState(0)
+  const [typeFilter, setTypeFilter] = useState<TypeFilter>('all')
+  const [page, setPage] = useState(1)
+  const [loading, setLoading] = useState(true)
+  const [loaded, setLoaded] = useState(false)
+  const [error, setError] = useState<string | null>(null)
+  const [actionError, setActionError] = useState<string | null>(null)
+  const [access, setAccess] = useState<NotificationAccess>('ok')
+  const [reloadToken, setReloadToken] = useState(0)
+  const listTop = useRef<HTMLDivElement>(null)
 
-  const limit = 20
-
+  // Patron de chargement du dépôt (cf. /clans/mutations) : fonction async déclarée dans l'effet, rechargement par jeton.
   useEffect(() => {
-    if (!memberId) {
-      return
-    }
-
+    if (!memberId) return
     let cancelled = false
+    const controller = new AbortController()
 
     async function loadNotifications() {
       try {
         setLoading(true)
-        setError('')
+        setError(null)
 
-        const params = new URLSearchParams({
-          limit: String(limit),
-          offset: String(offset),
+        const query = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String((page - 1) * PAGE_SIZE) })
+        if (readFilter !== 'all') query.set('read', readFilter === 'read' ? 'true' : 'false')
+        if (typeFilter !== 'all') query.set('type', typeFilter)
+
+        const res = await fetch(`/api/members/${memberId}/notifications?${query.toString()}`, {
+          cache: 'no-store',
+          signal: controller.signal,
         })
 
-        if (readFilter === 'read') {
-          params.set('read', 'true')
+        if (res.status === 401 || res.status === 403) {
+          if (!cancelled) setAccess(res.status === 401 ? 'signed-out' : 'forbidden')
+          return
+        }
+        if (!res.ok) {
+          throw new Error('Impossible de charger les notifications.')
         }
 
-        if (readFilter === 'unread') {
-          params.set('read', 'false')
+        const data = (await res.json()) as NotificationPayload
+        if (cancelled) return
+
+        const nextTotal = data.total ?? 0
+        // Page vidée par des suppressions ou un « tout lire » : on revient à la dernière page qui existe.
+        const lastPage = Math.max(1, Math.ceil(nextTotal / PAGE_SIZE))
+        if (page > lastPage) {
+          setPage(lastPage)
+          return
         }
 
-        if (typeFilter !== 'all') {
-          params.set('type', typeFilter)
-        }
-
-        const response = await fetch(`/api/members/${memberId}/notifications?${params.toString()}`)
-        const data = (await response.json()) as NotificationPayload | { error?: string }
-
-        if (!response.ok) {
-          throw new Error('error' in data ? data.error : 'Failed to fetch notifications')
-        }
-
-        if (!cancelled) {
-          const payload = data as NotificationPayload
-          setNotifications(payload.notifications)
-          setUnreadCount(payload.unreadCount)
-        }
-      } catch (fetchError) {
-        if (!cancelled) {
-          setError(fetchError instanceof Error ? fetchError.message : 'Failed to fetch notifications')
-          setNotifications([])
-        }
+        setAccess('ok')
+        setNotifications(data.notifications ?? [])
+        setTotal(nextTotal)
+        setUnreadCount(data.unreadCount ?? 0)
+        setLoaded(true)
+      } catch (err) {
+        if ((err as Error).name === 'AbortError') return
+        if (!cancelled) setError(err instanceof Error ? err.message : 'Erreur inconnue')
       } finally {
-        if (!cancelled) {
-          setLoading(false)
-        }
+        if (!cancelled) setLoading(false)
       }
     }
 
@@ -99,287 +213,244 @@ export default function NotificationsPage() {
 
     return () => {
       cancelled = true
+      controller.abort()
     }
-  }, [limit, memberId, offset, readFilter, typeFilter])
+  }, [memberId, page, readFilter, typeFilter, reloadToken])
 
   if (!memberId) {
     return (
-      <div className="app-container app-main flex-1 space-y-4">
-        <NavigationTrail
-          currentLabel="Notifications"
-          currentHref={`/members`}
-          fallbackParent={{ href: `/members`, label: 'Membres' }}
-        />
-        <p className="text-sm text-red-600">Invalid member id.</p>
+      <div className="app-container app-main flex-1">
+        <p className="text-sm text-[var(--theme-ui-negative)]">Identifiant de joueur invalide.</p>
       </div>
     )
   }
 
-  async function markAsRead(notificationId: string) {
-    await fetch(`/api/members/${memberId}/notifications/${notificationId}`, {
+  const filtersActive = readFilter !== 'all' || typeFilter !== 'all'
+
+  function reload() {
+    setReloadToken((token) => token + 1)
+  }
+
+  function changeReadFilter(value: ReadFilter) {
+    setPage(1)
+    setReadFilter(value)
+  }
+
+  function changeTypeFilter(value: TypeFilter) {
+    setPage(1)
+    setTypeFilter(value)
+  }
+
+  function resetFilters() {
+    setPage(1)
+    setReadFilter('all')
+    setTypeFilter('all')
+  }
+
+  function goToPage(next: number) {
+    setPage(next)
+    // La page suivante se lit depuis son début, pas depuis la pagination en bas de liste.
+    listTop.current?.scrollIntoView({ block: 'start' })
+  }
+
+  async function markAsRead(notification: NotificationItem) {
+    setActionError(null)
+    const res = await fetch(`/api/members/${memberId}/notifications/${notification.id}`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ read: true }),
-    })
-
+    }).catch(() => null)
+    if (!res?.ok) {
+      setActionError('La notification n’a pas pu être marquée comme lue.')
+      return
+    }
     setNotifications((current) =>
-      current.map((notification) =>
-        notification.id === notificationId
-          ? { ...notification, read: true, readAt: new Date().toISOString() }
-          : notification
-      )
+      current.map((item) => (item.id === notification.id ? { ...item, read: true, readAt: new Date().toISOString() } : item))
     )
     setUnreadCount((current) => Math.max(0, current - 1))
+    // Filtre « Non lues » : la notification sort de la liste, la page se recharge pour rester complète.
+    if (readFilter === 'unread') reload()
   }
 
   async function markAllAsRead() {
-    const response = await fetch(`/api/members/${memberId}/notifications`, {
+    setActionError(null)
+    const res = await fetch(`/api/members/${memberId}/notifications`, {
       method: 'PATCH',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ read: true, all: true }),
-    })
-
-    if (!response.ok) {
+    }).catch(() => null)
+    if (!res?.ok) {
+      setActionError('Les notifications n’ont pas pu être marquées comme lues.')
       return
     }
-
-    setNotifications((current) =>
-      current.map((notification) => ({
-        ...notification,
-        read: true,
-        readAt: notification.readAt ?? new Date().toISOString(),
-      }))
-    )
-    setUnreadCount(0)
+    reload()
   }
 
-  async function deleteNotification(notificationId: string) {
-    const response = await fetch(`/api/members/${memberId}/notifications/${notificationId}`, {
-      method: 'DELETE',
-    })
-
-    if (!response.ok) {
+  async function deleteNotification(notification: NotificationItem) {
+    setActionError(null)
+    const res = await fetch(`/api/members/${memberId}/notifications/${notification.id}`, { method: 'DELETE' }).catch(() => null)
+    if (!res?.ok) {
+      setActionError('La notification n’a pas pu être supprimée.')
       return
     }
-
-    setNotifications((current) => current.filter((notification) => notification.id !== notificationId))
+    setNotifications((current) => current.filter((item) => item.id !== notification.id))
+    setTotal((current) => Math.max(0, current - 1))
+    if (!notification.read) setUnreadCount((current) => Math.max(0, current - 1))
+    reload()
   }
 
-  const readFilterLabelMap: Record<ReadFilter, string> = {
-    all: 'Toutes',
-    unread: 'Non lues',
-    read: 'Lues',
-  }
-
-  const readFilterItems: MobileDropdownNavItem[] = [
-    {
-      key: 'all',
-      label: 'Toutes',
-      active: readFilter === 'all',
-      onSelect: () => {
-        setOffset(0)
-        setReadFilter('all')
-      },
-    },
-    {
-      key: 'unread',
-      label: 'Non lues',
-      active: readFilter === 'unread',
-      onSelect: () => {
-        setOffset(0)
-        setReadFilter('unread')
-      },
-    },
-    {
-      key: 'read',
-      label: 'Lues',
-      active: readFilter === 'read',
-      onSelect: () => {
-        setOffset(0)
-        setReadFilter('read')
-      },
-    },
-  ]
-
-  const typeFilterLabelMap: Record<'all' | NotificationType, string> = {
-    all: 'Tous',
-    squad_detected: formatTypeLabel('squad_detected'),
-    top_performance: formatTypeLabel('top_performance'),
-    challenge_started: formatTypeLabel('challenge_started'),
-    invite_reminder: formatTypeLabel('invite_reminder'),
-    join_request: formatTypeLabel('join_request'),
-    clan_creation_request: formatTypeLabel('clan_creation_request'),
-    privacy_request: formatTypeLabel('privacy_request'),
-  }
-
-  const typeFilterItems: MobileDropdownNavItem[] = [
-    {
-      key: 'all',
-      label: 'Tous',
-      active: typeFilter === 'all',
-      onSelect: () => {
-        setOffset(0)
-        setTypeFilter('all')
-      },
-    },
+  const days = groupByDay(notifications)
+  const pageCount = Math.max(1, Math.ceil(total / PAGE_SIZE))
+  const typeItems = [
+    { key: 'all', label: 'Tous', active: typeFilter === 'all', onSelect: () => changeTypeFilter('all') },
     ...NOTIFICATION_TYPES.map((type) => ({
       key: type,
-      label: formatTypeLabel(type),
+      label: NOTIFICATION_TYPE_LABELS[type],
       active: typeFilter === type,
-      onSelect: () => {
-        setOffset(0)
-        setTypeFilter(type)
-      },
+      onSelect: () => changeTypeFilter(type),
     })),
   ]
+  const subtitle = !loaded
+    ? 'Matchs détectés, performances, défis et demandes à traiter.'
+    : unreadCount > 0
+      ? `${unreadCount} notification${unreadCount > 1 ? 's' : ''} non lue${unreadCount > 1 ? 's' : ''}.`
+      : 'Tout est lu.'
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
-    <div className="app-main-flush flex-1">
+    // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
+    // `.game-ui` : jetons --game-* (nature des notifications).
+    <div className="app-main-flush game-ui charte flex-1">
       <div className="app-container app-gutter space-y-4">
         <NavigationTrail
           currentLabel="Notifications"
           currentHref={`/members/${memberId}/notifications`}
-          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Dashboard', altHref: '/members' }}
+          fallbackParent={{ href: `/members/${memberId}/dashboard`, label: 'Tableau de bord', altHref: '/members' }}
         />
-        <section className="app-panel p-4 shadow-sm">
-          <MemberPageHeader
-            title="Notifications"
-            subtitle={`${unreadCount} non lue${unreadCount > 1 ? 's' : ''}`}
-            showBackButton={false}
-            framed={false}
-          />
-        </section>
+        <MemberPageHeader
+          title="Notifications"
+          subtitle={subtitle}
+          showBackButton={false}
+          backgroundImage="/duo2.jpg"
+          backgroundPosition="center 35%"
+          icon={<Bell className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />}
+        />
       </div>
 
-      {/* Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). */}
-      <DockingToolbar ariaLabel="Filtres des notifications" dockOnMobile={false}>
-        <div className="grid w-full gap-3 md:grid-cols-[minmax(0,1fr)_auto] md:items-end">
-          <div className="grid gap-3 md:grid-cols-2">
-            <MobileDropdownNav
-              id={`notifications-status-${memberId}`}
-              label="Statut"
-              currentLabel={readFilterLabelMap[readFilter]}
-              items={readFilterItems}
-              variant="compact"
-              visibilityClass="block"
-              leftIcon={(
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                  <path
-                    d="M4 5.5h12M6.5 10h7M8.5 14.5h3"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              )}
-            />
-
+      {/*
+        Pas de période : le bandeau ne docke pas sur mobile (docs/TODO/sticky.md §2). Une seule hauteur par ligne ; sous
+        640 px, les boutons d'action passent en icône seule (nom accessible conservé). Sans accès, rien à filtrer.
+      */}
+      {access === 'ok' ? (
+        <DockingToolbar ariaLabel="Filtres des notifications" dockOnMobile={false}>
+          <div className="flex w-full flex-wrap items-center gap-3">
+            <div role="group" aria-label="Statut" className="flex self-stretch">
+              <SegmentedControl options={READ_OPTIONS} value={readFilter} onChange={changeReadFilter} />
+            </div>
             <MobileDropdownNav
               id={`notifications-type-${memberId}`}
               label="Type"
-              currentLabel={typeFilterLabelMap[typeFilter]}
-              items={typeFilterItems}
               variant="compact"
+              currentLabel={typeFilter === 'all' ? 'Tous' : NOTIFICATION_TYPE_LABELS[typeFilter]}
+              items={typeItems}
               visibilityClass="block"
-              leftIcon={(
-                <svg viewBox="0 0 20 20" className="h-4 w-4" fill="none">
-                  <path
-                    d="M4.5 6h11M4.5 10h11M4.5 14h11"
-                    stroke="currentColor"
-                    strokeWidth="1.7"
-                    strokeLinecap="round"
-                  />
-                </svg>
-              )}
+              className="min-w-0 flex-1 sm:min-w-[13rem] sm:flex-none"
             />
-          </div>
-
-          <div className="flex flex-wrap items-center gap-2 md:justify-end">
-            <Link
-              href={`/members/${memberId}/notification-preferences`}
-              className="rounded border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
-            >
-              Préférences
-            </Link>
-            <button
-              type="button"
-              onClick={() => void markAllAsRead()}
-              className="rounded bg-blue-600 px-3 py-2 text-sm font-medium text-white hover:bg-blue-700"
-            >
-              Marquer toutes lues
-            </button>
-          </div>
-        </div>
-      </DockingToolbar>
-
-      <div className="app-container app-gutter space-y-4">
-        {loading ? <p className="text-sm text-gray-600">Chargement...</p> : null}
-        {error ? <p className="text-sm text-red-600">{error}</p> : null}
-
-        {!loading && notifications.length === 0 ? (
-          <p className="app-panel p-4 text-sm text-gray-600">
-            Aucune notification pour ce filtre.
-          </p>
-        ) : null}
-
-        {!loading && notifications.length > 0 ? (
-          <ul className="space-y-3">
-            {notifications.map((notification) => (
-              <li
-                key={notification.id}
-                className={`rounded border p-4 ${notification.read ? 'border-gray-200 bg-white' : 'border-blue-100 bg-blue-50'}`}
+            <div className="ml-auto flex items-center gap-2 self-stretch">
+              <Link
+                href={`/members/${memberId}/notification-preferences`}
+                className="app-toolbar-btn self-stretch"
+                aria-label="Préférences de notifications"
+                title="Préférences de notifications"
               >
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <p className="text-sm font-semibold text-gray-900">{notification.title}</p>
-                    <p className="text-sm text-gray-700">{notification.message}</p>
-                    <p className="mt-1 text-xs text-gray-500">
-                      {formatTypeLabel(notification.type)} · {new Date(notification.createdAt).toLocaleString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {!notification.read ? (
-                      <button
-                        type="button"
-                        onClick={() => void markAsRead(notification.id)}
-                        className="rounded border border-blue-200 px-2 py-1 text-xs font-medium text-blue-700 hover:bg-blue-100"
-                      >
-                        Marquer lue
-                      </button>
-                    ) : null}
-                    <button
-                      type="button"
-                      onClick={() => void deleteNotification(notification.id)}
-                      className="rounded border border-red-200 px-2 py-1 text-xs font-medium text-red-700 hover:bg-red-50"
-                    >
-                      Supprimer
-                    </button>
-                  </div>
-                </div>
-              </li>
-            ))}
-          </ul>
-        ) : null}
+                <Settings2 className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="hidden sm:inline">Préférences</span>
+              </Link>
+              <button
+                type="button"
+                onClick={() => void markAllAsRead()}
+                disabled={unreadCount === 0}
+                className="app-toolbar-btn self-stretch"
+                aria-label="Tout marquer comme lu"
+                title="Tout marquer comme lu"
+              >
+                <CheckCheck className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <span className="hidden sm:inline">Tout marquer comme lu</span>
+              </button>
+            </div>
+          </div>
+        </DockingToolbar>
+      ) : null}
 
-        <div className="mt-6 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setOffset((current) => Math.max(0, current - limit))}
-            disabled={offset === 0}
-            className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
-          >
-            Aller à la page précédente
-          </button>
-          <button
-            type="button"
-            onClick={() => setOffset((current) => current + limit)}
-            disabled={notifications.length < limit}
-            className="rounded border border-gray-300 px-3 py-2 text-sm text-gray-700 disabled:opacity-50"
-          >
-            Aller à la page suivante
-          </button>
-        </div>
+      {/* Sans bandeau, l'écart avec la bannière revient au contenu (gap-4 du rythme de page). */}
+      <div ref={listTop} className={`app-container app-gutter scroll-mt-24 pb-8${access === 'ok' ? '' : ' pt-4'}`}>
+        {access !== 'ok' ? (
+          <NotificationAccessState access={access} memberId={memberId} section="notifications" />
+        ) : loading && !loaded ? (
+          <CardSkeleton />
+        ) : error && !loaded ? (
+          <section className="app-panel flex flex-col items-center gap-3 p-8 text-center">
+            <p className="text-sm text-[var(--theme-ui-negative)]">{error}</p>
+            <button type="button" onClick={reload} className="app-btn app-btn--md app-btn--secondary">
+              Réessayer
+            </button>
+          </section>
+        ) : (
+          // Changement de filtre ou de page : la liste précédente reste affichée, estompée, jusqu'à la suivante.
+          <div aria-busy={loading} className={`flex flex-col gap-4 transition-opacity${loading ? ' opacity-60' : ''}`}>
+            {error || actionError ? (
+              <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]" role="alert">
+                {actionError ?? error}
+              </p>
+            ) : null}
+            {notifications.length === 0 ? (
+              // État vide (charte §2) : bordure pointillée, rayon 14.
+              <section className="flex flex-col items-center gap-2 rounded-[14px] border border-dashed border-gray-200 p-8 text-center">
+                <BellOff className="h-8 w-8 text-gray-500" aria-hidden="true" />
+                <p className="t-card-title">{filtersActive ? 'Aucune notification pour ces filtres' : 'Aucune notification'}</p>
+                <p className="t-meta max-w-md">
+                  {filtersActive
+                    ? 'Élargis le statut ou le type pour retrouver tes notifications.'
+                    : 'Les parties en escouade, performances et défis du clan s’afficheront ici.'}
+                </p>
+                {filtersActive ? (
+                  <button type="button" onClick={resetFilters} className="app-btn app-btn--sm app-btn--secondary mt-1">
+                    Réinitialiser les filtres
+                  </button>
+                ) : null}
+              </section>
+            ) : (
+              <>
+                {days.map((day) => (
+                  <section key={day.day} aria-labelledby={`notifications-${day.day}`} className="flex flex-col gap-2">
+                    <h2 id={`notifications-${day.day}`} className="t-label">
+                      {day.label}
+                    </h2>
+                    <ul className="app-panel overflow-hidden">
+                      {day.notifications.map((notification) => (
+                        <NotificationRow
+                          key={notification.id}
+                          notification={notification}
+                          onMarkRead={() => void markAsRead(notification)}
+                          onDelete={() => void deleteNotification(notification)}
+                        />
+                      ))}
+                    </ul>
+                  </section>
+                ))}
+                <Pagination
+                  page={page}
+                  pageCount={pageCount}
+                  total={total}
+                  pageSize={PAGE_SIZE}
+                  onPageChange={goToPage}
+                  ariaLabel="Pages des notifications"
+                  itemLabel="Notifications"
+                />
+              </>
+            )}
+          </div>
+        )}
       </div>
     </div>
   )

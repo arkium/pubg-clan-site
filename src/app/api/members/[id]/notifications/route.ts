@@ -2,7 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { prisma } from '@/lib/prisma'
 import { NOTIFICATION_TYPES, type NotificationType } from '@/types/notifications'
-import { requireSameClanAsMember } from '@/middleware/auth-permission'
+import { requireOwnMember } from '@/lib/auth/own-member-guard'
 
 function parseMemberId(memberId: string) {
   const parsed = Number(memberId)
@@ -44,7 +44,7 @@ export async function GET(
       return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    const authError = await requireOwnMember(parsedMemberId, request)
     if (authError) return authError
 
     const limit = Math.min(parseIntParam(request.nextUrl.searchParams.get('limit'), 10), 50)
@@ -58,13 +58,15 @@ export async function GET(
       ...(type ? { type } : {}),
     }
 
-    const [notifications, unreadCount] = await Promise.all([
+    const [notifications, total, unreadCount] = await Promise.all([
       prisma.notification.findMany({
         where,
         orderBy: { createdAt: 'desc' },
         skip: offset,
         take: limit,
       }),
+      // Nombre de notifications du filtre courant : pagination numérotée de la page.
+      prisma.notification.count({ where }),
       prisma.notification.count({
         where: {
           memberId: parsedMemberId,
@@ -75,6 +77,7 @@ export async function GET(
 
     return Response.json({
       notifications,
+      total,
       unreadCount,
     })
   } catch (error) {
@@ -95,7 +98,7 @@ export async function PATCH(
       return Response.json({ error: 'Invalid member id' }, { status: 400 })
     }
 
-    const authError = await requireSameClanAsMember(parsedMemberId, request)
+    const authError = await requireOwnMember(parsedMemberId, request)
     if (authError) return authError
 
     const body = (await request.json().catch(() => null)) as

@@ -2,13 +2,14 @@ import Link from 'next/link'
 import { EyeOff, Mail, Shield, X } from 'lucide-react'
 
 import { LegalDocument, LegalFacts, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
-import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, LEGAL_UPDATED_AT, PRIVACY_REQUEST_PATH } from '@/lib/legal/legal-info'
+import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, HOSTING, LEGAL_UPDATED_AT, PRIVACY_REQUEST_PATH } from '@/lib/legal/legal-info'
 
 /**
  * Confidentialité, page publique — docs/features/pages-legales.md. Chaque ligne a été vérifiée contre le code
  * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026, journal d'administration ajouté le 07/10/2026, e-mail de
- * contact des demandes d'accès sans compte le 10/10/2026 (src/lib/join-request-access.ts) : à revoir quand le site collecte
- * une donnée nouvelle.
+ * contact des demandes d'accès sans compte le 10/10/2026 (src/lib/join-request-access.ts), notifications, préférences et
+ * e-mails de notification le 10/10/2026 (docs/features/notifications.md) : à revoir quand le site collecte une donnée
+ * nouvelle.
  */
 
 
@@ -18,13 +19,28 @@ const DATA_ROWS = [
   { data: 'Joueurs croisés en partie : pseudo, account_id, clan', source: 'Télémétrie des parties', usage: 'Kill feed, Némésis' },
   { data: 'Compte du site : e-mail, mot de passe chiffré, nom affiché, lien d’avatar', source: 'Toi, à l’inscription', usage: 'Connexion, invitations' },
   {
+    data: 'Notifications : titre, message, lue ou non',
+    source: 'Activité de ton clan (parties, performances, défis) et demandes à traiter',
+    usage: 'Ta page Notifications, visible par toi seul — et par le SuperUser du site',
+  },
+  { data: 'Préférences de notifications : types et canaux choisis', source: 'Toi, dans tes préférences', usage: 'Choisir ce qui te prévient, et comment' },
+  {
+    data: 'E-mail du compte, pour les e-mails de notification',
+    source: 'Ton compte, seulement si tu actives ce canal (coupé par défaut)',
+    usage: 'Te prévenir hors du site ; chaque e-mail porte un lien pour arrêter',
+  },
+  {
     data: 'E-mail de contact d’une demande d’accès à un clan ou d’inscription d’un clan',
     source: 'Toi, sur la page d’inscription',
     usage: 'Vu par l’Owner du clan (ou le SuperUser) pour vérifier la demande ; réponse à la demande et envoi du lien de création du compte',
   },
   { data: 'Commentaires sur la carte des ressources', source: 'Toi', usage: 'Validation des points' },
   { data: 'Résultats publiés sur Discord : pseudos de l’escouade, kills, dégâts, carte', source: 'Matchs et tournois du clan', usage: 'Canal Discord du clan, si un admin l’active' },
-  { data: 'Demande de retrait : pseudo, e-mail, motif', source: 'Toi, par le formulaire', usage: 'Traitement de ta demande' },
+  {
+    data: 'Demande de retrait : pseudo, e-mail, motif',
+    source: 'Toi, par le formulaire',
+    usage: 'Traitement de ta demande par le SuperUser (notification sur le site, e-mail à l’adresse de contact)',
+  },
   { data: 'Actions d’administration : compte, clan, action, résultat', source: 'Les outils d’administration que tu utilises', usage: 'Suivi des outils partagés, réservé au SuperUser' },
 ]
 
@@ -68,6 +84,10 @@ const SECTIONS: LegalSection[] = [
           Les messages Discord partent chez Discord Inc. (États-Unis), qui applique sa propre politique de confidentialité.
           Un admin du clan peut couper l’envoi à tout moment.
         </LegalText>
+        <LegalText muted>
+          Les e-mails de notification partent par la messagerie de {HOSTING.name}, l’hébergeur du site. Ils ne contiennent
+          que la notification et les liens vers tes notifications, tes préférences et l’arrêt des e-mails.
+        </LegalText>
       </>
     ),
   },
@@ -97,15 +117,20 @@ const SECTIONS: LegalSection[] = [
     content: (
       <LegalFacts
         rows={[
-          { label: 'Finalité', value: 'Afficher les statistiques de clan et de joueur, les classements et les débriefings.' },
+          {
+            label: 'Finalité',
+            value:
+              'Afficher les statistiques de clan et de joueur, les classements et les débriefings ; te prévenir de l’activité de ton clan (notifications).',
+          },
           {
             label: 'Base légale',
-            value: 'Intérêt légitime pour les statistiques de jeu publiques ; exécution du service pour le compte du site.',
+            value:
+              'Intérêt légitime pour les statistiques de jeu publiques ; exécution du service pour le compte du site ; consentement pour les e-mails de notification, coupés par défaut et retirables d’un clic.',
           },
           {
             label: 'Conservation',
             value:
-              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
+              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Notifications et préférences : jusqu’à ce que tu les supprimes, au plus avec la fiche du joueur. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
           },
         ]}
       />
@@ -142,6 +167,10 @@ const SECTIONS: LegalSection[] = [
         <LegalText>
           Tu peux demander l’accès, la correction, l’effacement de tes données ou t’opposer à leur affichage. Même si ton
           pseudo est public dans le jeu, tu peux demander qu’il soit masqué ou que ton historique soit purgé du site.
+        </LegalText>
+        <LegalText>
+          Les e-mails de notification s’arrêtent d’un clic, sans te connecter : lien « Ne plus recevoir ces e-mails » en bas
+          de chaque e-mail. Tes préférences de notifications règlent le reste, type par type.
         </LegalText>
         <LegalText>
           On te répond sous un mois au plus. Tu peux aussi adresser une réclamation à l’

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
-import { AlertCircle, Check, CheckCircle2, Clock, Search, ShieldCheck, UserCheck, X, XCircle } from 'lucide-react'
+import { AlertCircle, Check, CheckCircle2, Clock, Mail, Search, ShieldCheck, UserCheck, X, XCircle } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -18,6 +18,9 @@ interface PendingMember {
   isActive: boolean
   joinStatus: string
   createdAt: string
+  /** Adresse laissée sur /join : le lien de création du compte y part à l'acceptation si `hasAccount` est faux. */
+  contactEmail?: string | null
+  hasAccount?: boolean
 }
 
 interface ClanPendingResponse {
@@ -129,8 +132,8 @@ export default function PendingRequestsPanel() {
         headers: { 'content-type': 'application/json' },
       })
 
+      const payload = (await response.json().catch(() => null)) as { error?: string; message?: string } | null
       if (!response.ok) {
-        const payload = (await response.json().catch(() => null)) as { error?: string } | null
         throw new Error(
           payload?.error ??
             (action === 'approve'
@@ -140,10 +143,12 @@ export default function PendingRequestsPanel() {
       }
 
       setPending((prev) => prev.filter((m) => m.id !== memberId))
+      // Le message de l'API dit aussi si le lien de création du compte est parti (ou quoi faire sinon).
       setActionSuccess(
-        action === 'approve'
-          ? `Le joueur « ${memberName} » a été approuvé et activé avec succès dans le clan.`
-          : `La demande d'adhésion de « ${memberName} » a été refusée.`
+        payload?.message ??
+          (action === 'approve'
+            ? `Le joueur « ${memberName} » est maintenant membre actif du clan.`
+            : `La demande de « ${memberName} » a été refusée.`)
       )
     } catch (err) {
       setError(
@@ -223,7 +228,7 @@ export default function PendingRequestsPanel() {
             title="Aucune demande en attente"
             text={
               <>
-                Toutes les candidatures pour rejoindre {clanName ? `le clan ${clanName}` : 'ce clan'} ont été traitées.{' '}
+                Toutes les demandes d’accès {clanName ? `au clan ${clanName}` : 'à ce clan'} ont été traitées.{' '}
                 <Link href={`/clans/${clanId}/members`} className="app-link font-semibold">
                   Voir les membres du clan
                 </Link>
@@ -252,7 +257,14 @@ export default function PendingRequestsPanel() {
                         <span className="t-card-title">{member.displayName}</span>
                         <Tag tone="neutral">{member.pubgPlayerName}</Tag>
                         <Tag tone="sky">{PLATFORM_LABELS[member.platformShard] ?? member.platformShard}</Tag>
+                        {member.hasAccount === false ? <Tag tone="warn">Sans compte</Tag> : null}
                       </span>
+                      {member.contactEmail ? (
+                        <span className="t-meta flex min-w-0 items-center gap-1.5">
+                          <Mail className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                          <span className="truncate">{member.contactEmail}</span>
+                        </span>
+                      ) : null}
                       <span className="t-meta flex items-center gap-1.5">
                         <Clock className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
                         Demande reçue le{' '}
@@ -302,9 +314,20 @@ export default function PendingRequestsPanel() {
           onConfirm={() => executeAction(confirmModal.member.id, confirmModal.action, confirmModal.member.displayName)}
         >
           {confirmModal.member.pubgPlayerName} · {PLATFORM_LABELS[confirmModal.member.platformShard] ?? confirmModal.member.platformShard}.{' '}
-          {confirmModal.action === 'approve'
-            ? 'Le joueur devient membre actif du clan et accède à ses statistiques et fonctionnalités.'
-            : 'Sa demande d’intégration est rejetée.'}
+          {confirmModal.action === 'reject' ? (
+            'Sa demande est refusée ; il en est prévenu par email s’il a laissé une adresse.'
+          ) : confirmModal.member.hasAccount !== false ? (
+            'Le joueur devient membre actif du clan.'
+          ) : confirmModal.member.contactEmail ? (
+            <>
+              Le joueur devient membre actif du clan. Il n’a pas encore de compte : le lien pour le créer part à{' '}
+              <b className="text-gray-900">{confirmModal.member.contactEmail}</b>.{' '}
+              <b className="text-gray-900">Vérifiez que cette adresse est bien la sienne</b> (en jeu, sur le Discord du clan) avant
+              d’accepter.
+            </>
+          ) : (
+            'Le joueur devient membre actif du clan. Il n’a ni compte ni adresse de contact : invitez-le ensuite depuis la liste des membres.'
+          )}
         </ConfirmDialog>
       ) : null}
     </div>

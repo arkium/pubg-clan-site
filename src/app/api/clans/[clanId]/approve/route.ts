@@ -1,6 +1,7 @@
 import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
-import { sendClanApprovedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
+import { sendClanApprovedEmail, type ClanDecisionEmailResult } from '@/lib/clan-lifecycle/clan-decision-email'
+import { activationUrlOf, invitationNotice, inviteApprovedRequester, type RequesterInvitation } from '@/lib/join-request-access'
 import { applyPendingPromotionsForClan } from '@/lib/clan-lifecycle/pending-promotions'
 import { assignClanSubdomainSafely } from '@/lib/clan-subdomain-service'
 import { prisma } from '@/lib/prisma'
@@ -105,17 +106,34 @@ async function handlePost(
       }).catch((err: unknown) => console.error('[clan-approve] Error notifying owner:', err))
     }
 
+    // Demandeur sans compte (demande envoyée de /join sans session) : l'invitation à créer son compte d'Owner part
+    // dans l'email de validation (src/lib/join-request-access.ts), après l'activation de son membre.
+    const decider = await getSessionFromRequest(request).catch(() => null)
+    const invitation: RequesterInvitation = ownerMember
+      ? await inviteApprovedRequester({
+          clanId: parsedClanId,
+          memberId: ownerMember.id,
+          contactEmail: ownerMember.contactEmail ?? null,
+          invitedByUserId: decider?.userId ?? null,
+          invitedByMemberId: decider?.activeMemberId ?? null,
+        })
+      : { status: 'no_contact' }
+
     // Chantier 4 : prevenir le demandeur. Hors chemin critique — un SMTP absent ne
     // doit pas empecher l'activation du clan, qui est deja faite a ce stade.
-    const emailResult = await sendClanApprovedEmail({
-      contactEmail: ownerMember?.contactEmail ?? null,
-      clanName: updatedClan.name,
-      clanTag: updatedClan.tag,
-      playerName: ownerMember?.pubgPlayerName ?? 'joueur',
-    }).catch((emailError) => {
-      console.error('[clan-approve] Email failed:', emailError)
-      return { sent: false as const, reason: 'failed' as const }
-    })
+    const emailResult: ClanDecisionEmailResult =
+      invitation.status === 'failed'
+        ? { sent: false, reason: 'failed' }
+        : await sendClanApprovedEmail({
+            contactEmail: ownerMember?.contactEmail ?? null,
+            clanName: updatedClan.name,
+            clanTag: updatedClan.tag,
+            playerName: ownerMember?.pubgPlayerName ?? 'joueur',
+            activationUrl: activationUrlOf(invitation),
+          }).catch((emailError) => {
+            console.error('[clan-approve] Email failed:', emailError)
+            return { sent: false as const, reason: 'failed' as const }
+          })
 
     const promotionSuffix =
       appliedPromotions.length > 0
@@ -126,7 +144,7 @@ async function handlePost(
 
     return Response.json({
       success: true,
-      message: `Le clan "${updatedClan.name}" a été validé et activé avec succès dans la ligue.${promotionSuffix}`,
+      message: `Le clan "${updatedClan.name}" a été validé et activé avec succès dans la ligue.${promotionSuffix}${ownerMember ? ` ${invitationNotice(invitation, emailResult)}` : ''}`,
       clan: {
         id: updatedClan.id,
         name: updatedClan.name,
@@ -134,6 +152,7 @@ async function handlePost(
         isActive: updatedClan.isActive,
       },
       appliedPromotions,
+      invitation: { status: invitation.status },
       emailSent: emailResult.sent,
     })
   } catch (error) {

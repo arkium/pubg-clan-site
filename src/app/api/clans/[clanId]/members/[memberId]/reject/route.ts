@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { sendMemberRejectedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
 import { prisma } from '@/lib/prisma'
 
 function parsePositiveInt(value: string) {
@@ -35,6 +36,9 @@ async function handlePost(
         clanId: true,
         isActive: true,
         joinStatus: true,
+        contactEmail: true,
+        pubgPlayerName: true,
+        clan: { select: { name: true, tag: true } },
       },
     })
 
@@ -59,9 +63,18 @@ async function handlePost(
       },
     })
 
+    // Demande envoyée de /join (avec ou sans compte) : le demandeur l'apprend par email s'il a laissé une adresse.
+    const emailResult = await sendMemberRejectedEmail({
+      contactEmail: member.contactEmail,
+      clanName: member.clan?.name ?? 'ce clan',
+      clanTag: member.clan?.tag ?? '',
+      playerName: member.pubgPlayerName || member.displayName,
+    })
+
     return Response.json({
-      message: `${rejectedMember.displayName} has been rejected`,
+      message: `La demande de ${rejectedMember.displayName} a été refusée.${emailResult.sent ? ' Il est prévenu par email.' : ''}`,
       member: rejectedMember,
+      emailSent: emailResult.sent,
     })
   } catch (error) {
     console.error('Member rejection error:', error)

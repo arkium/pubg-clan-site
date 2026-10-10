@@ -4,8 +4,7 @@
 
 import Link from 'next/link'
 import { useState, type FormEvent } from 'react'
-import { useRouter } from 'next/navigation'
-import { ArrowLeft, ArrowRight, Crown, Gamepad2, LogIn, Search, ShieldCheck, Sparkles, Trophy, UserPlus, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Crown, Gamepad2, Mail, Search, ShieldCheck, Sparkles, Trophy, UserPlus, Users } from 'lucide-react'
 
 import pubgLogo from '@/assets/pubg-logo-official.webp'
 import { AuthAlert, AuthCard, AuthGuide, AuthHighlights, AuthPage, AuthVisual, FieldLabel, type AuthHighlight } from '@/components/auth/AuthLayout'
@@ -13,10 +12,12 @@ import { ButtonSpinner, Callout, ChoiceMenu, ClanLabel, ConfirmDialog, Tag, type
 import { useAuthSession } from '@/hooks/useAuthSession'
 
 /**
- * Relier son compte à son clan, ou inscrire son clan — page plein écran, sans le shell. Le site ne recrute pas : il suit
- * les clans qui existent déjà dans PUBG (vocabulaire décidé le 2026-10-09, docs/features/accueil.md). Selon la charte UI (docs/ui/index.html) et la mise
- * en page des pages d'accès (`AuthLayout`) : vérification du pseudo sur l'API PUBG (aperçu sans écriture), puis
- * confirmation dans la modale de la charte avant l'enregistrement de la demande.
+ * Demander l'accès à son clan, ou l'inscrire — page plein écran, sans le shell. Le site ne recrute pas : il suit les clans
+ * qui existent déjà dans PUBG (vocabulaire décidé le 2026-10-09, docs/features/accueil.md). Pas besoin de compte : la
+ * demande part avec une adresse de contact, et son acceptation (Owner du clan, ou SuperUser pour un nouveau clan) y envoie
+ * le lien de création du compte (src/lib/join-request-access.ts). Selon la charte UI (docs/ui/index.html) et la mise en
+ * page des pages d'accès (`AuthLayout`) : vérification du pseudo sur l'API PUBG (aperçu sans écriture), puis confirmation
+ * dans la modale de la charte avant l'enregistrement de la demande.
  */
 
 type JoinStatus = 'idle' | 'loading' | 'success' | 'error'
@@ -67,20 +68,20 @@ function platformLabel(shard: string) {
 const HIGHLIGHTS: AuthHighlight[] = [
   { icon: Sparkles, tone: 'pos', title: 'Détection automatique', text: 'le clan officiel PUBG est reconnu instantanément, sans configuration.' },
   { icon: Users, tone: 'sky', title: 'Statistiques et télémétrie', text: 'frags, dégâts, positions de largage et synergie d’équipe.' },
-  { icon: Trophy, tone: 'warn', title: 'Défis et compétition', text: 'défis communautaires, tournois et classements.' },
+  { icon: Trophy, tone: 'warn', title: 'Tournois et Ligue', text: 'tournois sans inscription et Ligue des clans FR, ouverts à tous.' },
 ]
 
 const GUIDE = [
-  { tone: 'pos' as const, title: 'Clan déjà suivi', body: 'l’administrateur du clan valide le rattachement du compte.' },
+  { tone: 'pos' as const, title: 'Clan déjà suivi', body: 'son Owner accepte la demande, puis vous recevez par e-mail le lien pour créer votre compte.' },
   {
     tone: 'warn' as const,
     title: 'Clan pas encore suivi',
-    body: 'pour écarter les bots et préserver l’intégrité de la ligue, toute inscription est validée par le SuperUser.',
+    body: 'le SuperUser le vérifie et l’inscrit ; vous en devenez l’Owner et recevez le même lien.',
   },
+  { tone: 'sky' as const, title: 'Déjà membre du clan', body: 'demandez une invitation à son Owner : il l’envoie depuis la liste des membres.' },
 ]
 
 export default function JoinPage() {
-  const router = useRouter()
   // Purge un jeton de session expiré (401) ; la connexion elle-même est lue par l'aperçu de `/api/join`.
   useAuthSession()
   const [playerName, setPlayerName] = useState('')
@@ -94,7 +95,7 @@ export default function JoinPage() {
   const [previewData, setPreviewData] = useState<JoinPreviewData | null>(null)
   const [isConfirming, setIsConfirming] = useState(false)
   const [confirmError, setConfirmError] = useState<string | null>(null)
-  // Adresse de contact, exigée uniquement pour une création de clan.
+  // Adresse de contact : exigée sans compte (le lien de création du compte y part) et pour inscrire un clan.
   const [contactEmail, setContactEmail] = useState('')
 
   async function handleSubmit(e: FormEvent<HTMLFormElement>) {
@@ -156,7 +157,7 @@ export default function JoinPage() {
   async function handleConfirmJoin() {
     if (!previewData) return
 
-    if (previewData.actionType === 'create_clan' && !contactEmail.trim()) {
+    if ((previewData.actionType === 'create_clan' || !previewData.authenticated) && !contactEmail.trim()) {
       setConfirmError('Saisissez une adresse e-mail de contact.')
       return
     }
@@ -192,11 +193,6 @@ export default function JoinPage() {
         setSuccessData(payload)
         setJoinStatus('success')
         setIsConfirming(false)
-
-        const target = payload.status === 'created' ? `/clans/${payload.clanId}` : '/clans'
-        setTimeout(() => {
-          router.push(target)
-        }, 2500)
       }
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Une erreur inattendue est survenue'
@@ -211,7 +207,6 @@ export default function JoinPage() {
   }
 
   const loading = joinStatus === 'loading'
-  const successTarget = successData?.status === 'created' ? `/clans/${successData.clanId}` : '/clans'
 
   return (
     <AuthPage>
@@ -233,7 +228,7 @@ export default function JoinPage() {
             header={<img src={pubgLogo.src} alt="PUBG Battlegrounds" className="h-10 w-auto self-start object-contain" />}
             kicker="Inscription des clans"
             title="Votre clan sur chickendinner.fr"
-            text="Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG. Reliez votre compte à votre clan, ou inscrivez-le : statistiques, victoires et classements synchronisés en continu."
+            text="Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG. Demandez l’accès à votre clan, ou inscrivez-le : pas besoin de compte, il se crée à l’acceptation de la demande."
           >
             <AuthHighlights items={HIGHLIGHTS} />
           </AuthVisual>
@@ -242,12 +237,12 @@ export default function JoinPage() {
         <div className="flex flex-col gap-1">
           <h2 className="t-section-title m-0 flex items-center gap-2">
             <UserPlus className="h-5 w-5 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
-            Relier son compte ou inscrire son clan
+            Demander l’accès à son clan ou l’inscrire
           </h2>
-          <p className="t-meta m-0">Le pseudo officiel PUBG identifie le profil et rattache le joueur à son clan.</p>
+          <p className="t-meta m-0">Le pseudo officiel PUBG identifie le joueur et retrouve son clan.</p>
         </div>
 
-        <AuthGuide icon={ShieldCheck} title="Validation obligatoire avant activation" items={GUIDE} />
+        <AuthGuide icon={ShieldCheck} title="Pas besoin de compte pour demander" items={GUIDE} />
 
         {successData ? (
           <div className="flex flex-col gap-3">
@@ -262,15 +257,10 @@ export default function JoinPage() {
                 <Tag tone="warn">En attente de validation</Tag>
               </dd>
             </dl>
-            <div className="flex flex-wrap items-center justify-between gap-2">
-              <span className="t-meta">
-                {successData.status === 'created' ? 'Redirection vers la page du clan…' : 'Redirection vers la liste des clans…'}
-              </span>
-              <Link href={successTarget} className="app-btn app-btn--sm app-btn--primary gap-1.5">
-                Continuer
-                <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
-              </Link>
-            </div>
+            <Link href="/clans" className="app-btn app-btn--sm app-btn--primary gap-1.5 self-end">
+              Voir les clans
+              <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
+            </Link>
           </div>
         ) : (
           <form onSubmit={(event) => void handleSubmit(event)} className="flex flex-col gap-4">
@@ -338,7 +328,7 @@ export default function JoinPage() {
           error={confirmError}
           busy={isConfirming}
           onCancel={handleCancelConfirm}
-          onConfirm={() => (previewData.authenticated ? void handleConfirmJoin() : router.push('/login?redirect=/join'))}
+          onConfirm={() => void handleConfirmJoin()}
         />
       ) : null}
     </AuthPage>
@@ -373,8 +363,8 @@ function JoinConfirmDialog({
   return (
     <ConfirmDialog
       icon={creating ? Crown : ShieldCheck}
-      title={creating ? 'Inscrire le clan' : 'Relier son compte au clan'}
-      confirmLabel={!authenticated ? 'Se connecter pour continuer' : creating ? 'Soumettre au SuperUser' : 'Envoyer la demande à l’admin'}
+      title={creating ? 'Inscrire le clan' : 'Demander l’accès au clan'}
+      confirmLabel={creating ? 'Soumettre au SuperUser' : 'Envoyer la demande à l’Owner'}
       tone="primary"
       busy={busy}
       onCancel={onCancel}
@@ -388,12 +378,12 @@ function JoinConfirmDialog({
           ) : creating ? (
             <>
               Le clan {target} n’est pas encore suivi par le site. Son inscription est validée par le SuperUser ; une fois approuvée, le
-              clan est activé et vous en êtes le propriétaire (Owner).
+              clan est suivi et vous en êtes le propriétaire (Owner).
             </>
           ) : (
             <>
-              Le clan {target} est déjà suivi : la demande de rattachement est transmise à son administrateur, et votre compte devient
-              membre actif dès son approbation.
+              Le clan {target} est déjà suivi : la demande est transmise à son Owner, et vous devenez membre du clan sur le site dès
+              son acceptation.
             </>
           )}
         </p>
@@ -411,11 +401,11 @@ function JoinConfirmDialog({
           </dd>
           <dt className="t-meta">Validation</dt>
           <dd className="m-0 text-right">
-            <Tag tone={creating ? 'warn' : 'pos'}>{creating ? 'SuperUser' : 'Admin du clan'}</Tag>
+            <Tag tone={creating ? 'warn' : 'pos'}>{creating ? 'SuperUser' : 'Owner du clan'}</Tag>
           </dd>
         </dl>
 
-        {creating && authenticated ? (
+        {creating || !authenticated ? (
           <label className="flex flex-col gap-1">
             <FieldLabel required>Adresse e-mail de contact</FieldLabel>
             <input
@@ -428,15 +418,19 @@ function JoinConfirmDialog({
               className="app-input"
               autoComplete="email"
             />
-            <span className="t-meta">Pour vous notifier de la décision et préparer votre accès au site.</span>
+            <span className="t-meta">
+              {authenticated ? 'Pour vous notifier de la décision.' : 'Le lien pour créer votre compte y arrive quand la demande est acceptée.'}
+            </span>
           </label>
         ) : null}
 
         {!authenticated ? (
-          <Callout tone="warn" icon={LogIn} title="Connexion requise pour finaliser">
-            {creating
-              ? 'Se connecter à son compte pour soumettre ce clan à la validation du SuperUser.'
-              : `Se connecter à son compte pour transmettre la demande aux administrateurs du clan « ${preview.targetClanName} ».`}
+          <Callout tone="sky" icon={Mail} title="Pas besoin de compte">
+            Votre compte sera créé à l’acceptation : vous recevrez à cette adresse le lien pour choisir votre mot de passe
+            (valable 48 heures).{' '}
+            <Link href="/login?redirect=/join" className="app-link font-semibold">
+              Déjà un compte ? Se connecter
+            </Link>
           </Callout>
         ) : null}
 

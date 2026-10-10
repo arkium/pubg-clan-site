@@ -275,9 +275,13 @@ Les routes API vérifient la session via `requireRole` ou une vérification dire
 - **401** : session absente ou invalide.
 - **403** : session présente mais rôle insuffisant.
 
-Les routes publiques (sans session requise) sont : `/api/auth/login`, `/api/auth/activate`, `/api/auth/activate/context`, `/api/auth/password/forgot`, `/api/auth/password/reset`, `/api/auth/password/reset/context`, `/api/setup/status`.
+Les routes publiques (sans session requise) sont : `/api/auth/login`, `/api/auth/activate`, `/api/auth/activate/context`, `/api/auth/password/forgot`, `/api/auth/password/reset`, `/api/auth/password/reset/context`, `/api/setup/status`, `POST /api/join`.
 
-La route `POST /api/join` requiert une session mais pas de rôle clan — tout utilisateur authentifié sans identité membre active peut l'appeler.
+`POST /api/join` est public depuis le 2026-10-10 : sans session, la demande (accès à un clan suivi ou inscription d'un
+clan) part avec une adresse de contact obligatoire ; avec une session sans identité membre active, elle est rattachée au
+compte comme avant. **Un compte ne se crée toujours que par une invitation** (`activateMemberInvite`) : l'acceptation
+d'une demande sans compte crée cette invitation vers l'adresse de contact, et l'email de décision porte le lien
+(`src/lib/join-request-access.ts`, [clans.md](clans.md) « Ajout d'un membre — flux auto-inscription »).
 
 ---
 

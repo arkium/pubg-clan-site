@@ -183,13 +183,19 @@ Génère un token d'invitation et envoie un email ou un lien Discord. Voir `docs
 
 ### Ajout d'un membre — flux auto-inscription (`/join`)
 
-Un joueur relie son compte à son clan déjà suivi, ou inscrit son clan, via la page `/join`, sans intervention préalable
+Un joueur demande l'accès à son clan déjà suivi, ou inscrit son clan, via la page `/join`, sans intervention préalable
 d'un Owner. Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG (vocabulaire décidé le 2026-10-09,
 [accueil.md](accueil.md) § 2).
 
+**Pas besoin de compte (2026-10-10).** Un compte ne naît que d'une invitation ; or `/join` exigeait d'être connecté, et
+`/login` renvoyait vers `/join` : un nouveau venu tournait en rond, et personne ne pouvait inscrire un nouveau clan seul.
+Désormais la demande part **avec une adresse de contact**, et son **acceptation** crée l'invitation vers cette adresse :
+l'email de décision porte le lien de création du compte (valable 48 heures). Code : `src/lib/join-request-access.ts`.
+
 **Page :** `/join`  
 **Endpoint :** `POST /api/join`  
-**Accès :** tout utilisateur connecté sans identité membre active
+**Accès :** public. Sans compte, l'adresse de contact est obligatoire ; avec un compte sans identité membre active,
+la demande est rattachée au compte comme avant.
 
 #### Flux
 
@@ -197,31 +203,47 @@ d'un Owner. Le site ne recrute pas : il suit les clans qui existent déjà dans 
 2. L'API résout le `pubgAccountId` via `searchPlayerByName()` (PUBG API).
 3. L'API récupère le `pubgClanId` du joueur via `fetchPlayerClan()`.
 
-**Cas 1 — Le clan PUBG existe déjà en DB :**
-- Crée un `ClanMember` avec `isActive: false`, `joinStatus: 'pending'`.
-- Lie le membre au `UserAccount` courant via `MemberIdentity`.
-- Le joueur attend la validation d'un Owner du clan (ou du SuperUser).
+**Cas 1 — Le clan PUBG est déjà suivi (demande d'accès) :**
+- Crée un `ClanMember` avec `isActive: false`, `joinStatus: 'pending'`, et l'adresse de contact (`contactEmail`) si elle
+  est donnée.
+- Avec un compte : lie le membre au `UserAccount` courant via `MemberIdentity`. Sans compte : aucun lien, il se fera à
+  l'activation de l'invitation.
+- Le joueur attend la décision d'un Owner du clan (ou du SuperUser).
 
-**Cas 2 — Le clan PUBG est inconnu :**
-- Crée un nouveau `Clan` + un `ClanMember` actif.
+**Cas 2 — Le clan PUBG est inconnu (inscription) :**
+- Crée un nouveau `Clan` inactif + un `ClanMember` en attente, avec l'adresse de contact (obligatoire dans ce cas).
 - Initialise les rôles par défaut du clan.
-- Assigne automatiquement le rôle Owner au joueur (fondateur).
+- Assigne le rôle Owner au demandeur ; le SuperUser valide l'inscription dans « Cycle de vie des clans ».
 
 #### Gardes
 
-- Un utilisateur déjà lié à un membre (`MemberIdentity` existante) reçoit un 409.
-- Un `pubgAccountId` déjà présent en DB reçoit un 409 (évite les doublons).
+- Sans compte et sans adresse de contact : 400 `CONTACT_EMAIL_REQUIRED`.
+- Au plus **3 demandes en attente par adresse** (`JOIN_PENDING_PER_EMAIL_LIMIT`) : 429 `TOO_MANY_PENDING_REQUESTS`.
+- Un utilisateur connecté déjà lié à un membre actif (`MemberIdentity`) reçoit un 409.
+- Un joueur déjà membre actif reçoit un 409 `PLAYER_ALREADY_MEMBER` : s'il n'a pas de compte, il demande une invitation
+  à l'Owner de son clan (la liste des membres sait l'envoyer). Une demande déjà en attente : 409 `JOIN_REQUEST_PENDING`.
+- **Usurpation** : n'importe qui peut demander l'accès au nom d'un pseudo qui n'est pas encore membre. Le seul rempart
+  est la vérification humaine : l'Owner voit l'adresse de contact et « Sans compte » sur la demande, et la modale
+  d'acceptation lui demande de vérifier que l'adresse est bien celle du joueur (en jeu, sur le Discord du clan) ; le
+  SuperUser fait de même pour une inscription. Un joueur déjà membre ne peut pas être revendiqué ainsi (409).
 
 #### Validation des membres en attente
 
-**Page :** `/clans/[clanId]/members/pending`  
+**Page :** `/clans/[clanId]/settings/members?tab=demandes` (onglet « Demandes d'adhésion »)  
 **Endpoint approbation :** `POST /api/clans/[clanId]/members/[memberId]/approve`  
 **Endpoint rejet :** `POST /api/clans/[clanId]/members/[memberId]/reject`  
 **Permission requise :** Owner du clan (fonctionnalité `clan-members`) ou SuperUser
 
 L'approbation active le membre (`isActive: true`, `joinStatus: 'active'`) et lui assigne le rôle Member par défaut.
+Si le demandeur **n'a pas de compte** et a laissé une adresse, elle crée ensuite l'invitation (`createMemberInvite`,
+sans son propre email) et envoie l'email d'acceptation avec le lien de création du compte
+(`sendMemberApprovedEmail`). La réponse dit si le lien est parti (`invitation.status`, `emailSent`, phrase dans
+`message`) ; sans SMTP, l'Owner renvoie l'invitation depuis la liste des membres. Le refus prévient le demandeur par email
+(`sendMemberRejectedEmail`). La validation d'un clan inscrit sans compte fait de même pour son Owner
+(`POST /api/clans/[clanId]/approve`, lien dans `sendClanApprovedEmail`).
 
-La route `GET /api/clans/[clanId]/members?status=pending` retourne uniquement les membres en attente.
+La route `GET /api/clans/[clanId]/members?status=pending` retourne uniquement les membres en attente, avec leur
+`contactEmail` et `hasAccount`.
 
 ### Champ `joinStatus`
 
@@ -414,7 +436,7 @@ Les routes sensibles vérifient l'appartenance au clan ET le rôle. Le SuperUser
 | `POST /api/clans/[clanId]/sync-stats` | SuperUser (ou appel cron interne) |
 | `GET /api/clans/[clanId]/cron-control` | SuperUser |
 | `POST /api/clans/[clanId]/cron-control` | SuperUser |
-| `POST /api/join` | Utilisateur connecté sans identité membre existante |
+| `POST /api/join` | Public : visiteur avec adresse de contact, ou utilisateur connecté sans identité membre active |
 
 ---
 

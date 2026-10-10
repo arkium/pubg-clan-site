@@ -101,12 +101,16 @@ export async function GET(
           isActive: true,
           joinStatus: true,
           createdAt: true,
+          // Demande envoyée de /join : l'Owner vérifie l'adresse avant d'accepter, car l'acceptation y envoie le lien de
+          // création du compte quand le demandeur n'en a pas (src/lib/join-request-access.ts).
+          contactEmail: true,
+          identities: { select: { id: true } },
         },
         orderBy: { createdAt: 'asc' },
       })
 
       return Response.json({
-        pending: pendingMembers,
+        pending: pendingMembers.map(({ identities, ...member }) => ({ ...member, hasAccount: identities.length > 0 })),
         clanName: clan.name,
       })
     }

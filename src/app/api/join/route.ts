@@ -7,6 +7,7 @@ import { decideJoinTarget } from '@/lib/clan-archive-state'
 import { searchPlayerByName, fetchPlayerClan } from '@/lib/pubg'
 import { initializeDefaultRoles } from '@/lib/role-service'
 import { notifyJoinRequest, notifyClanCreationRequest } from '@/lib/notification-service'
+import { JOIN_PENDING_PER_EMAIL_LIMIT } from '@/lib/join-request-access'
 
 // Exporte pour que le test importe le VRAI schema au lieu d'en recopier une
 // version qui divergerait en silence (voir « Tests de controle » du todo).
@@ -16,8 +17,8 @@ export const JoinRequestSchema = z.object({
   mode: z.enum(['preview', 'join']).default('join'),
   // Chantier 4 : email de contact du demandeur. Optionnel en `preview` — la
   // previsualisation ne cree rien, inutile de le reclamer avant de savoir si le
-  // joueur existe. Sa presence est exigee a l'execution, et seulement quand un
-  // clan va reellement etre cree (voir plus bas).
+  // joueur existe. Exige a l'execution sans compte (le lien de creation du compte
+  // y part a l'acceptation, 2026-10-09) et, avec un compte, pour inscrire un clan.
   contactEmail: z
     .string()
     .trim()
@@ -27,14 +28,24 @@ export const JoinRequestSchema = z.object({
     .or(z.literal('').transform(() => undefined)),
 })
 
-type JoinRequestPayload = z.infer<typeof JoinRequestSchema>
-
 interface JoinResponse {
   status: 'pending' | 'created'
   clanId: number
   clanName: string
   memberId: number
   message: string
+}
+
+/** Rattache le membre au compte connecté, ou change de compte un rattachement existant. */
+async function linkMemberToAccount(memberId: number, userId: number, isPrimary: boolean) {
+  const existingIdentity = await prisma.memberIdentity.findUnique({ where: { memberId } })
+  if (existingIdentity) {
+    if (existingIdentity.userId !== userId) {
+      await prisma.memberIdentity.update({ where: { id: existingIdentity.id }, data: { userId } })
+    }
+    return
+  }
+  await prisma.memberIdentity.create({ data: { userId, memberId, isPrimary } })
 }
 
 export async function POST(request: Request) {
@@ -80,7 +91,7 @@ export async function POST(request: Request) {
       if (existingMember.isActive && existingMember.joinStatus === 'active') {
         return Response.json(
           {
-            error: `Le joueur "${pubgPlayerName}" est déjà enregistré dans le clan "${existingMember.clan?.name ?? 'un clan'}". Veuillez vous connecter à votre compte pour accéder à votre espace clan.`,
+            error: `Le joueur "${pubgPlayerName}" est déjà enregistré dans le clan "${existingMember.clan?.name ?? 'un clan'}". Connectez-vous à votre compte ; pas encore de compte ? Demandez une invitation à l'Owner du clan.`,
             code: 'PLAYER_ALREADY_MEMBER',
             clanId: existingMember.clan?.id,
             clanName: existingMember.clan?.name,
@@ -93,7 +104,7 @@ export async function POST(request: Request) {
       if (existingMember.joinStatus === 'pending') {
         return Response.json(
           {
-            error: `Une demande de rattachement du joueur "${pubgPlayerName}" est déjà en attente de validation par l'administrateur du clan "${existingMember.clan?.name ?? 'ce clan'}".`,
+            error: `Une demande d'accès du joueur "${pubgPlayerName}" est déjà en attente de validation par l'Owner du clan "${existingMember.clan?.name ?? 'ce clan'}".`,
             code: 'JOIN_REQUEST_PENDING',
             clanId: existingMember.clan?.id,
             clanName: existingMember.clan?.name,
@@ -181,42 +192,57 @@ export async function POST(request: Request) {
       })
     }
 
-    // Mode Join : nécessite une session connectée avec message adapté
-    if (!session) {
-      const actionDesc = clan
-        ? `envoyer votre demande de rattachement au clan "${clan.name}"`
-        : `soumettre l'inscription d'un nouveau clan`
+    // Mode Join. Sans compte (le cas courant : un compte ne naît que d'une invitation), la demande part avec l'adresse
+    // de contact ; son acceptation y enverra le lien de création du compte (src/lib/join-request-access.ts). Avec un
+    // compte, la demande lui est rattachée tout de suite, comme avant.
+    if (!session && !contactEmail) {
       return Response.json(
         {
-          error: `Vous devez être connecté avec votre compte utilisateur pour ${actionDesc}.`,
-          code: 'AUTH_REQUIRED',
-          actionType: clan ? 'join_existing' : 'create_clan',
+          error:
+            "Une adresse email de contact est requise : le lien pour créer votre compte y sera envoyé quand la demande sera acceptée.",
+          code: 'CONTACT_EMAIL_REQUIRED',
         },
-        { status: 401 }
+        { status: 400 }
       )
+    }
+
+    // Demandes anonymes répétées : quelques demandes en attente au plus par adresse.
+    if (contactEmail) {
+      const pendingForEmail = await prisma.clanMember.count({ where: { contactEmail, joinStatus: 'pending' } })
+      if (pendingForEmail >= JOIN_PENDING_PER_EMAIL_LIMIT) {
+        return Response.json(
+          {
+            error: `Cette adresse a déjà ${pendingForEmail} demandes en attente : attendez qu'elles soient traitées avant d'en envoyer une autre.`,
+            code: 'TOO_MANY_PENDING_REQUESTS',
+          },
+          { status: 429 }
+        )
+      }
     }
 
     // 0. Block users who already have an active member identity
-    const existingUserIdentity = await prisma.memberIdentity.findFirst({
-      where: {
-        userId: session.userId,
-        member: {
-          isActive: true,
-          joinStatus: 'active',
+    if (session) {
+      const existingUserIdentity = await prisma.memberIdentity.findFirst({
+        where: {
+          userId: session.userId,
+          member: {
+            isActive: true,
+            joinStatus: 'active',
+          },
         },
-      },
-      include: { member: { include: { clan: { select: { name: true } } } } },
-    })
-    if (existingUserIdentity) {
-      return Response.json(
-        {
-          error: `Votre compte utilisateur est déjà associé au joueur "${existingUserIdentity.member.displayName}" du clan "${existingUserIdentity.member.clan?.name ?? 'un clan'}".`,
-        },
-        { status: 409 }
-      )
+        include: { member: { include: { clan: { select: { name: true } } } } },
+      })
+      if (existingUserIdentity) {
+        return Response.json(
+          {
+            error: `Votre compte utilisateur est déjà associé au joueur "${existingUserIdentity.member.displayName}" du clan "${existingUserIdentity.member.clan?.name ?? 'un clan'}".`,
+          },
+          { status: 409 }
+        )
+      }
     }
 
-    let clanMember: any
+    let clanMember: { id: number }
     let response: JoinResponse
 
     if (clan) {
@@ -226,7 +252,8 @@ export async function POST(request: Request) {
       const reopenedRejectedClan =
         joinTarget === 'reopen_rejected' ? await reopenRejectedClan(clan.id) : false
 
-      // If a rejected/inactive record exists, update it to pending; otherwise create a new one
+      // If a rejected/inactive record exists, update it to pending; otherwise create a new one.
+      // L'adresse de contact sert à l'Owner pour vérifier la demande, puis à l'envoi du lien de création du compte.
       if (existingMember) {
         clanMember = await prisma.clanMember.update({
           where: { id: existingMember.id },
@@ -238,6 +265,7 @@ export async function POST(request: Request) {
             platformShard,
             isActive: false,
             joinStatus: 'pending',
+            ...(contactEmail ? { contactEmail } : {}),
           },
         })
       } else {
@@ -250,29 +278,14 @@ export async function POST(request: Request) {
             platformShard,
             isActive: false,
             joinStatus: 'pending',
+            ...(contactEmail ? { contactEmail } : {}),
           },
         })
       }
 
-      // Link this member to the user account
-      const existingIdentity = await prisma.memberIdentity.findUnique({
-        where: { memberId: clanMember.id },
-      })
-      if (existingIdentity) {
-        if (existingIdentity.userId !== session.userId) {
-          await prisma.memberIdentity.update({
-            where: { id: existingIdentity.id },
-            data: { userId: session.userId },
-          })
-        }
-      } else {
-        await prisma.memberIdentity.create({
-          data: {
-            userId: session.userId,
-            memberId: clanMember.id,
-            isPrimary: !session.activeMemberId,
-          },
-        })
+      // Link this member to the user account (sans compte : le lien se fera à l'activation de l'invitation)
+      if (session) {
+        await linkMemberToAccount(clanMember.id, session.userId, !session.activeMemberId)
       }
 
       // Notify Owner/Admin of the clan (fire-and-forget — non bloquant)
@@ -294,19 +307,21 @@ export async function POST(request: Request) {
         memberId: clanMember.id,
         message: reopenedRejectedClan
           ? `Le clan "${clan.name}" avait été refusé : votre demande le soumet de nouveau à la validation du SuperUser.`
-          : `Votre demande de rattachement au clan "${clan.name}" a été envoyée. Elle attend l'approbation de ses administrateurs.`,
+          : session
+            ? `Votre demande d'accès au clan "${clan.name}" a été envoyée. Elle attend l'approbation de son Owner.`
+            : `Votre demande d'accès au clan "${clan.name}" a été envoyée. Quand son Owner l'acceptera, vous recevrez à ${contactEmail} le lien pour créer votre compte.`,
       }
     } else {
       // CASE 2: Clan doesn't exist - create new clan and member
 
-      // Chantier 4 : creer un clan engage la ligue, on veut pouvoir recontacter le
-      // demandeur pour lui annoncer la decision. L'email n'est exige que sur cette
-      // branche : rejoindre un clan existant ne le necessite pas.
+      // Chantier 4 : inscrire un clan engage la ligue, on veut pouvoir recontacter le
+      // demandeur pour lui annoncer la decision. Sans compte, l'email est deja exige
+      // plus haut ; avec un compte, il ne l'est que sur cette branche.
       if (!contactEmail) {
         return Response.json(
           {
             error:
-              "Une adresse email de contact est requise pour demander la création d'un clan : elle sert à vous notifier de la décision du SuperUser.",
+              "Une adresse email de contact est requise pour demander l'inscription d'un clan : elle sert à vous notifier de la décision du SuperUser.",
             code: 'CONTACT_EMAIL_REQUIRED',
           },
           { status: 400 }
@@ -377,25 +392,9 @@ export async function POST(request: Request) {
         })
       }
 
-      // Link this member to the user account
-      const existingIdentity = await prisma.memberIdentity.findUnique({
-        where: { memberId: clanMember.id },
-      })
-      if (existingIdentity) {
-        if (existingIdentity.userId !== session.userId) {
-          await prisma.memberIdentity.update({
-            where: { id: existingIdentity.id },
-            data: { userId: session.userId },
-          })
-        }
-      } else {
-        await prisma.memberIdentity.create({
-          data: {
-            userId: session.userId,
-            memberId: clanMember.id,
-            isPrimary: true,
-          },
-        })
+      // Link this member to the user account (sans compte : le lien se fera à l'activation de l'invitation)
+      if (session) {
+        await linkMemberToAccount(clanMember.id, session.userId, true)
       }
 
       // Notify SuperUsers of the new clan pending approval (fire-and-forget)
@@ -408,7 +407,9 @@ export async function POST(request: Request) {
         clanId: newClan.id,
         clanName: newClan.name,
         memberId: clanMember.id,
-        message: `Votre demande d'inscription du clan "${newClan.name}" a été envoyée. Elle attend la validation du SuperUser avant que le clan soit suivi par la ligue.`,
+        message: session
+          ? `Votre demande d'inscription du clan "${newClan.name}" a été envoyée. Elle attend la validation du SuperUser avant que le clan soit suivi par la ligue.`
+          : `Votre demande d'inscription du clan "${newClan.name}" a été envoyée. Quand le SuperUser la validera, vous recevrez à ${contactEmail} le lien pour créer votre compte d'Owner.`,
       }
     }
 

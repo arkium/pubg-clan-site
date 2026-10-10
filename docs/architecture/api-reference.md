@@ -101,7 +101,7 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
-| POST | `/api/join` | Session (cookie), pas de rôle clan requis | ✅ Pertinent | Rejoint un clan existant (pending) ou en crée un nouveau (Owner) — voir [Clans](../features/clans.md). **`contactEmail` exigé uniquement pour une création de clan** |
+| POST | `/api/join` | Public (session facultative) | ✅ Pertinent | Demande l'accès à un clan suivi (pending) ou inscrit un nouveau clan (Owner) — voir [Clans](../features/clans.md). **`contactEmail` exigé sans session** (le lien de création du compte y part à l'acceptation, 2026-10-10) **et pour une inscription de clan** ; 3 demandes en attente au plus par adresse (429) |
 
 ---
 
@@ -164,7 +164,7 @@ Variante **par clan** du réglage global `/api/settings/login-welcome` (voir [Pa
 |---|---|---|---|---|
 | GET | `/api/clans/[clanId]/members` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Roster complet avec rôles/invitations/permissions — voir [Clans](../features/clans.md) |
 | GET | `/api/clans/[clanId]/members/cards` | `requireNavPermission('clan.members')` | ✅ Pertinent | Fiches de l'annuaire : rôle, activité, 30 jours officiels, arme fétiche, médailles ; demandes en attente pour `manage_members` — voir [Membres](../features/membres.md) §2 |
-| POST | `/api/clans/[clanId]/members/[memberId]/approve` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Approuve un membre en attente — voir [Clans](../features/clans.md) |
+| POST | `/api/clans/[clanId]/members/[memberId]/approve` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Approuve un membre en attente ; demandeur sans compte : crée son invitation et lui envoie le lien de création du compte (`invitation`, `emailSent`) — voir [Clans](../features/clans.md) |
 | POST | `/api/clans/[clanId]/members/[memberId]/invite` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Crée une invitation d'activation — voir [Clans](../features/clans.md) |
 | DELETE | `/api/clans/[clanId]/members/[memberId]/invite` | `requireClanFeature('clan-members')` (session obligatoire depuis le 2026-10-07) | ⚠️ Admin web uniquement | Révoque l'invitation active du membre |
 | POST | `/api/clans/[clanId]/members/[memberId]/reject` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | Rejette une demande d'adhésion pending — voir [Clans](../features/clans.md) |
@@ -306,7 +306,7 @@ Voir [Cycle de vie du clan](../features/cycle-de-vie-clan.md).
 | GET | `/api/settings/clan-lifecycle/ungrouped` | SuperUser | ❌ | Effectif du parking. `?thresholdDays=N` simule un autre seuil |
 | POST | `/api/settings/clan-lifecycle/ungrouped` | SuperUser | ❌ | `archive` (en masse) ou `reactivate` |
 | GET | `/api/settings/clan-lifecycle/pending-clans` | SuperUser | ❌ | Clans en attente avec demandeur, contact et promotions différées |
-| POST | `/api/clans/[clanId]/approve` | SuperUser | ❌ | Active le clan **et applique les mouvements en attente** |
+| POST | `/api/clans/[clanId]/approve` | SuperUser | ❌ | Active le clan **et applique les mouvements en attente** ; Owner demandeur sans compte : invitation et lien de création du compte dans l'email de validation |
 | POST | `/api/clans/[clanId]/reject` | SuperUser | ❌ | Refuse la demande, passe le demandeur en `rejected`, clôt les mouvements en attente |
 
 > **`DELETE /api/members/[id]` est passé au SuperUser** le 2026-09-20 (il était ouvert à `manage_members`).

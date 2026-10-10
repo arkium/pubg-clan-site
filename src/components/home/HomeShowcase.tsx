@@ -60,8 +60,8 @@ const NAV_LINKS = [
 const JOIN_STEPS = [
   { title: 'Donne ton pseudo PUBG', text: 'On retrouve ton compte et le clan PUBG auquel il appartient.' },
   {
-    title: 'Relie ton compte à ton clan, ou inscris-le',
-    text: 'Ton clan est déjà suivi : son admin valide ton compte. Sinon, inscris-le : un administrateur du site valide.',
+    title: 'Demande l’accès à ton clan, ou inscris-le',
+    text: 'Son Owner valide, ou un administrateur du site pour un nouveau clan : tu reçois alors par e-mail le lien pour créer ton compte.',
   },
   { title: 'Tes stats arrivent ici', text: 'Kills, drops, armes, top 1 : ton tableau de bord se remplit tout seul.' },
 ]

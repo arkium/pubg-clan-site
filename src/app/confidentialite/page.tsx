@@ -6,8 +6,9 @@ import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, LEGAL_UPDATED_AT, PRIVACY_REQ
 
 /**
  * Confidentialité, page publique — docs/features/pages-legales.md. Chaque ligne a été vérifiée contre le code
- * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026, journal d'administration ajouté le 07/10/2026 : à revoir
- * quand le site collecte une donnée nouvelle.
+ * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026, journal d'administration ajouté le 07/10/2026, e-mail de
+ * contact des demandes d'accès sans compte le 10/10/2026 (src/lib/join-request-access.ts) : à revoir quand le site collecte
+ * une donnée nouvelle.
  */
 
 
@@ -16,7 +17,11 @@ const DATA_ROWS = [
   { data: 'Matchs, statistiques, télémétrie (positions sur la carte comprises)', source: 'API PUBG, après la partie', usage: 'Stats, débriefings, ligue' },
   { data: 'Joueurs croisés en partie : pseudo, account_id, clan', source: 'Télémétrie des parties', usage: 'Kill feed, Némésis' },
   { data: 'Compte du site : e-mail, mot de passe chiffré, nom affiché, lien d’avatar', source: 'Toi, à l’inscription', usage: 'Connexion, invitations' },
-  { data: 'E-mail de contact d’une demande de clan', source: 'Toi, sur la page d’inscription', usage: 'Réponse à la demande' },
+  {
+    data: 'E-mail de contact d’une demande d’accès à un clan ou d’inscription d’un clan',
+    source: 'Toi, sur la page d’inscription',
+    usage: 'Vu par l’Owner du clan (ou le SuperUser) pour vérifier la demande ; réponse à la demande et envoi du lien de création du compte',
+  },
   { data: 'Commentaires sur la carte des ressources', source: 'Toi', usage: 'Validation des points' },
   { data: 'Résultats publiés sur Discord : pseudos de l’escouade, kills, dégâts, carte', source: 'Matchs et tournois du clan', usage: 'Canal Discord du clan, si un admin l’active' },
   { data: 'Demande de retrait : pseudo, e-mail, motif', source: 'Toi, par le formulaire', usage: 'Traitement de ta demande' },
@@ -100,7 +105,7 @@ const SECTIONS: LegalSection[] = [
           {
             label: 'Conservation',
             value:
-              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
+              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
           },
         ]}
       />

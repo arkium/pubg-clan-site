@@ -5,7 +5,7 @@
 import Link from 'next/link'
 import { Suspense, type FormEvent, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'next/navigation'
-import { ArrowLeft, ArrowRight, LogIn, ShieldCheck, Sparkles, Trophy, Users } from 'lucide-react'
+import { ArrowLeft, ArrowRight, Crosshair, LogIn, MapPin, ShieldCheck, Users } from 'lucide-react'
 
 import pubgLogo from '@/assets/pubg-logo-official.webp'
 import { AuthAlert, AuthCard, AuthGuide, AuthHighlights, AuthPage, AuthVisual, FieldLabel, type AuthHighlight } from '@/components/auth/AuthLayout'
@@ -18,6 +18,9 @@ import { useImageFallback } from '@/hooks/useImageFallback'
  * Connexion — page plein écran, sans le shell. Selon la charte UI (docs/ui/index.html, « Modales » et « Contrôles ») et
  * la mise en page des pages d'accès (`AuthLayout`) : visuel sur photo à gauche — l'accueil configuré par le clan
  * (paramètres du clan › Accueil login) quand la connexion vient d'une page de clan —, formulaire à droite.
+ * Les textes ne promettent que ce que le compte apporte vraiment (2026-10-09) : statistiques, classements et tournois sont
+ * ouverts à tous sans compte ; le compte sert aux entraînements enregistrés, à la carte des ressources et, pour l'Owner, à
+ * la gestion de son clan. Il se crée sur invitation, ou à l'acceptation d'une demande envoyée de /join.
  */
 
 type WelcomeSettings = {
@@ -29,19 +32,20 @@ type WelcomeSettings = {
 
 const DEFAULT_GLOBAL_WELCOME: WelcomeSettings = {
   badge: 'Portail PUBG',
-  title: 'Connexion globale',
-  message: 'Connectez-vous pour gérer vos clans, synchroniser vos statistiques et accéder à vos tableaux de bord.',
+  title: 'Votre espace membre',
+  message:
+    'Statistiques, classements et tournois sont ouverts à tous, sans compte. Le compte sert aux membres des clans suivis : enregistrer ses entraînements, participer à la carte des ressources et, pour l’Owner, gérer son clan.',
   imageUrl: '/squad.jpg',
 }
 
 const HIGHLIGHTS: AuthHighlight[] = [
-  { icon: Sparkles, tone: 'pos', title: 'Accès centralisé', text: 'droits de gestion, rôles et clans associés, à jour en temps réel.' },
-  { icon: Users, tone: 'sky', title: 'Statistiques et télémétrie', text: 'frags, dégâts, drops et débriefings complets de chaque partie.' },
-  { icon: Trophy, tone: 'warn', title: 'Défis et compétition', text: 'classements du clan, tournois et duels face aux escouades rivales.' },
+  { icon: Crosshair, tone: 'pos', title: 'Entraînements enregistrés', text: 'séries au mortier et à la lecture de zone, classements du clan.' },
+  { icon: MapPin, tone: 'sky', title: 'Communauté', text: 'carte des ressources, mouvements entre clans, adversaires rencontrés par votre clan.' },
+  { icon: Users, tone: 'warn', title: 'Gestion du clan (Owner)', text: 'membres, invitations, demandes d’accès, notifications Discord, tournois.' },
 ]
 
 const GUIDE = [
-  { tone: 'pos' as const, title: 'Membre actif', body: 'saisir ses identifiants pour retrouver ses clans et ses statistiques.' },
+  { tone: 'pos' as const, title: 'Membre actif', body: 'saisir ses identifiants pour retrouver son espace et son clan.' },
   {
     tone: 'sky' as const,
     title: 'Invitation reçue',
@@ -57,14 +61,14 @@ const GUIDE = [
   },
   {
     tone: 'warn' as const,
-    title: 'Pas encore inscrit',
+    title: 'Pas encore de compte',
     body: (
       <>
         donner son pseudo PUBG pour{' '}
         <Link href="/join" className="app-link font-semibold">
-          relier son compte ou inscrire son clan
-        </Link>
-        .
+          demander l’accès à son clan ou l’inscrire
+        </Link>{' '}
+        : le compte se crée à l’acceptation.
       </>
     ),
   },
@@ -196,7 +200,7 @@ function LoginPageContent() {
           Retour à l’accueil du site
         </Link>
         <Link href="/join" className="app-link inline-flex items-center gap-1 text-xs font-semibold">
-          Inscrire son clan
+          Pas encore de compte ?
           <ArrowRight className="h-3.5 w-3.5" aria-hidden="true" />
         </Link>
       </div>
@@ -233,7 +237,7 @@ function LoginPageContent() {
             <LogIn className="h-5 w-5 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
             Se connecter
           </h2>
-          <p className="t-meta m-0">Tableaux de bord, statistiques de jeu et outils d’administration.</p>
+          <p className="t-meta m-0">Votre espace de membre et, pour l’Owner, la gestion de son clan.</p>
         </div>
 
         <AuthGuide icon={ShieldCheck} title="Première visite ?" items={GUIDE} />
@@ -294,7 +298,7 @@ function LoginPageContent() {
           <p className="t-meta m-0 text-center">
             Pas encore de compte ?{' '}
             <Link href="/join" className="app-link font-semibold">
-              Relier son compte ou inscrire son clan
+              Demander l’accès à son clan ou l’inscrire
             </Link>
           </p>
         </div>

@@ -68,7 +68,8 @@ d'ensemble du clan), organisée en trois onglets :
 1. **Tournois** — recherche, filtre de statut, tournois actifs en cartes, brouillons et tournois terminés en
    accordéon. Actions par tournoi : synchroniser PUBG, diffuser sur Discord, voir le classement, modifier, supprimer.
 2. **Créer** (ou **Modifier** quand un tournoi est en cours d'édition) — formulaire en cinq blocs : informations
-   générales, mode de tournoi et attribution des points, format et filtres PUBG, barème, diffusion Discord.
+   générales (dont les heures facultatives), mode de tournoi et attribution des points, format et filtres PUBG, barème,
+   diffusion Discord ; puis l'**aperçu de la vitrine** (voir « Horaires et aperçu de la vitrine »).
 3. **Guide** — ce que le tournoi comptabilise, les quatre modes, les escouades mixtes, la marche à suivre.
 
 **Charte UI** (`docs/ui/index.html`, 2026-10-04) : la page porte `.charte` et `.game-ui`. La page garde l'état et les
@@ -95,6 +96,41 @@ défaut, contrôles et corps envoyé, repris tels quels de l'ancienne page).
   (en bas à droite, centré en bas sur mobile ; en cours au ciel, réussite positive, échec négatif), fermé à la main
   comme avant.
 
+### Horaires et aperçu de la vitrine (2026-10-10)
+
+**Heures facultatives**, saisies **en heure de Paris** sous chaque date (« 21:00 » → « 03:00 » avec le jour suivant
+comme fin, pour une soirée qui finit après minuit). Vides : le tournoi reste en **journées entières**, comme avant.
+Logique dans `src/lib/tournament-schedule.ts` (pur, testé par `tournament-schedule.test.ts`), sans migration :
+`startDate` / `endDate` sont déjà des horodatages.
+
+- **Deux formes** : journée entière = minuit UTC pile (la fin couvre tout le dernier jour, jusqu'à 23:59:59.999 UTC) ;
+  heure précise = l'instant converti depuis Paris (heure d'été ou d'hiver). Une heure tombant pile sur minuit UTC (2 h
+  du matin en été) est décalée d'**une milliseconde**, pour ne jamais passer pour une journée entière.
+- **Une seule fin** (`tournamentWindowEnd`) pour la **capture des manches** (`tournament-service.ts`), la **phase**
+  « en direct » (`resolveTournamentPhase`, qui étendait jusqu'ici toujours à 23:59 en heure locale) et la **vitrine**
+  (résultats gardés 3 jours après la fin réelle). **Conséquence** : avec une heure de fin, une partie jouée après elle
+  n'est plus comptée.
+- **API** : `startTime` / `endTime` (« HH:MM », facultatifs) à côté de `startDate` / `endDate` dans `POST` et `PATCH`
+  `/api/clans/[clanId]/tournaments[/id]` ; l'API convertit. Heure mal formée ou fin avant le début : **400**
+  (`TournamentInputError`). `GET` renvoie aussi `clan` (nom, tag) pour l'aperçu.
+- **Affichage** : « 10 oct. 21:00 → 11 oct. 03:00 » (`formatTournamentPeriod`) sur `/tournaments`, la vitrine et ses
+  cartes (heure en or dans le pavé de date) ; une journée entière s'affiche comme avant.
+
+**Titre** (`src/lib/tournament-title.ts`, mêmes règles dans le formulaire et l'API) : 80 caractères au plus, **ni lien
+(« https:// », « www. », « discord.gg/ », nom de domaine) ni balise HTML** — il s'affiche sur la vitrine publique.
+Partout il est rendu en texte (React échappe, aucun `dangerouslySetInnerHTML`) ; sur Discord il part dans le titre de
+l'embed, où ni lien ni mention ne sont interprétés.
+
+**Aperçu de la vitrine** (`TournamentVitrinePreview`, dernier bloc du formulaire) : les vrais composants de la page
+d'accueil (`HomeTournaments.tsx` : carte « Prochains tournois », ligne d'agenda mobile, ticket du haut de page, cadre
+« en direct ») avec les valeurs saisies, plus le calendrier sur la vitrine (annoncé 14 jours avant, en direct, résultats
+jusqu'au…, `homeTournamentVisibility`). Brouillon : « rien n'apparaît sur la vitrine ». Un titre refusé est signalé dans
+l'aperçu avant l'envoi. L'aperçu est **inerte** (`inert`) : ses liens ne mènent nulle part.
+
+**Nombre de joueurs** (`TournamentOverview.playerCount`) : joueurs suivis distincts des manches comptées, calculé à
+partir des matchs du tournoi (pas besoin de télémétrie). La vitrine l'affiche dans le cadre « en direct » et les
+résultats dès la première manche (« 42 joueurs »), rien avant.
+
 ### Suppression
 
 `TournamentDeleteModal` confirme avant d'appeler `DELETE /api/clans/[clanId]/tournaments/[tournamentId]`. La modale
@@ -108,7 +144,8 @@ suppression.
 
 `e2e/tournament-admin.spec.ts` (simulations dans `e2e/support/tournament-admin.ts`, organisateur `manage_settings`,
 toutes les API interceptées, `DELETE` par une route Playwright dédiée) : liste et archives, recherche et statut, état
-vide, création (erreurs sous les champs, corps du `POST` complet), erreur du serveur, modification (valeurs héritées
+vide, création (erreurs sous les champs, heures de Paris et aperçu de la vitrine, titre avec lien signalé puis refusé,
+corps du `POST` complet avec `startTime` / `endTime`), erreur du serveur, modification (valeurs héritées
 normalisées, corps du `PATCH`), suppression par la modale (Échap, `DELETE`), synchronisation et toast, diffusion
 Discord (aperçu, manche déjà diffusée, envoi simulé), guide, bandeau docké sur ordinateur et jamais sur mobile, refus
 sans droit, aucun défilement horizontal ni `<select>` natif.
@@ -329,6 +366,7 @@ moteur n'y est pas décrit.
 | `discord/discord-tournament-embed.test.ts` | Intitulés par mode, note de prorata, format des lignes, limites Discord |
 | `discord/discord-tournament-service.test.ts` | Diffusion dans les 4 modes, MVP restreint en scrims internes, webhooks, journalisation |
 | `tournament-guide.test.ts` | Couverture des modes par le guide, cohérence avec le moteur, fiches non vides, pièges rappelés, résumé en quatre lignes |
+| `tournament-schedule.test.ts` | Heures de Paris (été, hiver), soirée 21 h → 3 h, journée entière conservée, minuit UTC décalé d'1 ms, relecture pour le formulaire, affichage, phase après l'heure de fin ; titre (liens, balises, longueur) |
 
 ## Contrôle sur données réelles
 

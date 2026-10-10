@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   buildHomeTournaments,
   hasHomeTournaments,
+  homeTournamentVisibility,
+  playerCountLabel,
   roundCountLabel,
   HOME_RESULTS_WINDOW_DAYS,
   HOME_UPCOMING_LIMIT,
@@ -141,6 +143,23 @@ describe('buildHomeTournaments', () => {
     expect(roundCountLabel(0)).toBe('Aucune manche')
     expect(roundCountLabel(1)).toBe('1 manche')
     expect(roundCountLabel(5)).toBe('5 manches')
+  })
+
+  it('annonce les joueurs dès la première manche comptée, rien avant', () => {
+    expect(playerCountLabel(0)).toBeNull()
+    expect(playerCountLabel(1)).toBe('1 joueur')
+    expect(playerCountLabel(42)).toBe('42 joueurs')
+  })
+
+  it('calendrier de visibilité : 14 jours avant le début, 3 jours après la fin réelle (heure comprise)', () => {
+    // Soirée du 10 octobre, 21 h → 3 h du matin (heure de Paris).
+    const visibility = homeTournamentVisibility('2026-10-10T19:00:00.000Z', '2026-10-11T01:00:00.000Z')
+    expect(visibility.announcedFrom.toISOString()).toBe('2026-09-26T19:00:00.000Z')
+    expect(visibility.resultsUntil.toISOString()).toBe('2026-10-14T01:00:00.000Z')
+    // Journée entière : la fenêtre part de la fin du dernier jour.
+    expect(homeTournamentVisibility('2026-10-10T00:00:00.000Z', '2026-10-11T00:00:00.000Z').resultsUntil.toISOString()).toBe(
+      '2026-10-14T23:59:59.999Z'
+    )
   })
 
   it('ne montre rien sans direct, sans tournoi proche ni résultat récent', () => {

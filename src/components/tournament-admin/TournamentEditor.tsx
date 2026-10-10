@@ -4,6 +4,7 @@ import { ChevronDown, Save, type LucideIcon } from 'lucide-react'
 import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
 
 import { AdminAlert } from '@/components/tournament-admin/TournamentAdminSections'
+import { TournamentVitrinePreview } from '@/components/tournament-admin/TournamentVitrinePreview'
 import {
   DEFAULT_PLACEMENT_POINTS,
   STATUS_OPTIONS,
@@ -14,12 +15,14 @@ import { TOURNAMENT_MODE_ICONS, tournamentModeClass } from '@/components/tournam
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { TOURNAMENT_GAME_MODE_OPTIONS, TOURNAMENT_MAP_OPTIONS } from '@/lib/tournament-filters'
 import { MIXED_SQUAD_RULE_DESCRIPTIONS, TOURNAMENT_MODE_DESCRIPTIONS } from '@/lib/tournament-guide'
+import { TOURNAMENT_TITLE_MAX_LENGTH } from '@/lib/tournament-title'
 
 /**
  * Formulaire de création / modification d'un tournoi, selon la charte UI (docs/ui/index.html, Contrôles ›
  * Formulaires) : champs `app-input` (36 px, focus à l'accent, erreur au jeton négatif sous le champ), intitulé
  * au-dessus, aide en `t-meta` ; choix courts en tuiles (statut en segmented, format, mode et escouades mixtes en
  * tuiles radio, choix teinté à l'accent), carte en menu de la charte (11 choix), jamais de `<select>` natif.
+ * Heures facultatives, de Paris (src/lib/tournament-schedule.ts) ; en dernière étape, l'aperçu exact de la vitrine.
  */
 
 const LABEL = 'text-[13px] font-semibold text-gray-700'
@@ -279,6 +282,7 @@ export function TournamentEditor({
   saving,
   onSubmit,
   onCancelEdit,
+  organizerClan,
 }: {
   form: TournamentFormState
   onChange: (form: TournamentFormState) => void
@@ -289,6 +293,8 @@ export function TournamentEditor({
   saving: boolean
   onSubmit: (event: React.FormEvent<HTMLFormElement>) => void
   onCancelEdit: () => void
+  /** Clan organisateur, pour l'aperçu de la vitrine (« Organisé par … »). */
+  organizerClan: { id: number; name: string; tag: string | null } | null
 }) {
   const statusLabelId = useId()
   const set = (patch: Partial<TournamentFormState>) => onChange({ ...form, ...patch })
@@ -300,7 +306,7 @@ export function TournamentEditor({
         <h2 id="tournament-editor-title" className="t-section-title break-words">
           {editing ? `Modifier : ${form.title || 'tournoi'}` : 'Nouveau tournoi'}
         </h2>
-        <p className="t-meta">Cinq étapes : informations, mode, filtres PUBG, barème et diffusion Discord.</p>
+        <p className="t-meta">Cinq étapes : informations, mode, filtres PUBG, barème et diffusion Discord, puis l’aperçu de la vitrine.</p>
       </div>
 
       <FormCard step={1} title="Informations générales" meta="Ce que les joueurs verront sur la page publique.">
@@ -311,6 +317,7 @@ export function TournamentEditor({
               value={form.title}
               onChange={(event) => set({ title: event.target.value })}
               required
+              maxLength={TOURNAMENT_TITLE_MAX_LENGTH}
               aria-invalid={errors.title ? true : undefined}
               aria-describedby={errors.title ? 'tournament-title-error' : undefined}
               className="app-input"
@@ -325,7 +332,7 @@ export function TournamentEditor({
               className="app-input"
             />
           </Field>
-          <Field label="Début" htmlFor="tournament-start" error={errors.startDate} errorId="tournament-start-error">
+          <Field label="Début" htmlFor="tournament-start" error={errors.startDate} errorId="tournament-start-error" className="sm:col-start-1">
             <input
               id="tournament-start"
               type="date"
@@ -337,7 +344,24 @@ export function TournamentEditor({
               className="app-input t-num"
             />
           </Field>
-          <Field label="Fin" htmlFor="tournament-end" error={errors.endDate} errorId="tournament-end-error">
+          <Field
+            label="Heure de début (Paris)"
+            htmlFor="tournament-start-time"
+            error={errors.startTime}
+            errorId="tournament-start-time-error"
+            hint="Facultative. Vide : toute la journée."
+          >
+            <input
+              id="tournament-start-time"
+              type="time"
+              value={form.startTime}
+              onChange={(event) => set({ startTime: event.target.value })}
+              aria-invalid={errors.startTime ? true : undefined}
+              aria-describedby={errors.startTime ? 'tournament-start-time-error' : undefined}
+              className="app-input t-num"
+            />
+          </Field>
+          <Field label="Fin" htmlFor="tournament-end" error={errors.endDate} errorId="tournament-end-error" className="sm:col-start-1">
             <input
               id="tournament-end"
               type="date"
@@ -347,6 +371,23 @@ export function TournamentEditor({
               required
               aria-invalid={errors.endDate ? true : undefined}
               aria-describedby={errors.endDate ? 'tournament-end-error' : undefined}
+              className="app-input t-num"
+            />
+          </Field>
+          <Field
+            label="Heure de fin (Paris)"
+            htmlFor="tournament-end-time"
+            error={errors.endTime}
+            errorId="tournament-end-time-error"
+            hint="Après minuit (3 h du matin) : choisissez le jour suivant comme fin."
+          >
+            <input
+              id="tournament-end-time"
+              type="time"
+              value={form.endTime}
+              onChange={(event) => set({ endTime: event.target.value })}
+              aria-invalid={errors.endTime ? true : undefined}
+              aria-describedby={errors.endTime ? 'tournament-end-time-error' : undefined}
               className="app-input t-num"
             />
           </Field>
@@ -455,6 +496,10 @@ export function TournamentEditor({
             className="app-input"
           />
         </Field>
+      </FormCard>
+
+      <FormCard step={6} title="Aperçu sur la vitrine" meta="Ce que les visiteurs verront sur la page d’accueil, avec les valeurs de ce formulaire.">
+        <TournamentVitrinePreview form={form} organizerClan={organizerClan} />
       </FormCard>
 
       {submitError ? <AdminAlert tone="neg">{submitError}</AdminAlert> : null}

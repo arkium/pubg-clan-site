@@ -11,6 +11,7 @@
  * joueur extérieur au site ne peut sortir d'ici.
  */
 import type { TournamentOverview } from '@/lib/tournament-overview'
+import { tournamentWindowEnd } from '@/lib/tournament-schedule'
 import type { TournamentMode } from '@/lib/tournament-service'
 
 /** Un tournoi à venir s'annonce sur la vitrine à partir de 14 jours avant son début (décision du 2026-10-08). */
@@ -43,6 +44,8 @@ export type HomeTournament = {
   roundCount: number
   /** Participants classés, selon le mode : clans, équipes, joueurs ou escouades. */
   participantCount: number
+  /** Joueurs suivis distincts des manches comptées ; affiché dès la première manche. */
+  playerCount: number
   lastRoundAt: string | null
 }
 
@@ -72,6 +75,7 @@ function summarize(overview: TournamentOverview): HomeTournament {
     organizerClan: overview.organizerClan,
     roundCount: overview.roundCount,
     participantCount: overview.participantCount,
+    playerCount: overview.playerCount,
     lastRoundAt: overview.lastRoundAt,
   }
 }
@@ -89,6 +93,18 @@ function ranked(overview: TournamentOverview): HomeRankedTournament {
 
 const time = (value: string | null) => (value ? new Date(value).getTime() : 0)
 
+/**
+ * Fenêtre de visibilité d'un tournoi sur la vitrine : annoncé `HOME_UPCOMING_WINDOW_DAYS` jours avant son début, résultats
+ * gardés `HOME_RESULTS_WINDOW_DAYS` jours après sa fin réelle (heure précisée, ou fin du dernier jour). Reprise telle quelle
+ * par l'aperçu du formulaire d'administration.
+ */
+export function homeTournamentVisibility(startDate: Date | string, endDate: Date | string) {
+  return {
+    announcedFrom: new Date(new Date(startDate).getTime() - HOME_UPCOMING_WINDOW_DAYS * DAY_MS),
+    resultsUntil: new Date(tournamentWindowEnd(endDate).getTime() + HOME_RESULTS_WINDOW_DAYS * DAY_MS),
+  }
+}
+
 export function buildHomeTournaments(overviews: readonly TournamentOverview[], now: Date = new Date()): HomeTournamentsPayload {
   const nowMs = now.getTime()
 
@@ -101,13 +117,13 @@ export function buildHomeTournaments(overviews: readonly TournamentOverview[], n
     .filter((overview) => overview.phase === 'upcoming' && time(overview.startDate) - nowMs <= HOME_UPCOMING_WINDOW_DAYS * DAY_MS)
     .sort((left, right) => time(left.startDate) - time(right.startDate))
 
-  // Fin d'un tournoi = la fin de son dernier jour (date à minuit) : on compte la fenêtre depuis le lendemain.
+  // Fenêtre comptée depuis la fin réelle : l'heure précisée, ou la fin du dernier jour (src/lib/tournament-schedule.ts).
   const results = overviews
     .filter(
       (overview) =>
         overview.phase === 'finished' &&
         overview.winner !== null &&
-        nowMs - time(overview.endDate) <= (HOME_RESULTS_WINDOW_DAYS + 1) * DAY_MS
+        nowMs <= homeTournamentVisibility(overview.startDate, overview.endDate).resultsUntil.getTime()
     )
     .sort((left, right) => time(right.endDate) - time(left.endDate))
     .map(ranked)
@@ -125,6 +141,12 @@ export function buildHomeTournaments(overviews: readonly TournamentOverview[], n
 export function roundCountLabel(count: number) {
   if (count <= 0) return 'Aucune manche'
   return `${count} manche${count > 1 ? 's' : ''}`
+}
+
+/** « 42 joueurs » dès la première manche comptée ; `null` avant (rien à annoncer). */
+export function playerCountLabel(count: number) {
+  if (count <= 0) return null
+  return `${count} joueur${count > 1 ? 's' : ''}`
 }
 
 /** La vitrine affiche-t-elle des tournois ? (section, ticket, pastille) */

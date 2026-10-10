@@ -186,7 +186,7 @@ export async function mockTournamentAdmin(api: ApiMock, page: Page): Promise<Tou
   const base = `/api/clans/${CLAN_ID}/tournaments`
 
   api
-    .on('GET', base, () => ({ body: { tournaments } }))
+    .on('GET', base, () => ({ body: { tournaments, clan: { id: CLAN_ID, name: 'Clan Démo', tag: 'DEMO' } } }))
     .on('POST', base, (_url, request) => {
       const body = request.postDataJSON() as Record<string, unknown>
       calls.creates.push(body)

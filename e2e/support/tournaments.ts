@@ -48,6 +48,7 @@ function overview(overrides: Partial<TournamentOverview> & Pick<TournamentOvervi
     roundCount: 4,
     participantCount: 4,
     clanCount: 4,
+    playerCount: 16,
     lastRoundAt: null,
     leaders: [],
     standings: [],

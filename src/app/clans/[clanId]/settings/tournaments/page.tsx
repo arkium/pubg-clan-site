@@ -78,6 +78,8 @@ export default function ClanTournamentSettingsPage() {
   const [archivesOpen, setArchivesOpen] = useState(false)
 
   const [tournaments, setTournaments] = useState<AdminTournament[]>([])
+  // Organisateur des nouveaux tournois, pour l'aperçu de la vitrine du formulaire.
+  const [organizerClan, setOrganizerClan] = useState<{ id: number; name: string; tag: string | null } | null>(null)
   const [form, setForm] = useState<TournamentFormState>(() => getDefaultForm())
   const [fieldErrors, setFieldErrors] = useState<TournamentFormErrors>({})
   const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null)
@@ -111,8 +113,9 @@ export default function ClanTournamentSettingsPage() {
       setLoading(true)
       const response = await fetch(`/api/clans/${clanId}/tournaments`, { cache: 'no-store' })
       if (!response.ok) throw new Error('Impossible de charger les tournois.')
-      const payload = (await response.json()) as { tournaments?: AdminTournament[] }
+      const payload = (await response.json()) as { tournaments?: AdminTournament[]; clan?: { id: number; name: string; tag: string | null } }
       setTournaments(payload.tournaments ?? [])
+      setOrganizerClan(payload.clan ?? null)
     } catch (caught) {
       if (signalError) setError(caught instanceof Error ? caught.message : 'Impossible de charger les données.')
     } finally {
@@ -129,8 +132,11 @@ export default function ClanTournamentSettingsPage() {
         setLoading(true)
         const response = await fetch(`/api/clans/${clanId}/tournaments`, { cache: 'no-store' })
         if (!response.ok) throw new Error('Impossible de charger les tournois.')
-        const payload = (await response.json()) as { tournaments?: AdminTournament[] }
-        if (!cancelled) setTournaments(payload.tournaments ?? [])
+        const payload = (await response.json()) as { tournaments?: AdminTournament[]; clan?: { id: number; name: string; tag: string | null } }
+        if (!cancelled) {
+          setTournaments(payload.tournaments ?? [])
+          setOrganizerClan(payload.clan ?? null)
+        }
       } catch (caught) {
         if (!cancelled) setError(caught instanceof Error ? caught.message : 'Impossible de charger les données.')
       } finally {
@@ -391,6 +397,7 @@ export default function ClanTournamentSettingsPage() {
             saving={saving}
             onSubmit={handleSubmit}
             onCancelEdit={startCreation}
+            organizerClan={organizerClan}
           />
         ) : null}
 

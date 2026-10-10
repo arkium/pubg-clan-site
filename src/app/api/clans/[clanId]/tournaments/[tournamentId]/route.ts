@@ -37,6 +37,9 @@ function parseTournamentPayload(body: unknown): TournamentUpdateInput {
     description: typeof value.description === 'string' ? value.description : undefined,
     startDate: typeof value.startDate === 'string' ? value.startDate : undefined,
     endDate: typeof value.endDate === 'string' ? value.endDate : undefined,
+    // Heures de Paris facultatives (« 21:00 »), lues avec leur date : src/lib/tournament-schedule.ts.
+    startTime: typeof value.startTime === 'string' ? value.startTime : undefined,
+    endTime: typeof value.endTime === 'string' ? value.endTime : undefined,
     gameMode: typeof value.gameMode === 'string' || value.gameMode === null ? value.gameMode : undefined,
     mapName: typeof value.mapName === 'string' || value.mapName === null ? value.mapName : undefined,
     status: value.status === 'draft' || value.status === 'active' || value.status === 'finished'

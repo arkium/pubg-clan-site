@@ -611,10 +611,10 @@ export function homeTournaments(scenario: 'live' | 'upcoming' | 'results' | 'non
   const at = (hours: number) => new Date(now + hours * 3_600_000).toISOString()
   const organizer = (id: number, tag: string, name: string) => ({ id, tag, name })
   const upcoming: HomeTournament[] = [
-    { id: 'scrims-jeudi', title: 'Scrims du jeudi', mode: 'intra_clan', startDate: at(5), endDate: at(8), gameMode: 'normal-squad', mapName: 'Savage_Main', organizerClan: organizer(2, 'DEMO', 'Clan Démo'), roundCount: 0, participantCount: 0, lastRoundAt: null },
-    { id: 'solo-showdown', title: 'Solo Showdown #4', mode: 'solo_ffa', startDate: at(96), endDate: at(240), gameMode: 'normal-solo', mapName: 'Desert_Main', organizerClan: organizer(3, 'RATZ', 'Les-Ratz'), roundCount: 0, participantCount: 0, lastRoundAt: null },
-    { id: 'mix-match', title: 'Mix & Match #3', mode: 'custom_teams', startDate: at(200), endDate: at(300), gameMode: 'normal-squad', mapName: 'Tiger_Main', organizerClan: organizer(1, 'LMT', 'La Meute'), roundCount: 0, participantCount: 0, lastRoundAt: null },
-    { id: 'coupe-hiver', title: 'Coupe d’hiver', mode: 'inter_clan', startDate: at(300), endDate: at(600), gameMode: null, mapName: null, organizerClan: organizer(1, 'LMT', 'La Meute'), roundCount: 0, participantCount: 0, lastRoundAt: null },
+    { id: 'scrims-jeudi', title: 'Scrims du jeudi', mode: 'intra_clan', startDate: at(5), endDate: at(8), gameMode: 'normal-squad', mapName: 'Savage_Main', organizerClan: organizer(2, 'DEMO', 'Clan Démo'), roundCount: 0, participantCount: 0, playerCount: 0, lastRoundAt: null },
+    { id: 'solo-showdown', title: 'Solo Showdown #4', mode: 'solo_ffa', startDate: at(96), endDate: at(240), gameMode: 'normal-solo', mapName: 'Desert_Main', organizerClan: organizer(3, 'RATZ', 'Les-Ratz'), roundCount: 0, participantCount: 0, playerCount: 0, lastRoundAt: null },
+    { id: 'mix-match', title: 'Mix & Match #3', mode: 'custom_teams', startDate: at(200), endDate: at(300), gameMode: 'normal-squad', mapName: 'Tiger_Main', organizerClan: organizer(1, 'LMT', 'La Meute'), roundCount: 0, participantCount: 0, playerCount: 0, lastRoundAt: null },
+    { id: 'coupe-hiver', title: 'Coupe d’hiver', mode: 'inter_clan', startDate: at(300), endDate: at(600), gameMode: null, mapName: null, organizerClan: organizer(1, 'LMT', 'La Meute'), roundCount: 0, participantCount: 0, playerCount: 0, lastRoundAt: null },
   ]
   const podium = [
     { key: 'clan:1', label: '[LMT] La Meute', points: 412 },
@@ -632,6 +632,7 @@ export function homeTournaments(scenario: 'live' | 'upcoming' | 'results' | 'non
     organizerClan: organizer(1, 'LMT', 'La Meute'),
     roundCount: 5,
     participantCount: 9,
+    playerCount: 42,
     lastRoundAt: at(-22 / 60),
     leaders: podium,
   }
@@ -646,6 +647,7 @@ export function homeTournaments(scenario: 'live' | 'upcoming' | 'results' | 'non
     organizerClan: organizer(1, 'LMT', 'La Meute'),
     roundCount: 18,
     participantCount: 11,
+    playerCount: 38,
     lastRoundAt: at(-50),
     leaders: podium,
   }

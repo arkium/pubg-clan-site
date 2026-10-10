@@ -10,6 +10,7 @@ import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
 import { tournamentGameModeLabel, tournamentMapLabel } from '@/lib/tournament-filters'
 import { TOURNAMENT_MODE_DESCRIPTIONS, TOURNAMENT_QUICK_GUIDE } from '@/lib/tournament-guide'
 import { TOURNAMENT_STATUS_OPTIONS, type TournamentStatusFilter } from '@/lib/tournament-list-filters'
+import { formatTournamentPeriod } from '@/lib/tournament-schedule'
 import {
   TOURNAMENT_MODE_DISPLAY,
   countdownLabel,
@@ -30,13 +31,12 @@ import type { TournamentMode } from '@/lib/tournament-service'
  * avant en Teko (`t-hero`), rangs par `RankCell`, ligne du lecteur `.tournament-row--viewer`.
  */
 
-const dayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short' })
-
-/** « 22 sept. → 28 sept. », un seul jour s'il n'y en a qu'un. */
+/**
+ * « 22 sept. → 28 sept. », un seul jour s'il n'y en a qu'un ; avec des heures (de Paris), « 10 oct. 21:00 → 11 oct. 03:00 »
+ * — src/lib/tournament-schedule.ts.
+ */
 export function tournamentDates(tournament: Pick<TournamentOverview, 'startDate' | 'endDate'>) {
-  const start = dayMonth.format(new Date(tournament.startDate))
-  const end = dayMonth.format(new Date(tournament.endDate))
-  return start === end ? start : `${start} → ${end}`
+  return formatTournamentPeriod(tournament.startDate, tournament.endDate)
 }
 
 /**

@@ -8,6 +8,7 @@ import {
   listClanTournaments,
   type TournamentCreateInput,
 } from '@/lib/tournament-service'
+import { TournamentInputError } from '@/lib/tournament-schedule'
 import { requireNavPermission } from '@/middleware/auth-permission'
 
 function parseClanId(value: string) {
@@ -41,6 +42,9 @@ function parseTournamentPayload(body: unknown): TournamentCreateInput {
     description: typeof value.description === 'string' ? value.description : null,
     startDate: typeof value.startDate === 'string' ? value.startDate : new Date().toISOString(),
     endDate: typeof value.endDate === 'string' ? value.endDate : new Date().toISOString(),
+    // Heures de Paris facultatives (« 21:00 ») : src/lib/tournament-schedule.ts.
+    startTime: typeof value.startTime === 'string' ? value.startTime : null,
+    endTime: typeof value.endTime === 'string' ? value.endTime : null,
     gameMode: typeof value.gameMode === 'string' ? value.gameMode : null,
     mapName: typeof value.mapName === 'string' ? value.mapName : null,
     status: value.status === 'draft' || value.status === 'active' || value.status === 'finished'
@@ -71,13 +75,14 @@ export async function GET(request: NextRequest, { params }: { params: Promise<{ 
     const permissionError = await requireClanFeature(request, parsedClanId, 'clan-competition')
     if (permissionError) return permissionError
 
-    const clan = await prisma.clan.findUnique({ where: { id: parsedClanId }, select: { id: true } })
+    const clan = await prisma.clan.findUnique({ where: { id: parsedClanId }, select: { id: true, name: true, tag: true } })
     if (!clan) {
       return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
     const tournaments = await listClanTournaments(parsedClanId)
-    return Response.json({ tournaments })
+    // `clan` : organisateur des nouveaux tournois, pour l'aperçu de la vitrine du formulaire.
+    return Response.json({ tournaments, clan })
   } catch (error) {
     console.error('Error fetching tournaments:', error)
     return Response.json({ error: 'Failed to fetch tournaments' }, { status: 500 })
@@ -118,7 +123,8 @@ async function handlePost(request: NextRequest, { params }: { params: Promise<{ 
     console.error('Error creating tournament:', error)
     return Response.json(
       { error: error instanceof Error ? error.message : 'Failed to create tournament' },
-      { status: 500 }
+      // Saisie refusée (heure, titre avec lien…) : erreur du formulaire, pas du serveur.
+      { status: error instanceof TournamentInputError ? 400 : 500 }
     )
   }
 }

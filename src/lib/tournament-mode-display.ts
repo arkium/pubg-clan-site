@@ -5,6 +5,7 @@
  */
 import { TOURNAMENT_MODE_DESCRIPTIONS } from '@/lib/tournament-guide'
 import type { TournamentMode, TournamentParticipant } from '@/lib/tournament-service'
+import { tournamentWindowEnd } from '@/lib/tournament-schedule'
 
 export type TournamentModeDisplay = {
   mode: TournamentMode
@@ -124,15 +125,10 @@ export function participantForm(key: string, rounds: RoundLike[]) {
 /** État réellement affiché, dérivé du statut et des dates. */
 export type TournamentPhase = 'draft' | 'live' | 'upcoming' | 'finished'
 
-function endOfDay(value: Date) {
-  const end = new Date(value)
-  end.setHours(23, 59, 59, 999)
-  return end
-}
-
 /**
  * Un tournoi `active` dont la période est à venir reste « à venir », et un tournoi dont la période est passée n'est
- * plus « en direct », même resté `active`. Le dernier jour compte jusqu'à minuit.
+ * plus « en direct », même resté `active`. La fin est celle de la capture des manches (src/lib/tournament-schedule.ts) :
+ * l'heure précisée (« 03:00 »), ou la fin du dernier jour pour un tournoi en journées entières.
  */
 export function resolveTournamentPhase(
   tournament: { status: string; startDate: Date | string; endDate: Date | string },
@@ -141,7 +137,7 @@ export function resolveTournamentPhase(
   if (tournament.status === 'draft') return 'draft'
   if (tournament.status === 'finished') return 'finished'
   if (now < new Date(tournament.startDate)) return 'upcoming'
-  if (now > endOfDay(new Date(tournament.endDate))) return 'finished'
+  if (now > tournamentWindowEnd(tournament.endDate)) return 'finished'
   return 'live'
 }
 

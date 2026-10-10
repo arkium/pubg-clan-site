@@ -58,6 +58,8 @@ export type TournamentOverview = {
   participantCount: number
   /** Clans distincts présents dans les manches. */
   clanCount: number
+  /** Joueurs suivis distincts présents dans les manches comptées (0 tant qu'aucune n'est comptée). */
+  playerCount: number
   /** Date de la dernière manche retenue. */
   lastRoundAt: string | null
   /** Trois premiers du classement courant. */
@@ -144,6 +146,7 @@ export async function listTournamentOverviews(now = new Date()): Promise<Tournam
       roundCount: matches.length,
       participantCount: standings.length,
       clanCount: participantClans.length,
+      playerCount: collectTournamentMemberIds(matches).length,
       lastRoundAt: lastRound ? lastRound.toISOString() : null,
       leaders: standings.slice(0, 3),
       standings: phase === 'live' ? standings : [],

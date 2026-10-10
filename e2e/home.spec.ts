@@ -211,6 +211,8 @@ test('tournois : le direct et son top 3, puis les prochains par pages de trois, 
   await expect(live).toContainText('Coupe d’automne 2026')
   await expect(live).toContainText('9 clans en lice')
   await expect(live).toContainText('dernière manche il y a 22 min')
+  // Joueurs suivis des manches comptées, dès la première.
+  await expect(live).toContainText('42 joueurs')
   await expect(live.getByRole('listitem')).toHaveCount(3)
   await expect(live.getByRole('listitem').first()).toContainText('[LMT] La Meute')
   await expect(live.getByRole('link', { name: 'Suivre le classement' })).toHaveAttribute('href', '/tournaments/coupe-automne')
@@ -222,6 +224,8 @@ test('tournois : le direct et son top 3, puis les prochains par pages de trois, 
   await expect(hidden.filter({ visible: true })).toHaveCount(0)
   await expect(shown.first()).toContainText('Scrims du jeudi')
   await expect(shown.first()).toContainText('dans 5 h')
+  // Heure de début (de Paris) : les données de test ont des heures précises.
+  await expect(shown.first()).toContainText(/\d{2}:\d{2}/)
   await expect(section).not.toContainText('Coupe d’hiver')
   await expect(section).toContainText('Pas d’inscription')
 
@@ -292,6 +296,7 @@ test('tournois : un tournoi terminé depuis moins de 3 jours, ses résultats seu
   await expect(results).toContainText('Coupe d’été 2026')
   await expect(results).toContainText('Vainqueur')
   await expect(results).toContainText('Classement final')
+  await expect(results).toContainText('38 joueurs')
   await expect(results.getByRole('listitem')).toHaveCount(3)
   await expect(results.getByRole('link', { name: 'Voir le classement final' })).toHaveAttribute('href', '/tournaments/coupe-ete')
   await expect(section).not.toContainText('Pas d’inscription')

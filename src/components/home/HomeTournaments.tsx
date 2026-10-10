@@ -9,6 +9,7 @@ import { organizerLabel, tournamentDates, tournamentFormatLabel } from '@/compon
 import RankCell from '@/components/ui/RankCell'
 import {
   hasHomeTournaments,
+  playerCountLabel,
   roundCountLabel,
   type HomeRankedTournament,
   type HomeTournament,
@@ -17,6 +18,7 @@ import {
 import { paginate } from '@/lib/pagination'
 import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
 import { tournamentMapLabel } from '@/lib/tournament-filters'
+import { tournamentDayParts } from '@/lib/tournament-schedule'
 import {
   TOURNAMENT_MODE_DISPLAY,
   countdownLabel,
@@ -33,18 +35,10 @@ import {
  * 3 jours (résultats). Direct et résultats sont sombres par construction (photo de la carte) ; les tournois à venir
  * suivent le thème, en cartes à partir de 768 px et en agenda en dessous : un tournoi prend toute la largeur, deux ou
  * trois se partagent la rangée, au-delà des pages de trois parcourues par chevrons (l'agenda suit les mêmes pages).
+ * Heures de Paris quand l'organisateur les a précisées (src/lib/tournament-schedule.ts) ; nombre de joueurs dès la
+ * première manche comptée. Carte, ligne d'agenda, ticket et bloc « en direct » sont exportés pour l'aperçu du formulaire
+ * d'administration (`TournamentVitrinePreview`) : l'organisateur voit le rendu exact.
  */
-
-const weekdayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'short' })
-const dayFormat = new Intl.DateTimeFormat('fr-FR', { day: '2-digit' })
-const monthFormat = new Intl.DateTimeFormat('fr-FR', { month: 'short' })
-
-/** « JEU », « 08 », « OCT » : la date d'un tournoi à venir, en pavé. */
-function dateParts(value: string) {
-  const date = new Date(value)
-  const clean = (text: string) => text.replace('.', '').toUpperCase()
-  return { weekday: clean(weekdayFormat.format(date)), day: dayFormat.format(date), month: clean(monthFormat.format(date)) }
-}
 
 function tournamentImage(mapName: string | null) {
   return mapAssetUrl(mapName) ?? '/matches.jpg'
@@ -131,15 +125,44 @@ export function HeroTournamentTicket({ data, now }: { data: HomeTournamentsPaylo
   const { live, upcoming, next } = featuredTournaments(data)
   const tournament = live ?? upcoming
   if (!tournament) return null
-  const startsIn = upcoming ? countdownLabel(upcoming.startDate, now) : null
   const footer = live ? nextLine('Ensuite', next, now) : nextLine('Puis', next, now)
 
   return (
+    <TicketCard
+      tournament={tournament}
+      live={live}
+      now={now}
+      footer={footer}
+      className="absolute bottom-16 right-14 z-[2] hidden lg:flex"
+      testId="home-tournament-ticket"
+    />
+  )
+}
+
+/** Contenu du ticket du héros ; l'aperçu du formulaire d'administration l'affiche hors du héros. */
+export function TicketCard({
+  tournament,
+  live,
+  now,
+  footer,
+  className = 'flex',
+  testId,
+}: {
+  tournament: HomeTournament
+  live: HomeRankedTournament | null
+  now: Date
+  footer: string | null
+  className?: string
+  testId?: string
+}) {
+  const startsIn = live ? null : countdownLabel(tournament.startDate, now)
+
+  return (
     <div
-      className={`absolute bottom-16 right-14 z-[2] hidden w-[300px] flex-col gap-1.5 rounded-[14px] border bg-slate-950/80 p-4 text-white shadow-[0_20px_40px_-18px_rgba(0,0,0,.7)] backdrop-blur-md lg:flex ${
+      className={`${className} w-[300px] max-w-full flex-col gap-1.5 rounded-[14px] border bg-slate-950/80 p-4 text-white shadow-[0_20px_40px_-18px_rgba(0,0,0,.7)] backdrop-blur-md ${
         live ? 'border-red-400/40' : 'border-amber-400/40'
       }`}
-      data-testid="home-tournament-ticket"
+      data-testid={testId}
     >
       <TicketKicker live={Boolean(live)} />
       <span className="home-display truncate text-[28px] font-semibold uppercase leading-none">{tournament.title}</span>
@@ -189,7 +212,7 @@ export function MobileTournamentBanner({ data, now }: { data: HomeTournamentsPay
 
 // ── Section « En ce moment et à venir » ─────────────────────────────────────────────────────────────
 
-function LiveTournamentBlock({ tournament, now }: { tournament: HomeRankedTournament; now: Date }) {
+export function LiveTournamentBlock({ tournament, now }: { tournament: HomeRankedTournament; now: Date }) {
   const details = [
     tournamentFormatLabel(tournament),
     tournamentDates(tournament),
@@ -217,6 +240,9 @@ function LiveTournamentBlock({ tournament, now }: { tournament: HomeRankedTourna
         </span>
         <span className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
           <b className="home-display text-[26px] font-semibold leading-none">{roundCountLabel(tournament.roundCount)}</b>
+          {playerCountLabel(tournament.playerCount) ? (
+            <b className="home-display text-[26px] font-semibold leading-none text-red-200">{playerCountLabel(tournament.playerCount)}</b>
+          ) : null}
           {tournament.lastRoundAt ? (
             <span className="home-display text-lg leading-none text-white/70">dernière manche {elapsedLabel(tournament.lastRoundAt, now)}</span>
           ) : null}
@@ -267,7 +293,14 @@ function LeadersPanel({ title, leaders, empty }: { title: string; leaders: HomeR
 /** Tournoi terminé depuis moins de `HOME_RESULTS_WINDOW_DAYS` jours : vainqueur et podium final, en or. */
 function ResultsTournamentBlock({ tournament }: { tournament: HomeRankedTournament }) {
   const winner = tournament.leaders[0]
-  const details = [tournamentFormatLabel(tournament), tournamentDates(tournament), roundCountLabel(tournament.roundCount)].join(' · ')
+  const details = [
+    tournamentFormatLabel(tournament),
+    tournamentDates(tournament),
+    roundCountLabel(tournament.roundCount),
+    playerCountLabel(tournament.playerCount),
+  ]
+    .filter(Boolean)
+    .join(' · ')
 
   return (
     <div
@@ -318,8 +351,8 @@ function CountdownPill({ label, first, onImage = false }: { label: string; first
 }
 
 /** Carte d'un tournoi à venir ; `wide` : seul tournoi de la rangée, photo à gauche et texte à droite, sur toute la largeur. */
-function UpcomingCard({ tournament, first, now, wide = false }: { tournament: HomeTournament; first: boolean; now: Date; wide?: boolean }) {
-  const date = dateParts(tournament.startDate)
+export function UpcomingCard({ tournament, first, now, wide = false }: { tournament: HomeTournament; first: boolean; now: Date; wide?: boolean }) {
+  const date = tournamentDayParts(tournament.startDate)
   const startsIn = countdownLabel(tournament.startDate, now)
   return (
     <article
@@ -341,6 +374,7 @@ function UpcomingCard({ tournament, first, now, wide = false }: { tournament: Ho
           <span className="text-sm text-white/80">{date.weekday}</span>
           <span className={`font-semibold ${wide ? 'text-[34px] md:text-[48px]' : 'text-[34px]'}`}>{date.day}</span>
           <span className="text-sm text-white/80">{date.month}</span>
+          {date.time ? <span className="text-lg font-semibold text-amber-300">{date.time}</span> : null}
         </span>
       </div>
       <div className={`flex flex-1 flex-col gap-1 p-4 ${wide ? 'md:justify-center md:gap-1.5 md:px-6 md:py-5' : ''}`}>
@@ -359,8 +393,8 @@ function UpcomingCard({ tournament, first, now, wide = false }: { tournament: Ho
   )
 }
 
-function UpcomingAgendaRow({ tournament, first, now }: { tournament: HomeTournament; first: boolean; now: Date }) {
-  const date = dateParts(tournament.startDate)
+export function UpcomingAgendaRow({ tournament, first, now }: { tournament: HomeTournament; first: boolean; now: Date }) {
+  const date = tournamentDayParts(tournament.startDate)
   const startsIn = countdownLabel(tournament.startDate, now)
   return (
     <li>
@@ -372,6 +406,7 @@ function UpcomingAgendaRow({ tournament, first, now }: { tournament: HomeTournam
         <span className="app-panel-muted flex w-12 shrink-0 flex-col items-center py-1 leading-none">
           <span className="text-[11px] font-semibold text-gray-500">{date.weekday}</span>
           <span className="home-display text-[26px] font-semibold">{date.day}</span>
+          {date.time ? <span className="text-[11px] font-semibold tabular-nums text-gray-500">{date.time}</span> : null}
         </span>
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="truncate text-sm font-bold text-gray-900">{tournament.title}</span>

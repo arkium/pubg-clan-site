@@ -1,5 +1,7 @@
 import { TOURNAMENT_MODE_DESCRIPTIONS } from '@/lib/tournament-guide'
 import { normalizeTournamentGameMode, normalizeTournamentMapName } from '@/lib/tournament-filters'
+import { tournamentInstant, tournamentLocalParts, tournamentWindowEnd } from '@/lib/tournament-schedule'
+import { tournamentTitleProblem } from '@/lib/tournament-title'
 import type { MixedSquadRule, TournamentMode } from '@/lib/tournament-service'
 
 /**
@@ -19,7 +21,7 @@ export type AdminTournament = {
   mapName: string | null
   rules: unknown
   discordWebhookUrl: string | null
-  organizerClan: { id: number; name: string } | null
+  organizerClan: { id: number; name: string; tag?: string | null } | null
 }
 
 export type TournamentStatus = 'draft' | 'active' | 'finished'
@@ -29,6 +31,10 @@ export type TournamentFormState = {
   description: string
   startDate: string
   endDate: string
+  /** Heure de début, de Paris (« 21:00 ») ; vide : journée entière (src/lib/tournament-schedule.ts). */
+  startTime: string
+  /** Heure de fin, de Paris (« 03:00 ») ; vide : jusqu'à la fin du dernier jour. */
+  endTime: string
   gameMode: string
   mapName: string
   status: TournamentStatus
@@ -42,7 +48,7 @@ export type TournamentFormState = {
 }
 
 /** Erreurs de saisie, affichées sous leur champ (charte : erreur au jeton négatif). */
-export type TournamentFormErrors = Partial<Record<'title' | 'startDate' | 'endDate', string>>
+export type TournamentFormErrors = Partial<Record<'title' | 'startDate' | 'endDate' | 'startTime' | 'endTime', string>>
 
 export type AdminTab = 'tournaments' | 'editor' | 'guide'
 export type StatusFilter = 'all' | 'active' | 'finished' | 'draft'
@@ -102,6 +108,8 @@ export function getDefaultForm(): TournamentFormState {
     description: '',
     startDate: today.toISOString().slice(0, 10),
     endDate: new Date(today.getTime() + 7 * 24 * 60 * 60 * 1000).toISOString().slice(0, 10),
+    startTime: '',
+    endTime: '',
     gameMode: '',
     mapName: '',
     status: 'draft',
@@ -117,11 +125,16 @@ export function getDefaultForm(): TournamentFormState {
 
 /** Formulaire pré-rempli pour modifier un tournoi existant. */
 export function formFromTournament(tournament: AdminTournament): TournamentFormState {
+  // Jour et heure de Paris ; un tournoi en journées entières garde des heures vides.
+  const start = tournamentLocalParts(tournament.startDate)
+  const end = tournamentLocalParts(tournament.endDate)
   return {
     title: tournament.title,
     description: tournament.description ?? '',
-    startDate: tournament.startDate.slice(0, 10),
-    endDate: tournament.endDate.slice(0, 10),
+    startDate: start.date,
+    endDate: end.date,
+    startTime: start.time ?? '',
+    endTime: end.time ?? '',
     // Un tournoi enregistré avant le 2026-09-18 peut porter « Erangel » ou « squad » : on le ramène à la valeur
     // réellement utilisée par les matchs, sinon le formulaire afficherait une option vide.
     gameMode: normalizeTournamentGameMode(tournament.gameMode) ?? '',
@@ -132,16 +145,34 @@ export function formFromTournament(tournament: AdminTournament): TournamentFormS
   }
 }
 
-/** Contrôles avant envoi — mêmes règles et mêmes messages qu'avant, rattachés à leur champ. */
+/** Début et fin tels que l'API les enregistrera (heure de Paris), ou `null` si la saisie est incomplète ou invalide. */
+export function tournamentFormPeriod(form: TournamentFormState): { startDate: string; endDate: string } | null {
+  if (!form.startDate || !form.endDate) return null
+  try {
+    return {
+      startDate: tournamentInstant(form.startDate, form.startTime || null).toISOString(),
+      endDate: tournamentInstant(form.endDate, form.endTime || null).toISOString(),
+    }
+  } catch {
+    return null
+  }
+}
+
+/** Contrôles avant envoi — mêmes règles que l'API (titre, heures, fin après le début), rattachés à leur champ. */
 export function validateTournamentForm(form: TournamentFormState): TournamentFormErrors {
-  if (!form.title.trim()) return { title: 'Le titre du tournoi est obligatoire.' }
+  const titleProblem = tournamentTitleProblem(form.title)
+  if (titleProblem) return { title: titleProblem }
   if (!form.startDate || !form.endDate) {
     return form.startDate
       ? { endDate: 'Les dates de début et de fin sont obligatoires.' }
       : { startDate: 'Les dates de début et de fin sont obligatoires.' }
   }
-  if (new Date(form.endDate).getTime() < new Date(form.startDate).getTime()) {
-    return { endDate: 'La date de fin doit être après la date de début.' }
+  const period = tournamentFormPeriod(form)
+  if (!period) return { startTime: 'Heure invalide : format attendu HH:MM.' }
+  if (tournamentWindowEnd(period.endDate).getTime() <= new Date(period.startDate).getTime()) {
+    return form.endTime
+      ? { endTime: 'La fin doit être après le début : pour finir après minuit, choisissez le jour suivant.' }
+      : { endDate: 'La date de fin doit être après la date de début.' }
   }
   return {}
 }
@@ -153,6 +184,9 @@ export function tournamentRequestBody(form: TournamentFormState) {
     description: form.description.trim() || null,
     startDate: form.startDate,
     endDate: form.endDate,
+    // Heures de Paris ; vides : journées entières (l'API convertit, src/lib/tournament-schedule.ts).
+    startTime: form.startTime || null,
+    endTime: form.endTime || null,
     gameMode: form.gameMode || null,
     mapName: form.mapName || null,
     status: form.status,

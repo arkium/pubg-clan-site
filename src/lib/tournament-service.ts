@@ -2,6 +2,8 @@ import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails } from '@/lib/pubg'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { normalizeTournamentGameMode, normalizeTournamentMapName } from '@/lib/tournament-filters'
+import { TournamentInputError, tournamentInstant, tournamentWindowEnd } from '@/lib/tournament-schedule'
+import { normalizeTournamentTitle } from '@/lib/tournament-title'
 
 /**
  * Mode de tournoi, choisi par le clan organisateur et stocké dans `Tournament.rules` :
@@ -133,14 +135,6 @@ export function normalizeTournamentRules(
 
 function buildTeamKey(memberIds: number[]) {
   return [...memberIds].sort((left, right) => left - right).join(':')
-}
-
-function endOfTournamentDay(value: Date) {
-  const end = new Date(value)
-  if (end.getUTCHours() === 0 && end.getUTCMinutes() === 0 && end.getUTCSeconds() === 0 && end.getUTCMilliseconds() === 0) {
-    end.setUTCHours(23, 59, 59, 999)
-  }
-  return end
 }
 
 export function groupMatchIntoTeams(
@@ -496,7 +490,8 @@ export async function getTournamentMatches(tournamentId: string) {
     throw new Error('Tournament not found')
   }
 
-  const endDate = endOfTournamentDay(tournament.endDate)
+  // Fin précise (heure de Paris) ou dernier jour entier : src/lib/tournament-schedule.ts.
+  const endDate = tournamentWindowEnd(tournament.endDate)
 
   return prisma.squadMatch.findMany({
     where: {
@@ -658,7 +653,7 @@ export async function materializeTournamentCustomMatches(tournamentId: string) {
     },
   })
   const startAt = tournament.startDate.getTime()
-  const endAt = endOfTournamentDay(tournament.endDate).getTime()
+  const endAt = tournamentWindowEnd(tournament.endDate).getTime()
   const sourceMatches = allCustomMatches.filter((match) =>
     match.pubgCreatedAt.getTime() >= startAt &&
     match.pubgCreatedAt.getTime() <= endAt
@@ -761,6 +756,10 @@ export type TournamentCreateInput = {
   description?: string | null
   startDate: Date | string
   endDate: Date | string
+  /** Heure de début, de Paris (« 21:00 ») ; absente : journée entière (src/lib/tournament-schedule.ts). */
+  startTime?: string | null
+  /** Heure de fin, de Paris (« 03:00 ») ; absente : jusqu'à la fin du dernier jour. */
+  endTime?: string | null
   gameMode?: string | null
   mapName?: string | null
   status?: 'draft' | 'active' | 'finished'
@@ -790,7 +789,7 @@ export async function listClanTournaments(clanId: number) {
       organizerClanId: clanId,
     },
     include: {
-      organizerClan: { select: { id: true, name: true } },
+      organizerClan: { select: { id: true, name: true, tag: true } },
     },
     orderBy: [{ status: 'asc' }, { startDate: 'desc' }],
   })
@@ -815,22 +814,24 @@ export async function getTournamentForClan(clanId: number, tournamentId: string)
   return tournament
 }
 
+/** Début et fin enregistrés, vérifiés : la fenêtre doit se terminer après son début. */
+function resolveTournamentPeriod(start: Date, end: Date) {
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) {
+    throw new TournamentInputError('Les dates de début et de fin sont obligatoires.')
+  }
+  if (tournamentWindowEnd(end).getTime() <= start.getTime()) {
+    throw new TournamentInputError('La fin du tournoi doit être après son début.')
+  }
+  return { startDate: start, endDate: end }
+}
+
 export async function createTournament(clanId: number, input: TournamentCreateInput) {
-  const title = input.title?.trim()
-  if (!title) {
-    throw new Error('Title is required')
-  }
-
-  const startDate = new Date(input.startDate)
-  const endDate = new Date(input.endDate)
-
-  if (Number.isNaN(startDate.getTime()) || Number.isNaN(endDate.getTime())) {
-    throw new Error('Start and end dates are required')
-  }
-
-  if (endDate.getTime() < startDate.getTime()) {
-    throw new Error('End date must be after start date')
-  }
+  // Le titre s'affiche sur la vitrine publique : ni lien ni balise (src/lib/tournament-title.ts).
+  const title = normalizeTournamentTitle(input.title)
+  const { startDate, endDate } = resolveTournamentPeriod(
+    tournamentInstant(input.startDate, input.startTime),
+    tournamentInstant(input.endDate, input.endTime)
+  )
 
   const normalizedRules = normalizeTournamentRules(input.rules)
 
@@ -848,7 +849,7 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
       discordWebhookUrl: normalizeDiscordWebhookOverride(input.discordWebhookUrl),
     },
     include: {
-      organizerClan: { select: { id: true, name: true } },
+      organizerClan: { select: { id: true, name: true, tag: true } },
     },
   })
 }
@@ -856,7 +857,7 @@ export async function createTournament(clanId: number, input: TournamentCreateIn
 export async function updateTournament(clanId: number, tournamentId: string, input: TournamentUpdateInput) {
   const existing = await prisma.tournament.findUnique({
     where: { id: tournamentId },
-    select: { id: true, organizerClanId: true },
+    select: { id: true, organizerClanId: true, startDate: true, endDate: true },
   })
 
   if (!existing) {
@@ -868,14 +869,22 @@ export async function updateTournament(clanId: number, tournamentId: string, inp
   }
 
   const nextRules = input.rules ? normalizeTournamentRules(input.rules) : undefined
+  const nextTitle = input.title !== undefined ? normalizeTournamentTitle(input.title) : undefined
+  // Une seule date modifiée se vérifie contre l'autre, telle qu'enregistrée.
+  const period =
+    input.startDate || input.endDate
+      ? resolveTournamentPeriod(
+          input.startDate ? tournamentInstant(input.startDate, input.startTime) : existing.startDate,
+          input.endDate ? tournamentInstant(input.endDate, input.endTime) : existing.endDate
+        )
+      : null
 
   const tournament = await prisma.tournament.update({
     where: { id: tournamentId },
     data: {
-      ...(input.title ? { title: input.title.trim() } : {}),
+      ...(nextTitle !== undefined ? { title: nextTitle } : {}),
       ...(input.description !== undefined ? { description: input.description?.trim() || null } : {}),
-      ...(input.startDate ? { startDate: new Date(input.startDate) } : {}),
-      ...(input.endDate ? { endDate: new Date(input.endDate) } : {}),
+      ...(period ? { startDate: period.startDate, endDate: period.endDate } : {}),
       ...(input.gameMode !== undefined ? { gameMode: normalizeTournamentGameMode(input.gameMode) } : {}),
       ...(input.mapName !== undefined ? { mapName: normalizeTournamentMapName(input.mapName) } : {}),
       ...(input.status ? { status: input.status } : {}),
@@ -885,7 +894,7 @@ export async function updateTournament(clanId: number, tournamentId: string, inp
         : {}),
     },
     include: {
-      organizerClan: { select: { id: true, name: true } },
+      organizerClan: { select: { id: true, name: true, tag: true } },
     },
   })
 

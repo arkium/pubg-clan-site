@@ -121,8 +121,25 @@ test.describe('organisateur (manage_settings)', () => {
     await editor(page).getByRole('button', { name: 'Créer le tournoi' }).click()
     await expect(page.getByText('La date de fin doit être après la date de début.')).toBeVisible()
     await page.getByLabel('Fin', { exact: true }).fill('2026-11-14')
+    // Soirées de 21 h à 3 h du matin (heure de Paris) : l'aperçu de la vitrine affiche les heures.
+    await page.getByLabel('Heure de début (Paris)').fill('21:00')
+    await page.getByLabel('Heure de fin (Paris)').fill('03:00')
+    const preview = page.getByTestId('tournament-vitrine-preview')
+    await expect(preview).toContainText('En direct : 10 nov. 21:00 → 14 nov. 03:00 (heure de Paris).')
+    await expect(preview).toContainText('Brouillon : rien n’apparaît sur la vitrine')
+    await expect(preview.getByTestId('home-tournament-card')).toContainText('Coupe de printemps')
+    await expect(preview.getByTestId('home-tournament-card')).toContainText('Organisé par [DEMO] Clan Démo')
+
+    // Le titre s'affiche sur la vitrine publique : un lien est signalé dans l'aperçu, puis refusé sous le champ.
+    await page.getByLabel('Titre', { exact: true }).fill('Coupe sur monclan.fr')
+    await expect(preview).toContainText('Ce titre sera refusé à l’enregistrement')
+    await editor(page).getByRole('button', { name: 'Créer le tournoi' }).click()
+    await expect(page.getByText('Le titre ne peut contenir ni lien ni adresse de site', { exact: false }).first()).toBeVisible()
+    expect(calls.creates).toHaveLength(0)
+    await page.getByLabel('Titre', { exact: true }).fill('Coupe de printemps')
 
     await editor(page).getByRole('button', { name: 'Actif', exact: true }).click()
+    await expect(preview).not.toContainText('Brouillon')
     // Escouades mixtes : proposé en inter-clans seulement.
     await expect(page.getByRole('radiogroup', { name: 'Escouades mixtes' })).toBeVisible()
     await chooseTile(page, /^Solo \(chacun pour soi\)/)
@@ -145,6 +162,8 @@ test.describe('organisateur (manage_settings)', () => {
       description: 'Trois soirées en duo.',
       startDate: '2026-11-10',
       endDate: '2026-11-14',
+      startTime: '21:00',
+      endTime: '03:00',
       gameMode: 'normal-duo',
       mapName: 'Desert_Main',
       status: 'active',

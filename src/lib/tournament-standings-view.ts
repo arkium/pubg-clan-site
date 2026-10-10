@@ -8,7 +8,6 @@ import {
   computeTournamentModeStandings,
   groupMatchByMode,
   normalizeTournamentRules,
-  scoreTournamentTeam,
   type NormalizedTournamentRules,
   type TournamentModeStanding,
   type TournamentParticipant,
@@ -173,7 +172,7 @@ export function buildRoundViews(
     const scores = entries
       .map((entry) => {
         const described = describeParticipant(entry.participant, clans, members)
-        const score = scoreTournamentTeam(entry, rules)
+        const score = entry.score
         return {
           key: entry.key,
           label: described.label,

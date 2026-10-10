@@ -221,6 +221,9 @@ describe('diffusion selon le mode du tournoi', () => {
 
   it('regroupe l’escouade en une seule ligne en mode équipes libres', async () => {
     arrange({ rules: { mode: 'custom_teams' } })
+    // Escouade mixte : ses deux joueurs partagent le même placement, comme dans PUBG.
+    const mixedSquad = { ...ROUND_TWO, members: [member(1, 5, 6, 1, 950), member(2, 7, 2, 1, 310)] }
+    vi.mocked(getTournamentMatches).mockResolvedValue([mixedSquad, ROUND_ONE] as never)
 
     const { payload } = await prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
     const [embed] = payload.embeds

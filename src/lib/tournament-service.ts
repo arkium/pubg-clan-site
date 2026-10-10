@@ -137,43 +137,59 @@ function buildTeamKey(memberIds: number[]) {
   return [...memberIds].sort((left, right) => left - right).join(':')
 }
 
+/**
+ * Équipes PUBG d'une manche. Une partie personnalisée range tout le lobby sous une seule ligne `SquadMatch`
+ * (`materializeTournamentCustomMatches`) : c'est le placement, rang de l'équipe commun à ses joueurs, qui sépare les
+ * escouades. Sans placement (0), le joueur reste seul.
+ *
+ * Incident du 2026-10-10 : sans ce découpage, les 71 joueurs suivis d'une manche formaient une seule « escouade » — parts
+ * au prorata calculées sur 71 (points à rallonge de décimales) et « détail par escouade » mélangeant tous les clans.
+ */
+export function splitIntoPubgTeams<T extends { memberId: number; placement: number }>(members: T[]): T[][] {
+  const teams = new Map<string, T[]>()
+  for (const member of members) {
+    const key = member.placement > 0 ? `place:${member.placement}` : `member:${member.memberId}`
+    const team = teams.get(key) ?? []
+    team.push(member)
+    teams.set(key, team)
+  }
+  return [...teams.values()].sort((left, right) => left[0].placement - right[0].placement)
+}
+
+/** Une entrée par clan et par équipe PUBG : une escouade mixte en donne une par clan, un clan à deux escouades aussi. */
 export function groupMatchIntoTeams(
   match: TournamentMatchLike,
   participatingClanIds: number[]
 ): TournamentTeam[] {
   const allowed = new Set(participatingClanIds)
-  const byClan = new Map<number, TournamentMemberRow[]>()
-
-  for (const member of match.members ?? []) {
+  const tracked = (match.members ?? []).filter((member) => {
     const clanId = member?.member.clanId
-    if (!member || clanId === null || !allowed.has(clanId)) continue
-    const existing = byClan.get(clanId) ?? []
-    existing.push(member)
-    byClan.set(clanId, existing)
-  }
+    return !!member && clanId !== null && allowed.has(clanId)
+  })
 
   const teams: TournamentTeam[] = []
-  const seen = new Set<string>()
-  const trackedMemberCount = [...byClan.values()].reduce((sum, members) => sum + members.length, 0)
+  for (const pubgTeam of splitIntoPubgTeams(tracked)) {
+    const byClan = new Map<number, TournamentMemberRow[]>()
+    for (const member of pubgTeam) {
+      const clanId = member.member.clanId as number
+      const existing = byClan.get(clanId) ?? []
+      existing.push(member)
+      byClan.set(clanId, existing)
+    }
 
-  for (const [clanId, members] of [...byClan.entries()].sort((left, right) => left[0] - right[0])) {
-    const memberIds = [...new Set(members.map((member) => member.memberId))].sort((left, right) => left - right)
-    const key = buildTeamKey(memberIds)
-    if (seen.has(key)) continue
-    seen.add(key)
-
-    const bestPlacement = members.reduce((min, member) => Math.min(min, member.placement), Number.MAX_SAFE_INTEGER)
-    const totalKills = members.reduce((sum, member) => sum + member.kills, 0)
-
-    teams.push({
-      key,
-      clanId,
-      memberIds,
-      members,
-      bestPlacement,
-      totalKills,
-      placementShare: trackedMemberCount > 0 ? members.length / trackedMemberCount : 1,
-    })
+    for (const [clanId, members] of [...byClan.entries()].sort((left, right) => left[0] - right[0])) {
+      const memberIds = [...new Set(members.map((member) => member.memberId))].sort((left, right) => left - right)
+      teams.push({
+        key: buildTeamKey(memberIds),
+        clanId,
+        memberIds,
+        members,
+        bestPlacement: members.reduce((min, member) => Math.min(min, member.placement), Number.MAX_SAFE_INTEGER),
+        totalKills: members.reduce((sum, member) => sum + member.kills, 0),
+        // Part de l'escouade PUBG détenue par ce clan : 4 joueurs suivis sur 5 donnent 4/5 du placement au prorata.
+        placementShare: members.length / pubgTeam.length,
+      })
+    }
   }
 
   return teams
@@ -206,6 +222,48 @@ export type TournamentRoundScore = TournamentTeamScore & {
   totalKills: number
 }
 
+type TournamentClanRound = TournamentRoundScore & { totalDamage: number }
+
+/**
+ * Résultat de chaque clan dans une manche, en inter-clans : la somme de ses escouades (« Cumul par clan »). Un clan qui
+ * aligne deux escouades marque le placement de chacune ; une escouade mixte partage le sien si le prorata est choisi.
+ */
+function scoreClanRounds(
+  match: TournamentMatchLike,
+  participatingClanIds: number[],
+  rules: NormalizedTournamentRules
+): TournamentClanRound[] {
+  const byClan = new Map<number, TournamentClanRound>()
+
+  for (const team of groupMatchIntoTeams(match, participatingClanIds)) {
+    // Le partage au prorata ne s'applique que s'il a été choisi : sinon chaque clan marque tout le placement.
+    const score = scoreTournamentTeam(
+      { ...team, placementShare: rules.mixedSquadRule === 'prorata' ? team.placementShare : 1 },
+      rules
+    )
+    const current = byClan.get(team.clanId) ?? {
+      clanId: team.clanId,
+      bestPlacement: Number.MAX_SAFE_INTEGER,
+      totalKills: 0,
+      totalDamage: 0,
+      placementScore: 0,
+      killScore: 0,
+      winBonus: 0,
+      points: 0,
+    }
+    current.bestPlacement = Math.min(current.bestPlacement, team.bestPlacement)
+    current.totalKills += team.totalKills
+    current.totalDamage += team.members.reduce((sum, member) => sum + (member.damage ?? 0), 0)
+    current.placementScore += score.placementScore
+    current.killScore += score.killScore
+    current.winBonus += score.winBonus
+    current.points += score.points
+    byClan.set(team.clanId, current)
+  }
+
+  return [...byClan.values()].sort((left, right) => left.clanId - right.clanId)
+}
+
 /**
  * Score d'une seule manche (un match custom), clan par clan — utilise le meme
  * bareme que le classement general, sans la selection `bestOfRounds` qui n'a de
@@ -218,16 +276,15 @@ export function computeTournamentRoundScores(
 ): TournamentRoundScore[] {
   const rules = normalizeTournamentRules(rulesInput)
 
-  return groupMatchIntoTeams(match, participatingClanIds)
-    .map((team) => ({
-      clanId: team.clanId,
-      bestPlacement: team.bestPlacement,
-      totalKills: team.totalKills,
-      // Le partage au prorata ne s'applique que s'il a été choisi : sinon chaque clan marque tout le placement.
-      ...scoreTournamentTeam(
-        { ...team, placementShare: rules.mixedSquadRule === 'prorata' ? team.placementShare : 1 },
-        rules
-      ),
+  return scoreClanRounds(match, participatingClanIds, rules)
+    .map(({ clanId, bestPlacement, totalKills, placementScore, killScore, winBonus, points }) => ({
+      clanId,
+      bestPlacement,
+      totalKills,
+      placementScore,
+      killScore,
+      winBonus,
+      points,
     }))
     .sort((left, right) => {
       if (right.points !== left.points) return right.points - left.points
@@ -243,26 +300,20 @@ export function computeTournamentStandings(
 ): TournamentStanding[] {
   const rules = normalizeTournamentRules(rulesInput)
   const standings = new Map<number, TournamentStanding>()
-  const teamScores = new Map<string, { clanId: number; entries: Array<{ points: number; totalKills: number; bestPlacement: number; wins: number }> }>()
+  // Une entrée par clan et par manche : `bestOfRounds` retient les meilleures manches du clan, quelles que soient ses
+  // escouades.
+  const teamScores = new Map<number, { clanId: number; entries: Array<{ points: number; totalKills: number; bestPlacement: number; wins: number }> }>()
 
   for (const match of matches) {
-    const teams = groupMatchIntoTeams(match, participatingClanIds)
-
-    for (const team of teams) {
-      const { points } = scoreTournamentTeam(
-        { ...team, placementShare: rules.mixedSquadRule === 'prorata' ? team.placementShare : 1 },
-        rules
-      )
-
-      const key = team.key
-      const aggregate = teamScores.get(key) ?? { clanId: team.clanId, entries: [] }
+    for (const round of scoreClanRounds(match, participatingClanIds, rules)) {
+      const aggregate = teamScores.get(round.clanId) ?? { clanId: round.clanId, entries: [] }
       aggregate.entries.push({
-        points,
-        totalKills: team.totalKills,
-        bestPlacement: team.bestPlacement,
-        wins: team.bestPlacement === 1 ? 1 : 0,
+        points: round.points,
+        totalKills: round.totalKills,
+        bestPlacement: round.bestPlacement,
+        wins: round.bestPlacement === 1 ? 1 : 0,
       })
-      teamScores.set(key, aggregate)
+      teamScores.set(round.clanId, aggregate)
     }
   }
 
@@ -339,7 +390,8 @@ type ModeEntry = {
   bestPlacement: number
   totalKills: number
   totalDamage: number
-  placementShare: number
+  /** Points de la manche, déjà calculés : en inter-clans, la somme des escouades du clan. */
+  score: TournamentTeamScore
 }
 
 /**
@@ -353,13 +405,18 @@ export function groupMatchByMode(
   organizerClanId?: number
 ): ModeEntry[] {
   if (rules.mode === 'inter_clan') {
-    return groupMatchIntoTeams(match, participatingClanIds).map((team) => ({
-      key: `clan:${team.clanId}`,
-      participant: { kind: 'clan', clanId: team.clanId },
-      bestPlacement: team.bestPlacement,
-      totalKills: team.totalKills,
-      totalDamage: team.members.reduce((sum, member) => sum + (member.damage ?? 0), 0),
-      placementShare: rules.mixedSquadRule === 'prorata' ? team.placementShare : 1,
+    return scoreClanRounds(match, participatingClanIds, rules).map((round) => ({
+      key: `clan:${round.clanId}`,
+      participant: { kind: 'clan', clanId: round.clanId },
+      bestPlacement: round.bestPlacement,
+      totalKills: round.totalKills,
+      totalDamage: round.totalDamage,
+      score: {
+        placementScore: round.placementScore,
+        killScore: round.killScore,
+        winBonus: round.winBonus,
+        points: round.points,
+      },
     }))
   }
 
@@ -381,26 +438,28 @@ export function groupMatchByMode(
       bestPlacement: member.placement,
       totalKills: member.kills,
       totalDamage: member.damage ?? 0,
-      placementShare: 1,
+      score: scoreTournamentTeam({ bestPlacement: member.placement, totalKills: member.kills }, rules),
     }))
   }
 
-  // `custom_teams` et `intra_clan` : l'escouade elle-même est le participant, identifiée par ses membres.
-  const memberIds = [...new Set(eligible.map((member) => member.memberId))].sort((left, right) => left - right)
-  const clanIds = [...new Set(eligible.map((member) => member.member.clanId).filter((id): id is number => id !== null))].sort(
-    (left, right) => left - right
-  )
+  // `custom_teams` et `intra_clan` : chaque escouade PUBG est un participant, identifiée par ses membres suivis.
+  return splitIntoPubgTeams(eligible).map((team) => {
+    const memberIds = [...new Set(team.map((member) => member.memberId))].sort((left, right) => left - right)
+    const clanIds = [...new Set(team.map((member) => member.member.clanId).filter((id): id is number => id !== null))].sort(
+      (left, right) => left - right
+    )
+    const bestPlacement = team.reduce((min, member) => Math.min(min, member.placement), Number.MAX_SAFE_INTEGER)
+    const totalKills = team.reduce((sum, member) => sum + member.kills, 0)
 
-  return [
-    {
+    return {
       key: `team:${buildTeamKey(memberIds)}`,
       participant: { kind: 'team', memberIds, clanIds },
-      bestPlacement: eligible.reduce((min, member) => Math.min(min, member.placement), Number.MAX_SAFE_INTEGER),
-      totalKills: eligible.reduce((sum, member) => sum + member.kills, 0),
-      totalDamage: eligible.reduce((sum, member) => sum + (member.damage ?? 0), 0),
-      placementShare: 1,
-    },
-  ]
+      bestPlacement,
+      totalKills,
+      totalDamage: team.reduce((sum, member) => sum + (member.damage ?? 0), 0),
+      score: scoreTournamentTeam({ bestPlacement, totalKills }, rules),
+    }
+  })
 }
 
 /**
@@ -418,7 +477,7 @@ export function computeTournamentModeStandings(
 
   for (const match of matches) {
     for (const entry of groupMatchByMode(match, participatingClanIds, rules, organizerClanId)) {
-      const { points } = scoreTournamentTeam(entry, rules)
+      const { points } = entry.score
       const aggregate = byParticipant.get(entry.key) ?? { participant: entry.participant, entries: [] }
       aggregate.entries.push({
         points,

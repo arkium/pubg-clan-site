@@ -137,9 +137,11 @@ describe('buildClanTrophy', () => {
 
 describe('buildSquadBreakdown', () => {
   it('recalcule le tournoi escouade par escouade, sans toucher au cumul par clan', () => {
+    // Deux équipes PUBG dans la manche (#1 et #2) : deux escouades, jamais une seule qui mélange tout le lobby.
     const breakdown = buildSquadBreakdown([round1], [1, 2], RULES, CLANS, MEMBERS)
-    expect(breakdown).toHaveLength(1)
-    expect(breakdown[0].label).toBe('[SMK] Pagiotte, [SMK] TigrOo, [RATZ] Nova')
-    expect(breakdown[0].rank).toBe(1)
+    expect(breakdown.map((view) => [view.rank, view.label])).toEqual([
+      [1, '[SMK] Pagiotte, [SMK] TigrOo'],
+      [2, '[RATZ] Nova'],
+    ])
   })
 })

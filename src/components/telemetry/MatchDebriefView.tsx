@@ -37,6 +37,7 @@ import { rosterRole, type RosterRoleId } from '@/lib/member-roster'
 import { mapAssetUrl, resolveGameMode, resolveMapName } from '@/lib/pubg-assets'
 import { matchDebriefPath, matchTournamentDebriefPath } from '@/lib/match-links'
 import { formatMatchDuration, teamCountFromPhaseSnapshots } from '@/lib/home-showcase'
+import { formatTournamentPoints } from '@/lib/tournament-mode-display'
 import {
   DEBRIEF_TAB_PARAM,
   accuracyOf,
@@ -536,10 +537,11 @@ function TournamentRoundBanner({ tournament, focusClanId }: { tournament: Tourna
                   <td className="px-2 py-1.5 text-center tabular-nums">#{score.bestPlacement}</td>
                   <td className="px-2 py-1.5 text-center tabular-nums">{score.totalKills}</td>
                   <td className="px-2 py-1.5 text-right tabular-nums">
-                    <b>{score.points} pts</b>
+                    {/* Au prorata, les points deviennent décimaux : une décimale au plus, comme le classement. */}
+                    <b>{formatTournamentPoints(score.points)} pts</b>
                     <span className="ml-1.5 hidden text-gray-500 sm:inline">
-                      ({score.placementScore} placement + {score.killScore} kills
-                      {score.winBonus ? ` + ${score.winBonus} victoire` : ''})
+                      ({formatTournamentPoints(score.placementScore)} placement + {formatTournamentPoints(score.killScore)} kills
+                      {score.winBonus ? ` + ${formatTournamentPoints(score.winBonus)} victoire` : ''})
                     </span>
                   </td>
                 </tr>

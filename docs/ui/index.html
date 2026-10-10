@@ -1182,6 +1182,176 @@ html[data-app-theme='dark'] .home-showcase {
   border-top: 1px solid var(--theme-ui-border);
 }
 
+/* Hub des clans (fin de vitrine, maquette « Accueil - Bandeau clans » 1a « Bande de largage ») : toujours sombre,
+   comme le héros, en clair compris (écran 1c). Quadrillage léger au jaune de la vitrine (amber-400). */
+.home-hub {
+  background-color: #0b0805;
+  background-image:
+    linear-gradient(rgb(251 191 36 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(251 191 36 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Les deux bandes débordent de la section (rotation) : la section coupe, la page ne défile jamais en largeur. */
+.home-hub-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-block: 10px;
+}
+
+.home-hub-band {
+  position: relative;
+  width: 108%;
+  margin-left: -4%;
+  overflow: hidden;
+}
+
+.home-hub-band--yellow {
+  z-index: 1;
+  padding-block: 9px;
+  background: rgb(251 191 36);
+  color: rgb(2 6 23);
+  transform: rotate(-1.4deg);
+  box-shadow: 0 14px 30px -14px rgb(0 0 0 / 0.8);
+}
+
+/* Bande noire bordée de rayures de balisage, en haut et en bas. */
+.home-hub-band--dark {
+  padding-block: 17px;
+  background:
+    repeating-linear-gradient(-45deg, rgb(251 191 36) 0 10px, #0b0805 10px 20px) top / 100% 8px no-repeat,
+    repeating-linear-gradient(-45deg, rgb(251 191 36) 0 10px, #0b0805 10px 20px) bottom / 100% 8px no-repeat,
+    #111827;
+  color: #fff;
+  transform: rotate(1.2deg);
+}
+
+/* Deux copies de la liste à la suite : glisser d'une moitié boucle sans couture. */
+.home-hub-track {
+  display: flex;
+  width: max-content;
+  animation: home-hub-scroll var(--home-hub-duration, 90s) linear infinite;
+}
+
+.home-hub-band--dark .home-hub-track {
+  animation-direction: reverse;
+}
+
+.home-hub-bands:hover .home-hub-track,
+.home-hub-bands:focus-within .home-hub-track {
+  animation-play-state: paused;
+}
+
+.home-hub-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-hub-item {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.home-hub-item--dark {
+  border-right: 1px solid rgb(255 255 255 / 0.15);
+}
+
+.home-hub-clan {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 18px;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.home-hub-clan:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.home-hub-logo {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: 2px solid rgb(2 6 23 / 0.85);
+  border-radius: 8px;
+  background: #0f172a;
+  object-fit: cover;
+}
+
+.home-hub-name {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  padding-top: 3px;
+}
+
+.home-hub-tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgb(2 6 23 / 0.75);
+}
+
+.home-hub-rank {
+  border-radius: 6px;
+  background: rgb(2 6 23);
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgb(251 191 36);
+}
+
+.home-hub-diamond {
+  font-size: 11px;
+  color: rgb(2 6 23);
+}
+
+.home-hub-stats {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: rgb(203 213 225);
+}
+
+@media (min-width: 1024px) {
+  .home-hub-logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .home-hub-name {
+    font-size: 32px;
+  }
+
+  .home-hub-band--dark .home-hub-name {
+    font-size: 26px;
+  }
+
+  .home-hub-tag,
+  .home-hub-rank,
+  .home-hub-stats {
+    font-size: 13px;
+  }
+}
+
+@keyframes home-hub-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @keyframes home-kenburns {
   from {
     transform: scale(1) translate(0, 0);
@@ -1224,8 +1394,13 @@ html[data-app-theme='dark'] .home-showcase {
   .home-hero-bg,
   .home-compass-strip,
   .home-feed-enter,
-  .home-cta-glow {
+  .home-cta-glow,
+  .home-hub-track {
     animation: none !important;
+  }
+
+  .home-hub-track {
+    padding-left: 6vw;
   }
 }
 
@@ -3382,7 +3557,7 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
             <table style="width:100%;border-collapse:collapse;">
               <thead class="app-table-head"><tr><th class="t-label" style="padding:8px 12px;text-align:left;">Classe</th><th class="t-label" style="padding:8px 12px;text-align:left;">Rôle</th><th class="t-label" style="padding:8px 12px;text-align:left;">Aperçu</th></tr></thead>
               <tbody>
-                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">home-showcase · home-hero · home-glass · home-feed-* · home-join · home-link · home-gold</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Accueil public (voir section Vitrine)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">home-showcase · home-hero · home-glass · home-feed-* · home-join · home-link · home-gold · home-hub-*</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Accueil public (voir section Vitrine)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-modal-backdrop · app-modal-card · app-modal-inner-card · app-modal-callout</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Fenêtres modales</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
               </tbody>
             </table>
@@ -7460,7 +7635,7 @@ return (
             <table class="text-gray-700" style="width:100%;border-collapse:collapse;font-size:0.8125rem;">
               <thead><tr style="text-align:left;border-bottom:1px solid var(--app-border);"><th style="padding:0.5rem;">Page</th><th style="padding:0.5rem;">Modules</th><th style="padding:0.5rem;">Sections de la doc</th></tr></thead>
               <tbody>
-                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/</code> Vitrine</td><td style="padding:0.5rem;">héros, kill feed, dinner hebdo, inscription des clans, « Pourquoi atterrir ici », « Nouveautés » (deux grandes cartes photo sombres : Mortier, Carte des ressources — 05/10/2026), « Discord » (bandeau sombre sur photo comme « Inscription », trois fonctions en tuiles d'icône — 05/10/2026), footer partagé avec le site</td><td style="padding:0.5rem;"><a href="#vitrine" class="app-link">Vitrine</a></td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/</code> Vitrine</td><td style="padding:0.5rem;">héros, kill feed, dinner hebdo, inscription des clans, « Pourquoi atterrir ici », « Nouveautés » (deux grandes cartes photo sombres : Mortier, Carte des ressources — 05/10/2026), « Discord » (bandeau sombre sur photo comme « Inscription », trois fonctions en tuiles d'icône — 05/10/2026), « Lecture de zone », hub des clans en fin de page (« Pas un clan. Tous les clans. », deux bandes qui défilent, Ligue de la semaine — 10/10/2026), footer partagé avec le site</td><td style="padding:0.5rem;"><a href="#vitrine" class="app-link">Vitrine</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans-leaderboard</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">podium en marches, fil de ligue, tableau Power score ; titre Teko sur la photo, tampon <code>app-stamp</code>, marches en Teko, couronne en or de jeu (<code>.app-on-photo</code> sur le podium), titres aux jetons de jeu, rangs <code>RankCell</code> ; type de partie (menu <code>app-menu-trigger</code> à partir de 640 px, segmented au repos sur mobile), bloc « En qualification »</td><td style="padding:0.5rem;"><a href="#ligue" class="app-link">Ligue</a> · <a href="#tableaux" class="app-link">Tableaux</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans</code> <span class="sync-tag sync-tag--ok">charte</span> · <code class="docs-code">/clans/comparator</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">annuaire : noms en Teko sur la photo, tampon <code>app-stamp</code> « En feu cette semaine », badge de style de jeu du clan (<code>PlaystyleBadge</code>, Fragger / Medic / Ghost) ; comparateur : arène P1 / P2 / P3, face-à-face, radar, ADN, heatmap d'activité — chaque graphique suit l'ordre de l'arène</td><td style="padding:0.5rem;"><a href="#comparateur" class="app-link">Comparateur</a> · maquettes <a href="#slots-esport" class="app-link">Slots VS</a> / <a href="#dataviz-esport" class="app-link">Dataviz</a></td></tr>
                 <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;"><code class="docs-code">/clans/mutations</code> <span class="sync-tag sync-tag--ok">charte</span></td><td style="padding:0.5rem;">mouvements de clan (membres connectés) : titre Teko sur la photo, mouvements groupés par jour de Paris, nature en tuile d'icône aux jetons de jeu (arrivée, départ, transfert, annulé), source en clair, pagination numérotée ; un visiteur est invité à se connecter</td><td style="padding:0.5rem;"><a href="#etats" class="app-link">États</a> · <a href="#pagination" class="app-link">Pagination</a> · <a href="#couleurs-jeu" class="app-link">Couleurs de jeu</a></td></tr>
@@ -7666,6 +7841,33 @@ return (
           </div>
           <code class="docs-code">src/components/home/HomeShowcase.tsx (WhyLandHere) · carte standard .app-panel rayon 18 : tuile d'icône teintée, numéro Teko 40 px en --theme-ui-border, titre Teko avec accroche .home-gold, lien .home-link · la carte « Tournois » reprend .home-join (photo sombre) avec tampon « Zéro inscription » incliné</code>
           <div class="docs-label">Trois cartes : Ligue, Tournois, Comparateur. Rayon 18 propre à la vitrine (hors échelle charte §2 — écart assumé de la page d'accueil, à trancher).</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Hub des clans — « Pas un clan. Tous les clans. » (bande de largage, <code>data-testid="home-clans-hub"</code>) <span class="sync-tag sync-tag--new">Ajouté depuis le code · 10/10/2026</span></div>
+          <div class="home-hub" style="position:relative;overflow:hidden;border-radius:14px;color:#fff;">
+            <div style="display:flex;flex-wrap:wrap;align-items:flex-end;justify-content:space-between;gap:20px;padding:28px 24px 0;">
+              <div style="display:flex;max-width:440px;flex-direction:column;gap:12px;">
+                <span style="align-self:flex-start;transform:rotate(-2deg);border-radius:5px;background:rgb(251 191 36);color:rgb(69 26 3);padding:4px 10px;font-size:11px;font-weight:900;text-transform:uppercase;letter-spacing:0.06em;">Le hub des clans PUBG FR</span>
+                <span class="home-display" style="font-size:44px;font-weight:600;text-transform:uppercase;line-height:0.9;">Pas un clan.<br><span style="color:rgb(251 191 36);">Tous les clans.</span></span>
+                <span style="font-size:14px;line-height:1.5;color:rgb(255 255 255 / 0.8);">chickendinner.fr réunit les clans francophones et analyse leurs parties : classement commun, stats de chaque joueur, tournois entre clans.</span>
+              </div>
+              <dl style="margin:0;display:flex;gap:20px;"><div style="display:flex;flex-direction:column-reverse;gap:4px;border-left:2px solid rgb(251 191 36);padding-left:12px;"><dt style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:rgb(255 255 255 / 0.7);">Clans suivis</dt><dd class="home-display" style="margin:0;font-size:34px;font-weight:600;line-height:1;">31</dd></div><div style="display:flex;flex-direction:column-reverse;gap:4px;border-left:2px solid rgb(251 191 36);padding-left:12px;"><dt style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:rgb(255 255 255 / 0.7);">Joueurs</dt><dd class="home-display" style="margin:0;font-size:34px;font-weight:600;line-height:1;">400</dd></div><div style="display:flex;flex-direction:column-reverse;gap:4px;border-left:2px solid rgb(251 191 36);padding-left:12px;"><dt style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:rgb(255 255 255 / 0.7);">Parties analysées</dt><dd class="home-display" style="margin:0;font-size:34px;font-weight:600;line-height:1;">26 707</dd></div></dl>
+            </div>
+            <div class="home-hub-bands" style="margin:28px 0;">
+              <div class="home-hub-band home-hub-band--yellow"><div class="home-hub-track"><ul class="home-hub-row"><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">La Meute</span><span class="home-hub-tag">[LMT]</span><span class="home-hub-rank">#1 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">Les Ratz</span><span class="home-hub-tag">[RATZ]</span><span class="home-hub-rank">#2 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">La Team France</span><span class="home-hub-tag">[LTF]</span><span class="home-hub-rank">#3 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">Bof Team</span><span class="home-hub-tag">[BOFS]</span><span class="home-hub-rank">#4 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li></ul><ul class="home-hub-row" aria-hidden="true"><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">La Meute</span><span class="home-hub-tag">[LMT]</span><span class="home-hub-rank">#1 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">Les Ratz</span><span class="home-hub-tag">[RATZ]</span><span class="home-hub-rank">#2 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">La Team France</span><span class="home-hub-tag">[LTF]</span><span class="home-hub-rank">#3 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li><li class="home-hub-item"><a class="home-hub-clan"><img class="home-hub-logo" src="../../public/pubg.png" alt=""><span class="home-display home-hub-name">Bof Team</span><span class="home-hub-tag">[BOFS]</span><span class="home-hub-rank">#4 Ligue</span></a><span class="home-hub-diamond" aria-hidden="true">◆</span></li></ul></div></div>
+              <div class="home-hub-band home-hub-band--dark" aria-hidden="true"><div class="home-hub-track"><ul class="home-hub-row"><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">La Meute</span><span class="home-hub-stats">1 486 PS · 44 parties</span><span class="home-hub-stats" style="font-weight:700;"><span style="color:rgb(52 211 153);">▲2</span></span></a></li><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">Les Ratz</span><span class="home-hub-stats">1 412 PS · 38 parties</span><span class="home-hub-stats" style="font-weight:700;"><span style="color:rgb(248 113 113);">▼1</span></span></a></li><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">La Team France</span><span class="home-hub-stats">1 290 PS · 31 parties</span><span class="home-hub-stats" style="font-weight:700;"><span style="color:rgb(255 255 255 / 0.55);">=</span></span></a></li><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">Bof Team</span><span class="home-hub-stats">1 104 PS · 19 parties</span><span class="home-hub-stats" style="font-weight:700;"></span></a></li></ul><ul class="home-hub-row"><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">La Meute</span><span class="home-hub-stats">1 486 PS · 44 parties</span><span class="home-hub-stats" style="font-weight:700;"><span style="color:rgb(52 211 153);">▲2</span></span></a></li><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">Les Ratz</span><span class="home-hub-stats">1 412 PS · 38 parties</span><span class="home-hub-stats" style="font-weight:700;"><span style="color:rgb(248 113 113);">▼1</span></span></a></li><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">La Team France</span><span class="home-hub-stats">1 290 PS · 31 parties</span><span class="home-hub-stats" style="font-weight:700;"><span style="color:rgb(255 255 255 / 0.55);">=</span></span></a></li><li class="home-hub-item home-hub-item--dark"><a class="home-hub-clan"><span class="home-display home-hub-name">Bof Team</span><span class="home-hub-stats">1 104 PS · 19 parties</span><span class="home-hub-stats" style="font-weight:700;"></span></a></li></ul></div></div>
+            </div>
+            <div style="display:flex;flex-direction:column;gap:14px;padding:0 24px 28px;">
+              <span style="font-family:ui-monospace,monospace;font-size:12px;color:rgb(255 255 255 / 0.55);">Rang, Power score (PS) et parties : Ligue des clans de la semaine 41, parties Normal ; tendance depuis la semaine dernière.</span>
+              <span style="display:flex;flex-wrap:wrap;gap:10px;">
+                <a style="display:inline-flex;align-items:center;gap:8px;border-radius:12px;background:rgb(251 191 36);color:rgb(69 26 3);padding:12px 20px;font-size:14px;font-weight:700;">Explorer l’annuaire des clans →</a>
+                <a style="display:inline-flex;align-items:center;border-radius:12px;border:1px solid rgb(255 255 255 / 0.25);color:#fff;padding:12px 18px;font-size:14px;font-weight:600;">Voir la Ligue</a>
+              </span>
+            </div>
+          </div>
+          <code class="docs-code">src/components/home/HomeClansHub.tsx · .home-hub (fond #0b0805, quadrillage amber-400 à 4,5 %) · .home-hub-band--yellow (amber-400, −1,4°) · .home-hub-band--dark (#111827, +1,2°, rayures de balisage amber-400 / #0b0805 en haut et en bas) · .home-hub-track (deux copies, @keyframes home-hub-scroll, la noire en reverse) · .home-hub-logo / -name (Teko) / -tag / -rank / -stats (mono) · tendance emerald-400 ▲ / red-400 ▼ / = · données : stats + clans de GET /api/home/showcase</code>
+          <div class="docs-label">Maquette Claude Design « Accueil - Bandeau clans », variante <b>1a</b> (1c en clair, 1e en mobile). <b>Dernier bloc de la vitrine</b>, après « Lecture de zone », juste avant le pied de page. <b>Toujours sombre</b>, comme le héros : la même apparence en thème clair. Couleurs de la vitrine, pas des jetons de la charte : le jaune est <code>amber-400</code> (celui des titres « Winner winner », des CTA et des étiquettes « Zéro inscription »), les tendances reprennent l'émeraude du point « en ligne » du héros. <b>Données</b> : Ligue de la semaine en cours, parties Normal (même calcul que <code>/clans-leaderboard</code>), tous les clans suivis — les classés au rang, puis ceux en qualification (« En qualification · 3 / 5 parties »), puis ceux sans partie ; tendance en places depuis la semaine dernière, <b>absente</b> pour un clan non classé alors (jamais de signe vide). Logo absent → <code>/pubg.png</code>. Chaque clan mène à <code>/clans/[id]/overview</code>. <b>Mouvement</b> : défilement continu en sens opposés, pause au survol et au clavier (<code>:focus-within</code>), figé sous <code>prefers-reduced-motion</code> (et décalé de 6 vw pour ne pas couper le premier clan). <b>Accessibilité</b> : la bande jaune est la liste (« Clans suivis sur chickendinner.fr »), chiffres dans le nom accessible ; sa copie et la bande noire sont masquées et hors tabulation. Les bandes débordent de la section, qui coupe : aucun défilement horizontal de la page. Masqué sans clan (Ligue indisponible). Deux sorties : annuaire des clans (rempli, le seul de l'écran) et Ligue (contour).</div>
         </div>
       </section>
 

@@ -1,3 +1,4 @@
+import { getClanLeague } from '@/lib/clan-league-service'
 import { getMapLabels } from '@/lib/map-label-service'
 import { matchDebriefPath } from '@/lib/match-links'
 import { getPeriodStart } from '@/lib/period'
@@ -6,6 +7,7 @@ import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { getWeaponLabels } from '@/lib/weapon-label-service'
 import {
   buildKillFeed,
+  buildShowcaseClans,
   mapImagePath,
   pickMvpMemberId,
   pickSquadClan,
@@ -63,7 +65,7 @@ function isoWeekNumber(date: Date): number {
 async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
   const weekStart = getPeriodStart('week', now) ?? now
 
-  const [clans, players, weekTotals, wins, weaponLabels, mapLabels] = await Promise.all([
+  const [clans, players, weekTotals, wins, weaponLabels, mapLabels, analyzedMatches, league] = await Promise.all([
     prisma.clan.count({ where: ACTIVE_CLAN }),
     prisma.clanMember.count({ where: { isActive: true, joinStatus: 'active', clan: ACTIVE_CLAN } }),
     prisma.$queryRaw<Array<{ kills: bigint | number | null; wins: bigint | number | null }>>`
@@ -105,6 +107,13 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
     }),
     getWeaponLabels(),
     getMapLabels(),
+    prisma.squadMatchTelemetry.count(),
+    // Hub des clans : la Ligue de la semaine (parties Normal), déjà gardée 5 minutes en mémoire par son service. Une
+    // ligue en échec masque le hub, jamais toute la vitrine.
+    getClanLeague('week', 'official', now).catch((error: unknown) => {
+      console.error('[home-showcase] Ligue indisponible, hub des clans masqué', error)
+      return null
+    }),
   ])
 
   // Clan de chaque victoire, parmi les seuls membres d'un clan actif.
@@ -248,6 +257,7 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
       weekKills: Number(totals?.kills ?? 0),
       weekWins: Number(totals?.wins ?? 0),
       isoWeek: isoWeekNumber(now),
+      analyzedMatches,
     },
     dinners,
     killFeed: buildKillFeed({
@@ -255,6 +265,7 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
       wins: resolvedWins.map(({ win, clan, mapLabel }) => ({ squadMatchId: win.id, clanTag: clan.clanTag, mapLabel })),
       labels: weaponLabels,
     }),
+    clans: league ? buildShowcaseClans(league) : [],
   }
 }
 

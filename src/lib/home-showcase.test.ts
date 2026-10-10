@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildKillFeed,
+  buildShowcaseClans,
   centimetersToMeters,
   dedupeKills,
   formatMatchDuration,
@@ -177,5 +178,42 @@ describe('home-showcase — kill feed', () => {
     const feed = buildKillFeed({ kills: [kill({ victimClanTag: 'ABC' })], wins: [], labels: LABELS })
     expect(feed[0]).toMatchObject({ victimClanTag: 'ABC' })
     expect(JSON.stringify(feed)).not.toContain('account.victim')
+  })
+})
+
+describe('buildShowcaseClans — hub des clans', () => {
+  const clan = (clanId: number, tag: string, imageUrl: string | null = null) => ({ clanId, name: `Clan ${tag}`, tag, imageUrl })
+  const league = {
+    standings: [
+      { ...clan(2, 'BEE', '  '), rank: 2, powerScore: 1290.6, matches: 31, previousRank: 1 },
+      { ...clan(1, 'ACE', 'https://exemple.fr/ace.png'), rank: 1, powerScore: 1486.4, matches: 44, previousRank: 3 },
+      { ...clan(3, 'CAT'), rank: 3, powerScore: 1104, matches: 19, previousRank: 3 },
+      { ...clan(4, 'DOG'), rank: 4, powerScore: 990, matches: 6, previousRank: null },
+    ],
+    qualifying: [
+      { ...clan(5, 'EMU'), matches: 1, required: 5 },
+      { ...clan(6, 'FOX'), matches: 4, required: 5 },
+    ],
+    withoutMatch: [clan(7, 'GNU')],
+  }
+
+  it('classés dans l’ordre de la Ligue, puis en qualification (les plus proches du seuil d’abord), puis sans partie', () => {
+    expect(buildShowcaseClans(league).map((entry) => entry.tag)).toEqual(['ACE', 'BEE', 'CAT', 'DOG', 'FOX', 'EMU', 'GNU'])
+  })
+
+  it('tendance en places depuis la semaine dernière, absente pour un clan non classé alors', () => {
+    const byTag = new Map(buildShowcaseClans(league).map((entry) => [entry.tag, entry.league]))
+    expect(byTag.get('ACE')).toEqual({ status: 'ranked', rank: 1, powerScore: 1486, matches: 44, rankDelta: 2 })
+    expect(byTag.get('BEE')).toMatchObject({ powerScore: 1291, rankDelta: -1 })
+    expect(byTag.get('CAT')).toMatchObject({ rankDelta: 0 })
+    expect(byTag.get('DOG')).toMatchObject({ rankDelta: null })
+    expect(byTag.get('FOX')).toEqual({ status: 'qualifying', matches: 4, required: 5 })
+    expect(byTag.get('GNU')).toEqual({ status: 'idle' })
+  })
+
+  it('logo vide → logo par défaut ; lien vers la vue d’ensemble du clan', () => {
+    const [ace, bee] = buildShowcaseClans(league)
+    expect(ace).toMatchObject({ logoUrl: 'https://exemple.fr/ace.png', overviewPath: '/clans/1/overview' })
+    expect(bee.logoUrl).toBeNull()
   })
 })

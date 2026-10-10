@@ -371,7 +371,7 @@ export function homeShowcase(): HomeShowcasePayload {
   })
   return {
     generatedAt: FIXED_DATE,
-    stats: { clans: 29, players: 399, weekKills: 7957, weekWins: 198, isoWeek: 39 },
+    stats: { clans: 29, players: 399, weekKills: 7957, weekWins: 198, isoWeek: 39, analyzedMatches: 26707 },
     dinners: [
       dinner('match-1', 'Desert_Main', 'Miramar', 'ALFA', ['Alpha', 'Bravo', 'Charlie', 'Delta']),
       dinner('match-2', 'Baltic_Main', 'Erangel', 'ECHO', ['Echo', 'Foxtrot', 'Golf']),
@@ -386,6 +386,8 @@ export function homeShowcase(): HomeShowcasePayload {
       { id: 'k5', kind: 'kill', killer: 'Joueur Golf', killerClanTag: 'ECHO', weapon: 'Mini 14', headshot: false, distanceMeters: 186, victimClanTag: null },
       { id: 'k6', kind: 'kill', killer: 'Joueur India', killerClanTag: 'HOTL', weapon: 'UMP45', headshot: false, distanceMeters: 14, victimClanTag: null },
     ],
+    // Hub des clans masqué ici (captures de la vitrine inchangées) ; il a sa fixture : e2e/support/home-clans.ts.
+    clans: [],
   }
 }
 

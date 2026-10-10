@@ -22,6 +22,7 @@ import {
 } from 'lucide-react'
 
 import { LegalFooterContent } from '@/components/SiteFooter'
+import { HomeClansHub } from '@/components/home/HomeClansHub'
 import {
   HeroTournamentTicket,
   HomeTournamentsSection,
@@ -34,15 +35,16 @@ import { useHomeShowcase } from '@/hooks/useHomeShowcase'
 import { useHomeTournaments } from '@/hooks/useHomeTournaments'
 import { formatMatchDuration, type ShowcaseDinner, type ShowcaseFeedEntry } from '@/lib/home-showcase'
 import { getPeriodStart } from '@/lib/period'
-
 import { DEBRIEF_TAB_PARAM } from '@/lib/pubg-telemetry/debrief-view'
+
 /**
  * Vitrine publique de chickendinner.fr (`/`, visiteurs non connectés) — docs/features/accueil.md.
  * Maquette : Claude Design « Accueil chickendinner.dc.html » (écrans 4a à 4d).
  *
  * Plein écran, sans le shell : héros de jeu (boussole, compteurs, kill feed), Top 1 récents en carrousel, inscription
- * des clans, « Pourquoi atterrir ici » (Ligue, tournois, comparateur). Le héros, le bandeau « Inscription » et la carte
- * Tournois sont sombres par construction (photo) ; le reste suit le thème.
+ * des clans, « Pourquoi atterrir ici » (Ligue, tournois, comparateur), nouveautés, Discord, Lecture de zone, puis le hub
+ * des clans (`HomeClansHub`). Le héros, les bandeaux sur photo, la carte Tournois et le hub des clans sont sombres par
+ * construction ; le reste suit le thème.
  * Vocabulaire : le site ne recrute pas, il suit les clans qui existent déjà dans PUBG — « inscrire son clan », « relier
  * son compte », jamais « rejoindre le squad » ni « recrutement » (décision du 2026-10-09, docs/features/accueil.md).
  * Affichée à tous : un membre connecté (`accountHref`) y trouve « Mon espace » au lieu de « Se connecter ».
@@ -305,13 +307,13 @@ function DinnerCard({ dinner }: { dinner: ShowcaseDinner }) {
   )
 }
 
-function DinnerSection({
-  dinners,
 /** Débrief ouvert sur l'onglet Replay 2D (`?tab=replay`, src/lib/pubg-telemetry/debrief-view.ts). */
 function replayPath(debriefPath: string) {
   return `${debriefPath}${debriefPath.includes('?') ? '&' : '?'}${DEBRIEF_TAB_PARAM}=replay`
 }
 
+function DinnerSection({
+  dinners,
   loading,
   error,
   isoWeek,
@@ -915,6 +917,9 @@ export default function HomeShowcase({
       <DiscordSection />
 
       <ZoneReadingSection />
+
+      {/* HUB DES CLANS — fin de page : le site réunit tous les clans, pas un seul (maquette « Accueil - Bandeau clans » 1a). */}
+      <HomeClansHub clans={data?.clans ?? []} stats={stats} />
 
       {/* Même contenu que le footer du site (masqué ici), aux marges de la vitrine : docs/features/pages-legales.md. */}
       <footer className="home-footer px-4 py-5 md:px-8 lg:px-14">

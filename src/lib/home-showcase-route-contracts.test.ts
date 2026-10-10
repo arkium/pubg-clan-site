@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   killEventFindMany: vi.fn(),
   playerFindMany: vi.fn(),
   telemetryFindMany: vi.fn(),
+  telemetryCount: vi.fn(),
+  getClanLeague: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -22,9 +24,12 @@ vi.mock('@/lib/prisma', () => ({
     match: { findMany: mocks.matchFindMany },
     killEvent: { findMany: mocks.killEventFindMany },
     player: { findMany: mocks.playerFindMany },
-    squadMatchTelemetry: { findMany: mocks.telemetryFindMany },
+    squadMatchTelemetry: { findMany: mocks.telemetryFindMany, count: mocks.telemetryCount },
   },
 }))
+
+// Hub des clans : la Ligue de la semaine, simulée (son calcul a ses propres tests).
+vi.mock('@/lib/clan-league-service', () => ({ getClanLeague: mocks.getClanLeague }))
 
 vi.mock('@/lib/weapon-label-service', () => ({
   getWeaponLabels: async () => ({ WeapKar98k_C: 'Kar98k', WeapM416_C: 'M416' }),
@@ -75,6 +80,12 @@ beforeEach(() => {
   mocks.clanCount.mockResolvedValue(29)
   mocks.memberCount.mockResolvedValue(399)
   mocks.queryRaw.mockResolvedValue([{ kills: BigInt(7957), wins: BigInt(198) }])
+  mocks.telemetryCount.mockResolvedValue(26707)
+  mocks.getClanLeague.mockResolvedValue({
+    standings: [{ clanId: 10, name: 'Clan SMK', tag: 'SMK', imageUrl: null, rank: 1, powerScore: 1486.4, matches: 44, previousRank: 2 }],
+    qualifying: [{ clanId: 20, name: 'Clan FUN', tag: 'FUN', imageUrl: null, matches: 3, required: 5 }],
+    withoutMatch: [{ clanId: 30, name: 'Clan ZZZ', tag: 'ZZZ', imageUrl: null }],
+  })
   mocks.squadMatchFindMany.mockResolvedValue([
     // Équipe mixte : deux membres SMK, un FUN → rattachée à SMK.
     win('w1', [squadMember(1, 10, 'SMK', 6, 812), squadMember(2, 10, 'SMK', 2, 300), squadMember(3, 20, 'FUN', 4, 590)]),
@@ -176,6 +187,28 @@ describe('GET /api/home/showcase', () => {
     expect(mocks.playerFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { pubgAccountId: { in: ['account.outside'] } } })
     )
+  })
+
+  it('hub des clans : Ligue de la semaine (Normal), tous les clans suivis, et le compteur de parties analysées', async () => {
+    const body = await (await GET()).json()
+    expect(mocks.getClanLeague).toHaveBeenCalledWith('week', 'official', expect.any(Date))
+    expect(body.stats.analyzedMatches).toBe(26707)
+    expect(body.clans.map((clan: { tag: string }) => clan.tag)).toEqual(['SMK', 'FUN', 'ZZZ'])
+    expect(body.clans[0]).toMatchObject({
+      overviewPath: '/clans/10/overview',
+      league: { status: 'ranked', rank: 1, powerScore: 1486, matches: 44, rankDelta: 1 },
+    })
+  })
+
+  it('une Ligue en échec masque le hub, jamais la vitrine', async () => {
+    mocks.getClanLeague.mockRejectedValueOnce(new Error('ligue indisponible'))
+    const errorSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+    const response = await GET()
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body.clans).toEqual([])
+    expect(body.dinners.length).toBeGreaterThan(0)
+    errorSpy.mockRestore()
   })
 
   it('renvoie 500 quand la lecture échoue', async () => {

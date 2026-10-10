@@ -60,6 +60,26 @@ export interface HomeShowcaseStats {
   weekKills: number
   weekWins: number
   isoWeek: number
+  /** Parties dont la télémétrie est analysée (`SquadMatchTelemetry`) — compteur « parties analysées » du hub des clans. */
+  analyzedMatches: number
+}
+
+/** Place d'un clan dans la Ligue de la semaine (parties Normal), telle que le hub des clans l'affiche. */
+export type ShowcaseClanLeague =
+  /** `rankDelta` : places gagnées (+) ou perdues (−) depuis la semaine dernière ; `null` : pas classé alors. */
+  | { status: 'ranked'; rank: number; powerScore: number; matches: number; rankDelta: number | null }
+  | { status: 'qualifying'; matches: number; required: number }
+  | { status: 'idle' }
+
+/** Un clan suivi dans le hub des clans de la vitrine (bandes qui défilent, fin de page). */
+export interface ShowcaseClan {
+  clanId: number
+  name: string
+  tag: string
+  /** Logo du clan ; `null` → logo par défaut. */
+  logoUrl: string | null
+  overviewPath: string
+  league: ShowcaseClanLeague
 }
 
 export interface HomeShowcasePayload {
@@ -67,6 +87,48 @@ export interface HomeShowcasePayload {
   stats: HomeShowcaseStats
   dinners: ShowcaseDinner[]
   killFeed: ShowcaseFeedEntry[]
+  /** Tous les clans suivis : classés au rang de la Ligue, puis en qualification, puis sans partie de la semaine. */
+  clans: ShowcaseClan[]
+}
+
+type LeagueClanRow = { clanId: number; name: string; tag: string; imageUrl: string | null }
+
+/**
+ * Clans du hub, depuis la Ligue de la semaine (`getClanLeague('week', 'official')`) : les classés dans l'ordre du
+ * classement, puis ceux en qualification (les plus proches du seuil d'abord), puis ceux sans partie (ordre de la Ligue,
+ * alphabétique). Power score arrondi, comme dans le tableau de la Ligue.
+ */
+export function buildShowcaseClans(league: {
+  standings: Array<LeagueClanRow & { rank: number; powerScore: number; matches: number; previousRank: number | null }>
+  qualifying: Array<LeagueClanRow & { matches: number; required: number }>
+  withoutMatch: LeagueClanRow[]
+}): ShowcaseClan[] {
+  const clan = (row: LeagueClanRow, clanLeague: ShowcaseClanLeague): ShowcaseClan => ({
+    clanId: row.clanId,
+    name: row.name,
+    tag: row.tag,
+    logoUrl: row.imageUrl?.trim() || null,
+    overviewPath: `/clans/${row.clanId}/overview`,
+    league: clanLeague,
+  })
+
+  return [
+    ...[...league.standings]
+      .sort((a, b) => a.rank - b.rank)
+      .map((row) =>
+        clan(row, {
+          status: 'ranked',
+          rank: row.rank,
+          powerScore: Math.round(row.powerScore),
+          matches: row.matches,
+          rankDelta: row.previousRank === null ? null : row.previousRank - row.rank,
+        })
+      ),
+    ...[...league.qualifying]
+      .sort((a, b) => b.matches / b.required - a.matches / a.required || a.name.localeCompare(b.name, 'fr'))
+      .map((row) => clan(row, { status: 'qualifying', matches: row.matches, required: row.required })),
+    ...league.withoutMatch.map((row) => clan(row, { status: 'idle' })),
+  ]
 }
 
 /** Cartes dont le fond existe dans `public/maps/pubg/`. */

@@ -2913,6 +2913,176 @@ html[data-app-theme='dark'] .home-showcase {
   border-top: 1px solid var(--theme-ui-border);
 }
 
+/* Hub des clans (fin de vitrine, maquette « Accueil - Bandeau clans » 1a « Bande de largage ») : toujours sombre,
+   comme le héros, en clair compris (écran 1c). Quadrillage léger au jaune de la vitrine (amber-400). */
+.home-hub {
+  background-color: #0b0805;
+  background-image:
+    linear-gradient(rgb(251 191 36 / 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(251 191 36 / 0.045) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+/* Les deux bandes débordent de la section (rotation) : la section coupe, la page ne défile jamais en largeur. */
+.home-hub-bands {
+  display: flex;
+  flex-direction: column;
+  gap: 22px;
+  padding-block: 10px;
+}
+
+.home-hub-band {
+  position: relative;
+  width: 108%;
+  margin-left: -4%;
+  overflow: hidden;
+}
+
+.home-hub-band--yellow {
+  z-index: 1;
+  padding-block: 9px;
+  background: rgb(251 191 36);
+  color: rgb(2 6 23);
+  transform: rotate(-1.4deg);
+  box-shadow: 0 14px 30px -14px rgb(0 0 0 / 0.8);
+}
+
+/* Bande noire bordée de rayures de balisage, en haut et en bas. */
+.home-hub-band--dark {
+  padding-block: 17px;
+  background:
+    repeating-linear-gradient(-45deg, rgb(251 191 36) 0 10px, #0b0805 10px 20px) top / 100% 8px no-repeat,
+    repeating-linear-gradient(-45deg, rgb(251 191 36) 0 10px, #0b0805 10px 20px) bottom / 100% 8px no-repeat,
+    #111827;
+  color: #fff;
+  transform: rotate(1.2deg);
+}
+
+/* Deux copies de la liste à la suite : glisser d'une moitié boucle sans couture. */
+.home-hub-track {
+  display: flex;
+  width: max-content;
+  animation: home-hub-scroll var(--home-hub-duration, 90s) linear infinite;
+}
+
+.home-hub-band--dark .home-hub-track {
+  animation-direction: reverse;
+}
+
+.home-hub-bands:hover .home-hub-track,
+.home-hub-bands:focus-within .home-hub-track {
+  animation-play-state: paused;
+}
+
+.home-hub-row {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.home-hub-item {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+}
+
+.home-hub-item--dark {
+  border-right: 1px solid rgb(255 255 255 / 0.15);
+}
+
+.home-hub-clan {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  padding-inline: 18px;
+  white-space: nowrap;
+  color: inherit;
+}
+
+.home-hub-clan:focus-visible {
+  outline: 2px solid currentColor;
+  outline-offset: -2px;
+  border-radius: 8px;
+}
+
+.home-hub-logo {
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  border: 2px solid rgb(2 6 23 / 0.85);
+  border-radius: 8px;
+  background: #0f172a;
+  object-fit: cover;
+}
+
+.home-hub-name {
+  font-size: 24px;
+  font-weight: 600;
+  line-height: 1;
+  text-transform: uppercase;
+  padding-top: 3px;
+}
+
+.home-hub-tag {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 11px;
+  font-weight: 700;
+  color: rgb(2 6 23 / 0.75);
+}
+
+.home-hub-rank {
+  border-radius: 6px;
+  background: rgb(2 6 23);
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 800;
+  color: rgb(251 191 36);
+}
+
+.home-hub-diamond {
+  font-size: 11px;
+  color: rgb(2 6 23);
+}
+
+.home-hub-stats {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 12px;
+  color: rgb(203 213 225);
+}
+
+@media (min-width: 1024px) {
+  .home-hub-logo {
+    width: 38px;
+    height: 38px;
+  }
+
+  .home-hub-name {
+    font-size: 32px;
+  }
+
+  .home-hub-band--dark .home-hub-name {
+    font-size: 26px;
+  }
+
+  .home-hub-tag,
+  .home-hub-rank,
+  .home-hub-stats {
+    font-size: 13px;
+  }
+}
+
+@keyframes home-hub-scroll {
+  from {
+    transform: translateX(0);
+  }
+  to {
+    transform: translateX(-50%);
+  }
+}
+
 @keyframes home-kenburns {
   from {
     transform: scale(1) translate(0, 0);
@@ -2955,8 +3125,14 @@ html[data-app-theme='dark'] .home-showcase {
   .home-hero-bg,
   .home-compass-strip,
   .home-feed-enter,
-  .home-cta-glow {
+  .home-cta-glow,
+  .home-hub-track {
     animation: none !important;
+  }
+
+  /* Bandes figées : le premier clan commence dans la page, pas coupé par le bord (les bandes débordent de 4 %). */
+  .home-hub-track {
+    padding-left: 6vw;
   }
 }
 

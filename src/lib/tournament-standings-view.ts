@@ -6,7 +6,7 @@
  */
 import {
   computeTournamentModeStandings,
-  groupMatchByMode,
+  groupMatchesByMode,
   normalizeTournamentRules,
   type NormalizedTournamentRules,
   type TournamentModeStanding,
@@ -163,12 +163,10 @@ export function buildRoundViews(
   organizerClanId?: number
 ): TournamentRoundView[] {
   const rules = normalizeTournamentRules(rulesInput)
-  const ordered = [...matches].sort(
-    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-  )
+  // Mêmes clés que le classement : une escouade suivie malgré ses remplaçants garde sa forme et sa ligne surlignée.
+  const { rounds } = groupMatchesByMode(matches, participantClanIds, rules, organizerClanId)
 
-  return ordered.map((match, index) => {
-    const entries = groupMatchByMode(match, participantClanIds, rules, organizerClanId)
+  return rounds.map(({ match, entries }, index) => {
     const scores = entries
       .map((entry) => {
         const described = describeParticipant(entry.participant, clans, members)

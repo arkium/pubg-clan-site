@@ -5,6 +5,7 @@ import {
   computeTournamentRoundScores,
   computeTournamentStandings,
   groupMatchByMode,
+  groupMatchesByMode,
   groupMatchIntoTeams,
   normalizeTournamentRules,
 } from '@/lib/tournament-service'
@@ -82,6 +83,43 @@ describe('partie personnalisée : un lobby entier dans une seule ligne', () => {
     ])
     const scrims = groupMatchByMode(LOBBY_MATCH, [1, 2, 3], { ...LOBBY_RULES, mode: 'intra_clan' }, 1)
     expect(scrims.map((entry) => entry.bestPlacement)).toEqual([1, 7])
+  })
+})
+
+describe('escouades suivies d’une manche à l’autre (équipes libres, détail par escouade)', () => {
+  const round = (id: string, hour: number, teams: Array<[number[], number]>) => ({
+    id,
+    createdAt: new Date(`2026-10-10T${hour}:00:00Z`),
+    members: teams.flatMap(([memberIds, placement]) =>
+      memberIds.map((memberId) => ({ memberId, member: { clanId: 1 }, kills: 1, placement }))
+    ),
+  })
+  // Le joueur 11 passe de l'escouade Y à l'escouade X ; Y accueille 12, puis 13.
+  const rounds = [
+    round('r1', 19, [[[1, 2, 3, 4, 5], 10], [[6, 7, 8, 9, 10, 11], 11]]),
+    round('r2', 20, [[[1, 2, 3, 4, 5, 11], 4], [[6, 7, 8, 9, 12], 1]]),
+    round('r3', 21, [[[1, 2, 3, 4, 5, 11], 10], [[6, 7, 8, 9, 12, 13], 11]]),
+  ]
+  const rules = normalizeTournamentRules({ mode: 'custom_teams', placementPoints: { 1: 10, 4: 5 }, killPoints: 1, winBonus: 0 })
+
+  it('un remplaçant ou un absent ne crée pas une nouvelle escouade ; un transfert ne fusionne pas les deux', () => {
+    const standings = computeTournamentModeStandings([...rounds].reverse(), [1], rules)
+    expect(standings.map((standing) => [standing.participant, standing.matchesPlayed])).toEqual([
+      [{ kind: 'team', memberIds: [6, 7, 8, 9, 12, 10, 11, 13], clanIds: [1] }, 3],
+      [{ kind: 'team', memberIds: [1, 2, 3, 4, 5, 11], clanIds: [1] }, 3],
+    ])
+  })
+
+  it('les manches portent les mêmes clés que le classement, avec leur propre composition', () => {
+    const { rounds: grouped } = groupMatchesByMode(rounds, [1], rules)
+    const keys = new Set(computeTournamentModeStandings(rounds, [1], rules).map((standing) => standing.key))
+    for (const { entries } of grouped) {
+      expect(entries.every((entry) => keys.has(entry.key))).toBe(true)
+    }
+    expect(grouped[1].entries.map((entry) => entry.participant)).toEqual([
+      { kind: 'team', memberIds: [6, 7, 8, 9, 12], clanIds: [1] },
+      { kind: 'team', memberIds: [1, 2, 3, 4, 5, 11], clanIds: [1] },
+    ])
   })
 })
 

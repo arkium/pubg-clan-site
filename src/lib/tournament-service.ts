@@ -462,6 +462,85 @@ export function groupMatchByMode(
   })
 }
 
+type TrackedSquad = { key: string; rounds: Map<number, number>; clanIds: Set<number> }
+
+/** Escouade suivie sur tout le tournoi : ses joueurs, les plus réguliers d'abord, remplaçants compris. */
+function trackedSquadParticipant(squad: TrackedSquad): TournamentParticipant {
+  const memberIds = [...squad.rounds.entries()]
+    .sort((left, right) => right[1] - left[1] || left[0] - right[0])
+    .map(([memberId]) => memberId)
+  return { kind: 'team', memberIds, clanIds: [...squad.clanIds].sort((left, right) => left - right) }
+}
+
+/**
+ * Rattache chaque escouade d'une manche à une escouade déjà vue : celle avec qui elle partage la majorité de ses joueurs
+ * suivis. Un remplaçant ou un absent ne crée donc pas une nouvelle escouade ; un joueur qui change d'escouade ne fusionne
+ * pas les deux. Incident du 2026-10-10 : identifiée par sa composition exacte, l'escouade de Pagiotte apparaissait deux
+ * fois au « détail par escouade » dès qu'un joueur la rejoignait.
+ */
+function assignTrackedSquads(entries: ModeEntry[], squads: TrackedSquad[]): ModeEntry[] {
+  const memberIdsOf = (entry: ModeEntry) => (entry.participant.kind === 'team' ? entry.participant.memberIds : [])
+  const candidates: Array<{ entryIndex: number; squad: TrackedSquad; overlap: number }> = []
+  entries.forEach((entry, entryIndex) => {
+    const memberIds = memberIdsOf(entry)
+    for (const squad of squads) {
+      const overlap = memberIds.filter((memberId) => squad.rounds.has(memberId)).length
+      if (overlap * 2 > memberIds.length) candidates.push({ entryIndex, squad, overlap })
+    }
+  })
+  candidates.sort((left, right) => right.overlap - left.overlap)
+
+  const assigned = new Map<number, TrackedSquad>()
+  const taken = new Set<TrackedSquad>()
+  for (const candidate of candidates) {
+    if (assigned.has(candidate.entryIndex) || taken.has(candidate.squad)) continue
+    assigned.set(candidate.entryIndex, candidate.squad)
+    taken.add(candidate.squad)
+  }
+
+  return entries.map((entry, entryIndex) => {
+    if (entry.participant.kind !== 'team') return entry
+    let squad = assigned.get(entryIndex)
+    if (!squad) {
+      squad = { key: entry.key, rounds: new Map(), clanIds: new Set() }
+      squads.push(squad)
+    }
+    for (const memberId of entry.participant.memberIds) squad.rounds.set(memberId, (squad.rounds.get(memberId) ?? 0) + 1)
+    for (const clanId of entry.participant.clanIds) squad.clanIds.add(clanId)
+    return { ...entry, key: squad.key }
+  })
+}
+
+/**
+ * Les participants de chaque manche, dans l'ordre chronologique. En équipes libres et en intra-clan, une escouade garde
+ * la même clé d'une manche à l'autre malgré ses remplaçants ; `participants` donne sa composition sur tout le tournoi.
+ * Chaque manche garde sa propre composition, pour que son tableau dise qui a joué ce soir-là.
+ */
+export function groupMatchesByMode(
+  matches: TournamentMatchLike[],
+  participatingClanIds: number[],
+  rulesInput: TournamentRulesInput | NormalizedTournamentRules = {},
+  organizerClanId?: number
+): { rounds: Array<{ match: TournamentMatchLike; entries: ModeEntry[] }>; participants: Map<string, TournamentParticipant> } {
+  const rules = normalizeTournamentRules(rulesInput)
+  const ordered = [...matches].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  )
+  const tracksSquads = rules.mode === 'custom_teams' || rules.mode === 'intra_clan'
+  const squads: TrackedSquad[] = []
+  const participants = new Map<string, TournamentParticipant>()
+
+  const rounds = ordered.map((match) => {
+    const grouped = groupMatchByMode(match, participatingClanIds, rules, organizerClanId)
+    const entries = tracksSquads ? assignTrackedSquads(grouped, squads) : grouped
+    for (const entry of entries) if (!participants.has(entry.key)) participants.set(entry.key, entry.participant)
+    return { match, entries }
+  })
+  for (const squad of squads) participants.set(squad.key, trackedSquadParticipant(squad))
+
+  return { rounds, participants }
+}
+
 /**
  * Classement générique, quel que soit le mode. `computeTournamentStandings` reste la vue par clan, utilisée
  * partout où le classement est affiché clan par clan (inter-clans).
@@ -474,11 +553,12 @@ export function computeTournamentModeStandings(
 ): TournamentModeStanding[] {
   const rules = normalizeTournamentRules(rulesInput)
   const byParticipant = new Map<string, { participant: TournamentParticipant; entries: Array<{ points: number; totalKills: number; totalDamage: number; bestPlacement: number }> }>()
+  const { rounds, participants } = groupMatchesByMode(matches, participatingClanIds, rules, organizerClanId)
 
-  for (const match of matches) {
-    for (const entry of groupMatchByMode(match, participatingClanIds, rules, organizerClanId)) {
+  for (const { entries } of rounds) {
+    for (const entry of entries) {
       const { points } = entry.score
-      const aggregate = byParticipant.get(entry.key) ?? { participant: entry.participant, entries: [] }
+      const aggregate = byParticipant.get(entry.key) ?? { participant: participants.get(entry.key) ?? entry.participant, entries: [] }
       aggregate.entries.push({
         points,
         totalKills: entry.totalKills,

@@ -111,6 +111,9 @@ test('le kill feed nomme le tueur, jamais la victime', async ({ page }) => {
 test('les appels à l’action parlent d’inscrire son clan, jamais de recrutement, et mènent à /join, /login et au mode visiteur', async ({ page }) => {
   // Le site suit les clans qui existent déjà dans PUBG : aucun texte ne doit ressembler à une annonce de recrutement.
   await expect(page.locator('body')).not.toContainText(/recrutement|rejoindre le squad|une place dans l.avion|demander à rejoindre/i)
+  // Le site n'est pas un clan : jamais « du clan » comme s'il n'y en avait qu'un (le menu « Paramètres du clan » excepté).
+  const visibleText = (await page.locator('body').innerText()).replaceAll('Paramètres du clan', '')
+  expect(visibleText).not.toMatch(/\bdu clan\b/i)
   const signUp = page.getByRole('link', { name: 'Inscrire mon clan', exact: true }).filter({ visible: true })
   await expect(signUp.first()).toHaveAttribute('href', '#inscription')
   await signUp.first().click()

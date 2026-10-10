@@ -428,8 +428,8 @@ function WhyLandSection() {
               <span className="text-amber-400">pas dans un formulaire.</span>
             </h3>
             <p className="relative m-0 text-[15px] leading-normal text-white/80">
-              Aucun préenregistrement : tu joues les parties personnalisées du tournoi, elles sont importées et comptées
-              automatiquement avec le barème de l&apos;organisateur.
+              Aucun préenregistrement : si ton clan est suivi, tes parties personnalisées pendant le tournoi sont importées et
+              comptées automatiquement avec le barème de l&apos;organisateur.
             </p>
             <Link href="/tournaments" className="relative mt-auto self-start text-sm font-bold text-amber-200 hover:underline">
               Voir les tournois →
@@ -451,7 +451,7 @@ const NEWS = [
     eyebrow: 'Mortier',
     title: 'Règle ton mortier.',
     accent: 'Pas ton squad.',
-    text: 'Mesure à la grille, règle la distance, tire : 10 cibles par série, trois difficultés, du dénivelé en Difficile. Grimpe au classement des artilleurs du clan, et arrête d’arroser le compound où se planque ton duo.',
+    text: 'Mesure à la grille, règle la distance, tire : 10 cibles par série, trois difficultés, du dénivelé en Difficile. Grimpe au classement des artilleurs de ton clan, et arrête d’arroser le compound où se planque ton duo.',
     href: '/mortier',
     link: 'S’entraîner au mortier',
   },
@@ -532,7 +532,7 @@ const DISCORD_FEATURES = [
   {
     icon: Trophy,
     title: 'Alerte Chicken Dinner',
-    text: 'Chaque Top 1 du clan posté tout seul dans ton canal : escouade, kills, dégâts, carte et lien vers le débrief.',
+    text: 'Chaque Top 1 de ton clan posté tout seul dans ton canal : escouade, kills, dégâts, carte et lien vers le débrief.',
   },
   {
     icon: Medal,
@@ -580,7 +580,7 @@ function DiscordSection() {
             >
               Inscrire mon clan →
             </Link>
-            <p className="m-0 text-[13px] text-white/60">Un admin du clan l’active dans le menu Admin › Notifications Discord.</p>
+            <p className="m-0 text-[13px] text-white/60">L’Owner de ton clan l’active dans Paramètres du clan › Notifications Discord.</p>
           </div>
         </div>
       </div>
@@ -607,7 +607,7 @@ const ZONE_READING_POINTS = [
   {
     icon: Crosshair,
     title: 'Entraîne-toi sur tes parties',
-    text: 'Dix parties de ton clan rejouées cercle par cercle : pose ton marqueur, dévoile la zone, grimpe au classement du clan.',
+    text: 'Dix parties de ton clan rejouées cercle par cercle : pose ton marqueur, dévoile la zone, grimpe au classement de ton clan.',
   },
 ] as const
 

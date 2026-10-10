@@ -451,7 +451,7 @@ function NoSignUpNote() {
   return (
     <p className="m-0 flex items-start gap-2 text-[13px] text-gray-500">
       <Info className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-      Pas d’inscription : joue tes parties personnalisées pendant les dates, elles sont comptées automatiquement.
+      Pas d’inscription : si ton clan est suivi, tes parties personnalisées pendant les dates sont comptées automatiquement.
     </p>
   )
 }

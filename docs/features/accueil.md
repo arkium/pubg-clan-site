@@ -64,9 +64,9 @@ Route **publique** (aucune session), servie par `src/lib/home-showcase-service.t
 |---|---|
 | `stats.clans` | `Clan` actifs, non système, non archivés |
 | `stats.players` | `ClanMember` actifs (`joinStatus = active`) de ces clans |
-| `stats.weekKills`, `stats.weekWins` | `SUM(SquadMatch.totalKills)` et Top 1 depuis le lundi 00:00 (semaine ISO, `getPeriodStart('week')`, comme le reste du site) |
+| `stats.weekKills`, `stats.weekWins` | `SUM(SquadMatch.totalKills)` et Top 1 depuis le lundi 00:00 (semaine ISO, `getPeriodStart('week')`, comme le reste du site), parties **Normal et Ranked seulement** |
 | `stats.analyzedMatches` | `COUNT(SquadMatchTelemetry)` : parties dont la télémétrie est analysée (hub des clans) |
-| `dinners` | `SquadMatch` `placement = 1` les plus récents ayant au moins un membre d'un clan actif ; clan de l'équipe = le plus représenté parmi ces membres (`pickSquadClan`) |
+| `dinners` | `SquadMatch` `placement = 1` les plus récents ayant au moins un membre d'un clan actif, parties **Normal (`official`) et Ranked (`competitive`) seulement** (2026-10-11 : une partie personnalisée de tournoi range tout son lobby sous une seule ligne, sa « victoire » s'affichait sous un autre clan que celui du vainqueur ; Casual se joue contre des bots) ; clan de l'équipe = le plus représenté parmi ces membres (`pickSquadClan`) |
 | Durée | `Match.duration` (par `pubgMatchId`) ; `null` si absente |
 | `teamCount` | `SquadMatchTelemetry.phaseSnapshots` (colonne compressée, lue par `decodeTelemetryRow`) : maximum de `numAliveTeams` une fois la partie lancée (`isGame > 0`) — `teamCountFromPhaseSnapshots`. Lu pour les seuls Top 1 affichés |
 | Kill le plus long | `MAX(SquadMember.longestKill)`, déjà en mètres |

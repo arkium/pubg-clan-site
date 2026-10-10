@@ -145,6 +145,8 @@ type ReplayLayers = {
 }
 
 const SPEEDS = [0.5, 1, 2, 4, 8] as const
+/** Vitesse à l'ouverture : ×8, une partie de 30 minutes se revoit en moins de 4 (décision du 2026-10-10). */
+const DEFAULT_SPEED = 8
 const MIN_ZOOM = MAP_ZOOM_MIN
 /** Plus haut que les drop zones (×4) : il faut distinguer les joueurs d'un même bâtiment. */
 const MAX_ZOOM = 8
@@ -495,7 +497,7 @@ export function MatchReplay2D({
 
   const timeRef = useRef(0)
   const playingRef = useRef(false)
-  const speedRef = useRef<number>(1)
+  const speedRef = useRef<number>(DEFAULT_SPEED)
   const cameraRef = useRef({ cx: 0.5, cy: 0.5, zoom: MIN_ZOOM })
   const followRef = useRef<number | null>(null)
   const visibilityRef = useRef<VisibilityMode>('squad')
@@ -511,7 +513,7 @@ export function MatchReplay2D({
   } | null>(null)
 
   const [playing, setPlaying] = useState(false)
-  const [speed, setSpeed] = useState<number>(1)
+  const [speed, setSpeed] = useState<number>(DEFAULT_SPEED)
   const [zoom, setZoom] = useState(MIN_ZOOM)
   const [dragging, setDragging] = useState(false)
   const [visibility, setVisibility] = useState<VisibilityMode>('squad')

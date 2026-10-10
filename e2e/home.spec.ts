@@ -94,10 +94,9 @@ test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async (
   await expect(page.getByText('3 / 3')).toBeVisible()
   await expect(card).toContainText('Taego')
   await expect(card).not.toContainText('/ 26') // partie sans télémétrie : « #1 » seul
-  await expect(card.getByRole('link', { name: /Revoir la partie/ })).toHaveAttribute(
-    'href',
-    '/clans/1/telemetry/matches/match-3/debrief'
-  )
+  // Le replay 2D est mis en avant : le bouton ouvre directement l'onglet Replay du débrief.
+  await expect(card.getByTestId('home-dinner-replay')).toHaveAttribute('href', '/clans/1/telemetry/matches/match-3/debrief?tab=replay')
+  await expect(card.getByRole('link', { name: /Revoir en replay 2D/ })).toBeVisible()
 })
 
 test('le kill feed nomme le tueur, jamais la victime', async ({ page }) => {

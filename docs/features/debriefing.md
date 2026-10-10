@@ -76,6 +76,8 @@ partagent `MatchDebriefView`. Les contrôles `.debrief-*` étaient déjà en acc
 - **Silhouette des impacts** : nouvelle option `showValues` de `DamageBodySvg` (défaut : oui). Le débriefing la coupe :
   à 85 px, les étiquettes chiffrées dessinées sur les zones sortaient à 6–7 px ; les barres voisines et l'info-bulle
   donnent les mêmes touches et dégâts.
+- **Vitesse par défaut ×8** (2026-10-10, `DEFAULT_SPEED` de `MatchReplay2D.tsx`) : une partie de 30 minutes se revoit
+  en moins de 4 ; les vitesses ×0,5 à ×8 restent proposées. La vitrine y mène par « Revoir en replay 2D ».
 - **Replay 2D** (signature §0b, conservé) : « axe estimé » à 11 px, « Libérer la caméra » en `app-link`, intitulés du
   panneau en `t-label`. **Joueurs affichés** : le rail segmenté passait sur deux lignes dans le panneau de 300 px ; une
   tuile par choix (gabarit `app-menu__item`, choisi teinté en accent) — « Escouade [TAG] · + contacts », « Clans suivis ·

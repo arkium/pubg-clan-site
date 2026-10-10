@@ -1,13 +1,13 @@
 'use client'
 
-import { ChevronLeft, ChevronRight, Crown, MapPin, Trophy } from 'lucide-react'
+import { ArrowRight, ChevronLeft, ChevronRight, Crown, MapPin, Play, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { useState } from 'react'
 
 import PodiumCards from '@/components/ui/PodiumCards'
 import RankCell from '@/components/ui/RankCell'
 import SortableTh from '@/components/ui/SortableTh'
-import { matchTournamentDebriefPath } from '@/lib/match-links'
+import { matchTournamentReplayPath } from '@/lib/match-links'
 import { paginationItems } from '@/lib/pagination'
 import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
 import { tournamentMapLabel } from '@/lib/tournament-filters'
@@ -428,12 +428,23 @@ export function TournamentRounds({
                 <b className="t-gold">MVP</b> {round.mvp.label} · {round.mvp.kills} kills
               </span>
             ) : null}
-            {/* Lien sur la photo : accent, souligné au survol (plus d'indigo, charte §1.2). */}
+            {/* Le replay 2D mis en avant, comme sur l'accueil (décision du 2026-10-10) : bouton en or de jeu, onglet Replay
+                ouvert directement. */}
             <Link
-              href={matchTournamentDebriefPath(tournamentId, round.matchId)}
-              className="self-start text-xs font-bold text-[var(--theme-ui-accent)] underline decoration-transparent underline-offset-[3px] transition-colors hover:decoration-current"
+              href={matchTournamentReplayPath(tournamentId, round.matchId)}
+              className="group flex w-full items-center gap-2.5 rounded-[10px] border border-[var(--game-gold-ring)] bg-slate-950/70 px-2.5 py-2 transition-[border-color,box-shadow] duration-200 hover:border-[var(--game-gold)] hover:shadow-[0_0_18px_-4px_var(--game-gold)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--game-gold)]"
             >
-              Débrief 2D de la manche →
+              <span aria-hidden="true" className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[var(--game-gold)] text-slate-950">
+                <Play className="ml-0.5 h-4 w-4 fill-current" />
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="text-sm font-extrabold uppercase tracking-[0.04em]">Revoir en replay 2D</span>
+                <span className="text-[11px] leading-snug text-white/70">Trajectoires, kills et zone de la manche {round.index}</span>
+              </span>
+              <ArrowRight
+                aria-hidden="true"
+                className="ml-auto h-4 w-4 shrink-0 text-[var(--game-gold)] transition-transform duration-200 group-hover:translate-x-1"
+              />
             </Link>
           </div>
         </div>

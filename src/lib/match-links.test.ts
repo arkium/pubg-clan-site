@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { matchDebriefPath, matchTelemetryAuditPath, matchTournamentDebriefPath } from './match-links'
+import { matchDebriefPath, matchTelemetryAuditPath, matchTournamentDebriefPath, matchTournamentReplayPath } from './match-links'
 
 describe('match-links', () => {
   it('construit le lien du débriefing sans contexte', () => {
@@ -28,5 +28,11 @@ describe('matchTournamentDebriefPath', () => {
     expect(matchTournamentDebriefPath('cmthj1d0q002tunb4hyosm3a8', 'cmthld13a00dd04aw8xu80llc')).toBe(
       '/tournaments/cmthj1d0q002tunb4hyosm3a8/matches/cmthld13a00dd04aw8xu80llc'
     )
+  })
+})
+
+describe('matchTournamentReplayPath', () => {
+  it('ouvre le débriefing de manche sur l’onglet Replay 2D', () => {
+    expect(matchTournamentReplayPath('t1', 'm1')).toBe('/tournaments/t1/matches/m1?tab=replay')
   })
 })

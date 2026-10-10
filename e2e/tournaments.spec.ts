@@ -194,7 +194,7 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await expect(page.locator('#tournament-standings tbody tr')).toHaveCount(4)
   })
 
-  test('manches une par une, la dernière d’abord, avec le lien vers le débrief', async ({ page }) => {
+  test('manches une par une, la dernière d’abord, avec le bouton du replay 2D', async ({ page }) => {
     const rounds = page.locator('#tournament-rounds')
     await expect(rounds.getByRole('article')).toHaveAttribute('aria-label', 'Manche 5')
     await rounds.getByRole('button', { name: 'Manche précédente' }).click()
@@ -202,7 +202,11 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await rounds.getByRole('button', { name: 'M1', exact: true }).click()
     await expect(rounds.getByRole('article')).toHaveAttribute('aria-label', 'Manche 1')
     await expect(rounds.getByRole('button', { name: 'Manche précédente' })).toBeDisabled()
-    await expect(rounds.getByRole('link', { name: /Débrief 2D/ })).toHaveAttribute('href', `/tournaments/${LIVE_TOURNAMENT_ID}/matches/match-1`)
+    // Le replay 2D est mis en avant : le bouton ouvre directement l'onglet Replay du débrief.
+    await expect(rounds.getByRole('link', { name: /Revoir en replay 2D/ })).toHaveAttribute(
+      'href',
+      `/tournaments/${LIVE_TOURNAMENT_ID}/matches/match-1?tab=replay`
+    )
   })
 
   test('barème en barres et règles, escouades mixtes en inter-clans', async ({ page }) => {

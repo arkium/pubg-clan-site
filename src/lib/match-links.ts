@@ -47,3 +47,8 @@ export function matchTelemetryAuditPath(
 export function matchTournamentDebriefPath(tournamentId: string, squadMatchId: string): string {
   return `/tournaments/${encodeURIComponent(tournamentId)}/matches/${encodeURIComponent(squadMatchId)}`
 }
+
+/** Même débriefing, ouvert directement sur l'onglet Replay 2D (`?tab=replay`, src/lib/pubg-telemetry/debrief-view.ts). */
+export function matchTournamentReplayPath(tournamentId: string, squadMatchId: string): string {
+  return `${matchTournamentDebriefPath(tournamentId, squadMatchId)}?tab=replay`
+}

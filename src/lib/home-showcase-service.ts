@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client'
+
 import { getClanLeague } from '@/lib/clan-league-service'
 import { getMapLabels } from '@/lib/map-label-service'
 import { matchDebriefPath } from '@/lib/match-links'
@@ -62,19 +64,27 @@ function isoWeekNumber(date: Date): number {
   return Math.ceil(((target.getTime() - yearStart.getTime()) / 86_400_000 + 1) / 7)
 }
 
+/**
+ * Seules les parties Normal (`official`) et Ranked (`competitive`) vont sur la vitrine publique (décision du 2026-10-11) :
+ * ni parties personnalisées (tournois, scrims), ni Casual contre des bots, ni modes événement.
+ */
+const SHOWCASE_MATCH_TYPES = ['official', 'competitive']
+
 async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
   const weekStart = getPeriodStart('week', now) ?? now
 
   const [clans, players, weekTotals, wins, weaponLabels, mapLabels, analyzedMatches, league] = await Promise.all([
     prisma.clan.count({ where: ACTIVE_CLAN }),
     prisma.clanMember.count({ where: { isActive: true, joinStatus: 'active', clan: ACTIVE_CLAN } }),
+    // Normal et Ranked seulement (2026-10-11) : un tournoi range tout son lobby sous une seule ligne, dont la « victoire »
+    // mêlerait tous les clans et dont les kills gonfleraient les compteurs de la semaine ; Casual se joue contre des bots.
     prisma.$queryRaw<Array<{ kills: bigint | number | null; wins: bigint | number | null }>>`
       SELECT COALESCE(SUM(totalKills), 0) AS kills, COALESCE(SUM(placement = 1), 0) AS wins
       FROM SquadMatch
-      WHERE createdAt >= ${weekStart}
+      WHERE createdAt >= ${weekStart} AND matchType IN (${Prisma.join(SHOWCASE_MATCH_TYPES)})
     `,
     prisma.squadMatch.findMany({
-      where: { placement: 1, members: { some: { member: { clan: ACTIVE_CLAN } } } },
+      where: { placement: 1, matchType: { in: SHOWCASE_MATCH_TYPES }, members: { some: { member: { clan: ACTIVE_CLAN } } } },
       orderBy: { createdAt: 'desc' },
       take: WIN_CANDIDATES,
       select: {

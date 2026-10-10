@@ -175,6 +175,20 @@ describe('GET /api/home/showcase', () => {
     )
   })
 
+  it('Normal et Ranked seulement : ni partie personnalisée ni Casual, en Top 1 comme dans les compteurs', async () => {
+    await GET()
+    expect(mocks.squadMatchFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: expect.objectContaining({ placement: 1, matchType: { in: ['official', 'competitive'] } }),
+      })
+    )
+    const [strings, ...values] = mocks.queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]]
+    expect(strings.join('?')).toContain('matchType IN (?)')
+    // `Prisma.join` : un fragment SQL qui porte ses propres paramètres.
+    const types = values.find((value) => Array.isArray((value as { values?: unknown } | null)?.values)) as { values: unknown[] } | undefined
+    expect(types?.values).toEqual(['official', 'competitive'])
+  })
+
   it('réduit chaque victime au tag de son clan, jamais à son pseudo ni à son compte', async () => {
     const body = await (await GET()).json()
     const kills = body.killFeed.filter((entry: { kind: string }) => entry.kind === 'kill')

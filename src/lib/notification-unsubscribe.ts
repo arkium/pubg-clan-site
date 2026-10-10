@@ -1,6 +1,7 @@
 import { createHmac } from 'node:crypto'
 
 import { safeEqual } from '@/lib/auth-crypto'
+import { usableSecret } from '@/lib/auth/secrets'
 import { siteUrl } from '@/lib/seo/page-seo'
 
 /**
@@ -14,15 +15,10 @@ import { siteUrl } from '@/lib/seo/page-seo'
  */
 
 const SIGNED_PREFIX = 'notification-email-unsubscribe:v1:'
-/** Valeur d'exemple de `.env.example` : connue de tous, jamais une clé. */
-const EXAMPLE_SECRET = 'change-me-long-random-string'
 
+/** Premier secret utilisable (`src/lib/auth/secrets.ts` : ni valeur d'exemple, ni moins de 16 caractères). */
 export function notificationLinkSecret(env: Record<string, string | undefined> = process.env): string | null {
-  for (const candidate of [env.NOTIFICATION_LINK_SECRET, env.AUTH_BOOTSTRAP_SECRET]) {
-    const secret = candidate?.trim() ?? ''
-    if (secret.length >= 16 && secret !== EXAMPLE_SECRET) return secret
-  }
-  return null
+  return usableSecret(env.NOTIFICATION_LINK_SECRET) ?? usableSecret(env.AUTH_BOOTSTRAP_SECRET)
 }
 
 function sign(memberId: number, secret: string) {

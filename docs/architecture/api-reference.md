@@ -117,7 +117,7 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 | PUT | `/api/clans/[clanId]/settings/login-welcome` | `requireClanFeature('clan-announcements')` | ⚠️ Admin web uniquement | Met à jour le message d'accueil du clan |
 | GET | `/api/clans/[clanId]/settings/email-delivery` | `requireClanFeature('clan-members')` | ⚠️ Admin web uniquement | `{ ready }` seulement : les invitations par email marchent-elles ? (la configuration SMTP reste au SuperUser) |
 | POST | `/api/clans/[clanId]/sync-stats` | `requirePlatformAdmin` (SuperUser) (bypass si appel cron interne) | ⚠️ Admin web uniquement | Recalcule `clanStats` JSON — voir [Clans](../features/clans.md) |
-| GET | `/api/clans/[clanId]/cron-control` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Statut santé cron du clan — voir [Cron](../ops/cron.md) |
+| GET | `/api/clans/[clanId]/cron-control` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Statut santé cron du clan ; de la configuration, seul le nombre d'erreurs et d'alertes (détail : `/api/settings/site-config`) — voir [Cron](../ops/cron.md) |
 | POST | `/api/clans/[clanId]/cron-control` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Déclenche une action cron manuelle — voir [Cron](../ops/cron.md) |
 | GET | `/api/clans/[clanId]/dev/runtime-status` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Infos process Node (pid, uptime, hostname) — détail ci-dessous |
 | GET | `/api/clans/[clanId]/lifetime-stats` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Carrière PUBG (lifetime) de tous les membres, sans période — détail ci-dessous |
@@ -326,6 +326,7 @@ Toutes ces routes pilotent des pages `/settings/*` réservées Owner/Admin/Super
 | PUT | `/api/settings/cron-schedules` | SuperUser | ⚠️ Admin web uniquement | Modifie l'expression d'un planning — voir [Cron](../ops/cron.md) |
 | DELETE | `/api/settings/cron-schedules/[key]` | SuperUser | ⚠️ Admin web uniquement | Réinitialise un planning à sa valeur par défaut — voir [Cron](../ops/cron.md) |
 | GET | `/api/settings/cron-workers-status` | SuperUser | ⚠️ Admin web uniquement | Statut des workers télémétrie (lock files + queues) — voir [Cron](../ops/cron.md) |
+| GET | `/api/settings/site-config` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Configuration du site : réglages du `.env` contrôlés, sans secret en clair — voir [Paramètres admin](../ops/settings.md) |
 | GET | `/api/settings/email-delivery` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Statut config SMTP — voir [Paramètres admin](../ops/settings.md) |
 | POST | `/api/settings/email-delivery` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Envoie un email de test — voir [Paramètres admin](../ops/settings.md) |
 | DELETE | `/api/settings/email-delivery` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Révoque la validation email — non détaillé dans [Paramètres admin](../ops/settings.md), même garde d'accès que GET/POST |

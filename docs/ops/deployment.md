@@ -202,7 +202,7 @@ Environment=NODE_ENV=production
 Environment=PORT=3000
 Environment=ENABLE_CRON_BOOTSTRAP=false
 Environment=ENABLE_CRON_JOBS=false
-Environment="CRON_BOOTSTRAP_SECRET=ton-secret-long"
+Environment="CRON_BOOTSTRAP_SECRET=<même secret généré sur les deux units : openssl rand -hex 32>"
 Environment="INTERNAL_CRON_STATUS_URL=http://127.0.0.1:3001/api/internal/cron/status"
 ExecStart=/usr/bin/node /home/smk/apps/pubg-clan-site/.next/standalone/server.js
 Restart=always
@@ -229,7 +229,7 @@ Environment=NODE_ENV=production
 Environment=PORT=3001
 Environment=ENABLE_CRON_BOOTSTRAP=false
 Environment=ENABLE_CRON_JOBS=true
-Environment="CRON_BOOTSTRAP_SECRET=ton-secret-long"
+Environment="CRON_BOOTSTRAP_SECRET=<même secret généré sur les deux units : openssl rand -hex 32>"
 ExecStart=/usr/bin/node /home/smk/apps/pubg-clan-site/.next/standalone/server.js
 ExecStartPost=/bin/sh -lc 'sleep 2; curl -fsS -X POST http://127.0.0.1:3001/api/internal/cron/bootstrap -H "x-cron-bootstrap-secret: ${CRON_BOOTSTRAP_SECRET}"'
 Restart=always

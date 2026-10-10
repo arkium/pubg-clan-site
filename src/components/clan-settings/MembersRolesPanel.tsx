@@ -41,6 +41,8 @@ import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useClanOverview } from '@/hooks/useClanOverview'
 import { useAuthSession } from '@/hooks/useAuthSession'
+// Texte copié par l'Owner, rendu côté client : la constante, pas `SITE_NAME` (serveur seulement, src/lib/site-name.ts).
+import { SITE_DOMAIN } from '@/lib/legal/legal-info'
 
 type ClanRole = {
   id: number
@@ -646,7 +648,7 @@ export default function MembersRolesPanel() {
     return [
       `Salut ${memberName},`,
       '',
-      `Voici ton lien d'activation PUBG Clan (valide jusqu'au ${expirationText}) :`,
+      `Voici ton lien pour activer ton compte ${SITE_DOMAIN} (valable jusqu'au ${expirationText}) :`,
       activationUrl,
       '',
       'Si le lien a expire, demande une nouvelle invitation.',

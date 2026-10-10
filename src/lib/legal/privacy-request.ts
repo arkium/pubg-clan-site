@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { SITE_DOMAIN } from '@/lib/legal/legal-info'
+import { siteName } from '@/lib/site-name'
 
 /**
  * Demande « Retirer mes données » (/confidentialite/demande) — docs/features/pages-legales.md. Validation partagée par
@@ -153,7 +154,7 @@ export function privacyRequestNotification(request: StoredPrivacyRequest) {
 export function privacyRequestEmail(request: StoredPrivacyRequest) {
   const label = PRIVACY_REQUEST_KIND_LABELS[request.kind]
   return {
-    subject: `[${SITE_DOMAIN}] Demande sur les données n° ${request.id} : ${label}`,
+    subject: `[${siteName()}] Demande sur les données n° ${request.id} : ${label}`,
     text: [
       `Nouvelle demande déposée sur https://${SITE_DOMAIN}/confidentialite/demande.`,
       '',

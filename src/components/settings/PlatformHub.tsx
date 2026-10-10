@@ -25,6 +25,7 @@ const PLATFORM_THEMES: HubThemes = [
   {
     title: 'Site',
     navKeys: [
+      'superuser.site-config',
       'superuser.platform-settings',
       'superuser.delegation',
       'superuser.admin-journal',

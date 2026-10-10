@@ -1,6 +1,7 @@
 import { z } from 'zod'
 
 import { createOwnerBootstrapInvite } from '@/lib/auth-service'
+import { matchesSecret } from '@/lib/auth/secrets'
 
 const BootstrapByClanSchema = z.object({
   clanId: z.number().int().positive('Invalid clanId'),
@@ -15,14 +16,13 @@ const BootstrapByOwnerPseudoSchema = z.object({
 
 const BootstrapInviteSchema = z.union([BootstrapByClanSchema, BootstrapByOwnerPseudoSchema])
 
+/**
+ * Route publique qui renvoie un lien d'activation Owner : seul un vrai secret l'ouvre. La valeur d'exemple de
+ * `.env.example` (en production jusqu'au 2026-10-10) et un secret de moins de 16 caractères la ferment
+ * (`src/lib/auth/secrets.ts`) ; comparaison à temps constant.
+ */
 function hasValidBootstrapSecret(request: Request) {
-  const configuredSecret = process.env.AUTH_BOOTSTRAP_SECRET
-  if (!configuredSecret) {
-    return false
-  }
-
-  const providedSecret = request.headers.get('x-bootstrap-secret')
-  return providedSecret === configuredSecret
+  return matchesSecret(request.headers.get('x-bootstrap-secret'), process.env.AUTH_BOOTSTRAP_SECRET)
 }
 
 export async function POST(request: Request) {

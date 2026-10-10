@@ -1,6 +1,6 @@
-import { SITE_DOMAIN } from '@/lib/legal/legal-info'
 import { notificationUnsubscribeLinks } from '@/lib/notification-unsubscribe'
 import { siteUrl } from '@/lib/seo/page-seo'
+import { siteName } from '@/lib/site-name'
 
 /**
  * E-mail d'une notification — texte brut, comme les autres e-mails du site. Une seule fonction pour l'envoi
@@ -41,7 +41,7 @@ export function buildNotificationEmail(
     `Voir mes notifications : ${notificationsUrl}`,
     '',
     '—',
-    `Tu reçois cet e-mail parce que les notifications par e-mail sont activées pour ${input.displayName} sur ${SITE_DOMAIN}.`,
+    `Tu reçois cet e-mail parce que les notifications par e-mail sont activées pour ${input.displayName} sur ${siteName()}.`,
     `Choisir ce qui te prévient : ${preferencesUrl}`,
     ...(unsubscribe ? [`Ne plus recevoir ces e-mails : ${unsubscribe.pageUrl}`] : []),
   ].join('\n')

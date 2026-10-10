@@ -15,6 +15,31 @@ Chaque page utilise la structure standard :
 
 ---
 
+## `/settings/configuration` — Configuration du site (2026-10-10)
+
+Page SuperUser (thème « Site » de l'accueil Plateforme, entrée `superuser.site-config` — ligne `NavItem` posée par
+`npx tsx scripts/seed-site-config-nav.ts`, **après** déploiement). Chaque réglage du `.env`, par section — identité et
+adresses, accès et sécurité, e-mails, API PUBG, tâches planifiées, télémétrie, base de données, variables obsolètes —
+avec un statut (OK, À revoir, Erreur, Info), sa valeur lisible, ce qu'il change et la correction à faire. Les erreurs
+sont récapitulées en tête, chacune liée à sa section. **Lecture seule** : un `.env` se modifie sur le serveur, puis on
+redémarre les services. Les réglages qui ont leur page y mènent (Envoi d'e-mails, API PUBG, Tâches planifiées, Base de
+données).
+
+- **Contrôles** : `src/lib/site-config.ts` (`buildSiteConfiguration`, pur ; `getSiteConfiguration` lit les faits),
+  sortis de `cron-observability.ts`. Aucun secret ni l'adresse de la base n'est renvoyé : un secret s'affiche par son
+  état (« défini (44 caractères) », « valeur d'exemple de .env.example », « trop court », « absent »).
+- **Secrets** : règle commune `src/lib/auth/secrets.ts` — la valeur d'exemple de `.env.example` et une valeur de moins
+  de 16 caractères n'ouvrent rien (`AUTH_BOOTSTRAP_SECRET`, `NOTIFICATION_LINK_SECRET`, `CRON_BOOTSTRAP_SECRET`).
+  Constat du 2026-10-10 : la production tournait avec la valeur d'exemple du secret de bootstrap ; une seule invitation
+  de bootstrap existait (2026-05-23, l'Owner de [SMK]), aucune trace d'abus.
+- **Variables obsolètes** signalées si présentes : `NEXT_PUBLIC_API_URL`, `SMTP_URL`, `WEEKLY_REPORT_GENERATION_CRON`,
+  `MONTHLY_REPORT_GENERATION_CRON`, `WEEKLY_REPORT_REMINDER_CRON`.
+- **Route** : `GET /api/settings/site-config` (`requirePlatformAdmin`). Tests : `src/lib/site-config.test.ts`
+  (le `.env` de production du 2026-10-10 rejoué, aucun secret dans la réponse), `src/lib/auth/admin-route-guards.test.ts`,
+  `e2e/site-config.spec.ts`.
+
+---
+
 ## `/settings/clans/lifecycle` — Cycle de vie des clans
 
 Accès : SuperUser (`superuser.clan-lifecycle`).

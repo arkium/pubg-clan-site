@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { PREDEFINED_ROLES, initializeDefaultRoles } from '@/lib/role-service'
 import { setSetupState } from '@/lib/setup-service'
 import { sendEmail } from '@/lib/email-service'
+import { siteName } from '@/lib/site-name'
 import {
   generateToken,
   hashPassword,
@@ -231,7 +232,7 @@ export async function createMemberInvite(params: {
         delivered: false,
         mode: 'stub' as const,
         to: email,
-        subject: `Invitation PUBG Clan ${invite.clan.tag}`,
+        subject: `Invitation sur ${siteName()} — clan [${invite.clan.tag}]`,
         from: process.env.SMTP_FROM?.trim() || null,
         reason: 'email_not_sent_discord_flow',
       }
@@ -240,14 +241,14 @@ export async function createMemberInvite(params: {
     try {
       return await sendEmail({
         to: email,
-        subject: `Invitation PUBG Clan ${invite.clan.tag}`,
+        subject: `Invitation sur ${siteName()} — clan [${invite.clan.tag}]`,
         text: [
           `Bonjour ${invite.member.displayName},`,
           '',
-          `Vous avez ete invite a activer votre compte pour le clan ${invite.clan.name} [${invite.clan.tag}].`,
-          `Lien d'activation (valide 48h): ${activationUrl}`,
+          `Vous avez été invité à activer votre compte ${siteName()} pour le clan ${invite.clan.name} [${invite.clan.tag}].`,
+          `Lien d'activation (valable 48 h) : ${activationUrl}`,
           '',
-          'Si vous n\'etes pas concerne, ignorez cet email.',
+          'Si vous n\'êtes pas concerné, ignorez cet e-mail.',
         ].join('\n'),
       })
     } catch (error) {
@@ -257,7 +258,7 @@ export async function createMemberInvite(params: {
         delivered: false,
         mode: 'smtp' as const,
         to: email,
-        subject: `Invitation PUBG Clan ${invite.clan.tag}`,
+        subject: `Invitation sur ${siteName()} — clan [${invite.clan.tag}]`,
         from: process.env.SMTP_FROM?.trim() || null,
         reason: message,
       }
@@ -601,7 +602,7 @@ export async function requestPasswordReset(emailInput: string) {
   try {
     await sendEmail({
       to: user.email,
-      subject: 'Réinitialisation de votre mot de passe PUBG Clan',
+      subject: `Réinitialisation de votre mot de passe — ${siteName()}`,
       text: [
         `Bonjour ${user.displayName?.trim() || 'joueur'},`,
         '',

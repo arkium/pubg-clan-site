@@ -15,7 +15,6 @@ import {
   Play,
   RefreshCw,
   ScrollText,
-  Settings2,
   Trash2,
   XCircle,
 } from 'lucide-react'
@@ -52,14 +51,6 @@ type CronHistoryEntry = {
   triggeredBy: number | null
 }
 
-type CronCheck = {
-  key: string
-  label: string
-  status: 'ok' | 'warning' | 'error'
-  value: string
-  hint?: string
-}
-
 type CronStatusPayload = {
   ok: boolean
   clanId: number
@@ -71,11 +62,10 @@ type CronStatusPayload = {
     completedRecent: number
     totalRecent: number
   }
+  /** Décompte des contrôles de Configuration du site (/settings/configuration) : le détail y est. */
   checks: {
-    total: number
     errors: number
     warnings: number
-    items: CronCheck[]
   }
   runtime: {
     webWorker: { cronJobsEnabled: boolean; cronBootstrapEnabled: boolean }
@@ -86,14 +76,6 @@ type CronStatusPayload = {
       cronJobsEnabled?: boolean
       reason?: string
     }
-  }
-  pubgApi: {
-    latestRateLimit: {
-      limit: number | null
-      remaining: number | null
-      resetAt: string | null
-      observedAt: string
-    } | null
   }
   latestByAction: CronHistoryEntry[]
   history: CronHistoryEntry[]
@@ -259,13 +241,6 @@ function getLockAgeLabel(acquiredAt: string) {
   return `${Math.round(ms / 3_600_000)} h`
 }
 
-function partitionChecks(items: CronCheck[]) {
-  return {
-    system: items.filter((c) => !c.key.startsWith('telemetry_') && !c.key.endsWith('_cron')),
-    telemetry: items.filter((c) => c.key.startsWith('telemetry_')),
-  }
-}
-
 function looksLikeCronExpression(value: string) {
   const parts = value.trim().split(/\s+/)
   return parts.length === 5
@@ -324,41 +299,6 @@ function statusColor(status: 'ok' | 'warning' | 'error') {
 // Sub-components
 // ---------------------------------------------------------------------------
 
-function SubsectionTitle({ title, description }: { title: string; description: React.ReactNode }) {
-  return (
-    <div className="flex flex-col gap-0.5">
-      <h3 className="t-card-title m-0">{title}</h3>
-      <p className="t-meta m-0">{description}</p>
-    </div>
-  )
-}
-
-function CheckGroup({ items, title, description }: { items: CronCheck[]; title: string; description: string }) {
-  if (items.length === 0) return null
-  return (
-    <div className="flex flex-col gap-2">
-      <SubsectionTitle title={title} description={description} />
-      <ul className="m-0 flex list-none flex-col gap-1.5 p-0">
-        {items.map((item) => (
-          <li
-            key={item.key}
-            className="app-panel-muted grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-3 gap-y-1 px-3 py-2 md:grid-cols-[minmax(0,13rem)_auto_minmax(0,1fr)]"
-          >
-            <span className="break-all font-mono text-xs font-semibold text-gray-900">{item.label}</span>
-            <span className="justify-self-end md:justify-self-start">
-              <StatusTag status={item.status} />
-            </span>
-            <span className="col-span-2 flex min-w-0 flex-col gap-0.5 md:col-span-1">
-              <span className="break-all font-mono text-xs text-gray-700">{item.value}</span>
-              {item.hint ? <span className="t-meta">{item.hint}</span> : null}
-            </span>
-          </li>
-        ))}
-      </ul>
-    </div>
-  )
-}
-
 function ScheduleEditor({
   schedules,
   drafts,
@@ -378,10 +318,6 @@ function ScheduleEditor({
 }) {
   return (
     <div className="flex flex-col gap-2">
-      <SubsectionTitle
-        title="Horaires des tâches"
-        description={`Expressions cron actives (fuseau ${schedules[0]?.timezone ?? 'UTC'}), modifiables sans redémarrage : appliquées aussitôt au processus en cours.`}
-      />
       {schedules.length === 0 ? (
         <p className="t-meta m-0 flex items-center gap-2">
           <Loader2 className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
@@ -477,23 +413,14 @@ function WorkerTile({
   )
 }
 
-function RateLimitStat({ label, value }: { label: string; value: React.ReactNode }) {
-  return (
-    <div className="app-panel-muted flex flex-col gap-0.5 px-3 py-2.5">
-      <span className="t-label">{label}</span>
-      <span className="t-body t-num font-semibold text-gray-900">{value}</span>
-    </div>
-  )
-}
-
 // ---------------------------------------------------------------------------
 // Main page
 // ---------------------------------------------------------------------------
 
 /**
  * Tâches planifiées de toute la plateforme (SuperUser), selon la charte UI (docs/ui/index.html) : santé du scheduler et
- * des workers de télémétrie, dernière exécution par action, actions manuelles (un clan ou tous), configuration et
- * horaires, historique des exécutions.
+ * des workers de télémétrie, dernière exécution par action, actions manuelles (un clan ou tous), horaires,
+ * historique des exécutions. Les variables du .env sont dans Configuration du site (/settings/configuration, 2026-10-10).
  */
 export default function CronSettingsPage() {
   const router = useRouter()
@@ -955,9 +882,6 @@ export default function CronSettingsPage() {
     })
   }
 
-  // Derived: checks partitioned
-  const checks = useMemo(() => partitionChecks(payload?.checks.items ?? []), [payload])
-
   // Worker panels data
   const resyncWorkerPanel = useMemo(() => {
     const w = workers?.resyncWorker
@@ -1039,8 +963,16 @@ export default function CronSettingsPage() {
           <span className="h-2 w-2 rounded-full" style={{ backgroundColor: statusColor(cronWorkerHealth.status) }} aria-hidden="true" />
           {cronWorkerHealth.label}
         </span>,
-        ...(payload && payload.checks.errors > 0 ? [`${payload.checks.errors} erreur(s) de configuration`] : []),
-        ...(payload && payload.checks.warnings > 0 ? [`${payload.checks.warnings} alerte(s) de configuration`] : []),
+        ...(payload && (payload.checks.errors > 0 || payload.checks.warnings > 0)
+          ? [
+              <Link key="config" href="/settings/configuration" className="underline decoration-white/60 underline-offset-2 hover:decoration-white">
+                {[payload.checks.errors > 0 ? `${payload.checks.errors} erreur(s)` : null, payload.checks.warnings > 0 ? `${payload.checks.warnings} alerte(s)` : null]
+                  .filter(Boolean)
+                  .join(' · ')}{' '}
+                de configuration
+              </Link>,
+            ]
+          : []),
         'Réservé au SuperUser',
       ]}
       action={
@@ -1305,18 +1237,18 @@ export default function CronSettingsPage() {
       </SectionCard>
 
       {payload ? (
+        // Les variables du .env et la limite de débit observée sont dans Configuration du site (/settings/configuration).
         <SectionCard
-          id="cron-config"
-          icon={Settings2}
-          title="Configuration"
-          meta="Variables d’environnement critiques et horaires actifs. Une erreur bloque le fonctionnement ; une alerte signale une configuration à revoir."
+          id="cron-schedules"
+          icon={Clock}
+          title="Horaires des tâches"
+          meta={`Expressions cron actives (fuseau ${schedules[0]?.timezone ?? 'UTC'}), modifiables sans redémarrage : appliquées aussitôt au processus en cours.`}
+          aside={
+            <Link href="/settings/configuration" className="app-btn app-btn--sm app-btn--secondary">
+              Configuration du site
+            </Link>
+          }
         >
-          <CheckGroup items={checks.system} title="Système et API" description="Variables principales, adresses internes et clés d’accès." />
-          <CheckGroup
-            items={checks.telemetry}
-            title="Télémétrie"
-            description="Variables du pipeline de synchronisation et d’analyse des fichiers de télémétrie."
-          />
           <ScheduleEditor
             schedules={schedules}
             drafts={scheduleDrafts}
@@ -1326,15 +1258,6 @@ export default function CronSettingsPage() {
             onApply={(key) => void applySchedule(key)}
             onReset={(key) => void resetSchedule(key)}
           />
-          <div className="flex flex-col gap-2">
-            <SubsectionTitle title="Limite de débit de l’API PUBG" description="Dernier appel observé." />
-            <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
-              <RateLimitStat label="Limite" value={payload.pubgApi.latestRateLimit?.limit ?? '—'} />
-              <RateLimitStat label="Restant" value={payload.pubgApi.latestRateLimit?.remaining ?? '—'} />
-              <RateLimitStat label="Remise à zéro" value={formatDate(payload.pubgApi.latestRateLimit?.resetAt ?? null)} />
-              <RateLimitStat label="Observé" value={formatDate(payload.pubgApi.latestRateLimit?.observedAt ?? null)} />
-            </div>
-          </div>
         </SectionCard>
       ) : null}
 

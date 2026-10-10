@@ -502,6 +502,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Pilotage global des tâches cron et statut des workers télémétrie.',
   },
   {
+    navKey: 'superuser.site-config',
+    section: 'superuser-menu',
+    label: 'Configuration du site',
+    hrefTemplate: '/settings/configuration',
+    defaultRole: 'superuser',
+    description: 'Réglages du .env contrôlés et expliqués : adresses, secrets, e-mails, API PUBG, tâches, télémétrie.',
+  },
+  {
     navKey: 'superuser.platform-settings',
     section: 'superuser-menu',
     label: 'Menus et navigation',

@@ -55,6 +55,7 @@ import {
   GET as getEmailDelivery,
   POST as postEmailDelivery,
 } from '@/app/api/settings/email-delivery/route'
+import { GET as getSiteConfig } from '@/app/api/settings/site-config/route'
 import { GET as getOpponentStatsCron } from '@/app/api/cron/opponent-stats/route'
 import { GET as getMatch, POST as postMatch } from '@/app/api/matches/[matchId]/route'
 import { GET as getMembers, POST as postMembers } from '@/app/api/members/route'
@@ -140,6 +141,7 @@ const PLATFORM_ROUTES: Array<[string, Handler]> = [
   ['GET settings/email-delivery', () => getEmailDelivery(req('/api/settings/email-delivery'))],
   ['POST settings/email-delivery', () => postEmailDelivery(req('/api/settings/email-delivery', 'POST', { to: 'a@b.fr' }))],
   ['DELETE settings/email-delivery', () => deleteEmailDelivery(req('/api/settings/email-delivery', 'DELETE'))],
+  ['GET settings/site-config', () => getSiteConfig(req('/api/settings/site-config'))],
   ['GET cron/opponent-stats', () => getOpponentStatsCron(req('/api/cron/opponent-stats?force=true'))],
   ['GET matches/[matchId]', () => getMatch(req('/api/matches/m1?shard=steam&playerId=p') as never, match)],
   ['POST matches/[matchId]', () => postMatch(req('/api/matches/m1', 'POST', { memberId: 1, shard: 'steam', playerId: 'p' }) as never, match)],

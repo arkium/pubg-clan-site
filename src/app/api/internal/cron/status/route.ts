@@ -1,14 +1,10 @@
 
+import { matchesSecret } from '@/lib/auth/secrets'
 import { isCronJobsInitialized } from '@/lib/cron-jobs'
 
+// Même règle que les autres secrets du .env (src/lib/auth/secrets.ts) : ni valeur d'exemple, ni moins de 16 caractères.
 function isAuthorized(request: Request) {
-  const expected = process.env.CRON_BOOTSTRAP_SECRET?.trim()
-  if (!expected) {
-    return false
-  }
-
-  const received = request.headers.get('x-cron-bootstrap-secret')?.trim()
-  return received === expected
+  return matchesSecret(request.headers.get('x-cron-bootstrap-secret')?.trim(), process.env.CRON_BOOTSTRAP_SECRET)
 }
 
 export async function GET(request: Request) {

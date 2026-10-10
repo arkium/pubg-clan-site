@@ -28,6 +28,7 @@ import {
   UserPlus,
   Users,
   Wrench,
+  SlidersHorizontal,
 } from 'lucide-react'
 import Link from 'next/link'
 
@@ -53,6 +54,7 @@ const CARD_VISUALS: Record<string, { icon: LucideIcon; tone: Tone }> = {
   'owner.email-delivery': { icon: Mail, tone: 'sky' },
   'owner.pubg-api': { icon: Globe, tone: 'sky' },
   'owner.encountered-opponents': { icon: Crosshair, tone: 'warn' },
+  'superuser.site-config': { icon: SlidersHorizontal, tone: 'sky' },
   'superuser.platform-settings': { icon: ShieldAlert, tone: 'neutral' },
   'superuser.delegation': { icon: KeyRound, tone: 'warn' },
   'superuser.admin-journal': { icon: ScrollText, tone: 'neutral' },

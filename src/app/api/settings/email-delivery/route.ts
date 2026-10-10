@@ -10,6 +10,7 @@ import {
 } from '@/lib/email-delivery-config-service'
 import { sendEmail } from '@/lib/email-service'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
+import { siteName } from '@/lib/site-name'
 
 // Configuration SMTP de toute la plateforme : réservée au SuperUser. Les Owners lisent seulement
 // « l'email est prêt » par GET /api/clans/[clanId]/settings/email-delivery.
@@ -52,7 +53,7 @@ function readEmailEnvStatus() {
       'SMTP_PORT=587',
       'SMTP_USER=apikey_or_username',
       'SMTP_PASS=your_password_or_api_key',
-      'SMTP_FROM="PUBG Clan <noreply@example.com>"',
+      `SMTP_FROM="${siteName()} <noreply@example.com>"`,
     ].join('\n'),
   }
 }
@@ -104,11 +105,11 @@ async function handlePost(request: Request) {
   try {
     const delivery = await sendEmail({
       to: recipient,
-      subject: 'Test de configuration email - PUBG Clan Site',
+      subject: `Test de configuration e-mail — ${siteName()}`,
       text: [
-        'Cet email confirme que la configuration de livraison email est operationnelle.',
-        `Destinataire test: ${recipient}`,
-        `Date: ${new Date().toISOString()}`,
+        `Cet e-mail confirme que l’envoi d’e-mails de ${siteName()} fonctionne.`,
+        `Destinataire du test : ${recipient}`,
+        `Date : ${new Date().toISOString()}`,
       ].join('\n'),
     })
 

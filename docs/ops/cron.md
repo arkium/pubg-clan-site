@@ -288,7 +288,13 @@ Tableau synthétique : une ligne par action connue (13 actions), source `latestB
 
 6 boutons avec descriptif fonctionnel. Voir section "Actions manuelles" ci-dessus.
 
-### Bloc configuration
+### Bloc configuration — déplacé le 2026-10-10
+
+Les variables d'environnement ne sont plus détaillées ici : elles sont dans **Configuration du site**
+(`/settings/configuration`, [settings.md](settings.md)), qui les contrôle avec les secrets, les e-mails et l'API PUBG
+(`src/lib/site-config.ts`). Tâches planifiées garde la carte **Horaires des tâches** (éditeur ci-dessous) ; son bandeau
+affiche le nombre d'erreurs et d'alertes de configuration, lié à la nouvelle page (`checks.errors` / `checks.warnings`
+de `cron-control`). Le texte qui suit décrit l'ancien bloc, pour mémoire.
 
 `getCronConfigurationChecks()` vérifie les variables d'environnement et leur cohérence. Chaque check retourne un statut `ok`, `warning` ou `error`. Variables vérifiées :
 

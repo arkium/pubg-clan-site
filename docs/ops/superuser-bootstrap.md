@@ -1,5 +1,10 @@
 # SuperUser — Procédure de bootstrap
 
+> **Secret (2026-10-10).** `AUTH_BOOTSTRAP_SECRET` doit être un vrai secret : la valeur d'exemple de `.env.example` et
+> toute valeur de moins de 16 caractères ferment `POST /api/auth/bootstrap-owner-invite` (`src/lib/auth/secrets.ts`,
+> comparaison à temps constant). La production tournait avec la valeur d'exemple : n'importe qui aurait pu obtenir un
+> lien d'activation Owner. Générer : `openssl rand -base64 32`. État visible dans Configuration du site.
+
 ## Contexte
 
 Le rôle SuperUser est un rôle plateforme (non lié à un clan) qui donne accès à tous les clans, au changement de clan actif, et aux opérations cross-clan. Il est stocké sur `UserAccount.isSuperUser`.

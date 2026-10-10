@@ -2,7 +2,6 @@ import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   CRON_ACTION_LABELS,
   finishCronExecution,
-  getCronConfigurationChecks,
   getCronOverview,
   getCronWorkerRuntimeStatus,
   startCronExecution,
@@ -10,8 +9,8 @@ import {
 } from '@/lib/cron-observability'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { recalculateTelemetryPeriodAggregatesForClan } from '@/lib/pubg-telemetry/period-aggregates'
-import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
+import { getSiteConfiguration } from '@/lib/site-config'
 import { getActorMemberId } from '@/middleware/auth-permission'
 import { syncClanMatches } from '@/lib/matches-sync-service'
 import { prisma } from '@/lib/prisma'
@@ -57,15 +56,11 @@ export async function GET(
       return roleError
     }
 
-    const [overview, configChecks, cronWorkerRuntime, latestPubgRateLimit] = await Promise.all([
+    const [overview, siteConfiguration, cronWorkerRuntime] = await Promise.all([
       getCronOverview(parsedClanId, 200),
-      getCronConfigurationChecks(),
+      getSiteConfiguration(),
       getCronWorkerRuntimeStatus(),
-      getLatestPubgRateLimitSnapshot(),
     ])
-
-    const criticalChecks = configChecks.filter((entry) => entry.status === 'error').length
-    const warningChecks = configChecks.filter((entry) => entry.status === 'warning').length
 
     return Response.json({
       ok: true,
@@ -78,11 +73,10 @@ export async function GET(
         completedRecent: overview.stats.completedRecent,
         totalRecent: overview.stats.totalRecent,
       },
+      // Détail dans Configuration du site (/settings/configuration, GET /api/settings/site-config) : seul le compte reste ici.
       checks: {
-        total: configChecks.length,
-        errors: criticalChecks,
-        warnings: warningChecks,
-        items: configChecks,
+        errors: siteConfiguration.errors,
+        warnings: siteConfiguration.warnings,
       },
       runtime: {
         webWorker: {
@@ -90,9 +84,6 @@ export async function GET(
           cronBootstrapEnabled: process.env.ENABLE_CRON_BOOTSTRAP === 'true',
         },
         cronWorker: cronWorkerRuntime,
-      },
-      pubgApi: {
-        latestRateLimit: latestPubgRateLimit,
       },
       latestByAction: overview.latestByAction,
       history: overview.recent,

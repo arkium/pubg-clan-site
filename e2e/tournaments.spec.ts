@@ -5,6 +5,8 @@ import { CLAN_ID } from './support/data'
 import { appHeader, dock, toolbar } from './support/layout'
 import {
   LIVE_TOURNAMENT_ID,
+  ORGANIZER_OWNER_SESSION,
+  OUTSIDE_SUPERUSER_SESSION,
   SOLO_TOURNAMENT_ID,
   UPCOMING_TOURNAMENT_ID,
   liveTournamentStandings,
@@ -284,6 +286,42 @@ test('détail d’un tournoi solo : trophée des clans, « Toi », pas d’escou
   await expect(page.locator('#tournament-rules')).not.toContainText('Escouades mixtes')
   // Aucune manche : ni section, ni ancre vers elle.
   await expect(toolbar(page).getByRole('link', { name: 'Manches' })).toHaveCount(0)
+})
+
+test('Owner organisateur : boutons « réservés à l’organisation », synchro qui recharge le classement', async ({ api, page }) => {
+  signInAsMember(api, ORGANIZER_OWNER_SESSION)
+  let standingsLoads = 0
+  let syncs = 0
+  api
+    .on('GET', `/api/tournaments/${LIVE_TOURNAMENT_ID}/standings`, () => {
+      standingsLoads += 1
+      return { body: liveTournamentStandings() }
+    })
+    .on('POST', `/api/clans/${CLAN_ID}/tournaments/${LIVE_TOURNAMENT_ID}/sync`, () => {
+      syncs += 1
+      return { body: { ok: true, eligibleMatches: 4, newRounds: 0, materializationErrors: [] } }
+    })
+  await page.goto(`/tournaments/${LIVE_TOURNAMENT_ID}`)
+  await expect(page.getByText('Réservé à l’organisation — les joueurs ne voient pas ces boutons.')).toBeVisible()
+  await page.waitForLoadState('networkidle')
+  const loadsBefore = standingsLoads
+
+  await page.getByRole('button', { name: 'Synchroniser PUBG' }).click()
+  const notice = page.getByTestId('tournament-sync-notice')
+  await expect(notice).toContainText('Aucune nouvelle manche — 4 manches déjà au classement.')
+  await expect(notice).toContainText('recliquer est sans risque')
+  expect(syncs).toBe(1)
+  // Le classement se recharge seul : plus de « Rechargez la page ».
+  await expect.poll(() => standingsLoads).toBeGreaterThan(loadsBefore)
+})
+
+test('SuperUser hors du clan organisateur : synchronisation désactivée, avec la raison', async ({ api, page }) => {
+  signInAsMember(api, OUTSIDE_SUPERUSER_SESSION)
+  await page.goto(`/tournaments/${LIVE_TOURNAMENT_ID}`)
+  await expect(page.getByRole('button', { name: 'Diffuser sur Discord' })).toBeVisible()
+  const sync = page.getByRole('button', { name: 'Synchroniser PUBG' })
+  await expect(sync).toBeDisabled()
+  await expect(sync).toHaveAccessibleDescription(/réservé à un joueur de \[DEMO\] qui a joué la manche/)
 })
 
 test('visiteur : aucune ligne « Ton clan », aucune invitation à synchroniser', async ({ page }) => {

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Megaphone, RefreshCw, Settings } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, Lock, Megaphone, RefreshCw, Settings, type LucideIcon } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 
@@ -24,8 +24,14 @@ import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/Sec
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
+import { tournamentManageAccess } from '@/lib/tournament-manage-access'
+import {
+  TOURNAMENT_SYNC_PROGRESS_MESSAGE,
+  summarizeTournamentSync,
+  tournamentSyncFailureMessage,
+  type TournamentSyncPayload,
+} from '@/lib/tournament-sync-summary'
 import {
   TOURNAMENT_MODE_DISPLAY,
   resolveTournamentPhase,
@@ -68,6 +74,15 @@ const SECTIONS_WITHOUT_ROUNDS = SECTIONS.filter((section) => section.id !== 'tou
 const COMPACT_SECTIONS: SectionAnchorNavItem[] = SECTIONS.map(({ id, label }) => ({ id, label }))
 const COMPACT_SECTIONS_WITHOUT_ROUNDS = COMPACT_SECTIONS.filter((section) => section.id !== 'tournament-rounds')
 
+type Notice = { tone: 'progress' | 'success' | 'waiting' | 'error'; message: string }
+
+const NOTICE_ICONS: Record<Notice['tone'], { icon: LucideIcon; ink: string }> = {
+  progress: { icon: RefreshCw, ink: 't-sky animate-spin motion-reduce:animate-none' },
+  success: { icon: CheckCircle2, ink: 't-pos' },
+  waiting: { icon: Clock, ink: 't-warn' },
+  error: { icon: AlertTriangle, ink: 't-neg' },
+}
+
 /**
  * Page d'un tournoi — docs/features/tournois.md, « Pages joueurs » (maquette « Tournois », 2026-09-27). En-tête sur la
  * carte avec le mode en clair, bandeau collant (ancres + place du lecteur), podium et MVP dans tous les modes,
@@ -77,8 +92,7 @@ const COMPACT_SECTIONS_WITHOUT_ROUNDS = COMPACT_SECTIONS.filter((section) => sec
 export default function TournamentDetailPage() {
   const params = useParams()
   const tournamentId = typeof params.tournamentId === 'string' ? params.tournamentId : null
-  const { clanId: selectedClanId } = useSelectedClan()
-  const { members, permissions, isSuperUser } = useAuthSession()
+  const { members, permissions, isSuperUser, activeMemberId, ownerFeatures } = useAuthSession()
 
   const [payload, setPayload] = useState<StandingsResponse | null>(null)
   const [loading, setLoading] = useState(true)
@@ -86,7 +100,9 @@ export default function TournamentDetailPage() {
   const [granularity, setGranularity] = useState<'clan' | 'squad'>('clan')
   const [broadcastOpen, setBroadcastOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
-  const [notice, setNotice] = useState<string | null>(null)
+  const [notice, setNotice] = useState<Notice | null>(null)
+  // Incrémenté après une synchronisation : le classement se recharge sans que l'organisateur recharge la page.
+  const [reloadToken, setReloadToken] = useState(0)
 
   const now = useMemo(() => new Date(), [])
 
@@ -121,7 +137,7 @@ export default function TournamentDetailPage() {
     return () => {
       cancelled = true
     }
-  }, [tournamentId])
+  }, [tournamentId, reloadToken])
 
   const viewer: TournamentViewer = useMemo(
     () => ({
@@ -137,12 +153,12 @@ export default function TournamentDetailPage() {
   const rounds = payload?.rounds ?? []
   const organizerClanId = tournament?.organizerClan?.id ?? null
 
-  // Les actions d'organisateur ne s'affichent que pour qui peut réellement les exécuter sur ce clan.
-  const canManageTournament =
-    isSuperUser ||
-    (organizerClanId !== null &&
-      selectedClanId === organizerClanId &&
-      (permissions.includes('*') || permissions.includes('manage_settings')))
+  // Les actions d'organisateur ne s'affichent que pour qui peut réellement les exécuter (même règle que les routes).
+  const access = tournamentManageAccess(
+    { isSuperUser, activeMemberId, permissions, members, ownerFeatures },
+    tournament?.organizerClan ?? null
+  )
+  const canManageTournament = access.canManage
 
   const position = useMemo(
     () => (rules ? viewerPosition(standings, viewer, rules.mode) : null),
@@ -150,19 +166,25 @@ export default function TournamentDetailPage() {
   )
 
   async function syncTournament() {
-    if (!organizerClanId || !tournamentId) return
+    if (!organizerClanId || !tournamentId || !tournament) return
+    setSyncing(true)
+    setNotice({ tone: 'progress', message: TOURNAMENT_SYNC_PROGRESS_MESSAGE })
+    let response: Response
     try {
-      setSyncing(true)
-      setNotice('Synchronisation PUBG en cours…')
-      const response = await fetch(`/api/clans/${organizerClanId}/tournaments/${tournamentId}/sync`, { method: 'POST' })
-      const data = (await response.json().catch(() => null)) as { error?: string; eligibleMatches?: number } | null
-      if (!response.ok) throw new Error(data?.error ?? 'Synchronisation impossible.')
-      setNotice(`Synchronisation terminée : ${data?.eligibleMatches ?? 0} manche(s) éligible(s). Rechargez pour voir le classement à jour.`)
-    } catch (caught) {
-      setNotice(caught instanceof Error ? caught.message : 'Synchronisation impossible.')
-    } finally {
+      response = await fetch(`/api/clans/${organizerClanId}/tournaments/${tournamentId}/sync`, { method: 'POST' })
+    } catch {
+      setNotice({ tone: 'error', message: tournamentSyncFailureMessage(null, null) })
       setSyncing(false)
+      return
     }
+    const data = (await response.json().catch(() => null)) as TournamentSyncPayload | null
+    if (response.ok) {
+      setNotice(summarizeTournamentSync(data, tournament))
+      setReloadToken((token) => token + 1)
+    } else {
+      setNotice({ tone: 'error', message: tournamentSyncFailureMessage(response.status, data) })
+    }
+    setSyncing(false)
   }
 
   if (!tournamentId) {
@@ -185,7 +207,18 @@ export default function TournamentDetailPage() {
 
   const organizerActions = canManageTournament ? (
     <>
-      <button type="button" onClick={syncTournament} disabled={syncing} className="app-btn app-btn--sm app-btn--secondary">
+      {/* Les joueurs ne voient pas ces boutons : le dire, pour que l'organisateur ne se demande pas qui d'autre les a. */}
+      <p className="flex basis-full items-center gap-1.5 text-[12px] font-semibold text-white/70">
+        <Lock className="h-3.5 w-3.5 shrink-0" aria-hidden />
+        Réservé à l’organisation — les joueurs ne voient pas ces boutons.
+      </p>
+      <button
+        type="button"
+        onClick={syncTournament}
+        disabled={syncing || !access.canSync}
+        aria-describedby={access.syncBlockedReason ? 'tournament-sync-blocked' : undefined}
+        className="app-btn app-btn--sm app-btn--secondary"
+      >
         <RefreshCw className={`mr-1.5 h-4 w-4 ${syncing ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden />
         Synchroniser PUBG
       </button>
@@ -199,8 +232,14 @@ export default function TournamentDetailPage() {
           Paramètres
         </Link>
       ) : null}
+      {access.syncBlockedReason ? (
+        <p id="tournament-sync-blocked" className="basis-full text-[12px] text-white/70">
+          {access.syncBlockedReason}
+        </p>
+      ) : null}
     </>
   ) : null
+  const NoticeIcon = notice ? NOTICE_ICONS[notice.tone] : null
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
@@ -256,10 +295,11 @@ export default function TournamentDetailPage() {
           </DockingToolbar>
 
           <div className="app-container app-gutter flex flex-col gap-4 pb-8 sm:gap-5">
-            {notice ? (
-              <p className="app-panel-muted t-body p-3 text-gray-700" role="status">
-                {notice}
-              </p>
+            {notice && NoticeIcon ? (
+              <div className="app-panel-muted flex items-start gap-2.5 p-3" role="status" data-testid="tournament-sync-notice">
+                <NoticeIcon.icon className={`mt-0.5 h-4 w-4 shrink-0 ${NoticeIcon.ink}`} aria-hidden />
+                <p className="t-body min-w-0 flex-1 text-gray-700">{notice.message}</p>
+              </div>
             ) : null}
 
             <TournamentPodium standings={standings} mvp={payload?.mvp ?? null} />
@@ -319,7 +359,7 @@ export default function TournamentDetailPage() {
               tournamentTitle={tournament.title}
               onClose={() => setBroadcastOpen(false)}
               onBroadcast={(message) => {
-                setNotice(message)
+                setNotice({ tone: 'success', message })
                 setBroadcastOpen(false)
               }}
             />

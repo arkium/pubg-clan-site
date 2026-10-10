@@ -7,6 +7,7 @@ import {
 } from '@/lib/tournament-service'
 import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
+import { prisma } from '@/lib/prisma'
 import { getActorMemberId } from '@/middleware/auth-permission'
 
 function parseClanId(value: string) {
@@ -46,9 +47,24 @@ async function handlePost(
       ...(request.headers.get('cookie') ? { cookie: request.headers.get('cookie')! } : {}),
     }
     const actorMemberId = await getActorMemberId(request)
-    if (!actorMemberId) {
-      return Response.json({ error: 'Active administrator member is required to synchronize a tournament' }, { status: 401 })
+    // La synchronisation part des propres parties PUBG du joueur actif (`sync-matches` avec son `memberId`) : hors du
+    // clan organisateur, elle échouerait plus loin avec un message PUBG incompréhensible. 403, pas 401 : la session est
+    // valide, le client ne doit pas déconnecter.
+    const actor = actorMemberId
+      ? await prisma.clanMember.findUnique({ where: { id: actorMemberId }, select: { clanId: true, isActive: true } })
+      : null
+    if (!actor || !actor.isActive || actor.clanId !== organizerClanId) {
+      return Response.json(
+        {
+          error:
+            'Seul un joueur du clan organisateur peut synchroniser : la synchronisation part de ses propres parties PUBG. Passez sur votre joueur de ce clan, ou demandez à l’Owner qui a joué la manche de cliquer.',
+        },
+        { status: 403 }
+      )
     }
+
+    // Manches déjà au classement : la réponse dit combien ce clic en a ajouté.
+    const roundsBefore = (await getTournamentMatches(tournamentId)).length
 
     const matchSyncs: MatchSyncResult[] = []
     for (const participantClanId of [organizerClanId]) {
@@ -101,6 +117,7 @@ async function handlePost(
       sourceCustomMatches: materialization.sourceMatchCount,
       materializationErrors: materialization.errors.slice(0, 3),
       eligibleMatches: matches.length,
+      newRounds: Math.max(0, matches.length - roundsBefore),
       telemetryQueued,
       matchSyncs,
       telemetry,

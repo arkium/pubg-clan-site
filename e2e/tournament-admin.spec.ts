@@ -242,14 +242,21 @@ test.describe('organisateur (manage_settings)', () => {
     await expect(page.getByRole('region', { name: 'Tournois actifs' })).toHaveCount(0)
   })
 
-  test('synchronisation PUBG : appel du tournoi et toast du résultat', async ({ page }) => {
-    await card(page, 'Coupe d’automne').getByRole('button', { name: 'Synchroniser PUBG' }).click()
+  test('synchronisation PUBG : appel du tournoi et toast du résultat, puis « rien de nouveau, recliquez »', async ({ page }) => {
+    const syncButton = card(page, 'Coupe d’automne').getByRole('button', { name: 'Synchroniser PUBG' })
+    await syncButton.click()
     const toast = page.getByTestId('tournament-admin-toast')
-    await expect(toast).toContainText('Découverte PUBG : 2 nouveau(x) match(s) importé(s).')
-    await expect(toast).toContainText('Télémétrie : 2 match(s) mis en file.')
+    await expect(toast).toContainText('1 nouvelle manche ajoutée — 3 manches au total.')
+    await expect(toast).toContainText('le replay de la manche suit dans quelques secondes')
     expect(calls.syncs).toEqual([ACTIVE_TOURNAMENT_ID])
     await toast.getByRole('button', { name: 'Fermer la notification' }).click()
     await expect(toast).toHaveCount(0)
+
+    // Second clic, rien de publié depuis : le message dit d'attendre et de recliquer, sans risque.
+    await syncButton.click()
+    await expect(toast).toContainText('Aucune nouvelle manche — 3 manches déjà au classement.')
+    await expect(toast).toContainText('recliquer est sans risque')
+    expect(calls.syncs).toEqual([ACTIVE_TOURNAMENT_ID, ACTIVE_TOURNAMENT_ID])
   })
 
   test('diffusion Discord : dernière manche par défaut, aperçu, manche déjà diffusée, envoi simulé', async ({ api, page }) => {

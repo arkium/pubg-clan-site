@@ -107,6 +107,36 @@ Le postbuild (`scripts/copy-standalone-assets.mjs`) copie automatiquement les as
 
 Résultat : `.next/standalone/` contient tout le nécessaire pour démarrer l'application sans `node_modules`.
 
+### Mise à jour courante du serveur (session root)
+
+Git reste en root (il a l'accès au dépôt distant) ; **tout ce qui écrit dans le projet tourne en smk**, sinon le
+`.env` recopié par le build appartient à root et le site démarre sans variables (incident du 2026-10-10, ci-dessous).
+
+```bash
+APP=/home/smk/apps/pubg-clan-site
+cd "$APP"
+git -c safe.directory="$APP" fetch origin
+git -c safe.directory="$APP" checkout main || git -c safe.directory="$APP" checkout -b main origin/main
+git -c safe.directory="$APP" pull origin main
+chown -R smk:smk "$APP"            # ce que git vient d'écrire en root revient à smk
+
+sudo -u smk -H npm install
+sudo -u smk -H npx prisma migrate deploy
+sudo -u smk -H npx prisma generate
+sudo -u smk -H rm -rf .next
+sudo -u smk -H npm run build       # s'il échoue : ne pas redémarrer, corriger d'abord
+
+# smk doit lire les deux .env, sinon le web démarre sans aucune variable
+sudo -u smk test -r .env && sudo -u smk test -r .next/standalone/.env && echo "OK : .env lisibles par smk"
+
+systemctl daemon-reload
+systemctl restart pubg-clan-site-web pubg-clan-site-cron pubg-clan-site-telemetry-worker pubg-clan-site-telemetry-aggregates
+systemctl status pubg-clan-site-web pubg-clan-site-cron pubg-clan-site-telemetry-worker pubg-clan-site-telemetry-aggregates --no-pager -l
+```
+
+`rm -rf .next` coupe le site en cours de build (le web sert ses fichiers depuis `.next/standalone`) : déployer hors
+des soirées de jeu.
+
 ### Fichiers téléversés
 
 Les images de clan téléversées (« Accueil login ») sont écrites dans `public/uploads/clans/` à la racine du projet
@@ -184,6 +214,17 @@ Ci-dessous une configuration réelle à 4 services (web + cron + 2 workers tél�
 **Un seul fichier `.env` à la racine du projet, partagé par les 4 services** — aucun `EnvironmentFile=` n'est nécessaire dans les units :
 - Le web et le worker cron (Next.js standalone) chargent `.env` automatiquement au démarrage.
 - Les workers télémétrie (`telemetry-resync-worker.ts`, `telemetry-aggregate-worker.ts`) le chargent via `import 'dotenv/config'` en tête de script, à condition que `WorkingDirectory` pointe vers la racine du projet (là où se trouve `.env`).
+
+> **Propriétaire du `.env` et du build (incident du 2026-10-10).** Les 4 services tournent sous `User=smk` : le `.env`
+> doit **appartenir à smk** (`chown smk:smk .env`, puis `chmod 600 .env`). Un `.env` modifié en root par `sed -i`
+> ou recréé par root lui revient à root : en `600`, smk ne le lit plus. Le web démarre alors **sans aucune variable**
+> (`Failed to load env from .env Error: EACCES`, puis `Schema Env Error`) et les workers chargent un `.env` vide sans
+> le signaler. `next build` recopie le `.env` dans `.next/standalone/.env` avec le même propriétaire et les mêmes
+> droits : **lancer le build en smk** (`sudo -u smk npm run build`), sinon `chown -R smk:smk` le projet après coup.
+> Contrôle : `sudo -u smk test -r .env && sudo -u smk test -r .next/standalone/.env && echo lisible`.
+> **Le web et le cron lisent la copie `.next/standalone/.env`, pas le `.env` racine** (`process.chdir()` du
+> standalone). Un `.env` modifié après le build n'est pas vu par eux tant qu'on ne le recopie pas :
+> `sudo -u smk cp .env .next/standalone/.env` (ou rebuild), puis redémarrer. Les workers télémétrie lisent la racine.
 
 Les `Environment=` déclarées directement dans une unit systemd sont déjà présentes dans l'environnement du process **avant** que Node ne démarre — dotenv ne les écrase donc jamais. C'est ce qui permet de garder un seul `.env` avec des valeurs par défaut (ex. `ENABLE_CRON_JOBS=true`, `ENABLE_CRON_BOOTSTRAP=true`) tout en les surchargeant service par service dans chaque unit (le web force `ENABLE_CRON_JOBS=false`, le worker cron force `ENABLE_CRON_BOOTSTRAP=false` car le bootstrap passe par l'appel `ExecStartPost` explicite, pas par cette variable legacy).
 

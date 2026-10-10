@@ -206,16 +206,19 @@ export async function mockTournamentAdmin(api: ApiMock, page: Page): Promise<Tou
       })
       .on('POST', `${path}/sync`, () => {
         calls.syncs.push(tournament.id)
+        // Premier clic : une manche arrive. Clics suivants : PUBG n'a rien publié de plus.
+        const first = calls.syncs.filter((id) => id === tournament.id).length === 1
         return {
           body: {
-            importedMatches: 2,
+            importedMatches: first ? 2 : 0,
             sourceCustomRows: 12,
             sourceCustomMatches: 3,
             sourceMissingAccounts: 0,
             materializedMatches: 3,
             materializationErrors: [],
             eligibleMatches: 3,
-            telemetryQueued: 2,
+            newRounds: first ? 1 : 0,
+            telemetryQueued: 3,
           },
         }
       })

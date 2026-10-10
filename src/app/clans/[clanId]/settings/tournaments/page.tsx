@@ -35,7 +35,12 @@ import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import ToolbarGroup from '@/components/ui/ToolbarGroup'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
-import { tournamentGameModeLabel, tournamentMapLabel } from '@/lib/tournament-filters'
+import {
+  TOURNAMENT_SYNC_PROGRESS_MESSAGE,
+  summarizeTournamentSync,
+  tournamentSyncFailureMessage,
+  type TournamentSyncPayload,
+} from '@/lib/tournament-sync-summary'
 
 /** Onglets ; celui du formulaire dit ce qu'il contient : « Créer », ou « Modifier » quand un tournoi est en cours d'édition. */
 function tabOptions(editing: boolean): Array<{ value: AdminTab; label: string; icon: React.ReactNode }> {
@@ -220,68 +225,35 @@ export default function ClanTournamentSettingsPage() {
   async function syncTournament(tournament: AdminTournament) {
     if (!clanId) return
 
+    setSyncingTournamentId(tournament.id)
+    setError(null)
+    setSuccess(null)
+    setSyncNotice({ tone: 'progress', message: `« ${tournament.title} » : ${TOURNAMENT_SYNC_PROGRESS_MESSAGE}` })
+
+    let response: Response
     try {
-      setSyncingTournamentId(tournament.id)
-      setError(null)
-      setSuccess(null)
-      setSyncNotice({
-        tone: 'progress',
-        message: `Interrogation directe de PUBG pour « ${tournament.title} » avec votre compte administrateur. Les matchs récents sont récupérés puis leur télémétrie est mise en file.`,
-      })
-
-      const response = await fetch(`/api/clans/${clanId}/tournaments/${tournament.id}/sync`, { method: 'POST' })
-      const payload = (await response.json().catch(() => null)) as {
-        error?: string
-        importedMatches?: number
-        sourceCustomRows?: number
-        sourceCustomMatches?: number
-        sourceMissingAccounts?: number
-        materializedMatches?: number
-        materializationErrors?: string[]
-        eligibleMatches?: number
-        telemetryQueued?: number
-      } | null
-
-      if (!response.ok) {
-        throw new Error(payload?.error ?? 'Impossible de synchroniser le tournoi.')
-      }
-
-      const details = [
-        `Découverte PUBG : ${payload?.importedMatches ?? 0} nouveau(x) match(s) importé(s).`,
-        `Analyse tournoi : ${payload?.sourceCustomMatches ?? 0} match(s) custom scanné(s) (${payload?.sourceCustomRows ?? 0} entrée(s) suivie(s)).`,
-        `Résultats : ${payload?.materializedMatches ?? 0} match(s) projeté(s), ${payload?.eligibleMatches ?? 0} éligible(s).`,
-        `Télémétrie : ${payload?.telemetryQueued ?? 0} match(s) mis en file.`,
-      ].join(' ')
-      const materializationError = payload?.materializationErrors?.[0]
-      const filters = [
-        tournament.gameMode ? `mode ${tournamentGameModeLabel(tournament.gameMode)}` : null,
-        tournament.mapName ? `carte ${tournamentMapLabel(tournament.mapName)}` : null,
-      ]
-        .filter(Boolean)
-        .join(', ')
-
-      const message = materializationError
-        ? `${details} Projection impossible : ${materializationError}`
-        : payload?.sourceCustomMatches === 0
-          ? `${details} ${payload?.sourceMissingAccounts ? `${payload.sourceMissingAccounts} ligne(s) n'ont pas de compte PUBG associé.` : 'Aucun match custom n’est actuellement enregistré pour les clans participants dans la fenêtre du tournoi.'}`
-          : `${details} Le worker lance le recalcul des agrégats après les imports.`
-
-      setSuccess(message)
-      setSyncNotice({
-        tone: 'success',
-        message:
-          !materializationError && payload?.eligibleMatches === 0 && filters
-            ? `${message} Aucun match ne correspond aux filtres du tournoi (${filters}).`
-            : message,
-      })
-      await refreshTournaments(false)
-    } catch (caught) {
-      const message = caught instanceof Error ? caught.message : 'Impossible de synchroniser le tournoi.'
+      response = await fetch(`/api/clans/${clanId}/tournaments/${tournament.id}/sync`, { method: 'POST' })
+    } catch {
+      const message = tournamentSyncFailureMessage(null, null)
       setError(message)
       setSyncNotice({ tone: 'error', message })
-    } finally {
       setSyncingTournamentId(null)
+      return
     }
+
+    const payload = (await response.json().catch(() => null)) as TournamentSyncPayload | null
+    if (response.ok) {
+      // Un message pour l'organisateur, pas un rapport technique (src/lib/tournament-sync-summary.ts).
+      const summary = summarizeTournamentSync(payload, tournament)
+      if (summary.tone === 'success') setSuccess(summary.message)
+      setSyncNotice(summary)
+      await refreshTournaments(false)
+    } else {
+      const message = tournamentSyncFailureMessage(response.status, payload)
+      setError(message)
+      setSyncNotice({ tone: 'error', message })
+    }
+    setSyncingTournamentId(null)
   }
 
   const filtered = useMemo(() => {

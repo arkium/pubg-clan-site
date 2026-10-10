@@ -226,10 +226,21 @@ export function mockTournaments(api: ApiMock) {
     .on('GET', `/api/tournaments/${UPCOMING_TOURNAMENT_ID}/standings`, { body: upcomingTournamentStandings() })
 }
 
-/** Le lecteur est membre du clan démo (sans droit d'organisateur). */
-export function signInAsMember(api: ApiMock) {
+/** Owner du clan organisateur : joueur actif du clan démo, permissions `*`. */
+export const ORGANIZER_OWNER_SESSION = { ...SIGNED_IN_MEMBER_SESSION, permissions: ['*'] }
+
+/** SuperUser dont le seul joueur est aux Ratz : gère le tournoi du clan démo, mais ne peut pas le synchroniser. */
+export const OUTSIDE_SUPERUSER_SESSION = {
+  ...SIGNED_IN_MEMBER_SESSION,
+  user: { email: 'admin@example.com', isSuperUser: true },
+  isSuperUser: true,
+  members: [{ memberId: 1, displayName: 'Admin', clanId: 6, clan: { id: 6, name: 'Les Ratz', tag: 'RATZ' } }],
+}
+
+/** Le lecteur est membre du clan démo (sans droit d'organisateur), sauf session fournie. */
+export function signInAsMember(api: ApiMock, session: object = SIGNED_IN_MEMBER_SESSION) {
   api
     .on('GET', '/api/auth/mode', { body: { authDisabled: false } })
     .on('GET', '/api/members/1', { body: { avatarUrl: null } })
-    .on('GET', '/api/auth/session', { body: SIGNED_IN_MEMBER_SESSION })
+    .on('GET', '/api/auth/session', { body: session })
 }

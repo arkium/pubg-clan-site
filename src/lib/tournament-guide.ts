@@ -101,7 +101,7 @@ export const TOURNAMENT_GUIDE_CARDS: TournamentGuideCard[] = [
   {
     id: 'organizer-rule',
     title: 'La règle d’or de l’organisateur',
-    body: "Un membre du clan organisateur doit être présent dans la partie pour qu’elle compte. C’est ce qui rattache une partie personnalisée à un tournoi plutôt qu’à un autre : sans cette règle, la partie d’un tout autre clan tombant dans la même fenêtre de dates entrerait dans le classement.",
+    body: "Un membre du clan organisateur doit jouer la partie pour qu’elle compte : un hôte ou un spectateur n’apparaît pas dans les données PUBG. C’est ce qui rattache une partie personnalisée à un tournoi plutôt qu’à un autre : sans cette règle, la partie d’un tout autre clan tombant dans la même fenêtre de dates entrerait dans le classement. La synchronisation part des parties de l’administrateur qui clique : s’il a joué la manche, elle est retrouvée aussitôt, avec tous les joueurs suivis.",
   },
   {
     id: 'modes',
@@ -118,7 +118,14 @@ export const TOURNAMENT_GUIDE_CARDS: TournamentGuideCard[] = [
   {
     id: 'sync',
     title: 'La synchronisation PUBG',
-    body: "« Synchroniser PUBG » interroge l’API avec le compte de l’organisateur, importe les parties récentes et met leur télémétrie en file d’attente. Les parties arrivent aussi toutes seules par la synchronisation quotidienne : le bouton sert à ne pas attendre.",
+    body: "« Synchroniser PUBG » va chercher sur PUBG les dernières parties du joueur qui clique, retient celles du tournoi et met à jour le classement. Les parties arrivent aussi toutes seules par la synchronisation automatique : le bouton sert à ne pas attendre.",
+    bullets: [
+      'Cliquez après chaque manche, une fois la partie terminée : PUBG ne publie une partie que quelques minutes après sa fin.',
+      'Le bouton annonce 0 manche ? PUBG ne l’a pas encore publiée : attendez deux ou trois minutes, puis recliquez. Recliquer est sans risque, une manche n’est jamais comptée deux fois.',
+      'Le classement se met à jour aussitôt ; le replay de la manche suit quelques secondes plus tard, le temps d’analyser la télémétrie.',
+      'Seul un joueur du clan organisateur qui a joué la manche peut la retrouver : un hôte ou un spectateur n’apparaît pas dans les données PUBG.',
+      'Les boutons d’organisation (synchroniser, diffuser, paramètres) ne sont visibles que de l’Owner du clan organisateur et du SuperUser.',
+    ],
   },
   {
     id: 'scoring',

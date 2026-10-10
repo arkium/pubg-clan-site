@@ -6,6 +6,7 @@ import {
   CalendarDays,
   CheckCircle2,
   ChevronDown,
+  Clock,
   Eye,
   Flag,
   Gamepad2,
@@ -171,11 +172,13 @@ export function AdminAlert({ tone, children, testId }: { tone: keyof typeof ALER
   )
 }
 
-export type SyncNotice = { tone: 'progress' | 'success' | 'error'; message: string }
+/** `waiting` : synchronisation réussie mais sans nouvelle manche — attendre que PUBG publie, puis recliquer. */
+export type SyncNotice = { tone: 'progress' | 'success' | 'waiting' | 'error'; message: string }
 
 const TOAST_TONES: Record<SyncNotice['tone'], { icon: LucideIcon; ring: string; ink: string }> = {
   progress: { icon: RefreshCw, ring: 'border-[var(--game-sky-ring)]', ink: 't-sky animate-spin motion-reduce:animate-none' },
   success: { icon: CheckCircle2, ring: 'border-[color-mix(in_srgb,var(--theme-ui-positive)_50%,transparent)]', ink: 't-pos' },
+  waiting: { icon: Clock, ring: 'border-[color-mix(in_srgb,var(--game-warn)_50%,transparent)]', ink: 't-warn' },
   error: { icon: AlertTriangle, ring: 'border-[color-mix(in_srgb,var(--theme-ui-negative)_50%,transparent)]', ink: 't-neg' },
 }
 

@@ -93,7 +93,8 @@ défaut, contrôles et corps envoyé, repris tels quels de l'ancienne page).
   tuiles radio (choix teinté à l'accent, icône du mode à sa couleur `--tmode`) ; carte (11 choix) en menu de la charte
   (`app-menu-trigger` / `app-menu`). **Plus aucun `<select>` natif.**
 - **Messages** : alertes en ligne de la charte (succès au jeton positif, erreur au négatif) ; synchronisation en toast
-  (en bas à droite, centré en bas sur mobile ; en cours au ciel, réussite positive, échec négatif), fermé à la main
+  (en bas à droite, centré en bas sur mobile ; en cours au ciel, réussite positive, attente — aucune nouvelle manche —
+  à l'orange `--game-warn`, échec négatif), fermé à la main
   comme avant.
 
 ### Horaires et aperçu de la vitrine (2026-10-10)
@@ -130,6 +131,28 @@ l'aperçu avant l'envoi. L'aperçu est **inerte** (`inert`) : ses liens ne mène
 **Nombre de joueurs** (`TournamentOverview.playerCount`) : joueurs suivis distincts des manches comptées, calculé à
 partir des matchs du tournoi (pas besoin de télémétrie). La vitrine l'affiche dans le cadre « en direct » et les
 résultats dès la première manche (« 42 joueurs »), rien avant.
+
+### Synchronisation PUBG : ce que dit le bouton (2026-10-10)
+
+`POST /api/clans/[clanId]/tournaments/[tournamentId]/sync` part des **propres parties PUBG du joueur actif** de la
+session (`sync-matches` avec son `memberId`) : seule la partie qu'il a jouée est retrouvée aussitôt, avec tous les
+joueurs suivis. Un joueur hors du clan organisateur reçoit un **403 expliqué** (avant : un 502 « Active member not
+found in this clan »). La réponse porte `newRounds`, les manches que ce clic a fait entrer au classement.
+
+Les deux pages (administration et page d'un tournoi) affichent le même message, écrit pour l'organisateur et non plus
+un rapport technique — `src/lib/tournament-sync-summary.ts`, testé :
+
+| Cas | Message (résumé) |
+|---|---|
+| Nouvelle manche | « 1 nouvelle manche ajoutée — 3 manches au total. » Le classement est à jour, le replay suit en quelques secondes |
+| 0 manche au total | PUBG publie une partie quelques minutes après sa fin : attendre deux ou trois minutes, puis **recliquer — sans risque**, une manche n'est jamais comptée deux fois ; rappel de la fenêtre et des filtres du tournoi |
+| Rien de nouveau | « Aucune nouvelle manche — N déjà au classement », même invitation à recliquer |
+| Avant le début | « Le tournoi n'a pas commencé (dates) » |
+| Délai du proxy dépassé (réponse non JSON) | La synchronisation continue peut-être : recharger dans une minute avant de recliquer |
+| Échec PUBG (502) | La raison, puis « Réessayez dans une minute », sans risque |
+
+Sur la page d'un tournoi, le classement **se recharge seul** après la synchronisation (plus de « Rechargez la page »).
+Le replay vit dans le débrief de la manche, lu à l'ouverture : rien à recharger pour lui.
 
 ### Suppression
 
@@ -279,8 +302,12 @@ bandeau d'image de la liste inchangée ; « Tous formats » (et non « Tous les 
   seulement quand elle existe, et une infobulle rappelle la règle.
 - **Le lecteur** vient de la session (`useAuthSession().members`) : son clan en inter-clans, lui-même en solo, une
   équipe ou escouade qui le compte sinon. En visiteur, rien n'est surligné.
-- **Les actions d'organisateur** (synchroniser, diffuser, paramètres) n'apparaissent que pour un SuperUser, ou pour
-  un membre ayant `manage_settings` sur le clan organisateur **et** l'ayant pour clan sélectionné.
+- **Les actions d'organisateur** (synchroniser, diffuser, paramètres) suivent la règle des routes
+  (`src/lib/tournament-manage-access.ts`, 2026-10-10) : le SuperUser, ou l'**Owner** du clan organisateur — son joueur
+  **actif** (pas le clan sélectionné), tant que la compétition est ouverte aux Owners. Avant, `manage_settings` et le
+  clan sélectionné suffisaient : le bouton s'affichait puis le serveur répondait « Forbidden ». Une mention « Réservé à
+  l'organisation — les joueurs ne voient pas ces boutons » les précède. Un SuperUser hors du clan organisateur voit
+  « Synchroniser PUBG » **désactivé**, avec la raison (passer sur son joueur du clan, ou laisser l'Owner cliquer).
 - **Pas d'avatars** : l'avatar vit sur `UserAccount` via `MemberIdentity`, hors du périmètre du classement.
   `PodiumCards` affiche l'initiale du nom, tag de clan ignoré.
 - **Le mode intra-clan exige le clan organisateur** : sans lui, le moteur ne renvoie aucune entrée plutôt qu'un
@@ -339,7 +366,8 @@ Sept fiches, définies une seule fois dans `src/lib/tournament-guide.ts` et rend
 2. la règle d'or de l'organisateur (un de ses membres doit être dans la partie) ;
 3. les quatre modes ;
 4. les escouades mixtes et le partage des points ;
-5. la synchronisation PUBG ;
+5. la synchronisation PUBG (cliquer après chaque manche ; « 0 manche » = pas encore publiée, recliquer sans risque ;
+   qui voit les boutons) ;
 6. le calcul des scores, avec les deux pièges qui font croire à un bug (filtre trop strict, points décimaux) ;
 7. la diffusion Discord.
 

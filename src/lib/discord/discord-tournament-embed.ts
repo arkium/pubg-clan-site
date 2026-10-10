@@ -1,5 +1,6 @@
 import type { DiscordEmbedField, DiscordWebhookPayload } from '@/lib/discord/discord-client'
 import { matchTournamentDebriefPath } from '@/lib/match-links'
+import { compactSquadLabel } from '@/lib/tournament-mode-display'
 import type { MixedSquadRule, TournamentMode } from '@/lib/tournament-service'
 
 export const TOURNAMENT_COLOR = 0x5865f2
@@ -45,9 +46,9 @@ const MODE_WORDING: Record<TournamentMode, { roundField: string; standingsField:
     participants: 'joueur(s) classé(s)',
   },
   intra_clan: {
-    roundField: 'Scores de la manche (escouades internes)',
+    roundField: 'Scores de la manche (squads internes)',
     standingsField: 'Classement interne provisoire',
-    participants: 'escouade(s) classée(s)',
+    participants: 'squad(s) classée(s)',
   },
 }
 
@@ -134,6 +135,79 @@ function joinBoundedLines(lines: string[], max: number) {
   return truncate(kept.join('\n') || '—', max)
 }
 
+/** Une escouade du classement final, ses joueurs déjà libellés « [TAG] Pseudo », les plus réguliers d'abord. */
+export type TournamentSquadStandingLine = {
+  memberLabels: string[]
+  totalPoints: number
+  totalKills: number
+  wins: number
+  /** Place à chaque manche, dans l'ordre ; `null` quand l'escouade n'y a pas joué. */
+  form: Array<number | null>
+}
+
+export type TournamentSquadStandingsEmbedInput = {
+  tournamentId: string
+  tournamentTitle: string
+  totalRounds: number
+  killPoints: number
+  winBonus: number
+  squads: TournamentSquadStandingLine[]
+  /** Date de la dernière manche. */
+  playedAt: Date
+  mention: string
+  siteUrl: string
+}
+
+function formatSquadForm(form: Array<number | null>) {
+  return form.map((placement) => (placement === null ? '–' : placement === 1 ? '#1' : String(placement))).join(' · ')
+}
+
+/**
+ * Classement final par escouade d'un tournoi inter-clans (demande du 2026-10-11) : même barème que le cumul par clan,
+ * mais chaque escouade marque tous ses points, remplaçants rattachés à leur escouade. La liste tient dans la
+ * description (4 096 caractères), plus large qu'un champ.
+ */
+export function buildTournamentSquadStandingsWebhookPayload(
+  input: TournamentSquadStandingsEmbedInput
+): DiscordWebhookPayload {
+  const siteUrl = input.siteUrl.replace(/\/+$/, '')
+  const header = [
+    `🎮 ${input.squads.length} squad(s) · ${input.totalRounds} manche(s)`,
+    `Barème : placement, ${formatPoints(input.killPoints)} pt par kill, +${formatPoints(input.winBonus)} pour un Top 1. Chaque squad marque tous ses points.`,
+    '',
+  ]
+  const lines = input.squads.map(
+    (squad, index) =>
+      `${rankPrefix(index)} **${compactSquadLabel(squad.memberLabels)}**\n` +
+      `**${formatPoints(squad.totalPoints)} pts** · ${squad.totalKills} kills · ${squad.wins} Top 1 · manches : ${formatSquadForm(squad.form)}`
+  )
+  const footerLink = siteUrl ? [`\n[📊 Classement complet sur le site](${siteUrl}/tournaments/${input.tournamentId})`] : []
+  // Place gardée pour annoncer les escouades qui ne tiennent pas, plutôt que de couper la liste sans le dire.
+  const budget = MAX_DESCRIPTION_LENGTH - header.join('\n').length - footerLink.join('\n').length - 60
+  const kept: string[] = []
+  for (const line of lines) {
+    if ([...kept, line].join('\n').length > budget) break
+    kept.push(line)
+  }
+  if (kept.length < lines.length) kept.push(`… et ${lines.length - kept.length} autre(s) squad(s)`)
+
+  return {
+    ...(input.mention ? { content: input.mention } : {}),
+    embeds: [
+      {
+        title: truncate(`🏆 Tournoi : ${input.tournamentTitle} — Classement par squad`, MAX_TITLE_LENGTH),
+        ...(siteUrl ? { url: `${siteUrl}/tournaments/${input.tournamentId}` } : {}),
+        color: TOURNAMENT_COLOR,
+        description: truncate([...header, ...kept, ...footerLink].join('\n'), MAX_DESCRIPTION_LENGTH),
+        footer: {
+          text: truncate('Places à chaque manche dans l’ordre · remplaçants rattachés à leur squad', MAX_FOOTER_LENGTH),
+        },
+        timestamp: input.playedAt.toISOString(),
+      },
+    ],
+  }
+}
+
 export function buildTournamentRoundWebhookPayload(
   input: TournamentRoundEmbedInput
 ): DiscordWebhookPayload {
@@ -173,7 +247,7 @@ export function buildTournamentRoundWebhookPayload(
 
   // Le prorata produit des points décimaux : sans cette note, un lecteur croirait à une erreur de calcul.
   if (input.mode === 'inter_clan' && input.mixedSquadRule === 'prorata') {
-    descriptionLines.push('⚖️ Escouades mixtes : placement et bonus partagés au prorata de l’effectif de chaque clan.')
+    descriptionLines.push('⚖️ Squads mixtes : placement et bonus partagés au prorata de l’effectif de chaque clan.')
   }
 
   if (siteUrl) {

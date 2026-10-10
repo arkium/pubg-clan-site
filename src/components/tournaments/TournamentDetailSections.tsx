@@ -2,7 +2,7 @@
 
 import { ArrowRight, ChevronLeft, ChevronRight, Crown, MapPin, Play, Trophy } from 'lucide-react'
 import Link from 'next/link'
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 
 import PodiumCards from '@/components/ui/PodiumCards'
 import RankCell from '@/components/ui/RankCell'
@@ -13,11 +13,13 @@ import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
 import { tournamentMapLabel } from '@/lib/tournament-filters'
 import {
   TOURNAMENT_MODE_DISPLAY,
+  compactSquadLabel,
   formatTournamentPoints,
   isViewerParticipant,
   ordinal,
   participantForm,
   placementScale,
+  squadLabelGroups,
   tournamentRuleLines,
   type TournamentViewer,
   type ViewerPosition,
@@ -183,6 +185,27 @@ function FormHeader({ count }: { count: number }) {
   )
 }
 
+/**
+ * Squad en une ligne dans un tableau : le tag de chaque clan en gras, les pseudos en graisse normale, plus légers à lire
+ * (demande du 2026-10-11). « [FUN] A, B + [OCD] C », comme `compactSquadLabel`.
+ */
+function SquadLabel({ memberLabels, fallback }: { memberLabels: string[]; fallback: string }) {
+  const groups = squadLabelGroups(memberLabels)
+  if (groups.length === 0) return <>{fallback}</>
+  return (
+    <>
+      {groups.map((group, index) => (
+        <Fragment key={group.tag || `sans-tag-${index}`}>
+          {index > 0 ? ' + ' : null}
+          {group.tag ? <b className="font-extrabold">{group.tag}</b> : null}
+          {group.tag ? ' ' : null}
+          {group.names.join(', ')}
+        </Fragment>
+      ))}
+    </>
+  )
+}
+
 export function TournamentStandingsTable({
   mode,
   standings,
@@ -190,18 +213,26 @@ export function TournamentStandingsTable({
   viewer,
   showForm,
   prorata,
+  bySquad = false,
 }: {
   mode: TournamentMode
   standings: TournamentStandingView[]
-  rounds: TournamentRoundView[]
+  /** Places de chaque participant à chaque manche, avec les clés du classement affiché (escouades en détail par escouade). */
+  rounds: Array<Pick<TournamentRoundView, 'index'> & { scores: Array<{ key: string; bestPlacement: number }> }>
   viewer: TournamentViewer
-  /** Faux en détail par escouade : la forme se lit par participant du mode, pas par escouade. */
   showForm: boolean
   prorata: boolean
+  /**
+   * Détail par squad (demande du 2026-10-11) : joueurs en une ligne qui passe à la ligne, tag écrit une fois par clan,
+   * sans pastilles en double ; une colonne par manche (M1, M2…) plutôt qu'une seule colonne « Forme ».
+   */
+  bySquad?: boolean
 }) {
   const display = TOURNAMENT_MODE_DISPLAY[mode]
   const top = Math.max(1, standings[0]?.totalPoints ?? 1)
-  const showChips = mode === 'custom_teams'
+  const showChips = mode === 'custom_teams' && !bySquad
+  // Âge d'une manche (1 = la dernière) : les plus anciennes se masquent selon la largeur, comme la forme.
+  const roundVisibility = (age: number) => (age > FORM_DESKTOP ? 'hidden' : age > FORM_TABLET ? 'max-lg:hidden' : '')
   return (
     // Aucun défilement horizontal (charte §4) : sous 768 px, kills, Top 1 et forme passent dans la sous-ligne ou
     // disparaissent ; la forme est bornée aux dernières manches.
@@ -210,13 +241,24 @@ export function TournamentStandingsTable({
         <thead className="app-table-head">
           <tr>
             <SortableTh align="left" className="w-12 pl-3">Rang</SortableTh>
-            <SortableTh align="left">{display.column}</SortableTh>
+            <SortableTh align="left">{bySquad ? 'Squad' : display.column}</SortableTh>
             <SortableTh align="left" className="max-md:text-right" title={prorata ? 'Points de placement partagés au prorata de l’effectif : totaux décimaux possibles.' : undefined}>
               Points
             </SortableTh>
             <SortableTh className="max-md:hidden">Kills</SortableTh>
             <SortableTh className={`max-md:hidden ${showForm ? '' : 'pr-3'}`}>Top 1</SortableTh>
-            {showForm ? (
+            {showForm && bySquad
+              ? rounds.map((round, index) => (
+                  <SortableTh
+                    key={round.index}
+                    className={`max-md:hidden ${roundVisibility(rounds.length - index)} ${index === rounds.length - 1 ? 'pr-3' : ''}`}
+                    title={`Place à la manche ${round.index}`}
+                  >
+                    M{round.index}
+                  </SortableTh>
+                ))
+              : null}
+            {showForm && !bySquad ? (
               <SortableTh align="left" className="pr-3 max-md:hidden" title="Place à chaque manche, la plus récente à droite">
                 <FormHeader count={rounds.length} />
               </SortableTh>
@@ -235,7 +277,13 @@ export function TournamentStandingsTable({
                 <td className="min-w-0 px-[9px] py-2">
                   <span className="flex min-w-0 flex-col gap-1">
                     <span className="flex min-w-0 items-center gap-1.5">
-                      <b className="truncate text-sm text-gray-900">{standing.label}</b>
+                      {bySquad ? (
+                        <span className="break-words text-sm text-gray-900">
+                          <SquadLabel memberLabels={standing.memberLabels} fallback={standing.label} />
+                        </span>
+                      ) : (
+                        <b className="truncate text-sm text-gray-900">{standing.label}</b>
+                      )}
                       {mine ? (
                         // Marque du lecteur : accent teinté (jamais de blanc sur le jaune), 11 px minimum.
                         <span className="shrink-0 rounded-md bg-[var(--theme-ui-accent-soft)] px-1.5 py-px text-[11px] font-extrabold uppercase text-[var(--theme-ui-accent-text)]">
@@ -278,7 +326,19 @@ export function TournamentStandingsTable({
                 >
                   {standing.wins}
                 </td>
-                {showForm ? (
+                {showForm && bySquad
+                  ? form.map((entry, index) => (
+                      <td
+                        key={entry.round}
+                        className={`py-2 pl-[9px] text-center max-md:hidden ${roundVisibility(form.length - index)} ${
+                          index === form.length - 1 ? 'pr-3' : 'pr-[9px]'
+                        }`}
+                      >
+                        <PlaceChip round={entry.round} placement={entry.placement} />
+                      </td>
+                    ))
+                  : null}
+                {showForm && !bySquad ? (
                   <td className="py-2 pl-[9px] pr-3 max-md:hidden">
                     <span className="flex gap-[3px]">
                       {form.map((entry, index) => {
@@ -344,12 +404,15 @@ export function TournamentRounds({
   rounds,
   standings,
   viewer,
+  bySquad = false,
 }: {
   tournamentId: string
   mode: TournamentMode
   rounds: TournamentRoundView[]
   standings: TournamentStandingView[]
   viewer: TournamentViewer
+  /** Manches escouade par escouade (inter-clans) : joueurs et clans de chaque équipe PUBG, sur une ou deux lignes. */
+  bySquad?: boolean
 }) {
   // La dernière manche jouée d'abord : c'est celle qu'on vient voir pendant un tournoi.
   const [selected, setSelected] = useState(rounds.length - 1)
@@ -358,6 +421,8 @@ export function TournamentRounds({
   const round = rounds[index]
   const image = mapAssetUrl(round.mapName) ?? '/matches.jpg'
   const viewerKeys = new Set(standings.filter((standing) => isViewerParticipant(standing.participant, viewer)).map((standing) => standing.key))
+  const winningSquad = bySquad ? round.scores.find((score) => score.bestPlacement === 1) : undefined
+  const winnerLabel = winningSquad ? compactSquadLabel(winningSquad.memberLabels) : round.winnerLabel
   // Puces paginées plutôt qu'une rangée qui défile de côté (charte §4, « Pagination ») : 7 au plus, chevrons compris
   // la rangée tient dans 343 px.
   const chips: Array<number | 'gap'> =
@@ -412,8 +477,10 @@ export function TournamentRounds({
       >
         {/* Carte de la manche, toujours sombre : `.app-on-photo` (or de jeu lisible dans les deux thèmes). */}
         <div className="app-on-photo bg-map-fallback relative min-h-[240px] bg-cover bg-center text-white" style={{ backgroundImage: `url('${image}')` }}>
-          <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 from-35% to-slate-950/30" />
-          <div className="absolute inset-x-3.5 bottom-3.5 flex flex-col gap-2">
+          {/* Contenu en haut de la colonne (demande du 2026-10-11) : le tableau des escouades est plus haut que la carte,
+              le vainqueur et le replay restent visibles sans descendre. Dégradé sombre du même côté, pour la lisibilité. */}
+          <div className="absolute inset-0 bg-gradient-to-b from-slate-950/95 from-35% to-slate-950/30" />
+          <div className="absolute inset-x-3.5 top-3.5 flex flex-col gap-2">
             <span className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-white/70">
               Manche {round.index} · {tournamentMapLabel(round.mapName)}
             </span>
@@ -421,7 +488,7 @@ export function TournamentRounds({
             {/* Vainqueur de la manche : tampon « Chicken dinner » (signature, accent à encre sombre), cadre en or de jeu. */}
             <div className="flex flex-col items-start gap-1.5 rounded-[10px] border border-[var(--game-gold-ring)] bg-[var(--game-gold-soft)] p-2.5">
               <span className="app-stamp app-stamp--sm">Chicken dinner</span>
-              <b className="text-sm">{round.winnerLabel ?? 'Hors des participants suivis'}</b>
+              <b className="text-sm">{winnerLabel ?? 'Hors des participants suivis'}</b>
             </div>
             {round.mvp ? (
               <span className="text-xs text-white/85">
@@ -452,7 +519,7 @@ export function TournamentRounds({
           <thead className="app-table-head">
             <tr>
               <SortableTh align="left" className="w-14 pl-3.5">Place</SortableTh>
-              <SortableTh align="left">{TOURNAMENT_MODE_DISPLAY[mode].column}</SortableTh>
+              <SortableTh align="left">{bySquad ? 'Squad' : TOURNAMENT_MODE_DISPLAY[mode].column}</SortableTh>
               <SortableTh>Kills</SortableTh>
               <SortableTh className="pr-3.5">Pts</SortableTh>
             </tr>
@@ -463,7 +530,14 @@ export function TournamentRounds({
                 <td className="py-2 pl-3.5 pr-[9px]">
                   <PlaceChip round={round.index} placement={score.bestPlacement} />
                 </td>
-                <td className="max-w-0 truncate px-[9px] py-2 font-semibold text-gray-900">{score.label}</td>
+                {bySquad ? (
+                  // Escouade : tous ses joueurs, tag écrit une fois par clan ; la ligne passe à la ligne plutôt que de couper.
+                  <td className="break-words px-[9px] py-2 text-gray-900">
+                    <SquadLabel memberLabels={score.memberLabels} fallback={score.label} />
+                  </td>
+                ) : (
+                  <td className="max-w-0 truncate px-[9px] py-2 font-semibold text-gray-900">{score.label}</td>
+                )}
                 <td className="t-num px-[9px] py-2 text-right text-gray-700">{score.totalKills}</td>
                 <td className="t-num py-2 pl-[9px] pr-3.5 text-right font-bold text-gray-900">{formatTournamentPoints(score.points)}</td>
               </tr>

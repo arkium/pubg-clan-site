@@ -315,6 +315,38 @@ bandeau d'image de la liste inchangée ; « Tous formats » (et non « Tous les 
 - **`resolveTournamentPhase`** vit dans le module pur `tournament-mode-display.ts` (la page de détail, côté navigateur,
   en avait une copie) ; `tournament-overview.ts` le réexporte.
 
+### Squads d'une partie personnalisée (tournoi [FR] du 2026-10-10)
+
+Une partie personnalisée range **tout le lobby suivi** sous une seule ligne `SquadMatch`
+(`materializeTournamentCustomMatches`). Le moteur la traitait comme une seule squad : prorata calculé sur les 71
+joueurs (points à rallonge de décimales) et « détail par escouade » qui mélangeait tous les clans. Désormais
+(`src/lib/tournament-service.ts`) :
+
+- **Une équipe PUBG = les joueurs qui ont le même placement** (`splitIntoPubgTeams`) ; sans placement, le joueur reste
+  seul. Le prorata se calcule **dans chaque squad**.
+- **Inter-clans** : un clan **cumule** les points de ses squads (une manche jouée par clan et par partie).
+  `bestOfRounds` retient les meilleures manches du clan.
+- **Squad suivie d'une manche à l'autre** (`groupMatchesByMode`) : une équipe rejoint la squad déjà vue avec qui elle
+  partage la **majorité** de ses joueurs suivis. Un remplaçant ou un absent ne crée pas de nouvelle ligne ; un joueur
+  qui change de squad ne fusionne pas les deux. La squad liste ses joueurs, les plus réguliers d'abord.
+
+### Détail par squad et manches (2026-10-11)
+
+Le mot **« squad »** remplace « escouade » dans tout ce qui touche aux tournois (pages, administration, guide,
+Discord) ; le reste du site (débrief d'une partie, notifications) dit toujours « escouade ».
+
+- **Détail par squad** (inter-clans) : même barème, mais chaque squad marque **tous** ses points (pas de prorata).
+  Colonnes Squad, Points, Kills, Top 1, puis **une colonne par manche** (M1, M2…) avec la place ; masquées sur mobile
+  comme la forme. Joueurs en une ligne qui passe à la ligne, **tag en gras écrit une fois par clan, pseudos en
+  graisse normale** (`squadLabelGroups`, `compactSquadLabel` dans `tournament-mode-display.ts`).
+- **Manches** (inter-clans) : le tableau de chaque manche liste **les squads** (place, joueurs et clans, kills,
+  points), plus les clans aux points partagés. Le cumul par clan d'une manche reste dans le débrief, onglet du
+  tournoi. Route : `squadRounds` (`buildRoundViews` en mode `custom_teams`), mêmes clés que `squadBreakdown`.
+- **Carte de la manche** : titre, Chicken dinner, MVP et le bouton **« Revoir en replay 2D »** (onglet Replay du
+  débrief, `matchTournamentReplayPath`) sont en **haut** de la colonne, le tableau des squads étant plus haut que la
+  carte.
+- **Débrief** : points d'une manche arrondis à une décimale (`formatTournamentPoints`).
+
 ### Anciennes adresses
 
 `/clans/[clanId]/tournaments` et `/clans/[clanId]/tournaments/[tournamentId]` affichaient un écran, chargeaient les
@@ -331,7 +363,13 @@ L'embed de résultats de manche suit le mode du tournoi (`src/lib/discord/discor
 | `inter_clan` | Scores de la manche | `N clan(s) classé(s)` |
 | `custom_teams` | Scores de la manche (équipes) | `N équipe(s) classée(s)` |
 | `solo_ffa` | Classement de la manche (joueurs) | `N joueur(s) classé(s)` |
-| `intra_clan` | Scores de la manche (escouades internes) | `N escouade(s) classée(s)` |
+| `intra_clan` | Scores de la manche (squads internes) | `N squad(s) classée(s)` |
+
+**Classement final par squad** (inter-clans, 2026-10-11) : la modale propose, sous les manches, « Classement final par
+squad » (`GET …/discord?view=squads`, `POST { view: 'squads' }`). Une ligne par squad — joueurs groupés par clan,
+points, kills, Top 1 et place à chaque manche — dans la description de l'embed (4 096 caractères ; au-delà, « … et N
+autre(s) squad(s) »). Journal `DiscordNotificationLog` : `kind = 'tournament_squads'`, `refId` = identifiant du tournoi ;
+une rediffusion est signalée comme pour une manche.
 
 Le classement général joint à l'embed suit le même mode. Quand le partage au prorata est actif, une ligne l'annonce :
 sans elle, les points décimaux passeraient pour une erreur de calcul.

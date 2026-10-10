@@ -728,7 +728,7 @@ model DiscordNotificationLog {
   clanId Int
   clan   Clan @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
-  kind  String // top1 | tournament_round
+  kind  String // top1 | tournament_round | tournament_squads
   refId String @db.VarChar(191)
 
   sentAt DateTime @default(now())

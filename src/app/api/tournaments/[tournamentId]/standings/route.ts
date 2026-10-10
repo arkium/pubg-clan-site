@@ -63,6 +63,11 @@ export async function GET(
       // Détail par escouade : proposé uniquement en inter-clans, où le cumul par clan masque les escouades.
       squadBreakdown:
         rules.mode === 'inter_clan' ? buildSquadBreakdown(matches, participantClanIds, rules, clans, members) : [],
+      // Manches escouade par escouade (2026-10-11) : le tableau de chaque manche et la forme du détail par escouade.
+      squadRounds:
+        rules.mode === 'inter_clan'
+          ? buildRoundViews(matches, participantClanIds, { ...rules, mode: 'custom_teams' }, clans, members)
+          : [],
       // Trophée des clans : n'a de sens qu'en solo, où le classement principal est individuel.
       clanTrophy: rules.mode === 'solo_ffa' ? buildClanTrophy(modeStandings, clans) : [],
       rounds: buildRoundViews(matches, participantClanIds, rules, clans, members, tournament.organizerClanId),

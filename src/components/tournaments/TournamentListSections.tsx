@@ -336,7 +336,7 @@ export function winnerSubline(tournament: TournamentOverview, viewer: Tournament
     case 'custom_teams':
       return winner.clanIds.length > 1 ? `équipe mixte de ${winner.clanIds.length} clans` : 'équipe d’un seul clan'
     case 'intra_clan':
-      return tournament.organizerClan ? `escouade de ${tournament.organizerClan.name}` : 'escouade du clan'
+      return tournament.organizerClan ? `squad de ${tournament.organizerClan.name}` : 'squad du clan'
   }
 }
 

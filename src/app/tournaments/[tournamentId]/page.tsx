@@ -57,6 +57,8 @@ type StandingsResponse = {
   rules?: TournamentRules
   modeStandings?: TournamentStandingView[]
   squadBreakdown?: TournamentStandingView[]
+  /** Manches escouade par escouade : tableau de chaque manche et forme du détail par escouade (inter-clans). */
+  squadRounds?: TournamentRoundView[]
   clanTrophy?: Array<{ clanId: number; label: string; points: number; kills: number; players: number }>
   rounds?: TournamentRoundView[]
   mvp?: { memberId: number; label: string; kills: number; damage: number } | null
@@ -202,6 +204,12 @@ export default function TournamentDetailPage() {
     mapAssetUrl(tournament?.mapName) ?? mapAssetUrl(lastRound?.mapName) ?? '/ClanLeaderboardTable.jpg'
   const squadView = rules?.mode === 'inter_clan' && granularity === 'squad'
   const displayedStandings = squadView ? (payload?.squadBreakdown ?? []) : standings
+  // Forme : place de chaque escouade à chaque manche en détail par escouade, de chaque participant du mode sinon.
+  const formRounds = squadView ? (payload?.squadRounds ?? []) : rounds
+  // Manches escouade par escouade en inter-clans (demande du 2026-10-11) : une ligne par équipe PUBG, joueurs et clans,
+  // plutôt que des clans aux points partagés. Le cumul par clan d'une manche reste au débrief, onglet du tournoi.
+  const squadRounds = payload?.squadRounds ?? []
+  const roundsBySquad = rules?.mode === 'inter_clan' && squadRounds.length === rounds.length && squadRounds.length > 0
   const sections = rounds.length > 0 ? SECTIONS : SECTIONS_WITHOUT_ROUNDS
   const compactSections = rounds.length > 0 ? COMPACT_SECTIONS : COMPACT_SECTIONS_WITHOUT_ROUNDS
 
@@ -308,9 +316,9 @@ export default function TournamentDetailPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
                 <h2 id="tournament-standings-title" className="t-section-title">Classement</h2>
                 <span className="t-meta">
-                  {displayedStandings.length} {displayedStandings.length > 1 ? (squadView ? 'escouades' : display.unit.many) : squadView ? 'escouade' : display.unit.one} ·{' '}
+                  {displayedStandings.length} {displayedStandings.length > 1 ? (squadView ? 'squads' : display.unit.many) : squadView ? 'squad' : display.unit.one} ·{' '}
                   {rounds.length} manche{rounds.length > 1 ? 's' : ''}
-                  {!squadView && rounds.length > 0 ? ' · la forme montre la place à chaque manche' : ''}
+                  {formRounds.length > 0 ? ' · la forme montre la place à chaque manche' : ''}
                 </span>
                 {rules.mode === 'inter_clan' && (payload?.squadBreakdown ?? []).length > 0 ? (
                   // Granularité du classement : contrôle propre à la section, il reste ici (sticky.md, « contrôle de section »).
@@ -318,7 +326,7 @@ export default function TournamentDetailPage() {
                     className="ml-auto"
                     options={[
                       { value: 'clan', label: 'Cumul par clan' },
-                      { value: 'squad', label: 'Détail par escouade' },
+                      { value: 'squad', label: 'Détail par squad' },
                     ]}
                     value={granularity}
                     onChange={setGranularity}
@@ -331,10 +339,12 @@ export default function TournamentDetailPage() {
                 <TournamentStandingsTable
                   mode={squadView ? 'custom_teams' : rules.mode}
                   standings={displayedStandings}
-                  rounds={rounds}
+                  rounds={formRounds}
                   viewer={viewer}
-                  showForm={!squadView && rounds.length > 0}
-                  prorata={rules.mode === 'inter_clan' && rules.mixedSquadRule === 'prorata'}
+                  showForm={formRounds.length > 0}
+                  bySquad={squadView}
+                  // Une escouade marque tous ses points : le prorata ne partage que le cumul par clan.
+                  prorata={!squadView && rules.mode === 'inter_clan' && rules.mixedSquadRule === 'prorata'}
                 />
               )}
             </section>
@@ -343,7 +353,14 @@ export default function TournamentDetailPage() {
 
             {rounds.length > 0 ? (
               <section id="tournament-rounds" aria-label="Manches" className="flex flex-col gap-2.5">
-                <TournamentRounds tournamentId={tournament.id} mode={rules.mode} rounds={rounds} standings={standings} viewer={viewer} />
+                <TournamentRounds
+                  tournamentId={tournament.id}
+                  mode={rules.mode}
+                  rounds={roundsBySquad ? squadRounds : rounds}
+                  standings={roundsBySquad ? (payload?.squadBreakdown ?? []) : standings}
+                  viewer={viewer}
+                  bySquad={roundsBySquad}
+                />
               </section>
             ) : null}
 

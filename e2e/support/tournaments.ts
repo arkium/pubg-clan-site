@@ -144,6 +144,27 @@ export function liveTournamentStandings(roundCount = MAPS.length) {
     squadBreakdown: [
       view({ ...summary('team:1:2:3:4', { kind: 'team', memberIds: [1, 2, 3, 4], clanIds: [CLAN_ID] }, '[DEMO] Joueur Alpha, [DEMO] Joueur Bravo', 30, 11, 1, [CLAN_ID]), memberLabels: ['[DEMO] Joueur Alpha', '[DEMO] Joueur Bravo'] }, 1),
     ],
+    // Place de l'escouade à chaque manche : la forme du détail par escouade.
+    squadRounds: rounds(roundCount).map((round, index) => {
+      const bestPlacement = index === 0 ? 1 : index + 2
+      return {
+        ...round,
+        winnerLabel: bestPlacement === 1 ? '[DEMO] Joueur Alpha, [DEMO] Joueur Bravo' : null,
+        scores: [
+          {
+            key: 'team:1:2:3:4',
+            label: '[DEMO] Joueur Alpha, [DEMO] Joueur Bravo',
+            memberLabels: ['[DEMO] Joueur Alpha', '[DEMO] Joueur Bravo'],
+            points: 14,
+            totalKills: 4,
+            bestPlacement,
+            placementScore: 10,
+            killScore: 4,
+            winBonus: 0,
+          },
+        ],
+      }
+    }),
     clanTrophy: [],
     rounds: rounds(roundCount),
     mvp: { memberId: 1, label: '[DEMO] Joueur Alpha', kills: 24, damage: 3380 },

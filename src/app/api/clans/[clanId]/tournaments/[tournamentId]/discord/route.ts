@@ -3,15 +3,19 @@ import { z } from 'zod'
 import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   broadcastTournamentRound,
+  broadcastTournamentSquadStandings,
   DiscordTournamentError,
   listTournamentRounds,
   prepareTournamentRoundBroadcast,
+  prepareTournamentSquadStandingsBroadcast,
 } from '@/lib/discord/discord-tournament-service'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 
-const BroadcastSchema = z.object({
-  matchId: z.string().trim().min(1).max(191),
-})
+// Une manche (`matchId`), ou le classement par escouade du tournoi (`view: 'squads'`, demande du 2026-10-11).
+const BroadcastSchema = z.union([
+  z.object({ matchId: z.string().trim().min(1).max(191) }),
+  z.object({ view: z.literal('squads') }),
+])
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -44,11 +48,22 @@ export async function GET(
   const permissionError = await requireClanFeature(request, clanId, 'clan-competition')
   if (permissionError) return permissionError
 
-  const matchId = new URL(request.url).searchParams.get('matchId')
+  const searchParams = new URL(request.url).searchParams
+  const matchId = searchParams.get('matchId')
 
   try {
+    if (searchParams.get('view') === 'squads') {
+      const prepared = await prepareTournamentSquadStandingsBroadcast(clanId, tournamentId)
+      return Response.json({
+        preview: prepared.payload,
+        totalRounds: prepared.totalRounds,
+        usesTournamentOverride: prepared.usesTournamentOverride,
+        alreadySentAt: prepared.alreadySentAt,
+      })
+    }
+
     if (!matchId) {
-      return Response.json({ rounds: await listTournamentRounds(clanId, tournamentId) })
+      return Response.json(await listTournamentRounds(clanId, tournamentId))
     }
 
     const prepared = await prepareTournamentRoundBroadcast(clanId, tournamentId, matchId)
@@ -87,6 +102,11 @@ async function handlePost(
   }
 
   try {
+    if ('view' in validated.data) {
+      await broadcastTournamentSquadStandings(clanId, tournamentId)
+      return Response.json({ success: true, message: 'Classement par squad publié sur Discord.' })
+    }
+
     const result = await broadcastTournamentRound(clanId, tournamentId, validated.data.matchId)
 
     return Response.json({

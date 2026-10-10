@@ -407,7 +407,7 @@ export function TournamentEditor({
         {form.mode === 'inter_clan' ? (
           <ChoiceTiles
             name="mixed-squad-rule"
-            label="Escouades mixtes"
+            label="Squads mixtes"
             options={MIXED_SQUAD_RULE_DESCRIPTIONS}
             value={form.mixedSquadRule}
             onChange={(mixedSquadRule) => set({ mixedSquadRule })}

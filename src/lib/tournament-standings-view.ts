@@ -240,3 +240,21 @@ export function buildSquadBreakdown(
   })
   return buildStandingViews(standings, clans, members)
 }
+
+/**
+ * Place de chaque escouade à chaque manche, pour la colonne « Forme » du détail par escouade (demande du 2026-10-11) :
+ * mêmes clés que `buildSquadBreakdown`, escouades suivies malgré leurs remplaçants, manches numérotées comme
+ * `buildRoundViews`. Seules les places sont renvoyées : les manches restent affichées clan par clan.
+ */
+export function buildSquadRounds(
+  matches: MatchLike[],
+  participantClanIds: number[],
+  rulesInput: TournamentRulesInput | NormalizedTournamentRules
+): Array<{ index: number; scores: Array<{ key: string; bestPlacement: number }> }> {
+  const rules = normalizeTournamentRules(rulesInput)
+  const { rounds } = groupMatchesByMode(matches, participantClanIds, { ...rules, mode: 'custom_teams' })
+  return rounds.map(({ entries }, index) => ({
+    index: index + 1,
+    scores: entries.map((entry) => ({ key: entry.key, bestPlacement: entry.bestPlacement })),
+  }))
+}

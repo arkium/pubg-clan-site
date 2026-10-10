@@ -4,6 +4,7 @@ import {
   buildClanTrophy,
   buildRoundViews,
   buildSquadBreakdown,
+  buildSquadRounds,
   buildStandingViews,
   describeParticipant,
   pickMvp,
@@ -143,5 +144,18 @@ describe('buildSquadBreakdown', () => {
       [1, '[SMK] Pagiotte, [SMK] TigrOo'],
       [2, '[RATZ] Nova'],
     ])
+  })
+
+  it('donne la place de chaque escouade à chaque manche, avec les clés du détail (colonne « Forme »)', () => {
+    const keys = buildSquadBreakdown([round1, round2], [1, 2], RULES, CLANS, MEMBERS).map((view) => view.key)
+    const squadRounds = buildSquadRounds([round2, round1], [1, 2], RULES)
+    expect(squadRounds.map((round) => round.index)).toEqual([1, 2])
+    expect(squadRounds[0].scores).toEqual([
+      { key: 'team:10:11', bestPlacement: 1 },
+      { key: 'team:20', bestPlacement: 2 },
+    ])
+    for (const round of squadRounds) {
+      expect(round.scores.every((score) => keys.includes(score.key))).toBe(true)
+    }
   })
 })

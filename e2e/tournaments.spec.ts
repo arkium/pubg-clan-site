@@ -187,9 +187,14 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await expect(page.getByText('MVP du tournoi')).toBeVisible()
   })
 
-  test('détail par escouade, gardé en inter-clans', async ({ page }) => {
-    await page.getByRole('button', { name: 'Détail par escouade' }).click()
+  test('détail par escouade, gardé en inter-clans, avec la forme de chaque escouade', async ({ page }, testInfo) => {
+    await page.getByRole('button', { name: 'Détail par squad' }).click()
     await expect(page.locator('#tournament-standings tbody tr')).toHaveCount(1)
+    // Une colonne par manche (M1, M2…) avec la place de la squad ; masquées sur mobile, comme la forme.
+    if (testInfo.project.name !== 'chromium-mobile' && testInfo.project.name !== 'webkit-iphone') {
+      await expect(page.locator('#tournament-standings thead')).toContainText('M1')
+      await expect(page.locator('#tournament-standings tbody tr').first().locator('[title="Manche 1 : 1re place"]')).toHaveCount(1)
+    }
     await page.getByRole('button', { name: 'Cumul par clan' }).click()
     await expect(page.locator('#tournament-standings tbody tr')).toHaveCount(4)
   })
@@ -202,6 +207,10 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await rounds.getByRole('button', { name: 'M1', exact: true }).click()
     await expect(rounds.getByRole('article')).toHaveAttribute('aria-label', 'Manche 1')
     await expect(rounds.getByRole('button', { name: 'Manche précédente' })).toBeDisabled()
+    // Inter-clans : chaque manche liste les escouades, leurs joueurs et leur clan (tag écrit une fois par clan).
+    await expect(rounds.locator('thead')).toContainText('Squad')
+    await expect(rounds.locator('tbody')).toContainText('[DEMO] Joueur Alpha, Joueur Bravo')
+    await expect(rounds.getByRole('article')).toContainText('Chicken dinner')
     // Le replay 2D est mis en avant : le bouton ouvre directement l'onglet Replay du débrief.
     await expect(rounds.getByRole('link', { name: /Revoir en replay 2D/ })).toHaveAttribute(
       'href',
@@ -212,7 +221,7 @@ test.describe('détail d’un tournoi inter-clans', () => {
   test('barème en barres et règles, escouades mixtes en inter-clans', async ({ page }) => {
     const rules = page.locator('#tournament-rules')
     await expect(rules.getByRole('listitem')).toHaveCount(10)
-    await expect(rules).toContainText('Escouades mixtes')
+    await expect(rules).toContainText('Squads mixtes')
     await expect(rules).toContainText('partage intégral')
   })
 
@@ -287,7 +296,7 @@ test('détail d’un tournoi solo : trophée des clans, « Toi », pas d’escou
   await expect(phaseBadge(page)).toHaveText('TERMINÉ')
   await expect(page.getByTestId('tournament-viewer-position')).toContainText('Toi : 2e')
   await expect(page.getByRole('region', { name: 'Trophée des clans' })).toContainText('[RATZ] Les Ratz')
-  await expect(page.locator('#tournament-rules')).not.toContainText('Escouades mixtes')
+  await expect(page.locator('#tournament-rules')).not.toContainText('Squads mixtes')
   // Aucune manche : ni section, ni ancre vers elle.
   await expect(toolbar(page).getByRole('link', { name: 'Manches' })).toHaveCount(0)
 })

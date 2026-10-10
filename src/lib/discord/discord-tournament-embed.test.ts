@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildTournamentRoundWebhookPayload,
+  buildTournamentSquadStandingsWebhookPayload,
   formatPlacement,
   formatPoints,
   TOURNAMENT_COLOR,
@@ -68,8 +69,8 @@ describe('embed selon le mode du tournoi', () => {
       custom_teams: ['Scores de la manche (équipes)', 'équipe(s) classée(s)', 'Classement général des équipes'],
       solo_ffa: ['Classement de la manche (joueurs)', 'joueur(s) classé(s)', 'Classement général individuel'],
       intra_clan: [
-        'Scores de la manche (escouades internes)',
-        'escouade(s) classée(s)',
+        'Scores de la manche (squads internes)',
+        'squad(s) classée(s)',
         'Classement interne provisoire',
       ],
     } as const
@@ -256,5 +257,48 @@ describe('formatPoints / formatPlacement', () => {
     expect(formatPlacement(1)).toBe('1er')
     expect(formatPlacement(2)).toBe('2e')
     expect(formatPlacement(12)).toBe('12e')
+  })
+})
+
+describe('buildTournamentSquadStandingsWebhookPayload', () => {
+  const squadInput = {
+    tournamentId: 'tour-1',
+    tournamentTitle: 'Tournoi [FR] 10/10/26',
+    totalRounds: 3,
+    killPoints: 1,
+    winBonus: 5,
+    squads: [
+      { memberLabels: ['[FUN] Tie-Poucrav', '[FUN] L0RD19'], totalPoints: 112, totalKills: 59, wins: 2, form: [1, 9, 1] },
+      { memberLabels: ['[LTF] P0mpoko', '[OCD] Valino13', '[OCD] ZaPiT'], totalPoints: 93.5, totalKills: 47, wins: 1, form: [2, null, 1] },
+    ],
+    playedAt: new Date('2026-10-10T21:42:00.000Z'),
+    mention: '',
+    siteUrl: 'https://chickendinner.fr/',
+  }
+
+  it('classe les escouades : joueurs regroupés par clan, points, kills, Top 1 et place à chaque manche', () => {
+    const [embed] = buildTournamentSquadStandingsWebhookPayload(squadInput).embeds
+    expect(embed.title).toBe('🏆 Tournoi : Tournoi [FR] 10/10/26 — Classement par squad')
+    expect(embed.url).toBe('https://chickendinner.fr/tournaments/tour-1')
+    expect(embed.description).toContain('🥇 **[FUN] Tie-Poucrav, L0RD19**')
+    expect(embed.description).toContain('**112 pts** · 59 kills · 2 Top 1 · manches : #1 · 9 · #1')
+    expect(embed.description).toContain('🥈 **[LTF] P0mpoko + [OCD] Valino13, ZaPiT**')
+    expect(embed.description).toContain('**93.5 pts** · 47 kills · 1 Top 1 · manches : 2 · – · #1')
+    expect(embed.description).toContain('1 pt par kill, +5 pour un Top 1')
+    expect(embed.description).toContain('(https://chickendinner.fr/tournaments/tour-1)')
+  })
+
+  it('reste dans les limites Discord avec beaucoup d’escouades', () => {
+    const squads = Array.from({ length: 60 }, (_, index) => ({
+      memberLabels: Array.from({ length: 6 }, (_, member) => `[CLAN${index}] Joueur-au-pseudo-long-${member}`),
+      totalPoints: 100 - index,
+      totalKills: 10,
+      wins: 0,
+      form: [1, 2, 3, 4, 5],
+    }))
+    const [embed] = buildTournamentSquadStandingsWebhookPayload({ ...squadInput, squads }).embeds
+    expect(embed.description!.length).toBeLessThanOrEqual(4096)
+    expect(embed.description).toContain('… et ')
+    expect(embed.description).toContain('Classement complet sur le site')
   })
 })

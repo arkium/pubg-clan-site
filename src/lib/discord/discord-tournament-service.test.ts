@@ -34,8 +34,10 @@ import { sendDiscordWebhook } from '@/lib/discord/discord-client'
 import { DEFAULT_DISCORD_SETTINGS } from '@/lib/discord/discord-config'
 import {
   broadcastTournamentRound,
+  broadcastTournamentSquadStandings,
   DiscordTournamentError,
   prepareTournamentRoundBroadcast,
+  prepareTournamentSquadStandingsBroadcast,
 } from '@/lib/discord/discord-tournament-service'
 import { prisma } from '@/lib/prisma'
 import { getTournamentForClan, getTournamentMatches } from '@/lib/tournament-service'
@@ -240,7 +242,7 @@ describe('diffusion selon le mode du tournoi', () => {
     const [embed] = payload.embeds
     const mvpField = embed.fields!.find((field) => field.name.includes('MVP'))
 
-    expect(embed.fields![0].name).toBe('Scores de la manche (escouades internes)')
+    expect(embed.fields![0].name).toBe('Scores de la manche (squads internes)')
     expect(embed.fields![0].value).toContain('[ALP] Alpha')
     expect(embed.fields![0].value).not.toContain('Bravo')
     // Joueur2 (clan 7) fait pourtant plus de dégâts : il ne concourt pas dans un tournoi interne.
@@ -284,5 +286,40 @@ describe('broadcastTournamentRound', () => {
     ).rejects.toMatchObject({ status: 502 })
 
     expect(prisma.discordNotificationLog.upsert).not.toHaveBeenCalled()
+  })
+})
+
+describe('classement par escouade', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('classe chaque escouade sur tout le tournoi, avec sa place à chaque manche', async () => {
+    arrange()
+
+    const { payload, totalRounds, alreadySentAt } = await prepareTournamentSquadStandingsBroadcast(CLAN_ID, TOURNAMENT_ID)
+    const [embed] = payload.embeds
+
+    expect(totalRounds).toBe(2)
+    expect(alreadySentAt).toBeNull()
+    expect(embed.title).toContain('Classement par squad')
+    // 25 points chacune : départagées par les kills (9 contre 7).
+    expect(embed.description).toContain('🥇 **[ALP] Alpha**\n**25 pts** · 9 kills · 1 Top 1 · manches : 2 · #1')
+    expect(embed.description).toContain('🥈 **[BRV] Bravo**\n**25 pts** · 7 kills · 1 Top 1 · manches : #1 · 4')
+  })
+
+  it('n’existe qu’en inter-clans', async () => {
+    arrange({ rules: { mode: 'solo_ffa' } })
+
+    await expect(prepareTournamentSquadStandingsBroadcast(CLAN_ID, TOURNAMENT_ID)).rejects.toMatchObject({ status: 400 })
+  })
+
+  it('publie puis enregistre la diffusion, une par tournoi', async () => {
+    arrange()
+
+    await expect(broadcastTournamentSquadStandings(CLAN_ID, TOURNAMENT_ID)).resolves.toEqual({ totalRounds: 2 })
+    expect(prisma.discordNotificationLog.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: { clanId: CLAN_ID, kind: 'tournament_squads', refId: TOURNAMENT_ID } })
+    )
   })
 })

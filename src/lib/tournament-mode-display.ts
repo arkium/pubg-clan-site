@@ -25,7 +25,7 @@ const EXTRA: Record<TournamentMode, Pick<TournamentModeDisplay, 'column' | 'unit
   inter_clan: { column: 'Clan', unit: { one: 'clan', many: 'clans' }, viewer: 'Ton clan' },
   custom_teams: { column: 'Équipe', unit: { one: 'équipe', many: 'équipes' }, viewer: 'Ton équipe' },
   solo_ffa: { column: 'Joueur', unit: { one: 'joueur', many: 'joueurs' }, viewer: 'Toi' },
-  intra_clan: { column: 'Escouade', unit: { one: 'escouade', many: 'escouades' }, viewer: 'Ton escouade' },
+  intra_clan: { column: 'Squad', unit: { one: 'squad', many: 'squads' }, viewer: 'Ta squad' },
 }
 
 export const TOURNAMENT_MODE_DISPLAY = Object.fromEntries(
@@ -51,6 +51,27 @@ const pointsFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 }
 
 /** Les points deviennent décimaux avec le partage au prorata : la décimale n'apparaît que si elle existe. */
 export const formatTournamentPoints = (value: number) => pointsFormat.format(value)
+
+/**
+ * Escouade en une ligne : « [FUN] A, [FUN] B, [OCD] C » devient « [FUN] A, B + [OCD] C ». Le tag n'est écrit qu'une fois
+ * par clan — manches de la page d'un tournoi et classement par escouade sur Discord (2026-10-11).
+ */
+export function compactSquadLabel(memberLabels: string[]) {
+  return squadLabelGroups(memberLabels)
+    .map(({ tag, names }) => `${tag ? `${tag} ` : ''}${names.join(', ')}`)
+    .join(' + ')
+}
+
+/** Joueurs d'une squad groupés par clan, dans l'ordre : les tableaux mettent le tag en gras, pas les pseudos. */
+export function squadLabelGroups(memberLabels: string[]): Array<{ tag: string; names: string[] }> {
+  const groups = new Map<string, string[]>()
+  for (const label of memberLabels) {
+    const match = /^(\[[^\]]+\])\s+(.+)$/.exec(label)
+    const tag = match ? match[1] : ''
+    groups.set(tag, [...(groups.get(tag) ?? []), match ? match[2] : label])
+  }
+  return [...groups.entries()].map(([tag, names]) => ({ tag, names }))
+}
 
 // ── Le lecteur dans un classement ───────────────────────────────────────────────────────────────────
 
@@ -187,7 +208,7 @@ export function tournamentRuleLines(rules: RulesLike) {
   ]
   if (rules.mode === 'inter_clan') {
     lines.push({
-      label: 'Escouades mixtes',
+      label: 'Squads mixtes',
       value: rules.mixedSquadRule === 'prorata' ? 'au prorata de l’effectif' : 'partage intégral',
     })
   }

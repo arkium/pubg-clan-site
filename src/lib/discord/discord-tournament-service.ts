@@ -8,8 +8,11 @@ import {
   getTrackedTournamentClanIds,
   normalizeTournamentRules,
 } from '@/lib/tournament-service'
+import { participantForm } from '@/lib/tournament-mode-display'
 import {
   buildRoundViews,
+  buildSquadBreakdown,
+  buildSquadRounds,
   buildStandingViews,
   type ClanDirectory,
   type MemberDirectory,
@@ -21,10 +24,13 @@ import { getDiscordSettings } from '@/lib/discord/discord-config-service'
 import { getSiteBaseUrl } from '@/lib/discord/discord-service'
 import {
   buildTournamentRoundWebhookPayload,
+  buildTournamentSquadStandingsWebhookPayload,
   type TournamentRoundMvp,
 } from '@/lib/discord/discord-tournament-embed'
 
 const TOURNAMENT_ROUND_KIND = 'tournament_round'
+/** Classement par escouade d'un tournoi : une entrée par tournoi (`refId` = identifiant du tournoi). */
+const TOURNAMENT_SQUADS_KIND = 'tournament_squads'
 
 export class DiscordTournamentError extends Error {
   status: number
@@ -233,7 +239,7 @@ export async function prepareTournamentRoundBroadcast(
 }
 
 export async function listTournamentRounds(clanId: number, tournamentId: string) {
-  await getTournamentForClan(clanId, tournamentId)
+  const tournament = await getTournamentForClan(clanId, tournamentId)
 
   const matches = [...(await getTournamentMatches(tournamentId))].sort(
     (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
@@ -242,21 +248,140 @@ export async function listTournamentRounds(clanId: number, tournamentId: string)
   const logs = await prisma.discordNotificationLog.findMany({
     where: {
       clanId,
-      kind: TOURNAMENT_ROUND_KIND,
-      refId: { in: matches.map((match) => `${tournamentId}:${match.id}`) },
+      OR: [
+        { kind: TOURNAMENT_ROUND_KIND, refId: { in: matches.map((match) => `${tournamentId}:${match.id}`) } },
+        { kind: TOURNAMENT_SQUADS_KIND, refId: tournamentId },
+      ],
     },
-    select: { refId: true, sentAt: true },
+    select: { kind: true, refId: true, sentAt: true },
   })
-  const sentByRefId = new Map(logs.map((log) => [log.refId, log.sentAt]))
+  const sentByRefId = new Map(
+    logs.filter((log) => log.kind !== TOURNAMENT_SQUADS_KIND).map((log) => [log.refId, log.sentAt])
+  )
+  const rules = normalizeTournamentRules(tournament.rules as Record<string, unknown>)
 
-  return matches.map((match, index) => ({
-    squadMatchId: match.id,
-    roundNumber: index + 1,
-    mapName: match.mapName,
-    gameMode: match.gameMode,
-    playedAt: match.createdAt,
-    sentAt: sentByRefId.get(`${tournamentId}:${match.id}`) ?? null,
-  }))
+  return {
+    rounds: matches.map((match, index) => ({
+      squadMatchId: match.id,
+      roundNumber: index + 1,
+      mapName: match.mapName,
+      gameMode: match.gameMode,
+      playedAt: match.createdAt,
+      sentAt: sentByRefId.get(`${tournamentId}:${match.id}`) ?? null,
+    })),
+    // Classement par escouade : proposé en inter-clans seulement, où le cumul par clan masque les escouades.
+    squadStandings: {
+      available: rules.mode === 'inter_clan' && matches.length > 0,
+      sentAt: logs.find((log) => log.kind === TOURNAMENT_SQUADS_KIND)?.sentAt ?? null,
+    },
+  }
+}
+
+/**
+ * Classement par escouade d'un tournoi inter-clans, prêt à diffuser (demande du 2026-10-11) : mêmes escouades, points et
+ * places que le « détail par escouade » de la page, sans rien envoyer.
+ */
+export async function prepareTournamentSquadStandingsBroadcast(
+  clanId: number,
+  tournamentId: string
+): Promise<Omit<TournamentRoundBroadcast, 'roundNumber'>> {
+  const [{ tournament: tournamentSettings }, tournament] = await Promise.all([
+    getDiscordSettings(clanId),
+    getTournamentForClan(clanId, tournamentId),
+  ])
+
+  const { webhookUrl, usesTournamentOverride } = resolveWebhookUrl(
+    tournament.discordWebhookUrl,
+    tournamentSettings.webhookUrl
+  )
+  if (!isValidDiscordWebhookUrl(webhookUrl)) {
+    throw new DiscordTournamentError(
+      'Aucun webhook Discord valide pour les tournois : renseignez-le dans les paramètres Discord du clan ou sur ce tournoi.'
+    )
+  }
+
+  const rules = normalizeTournamentRules(tournament.rules as Record<string, unknown>)
+  if (rules.mode !== 'inter_clan') {
+    throw new DiscordTournamentError('Le classement par squad n’existe que pour un tournoi inter-clans.')
+  }
+
+  const matches = [...(await getTournamentMatches(tournamentId))].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  )
+  if (matches.length === 0) {
+    throw new DiscordTournamentError('Aucune manche comptabilisée : rien à classer pour l’instant.')
+  }
+
+  const participatingClanIds = getTrackedTournamentClanIds(matches)
+  const memberIds = [...new Set(matches.flatMap((entry) => entry.members.map((row) => row.memberId)))]
+  const [clans, clanMembers, sentLog] = await Promise.all([
+    prisma.clan.findMany({
+      where: { id: { in: participatingClanIds } },
+      select: { id: true, name: true, tag: true },
+    }),
+    prisma.clanMember.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, displayName: true, clanId: true },
+    }),
+    prisma.discordNotificationLog.findUnique({
+      where: { clanId_kind_refId: { clanId, kind: TOURNAMENT_SQUADS_KIND, refId: tournamentId } },
+      select: { sentAt: true },
+    }),
+  ])
+
+  const clanDirectory: ClanDirectory = Object.fromEntries(clans.map((clan) => [clan.id, { name: clan.name, tag: clan.tag }]))
+  const memberDirectory: MemberDirectory = Object.fromEntries(
+    clanMembers.map((member) => [member.id, { displayName: member.displayName, clanId: member.clanId }])
+  )
+  const squadRounds = buildSquadRounds(matches, participatingClanIds, rules)
+  const squads = buildSquadBreakdown(matches, participatingClanIds, rules, clanDirectory, memberDirectory)
+
+  const payload = buildTournamentSquadStandingsWebhookPayload({
+    tournamentId,
+    tournamentTitle: tournament.title,
+    totalRounds: matches.length,
+    killPoints: rules.killPoints,
+    winBonus: rules.winBonus,
+    squads: squads.map((squad) => ({
+      memberLabels: squad.memberLabels,
+      totalPoints: squad.totalPoints,
+      totalKills: squad.totalKills,
+      wins: squad.wins,
+      form: participantForm(squad.key, squadRounds).map((entry) => entry.placement),
+    })),
+    playedAt: new Date(matches[matches.length - 1].createdAt),
+    mention: renderDiscordMention(tournamentSettings.mention),
+    siteUrl: getSiteBaseUrl(),
+  })
+
+  return {
+    payload,
+    webhookUrl,
+    totalRounds: matches.length,
+    usesTournamentOverride,
+    alreadySentAt: sentLog?.sentAt ?? null,
+  }
+}
+
+export async function broadcastTournamentSquadStandings(clanId: number, tournamentId: string) {
+  const prepared = await prepareTournamentSquadStandingsBroadcast(clanId, tournamentId)
+  const result = await sendDiscordWebhook(prepared.webhookUrl, prepared.payload)
+
+  if (!result.ok) {
+    throw new DiscordTournamentError(
+      `Discord a refusé l'envoi${result.status ? ` (${result.status})` : ''} : ${result.error}`,
+      502
+    )
+  }
+
+  // Rediffusion volontaire autorisée, comme pour une manche : la date est mise à jour.
+  await prisma.discordNotificationLog.upsert({
+    where: { clanId_kind_refId: { clanId, kind: TOURNAMENT_SQUADS_KIND, refId: tournamentId } },
+    update: { sentAt: new Date() },
+    create: { clanId, kind: TOURNAMENT_SQUADS_KIND, refId: tournamentId },
+  })
+
+  return { totalRounds: prepared.totalRounds }
 }
 
 export async function broadcastTournamentRound(

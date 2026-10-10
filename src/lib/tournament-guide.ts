@@ -28,7 +28,7 @@ export const TOURNAMENT_MODE_DESCRIPTIONS: TournamentModeDescription[] = [
     label: 'Inter-clans',
     shortLabel: 'Inter-clans',
     ranks: 'classe les clans',
-    help: 'Une ligne par clan. Chaque clan présent dans une manche marque selon le placement de son escouade.',
+    help: 'Une ligne par clan. Chaque clan présent dans une manche marque selon le placement de sa squad.',
   },
   {
     value: 'custom_teams',
@@ -48,8 +48,8 @@ export const TOURNAMENT_MODE_DESCRIPTIONS: TournamentModeDescription[] = [
     value: 'intra_clan',
     label: 'Intra-clan',
     shortLabel: 'Intra-clan',
-    ranks: 'classe les escouades du clan',
-    help: 'Scrims internes : seuls les membres du clan organisateur concourent, escouade contre escouade.',
+    ranks: 'classe les squads du clan',
+    help: 'Scrims internes : seuls les membres du clan organisateur concourent, squad contre squad.',
   },
 ]
 
@@ -62,7 +62,7 @@ export const TOURNAMENT_QUICK_GUIDE: string[] = [
   'Seules les **parties personnalisées** jouées pendant les dates du tournoi comptent.',
   'Un membre du **clan organisateur** doit être dans la partie.',
   'Chaque manche rapporte des points de **placement** (Top 1 à Top 10), des points par **kill** et un **bonus de victoire**.',
-  'Le **mode** décide de ce qui est classé : un clan, une équipe, un joueur ou une escouade du clan.',
+  'Le **mode** décide de ce qui est classé : un clan, une équipe, un joueur ou une squad du clan.',
 ]
 
 export type MixedSquadRuleDescription = {
@@ -75,7 +75,7 @@ export const MIXED_SQUAD_RULE_DESCRIPTIONS: MixedSquadRuleDescription[] = [
   {
     value: 'full_share',
     label: 'Partage intégral',
-    help: 'Chaque clan présent dans une escouade mixte reçoit 100 % des points de placement, plus ses propres kills.',
+    help: 'Chaque clan présent dans une squad mixte reçoit 100 % des points de placement, plus ses propres kills.',
   },
   {
     value: 'prorata',
@@ -106,13 +106,13 @@ export const TOURNAMENT_GUIDE_CARDS: TournamentGuideCard[] = [
   {
     id: 'modes',
     title: 'Les quatre modes de tournoi',
-    body: "Le mode décide de ce qui est classé : un clan, une équipe, un joueur ou une escouade interne. Il se choisit à la création et peut être changé ensuite : le classement est recalculé, rien n’est figé.",
+    body: "Le mode décide de ce qui est classé : un clan, une équipe, un joueur ou une squad interne. Il se choisit à la création et peut être changé ensuite : le classement est recalculé, rien n’est figé.",
     bullets: TOURNAMENT_MODE_DESCRIPTIONS.map((mode) => `${mode.label} — ${mode.help}`),
   },
   {
     id: 'mixed-squads',
-    title: 'Les escouades mixtes',
-    body: "En mode inter-clans, une escouade peut mélanger deux clans. L’organisateur choisit alors comment répartir les points de placement. Les kills, eux, restent toujours attribués au joueur qui les a faits.",
+    title: 'Les squads mixtes',
+    body: "En mode inter-clans, une squad peut mélanger deux clans. L’organisateur choisit alors comment répartir les points de placement. Les kills, eux, restent toujours attribués au joueur qui les a faits.",
     bullets: MIXED_SQUAD_RULE_DESCRIPTIONS.map((rule) => `${rule.label} — ${rule.help}`),
   },
   {

@@ -3,7 +3,7 @@ import type { Page } from '@playwright/test'
 import type { ApiMock } from './api'
 import { CLAN_ID } from './data'
 
-import { buildTournamentRoundWebhookPayload } from '@/lib/discord/discord-tournament-embed'
+import { buildTournamentRoundWebhookPayload, buildTournamentSquadStandingsWebhookPayload } from '@/lib/discord/discord-tournament-embed'
 
 /**
  * Administration des tournois d'un clan (e2e/tournament-admin.spec.ts) : organisateur connecté (`manage_settings`),
@@ -165,6 +165,29 @@ function roundPreview(matchId: string) {
   }
 }
 
+/** Classement par escouade, calculé par le vrai générateur d'embed. */
+function squadStandingsPreview() {
+  return {
+    preview: buildTournamentSquadStandingsWebhookPayload({
+      tournamentId: ACTIVE_TOURNAMENT_ID,
+      tournamentTitle: 'Coupe d’automne',
+      totalRounds: ROUNDS.length,
+      killPoints: 1,
+      winBonus: 5,
+      squads: [
+        { memberLabels: ['[LMT] Wolfy', '[LMT] Fang'], totalPoints: 58, totalKills: 18, wins: 1, form: [1, 2, 1] },
+        { memberLabels: ['[DEMO] Joueur Alpha', '[RATZ] Nova'], totalPoints: 40, totalKills: 15, wins: 0, form: [2, 3, null] },
+      ],
+      playedAt: new Date(ROUNDS[ROUNDS.length - 1].playedAt),
+      mention: '@here',
+      siteUrl: 'https://chickendinner.example',
+    }),
+    totalRounds: ROUNDS.length,
+    usesTournamentOverride: false,
+    alreadySentAt: null,
+  }
+}
+
 // ── Mock complet ────────────────────────────────────────────────────────────────────────────────────
 
 export type TournamentAdminCalls = {
@@ -224,11 +247,13 @@ export async function mockTournamentAdmin(api: ApiMock, page: Page): Promise<Tou
       })
       .on('GET', `${path}/discord`, (url) => {
         const matchId = url.searchParams.get('matchId')
-        return { body: matchId ? roundPreview(matchId) : { rounds: ROUNDS } }
+        if (url.searchParams.get('view') === 'squads') return { body: squadStandingsPreview() }
+        return { body: matchId ? roundPreview(matchId) : { rounds: ROUNDS, squadStandings: { available: true, sentAt: null } } }
       })
       .on('POST', `${path}/discord`, (_url, request) => {
         const body = request.postDataJSON() as Record<string, unknown>
         calls.broadcasts.push({ id: tournament.id, body })
+        if (body.view === 'squads') return { body: { success: true, message: 'Classement par squad publié sur Discord.' } }
         const round = ROUNDS.find((entry) => entry.squadMatchId === body.matchId)
         return { body: { success: true, message: `Manche #${round?.roundNumber ?? '?'} publiée sur Discord.` } }
       })

@@ -266,7 +266,7 @@ export function TournamentAdminCard({ tournament, actions }: { tournament: Admin
         <TournamentModeBadge mode={rules.mode} />
         {rules.mode === 'inter_clan' ? (
           <MetaPill icon={Scale}>
-            {rules.mixedSquadRule === 'prorata' ? 'Escouades mixtes au prorata' : 'Escouades mixtes : partage intégral'}
+            {rules.mixedSquadRule === 'prorata' ? 'Squads mixtes au prorata' : 'Squads mixtes : partage intégral'}
           </MetaPill>
         ) : null}
         <MetaPill icon={Gamepad2}>{tournament.gameMode ? tournamentGameModeLabel(tournament.gameMode) : 'Tous formats'}</MetaPill>

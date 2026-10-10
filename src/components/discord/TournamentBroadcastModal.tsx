@@ -17,7 +17,8 @@ type Round = {
 
 type Preview = {
   preview: DiscordWebhookPayload
-  roundNumber: number
+  /** Absent pour le classement par escouade. */
+  roundNumber?: number
   totalRounds: number
   usesTournamentOverride: boolean
   alreadySentAt: string | null
@@ -37,20 +38,36 @@ function formatDateTime(value: string) {
 
 const roundLabel = (round: Round) => `Manche #${round.roundNumber} — ${formatDateTime(round.playedAt)}`
 
+/** Choix « Classement par escouade » du menu, à la place d'une manche (demande du 2026-10-11). */
+const SQUADS = 'squads'
+const SQUADS_LABEL = 'Classement final par squad'
+
+type SquadStandingsOption = { available: boolean; sentAt: string | null }
+
 /** Pastille « déjà diffusée » : orange d'attente (charte §1.3), jamais jaune. */
-function SentBadge() {
+function SentBadge({ label = 'Déjà diffusée' }: { label?: string }) {
   return (
     <span className="shrink-0 rounded-[6px] bg-[var(--game-warn-soft)] px-1.5 py-0.5 text-[11px] font-bold text-[var(--game-warn)]">
-      Déjà diffusée
+      {label}
     </span>
   )
 }
 
 /**
- * Choix de la manche : menu de la charte (`app-menu-trigger` / `app-menu`), intitulé au-dessus — jamais de `<select>`
- * natif. Le nombre de manches n'est pas borné : la liste défile dans le menu.
+ * Choix du message : une manche, ou le classement par escouade. Menu de la charte (`app-menu-trigger` / `app-menu`),
+ * intitulé au-dessus — jamais de `<select>` natif. Le nombre de manches n'est pas borné : la liste défile dans le menu.
  */
-function RoundMenu({ rounds, value, onChange }: { rounds: Round[]; value: string | null; onChange: (matchId: string) => void }) {
+function RoundMenu({
+  rounds,
+  squads,
+  value,
+  onChange,
+}: {
+  rounds: Round[]
+  squads: SquadStandingsOption | null
+  value: string | null
+  onChange: (selection: string) => void
+}) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -65,11 +82,14 @@ function RoundMenu({ rounds, value, onChange }: { rounds: Round[]; value: string
       document.removeEventListener('keydown', close)
     }
   }, [open])
+  const squadsSelected = value === SQUADS && !!squads?.available
   const current = rounds.find((round) => round.squadMatchId === value) ?? rounds[rounds.length - 1]
+  const currentLabel = squadsSelected ? SQUADS_LABEL : roundLabel(current)
+  const currentSentAt = squadsSelected ? squads?.sentAt : current.sentAt
   return (
     <div className="flex flex-col gap-1">
       <span id="broadcast-round-label" className="text-[13px] font-semibold text-gray-700">
-        Manche à diffuser
+        Message à diffuser
       </span>
       <div ref={rootRef} className="relative">
         <button
@@ -78,12 +98,12 @@ function RoundMenu({ rounds, value, onChange }: { rounds: Round[]; value: string
           onClick={() => setOpen((state) => !state)}
           aria-haspopup="menu"
           aria-expanded={open}
-          aria-label={`Manche à diffuser : ${roundLabel(current)}${current.sentAt ? ' (déjà diffusée)' : ''}`}
+          aria-label={`Message à diffuser : ${currentLabel}${currentSentAt ? ' (déjà diffusé)' : ''}`}
           className="app-menu-trigger h-9 w-full justify-between"
         >
-          <span className="t-num truncate">{roundLabel(current)}</span>
+          <span className="t-num truncate">{currentLabel}</span>
           <span className="flex shrink-0 items-center gap-2">
-            {current.sentAt ? <SentBadge /> : null}
+            {currentSentAt ? <SentBadge label={squadsSelected ? 'Déjà diffusé' : undefined} /> : null}
             <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform duration-150 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
           </span>
         </button>
@@ -94,17 +114,32 @@ function RoundMenu({ rounds, value, onChange }: { rounds: Round[]; value: string
                 key={round.squadMatchId}
                 type="button"
                 role="menuitemradio"
-                aria-checked={round.squadMatchId === current.squadMatchId}
+                aria-checked={!squadsSelected && round.squadMatchId === current.squadMatchId}
                 onClick={() => {
                   onChange(round.squadMatchId)
                   setOpen(false)
                 }}
-                className={`app-menu__item ${round.squadMatchId === current.squadMatchId ? 'app-menu__item--active' : ''}`}
+                className={`app-menu__item ${!squadsSelected && round.squadMatchId === current.squadMatchId ? 'app-menu__item--active' : ''}`}
               >
                 <span className="t-num truncate">{roundLabel(round)}</span>
                 {round.sentAt ? <SentBadge /> : null}
               </button>
             ))}
+            {squads?.available ? (
+              <button
+                type="button"
+                role="menuitemradio"
+                aria-checked={squadsSelected}
+                onClick={() => {
+                  onChange(SQUADS)
+                  setOpen(false)
+                }}
+                className={`app-menu__item border-t border-gray-200 ${squadsSelected ? 'app-menu__item--active' : ''}`}
+              >
+                <span className="truncate">{SQUADS_LABEL}</span>
+                {squads.sentAt ? <SentBadge label="Déjà diffusé" /> : null}
+              </button>
+            ) : null}
           </div>
         ) : null}
       </div>
@@ -128,7 +163,10 @@ export default function TournamentBroadcastModal({
   onBroadcast,
 }: Props) {
   const [rounds, setRounds] = useState<Round[]>([])
+  const [squadStandings, setSquadStandings] = useState<SquadStandingsOption | null>(null)
+  // Identifiant de la manche choisie, ou `SQUADS` pour le classement par escouade.
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
+  const squadsSelected = selectedMatchId === SQUADS
   const [preview, setPreview] = useState<Preview | null>(null)
   const [loadingRounds, setLoadingRounds] = useState(true)
   const [loadingPreview, setLoadingPreview] = useState(false)
@@ -144,7 +182,7 @@ export default function TournamentBroadcastModal({
       try {
         const response = await fetch(baseUrl, { cache: 'no-store' })
         const payload = (await response.json().catch(() => null)) as
-          | { rounds?: Round[]; error?: string }
+          | { rounds?: Round[]; squadStandings?: SquadStandingsOption; error?: string }
           | null
 
         if (!response.ok) throw new Error(payload?.error ?? 'Impossible de charger les manches.')
@@ -152,6 +190,7 @@ export default function TournamentBroadcastModal({
         if (!cancelled) {
           const loaded = payload?.rounds ?? []
           setRounds(loaded)
+          setSquadStandings(payload?.squadStandings ?? null)
           // La derniere manche jouee est celle qu'on diffuse presque toujours.
           setSelectedMatchId(loaded[loaded.length - 1]?.squadMatchId ?? null)
         }
@@ -181,9 +220,8 @@ export default function TournamentBroadcastModal({
       setError(null)
 
       try {
-        const response = await fetch(`${baseUrl}?matchId=${encodeURIComponent(selectedMatchId!)}`, {
-          cache: 'no-store',
-        })
+        const query = selectedMatchId === SQUADS ? 'view=squads' : `matchId=${encodeURIComponent(selectedMatchId!)}`
+        const response = await fetch(`${baseUrl}?${query}`, { cache: 'no-store' })
         const payload = (await response.json().catch(() => null)) as (Preview & { error?: string }) | null
 
         if (!response.ok) throw new Error(payload?.error ?? 'Prévisualisation impossible.')
@@ -216,7 +254,7 @@ export default function TournamentBroadcastModal({
       const response = await fetch(baseUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ matchId: selectedMatchId }),
+        body: JSON.stringify(selectedMatchId === SQUADS ? { view: SQUADS } : { matchId: selectedMatchId }),
       })
       const payload = (await response.json().catch(() => null)) as
         | { message?: string; error?: string }
@@ -224,7 +262,7 @@ export default function TournamentBroadcastModal({
 
       if (!response.ok) throw new Error(payload?.error ?? 'Diffusion impossible.')
 
-      onBroadcast(payload?.message ?? 'Manche publiée sur Discord.')
+      onBroadcast(payload?.message ?? (selectedMatchId === SQUADS ? 'Classement publié sur Discord.' : 'Manche publiée sur Discord.'))
       onClose()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Diffusion impossible.')
@@ -263,7 +301,7 @@ export default function TournamentBroadcastModal({
           </span>
           <div className="flex min-w-0 flex-1 flex-col gap-0.5">
             <h2 id="tournament-broadcast-title" className="t-section-title">
-              Diffuser une manche sur Discord
+              Diffuser sur Discord
             </h2>
             <p className="t-meta break-words">{tournamentTitle}</p>
           </div>
@@ -292,7 +330,7 @@ export default function TournamentBroadcastModal({
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <RoundMenu rounds={rounds} value={selectedMatchId} onChange={setSelectedMatchId} />
+              <RoundMenu rounds={rounds} squads={squadStandings} value={selectedMatchId} onChange={setSelectedMatchId} />
 
               {preview?.alreadySentAt ? (
                 <div
@@ -301,8 +339,8 @@ export default function TournamentBroadcastModal({
                 >
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--game-warn)]" aria-hidden="true" />
                   <p className="t-body text-gray-700">
-                    Cette manche a déjà été diffusée le <span className="t-num">{formatDateTime(preview.alreadySentAt)}</span>. La
-                    confirmer publiera un second message.
+                    {squadsSelected ? 'Ce classement a déjà été diffusé' : 'Cette manche a déjà été diffusée'} le{' '}
+                    <span className="t-num">{formatDateTime(preview.alreadySentAt)}</span>. La confirmer publiera un second message.
                   </p>
                 </div>
               ) : null}
@@ -321,7 +359,7 @@ export default function TournamentBroadcastModal({
                   {preview ? (
                     <DiscordEmbedPreview payload={preview.preview} />
                   ) : loadingPreview ? (
-                    <p className="t-meta">Calcul des scores de la manche…</p>
+                    <p className="t-meta">{squadsSelected ? 'Calcul du classement par squad…' : 'Calcul des scores de la manche…'}</p>
                   ) : (
                     <p className="t-meta">Aucun aperçu disponible.</p>
                   )}

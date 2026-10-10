@@ -67,7 +67,7 @@ test.describe('organisateur (manage_settings)', () => {
     const autumn = card(page, 'Coupe d’automne')
     await expect(autumn).toContainText('Actif')
     await expect(autumn).toContainText('Inter-clans')
-    await expect(autumn).toContainText('Escouades mixtes au prorata')
+    await expect(autumn).toContainText('Squads mixtes au prorata')
     await expect(autumn).toContainText('Squad (partie perso)')
     await expect(autumn).toContainText('Erangel')
     await expect(autumn.getByRole('link', { name: 'Voir le classement' })).toHaveAttribute('href', `/tournaments/${ACTIVE_TOURNAMENT_ID}`)
@@ -141,9 +141,9 @@ test.describe('organisateur (manage_settings)', () => {
     await editor(page).getByRole('button', { name: 'Actif', exact: true }).click()
     await expect(preview).not.toContainText('Brouillon')
     // Escouades mixtes : proposé en inter-clans seulement.
-    await expect(page.getByRole('radiogroup', { name: 'Escouades mixtes' })).toBeVisible()
+    await expect(page.getByRole('radiogroup', { name: 'Squads mixtes' })).toBeVisible()
     await chooseTile(page, /^Solo \(chacun pour soi\)/)
-    await expect(page.getByRole('radiogroup', { name: 'Escouades mixtes' })).toHaveCount(0)
+    await expect(page.getByRole('radiogroup', { name: 'Squads mixtes' })).toHaveCount(0)
     await chooseTile(page, 'Duo (partie perso)')
     await page.getByRole('button', { name: 'Carte : Toutes les cartes' }).click()
     await page.getByRole('menuitemradio', { name: 'Miramar' }).click()
@@ -261,14 +261,14 @@ test.describe('organisateur (manage_settings)', () => {
 
   test('diffusion Discord : dernière manche par défaut, aperçu, manche déjà diffusée, envoi simulé', async ({ api, page }) => {
     await card(page, 'Coupe d’automne').getByRole('button', { name: 'Diffuser sur Discord' }).click()
-    const dialog = page.getByRole('dialog', { name: 'Diffuser une manche sur Discord' })
-    await expect(dialog.getByRole('button', { name: /^Manche à diffuser : Manche #3/ })).toBeVisible()
+    const dialog = page.getByRole('dialog', { name: 'Diffuser sur Discord' })
+    await expect(dialog.getByRole('button', { name: /^Message à diffuser : Manche #3/ })).toBeVisible()
     await expect(dialog.getByTestId('discord-embed-preview')).toContainText('Résultats Manche #3')
     await expect(dialog.getByTestId('discord-embed-preview')).toContainText('Scores de la manche')
     await expect(dialog.locator('select')).toHaveCount(0)
     await expectNoHorizontalScroll(page)
 
-    await dialog.getByRole('button', { name: /^Manche à diffuser/ }).click()
+    await dialog.getByRole('button', { name: /^Message à diffuser/ }).click()
     await dialog.getByRole('menuitemradio', { name: /Manche #2/ }).click()
     await expect(dialog).toContainText('Cette manche a déjà été diffusée')
     await expect(dialog.getByTestId('discord-embed-preview')).toContainText('Résultats Manche #2')
@@ -279,6 +279,24 @@ test.describe('organisateur (manage_settings)', () => {
     await expect(dialog).toHaveCount(0)
     expect(calls.broadcasts).toEqual([{ id: ACTIVE_TOURNAMENT_ID, body: { matchId: 'match-2' } }])
     await expect(page.getByTestId('tournament-admin-toast')).toContainText('Manche #2 publiée sur Discord.')
+  })
+
+  test('diffusion Discord : classement final par escouade, aperçu puis envoi simulé', async ({ page }) => {
+    await card(page, 'Coupe d’automne').getByRole('button', { name: 'Diffuser sur Discord' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Diffuser sur Discord' })
+    await dialog.getByRole('button', { name: /^Message à diffuser/ }).click()
+    await dialog.getByRole('menuitemradio', { name: 'Classement final par squad' }).click()
+    const preview = dialog.getByTestId('discord-embed-preview')
+    await expect(preview).toContainText('Classement par squad')
+    await expect(preview).toContainText('[LMT] Wolfy, Fang')
+    await expect(preview).toContainText('[DEMO] Joueur Alpha + [RATZ] Nova')
+    await expect(preview).toContainText('manches : #1 · 2 · #1')
+    await expectNoHorizontalScroll(page)
+
+    await dialog.getByRole('button', { name: 'Confirmer et envoyer sur Discord' }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(calls.broadcasts).toEqual([{ id: ACTIVE_TOURNAMENT_ID, body: { view: 'squads' } }])
+    await expect(page.getByTestId('tournament-admin-toast')).toContainText('Classement par squad publié sur Discord.')
   })
 
   test('guide : sept fiches, en onglet', async ({ page }) => {

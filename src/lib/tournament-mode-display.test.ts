@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 
 import {
   TOURNAMENT_MODE_DISPLAY,
+  compactSquadLabel,
   countdownLabel,
   elapsedLabel,
   formatTournamentPoints,
@@ -11,6 +12,7 @@ import {
   participantForm,
   placementScale,
   resolveTournamentPhase,
+  squadLabelGroups,
   tournamentRuleLines,
   viewerPosition,
   viewerSentence,
@@ -30,7 +32,7 @@ describe('présentation des modes', () => {
     expect(participantCountLabel('inter_clan', 6)).toBe('6 clans')
     expect(participantCountLabel('solo_ffa', 1)).toBe('1 joueur')
     expect(participantCountLabel('custom_teams', 5)).toBe('5 équipes')
-    expect(participantCountLabel('intra_clan', 4)).toBe('4 escouades')
+    expect(participantCountLabel('intra_clan', 4)).toBe('4 squads')
   })
 
   it('n’affiche la décimale des points que si elle existe', () => {
@@ -140,11 +142,29 @@ describe('barème', () => {
       { label: 'Par kill', value: '1 pt' },
       { label: 'Bonus Top 1', value: '+2 pts' },
       { label: 'Manches retenues', value: 'toutes' },
-      { label: 'Escouades mixtes', value: 'au prorata de l’effectif' },
+      { label: 'Squads mixtes', value: 'au prorata de l’effectif' },
     ])
     const solo = tournamentRuleLines({ ...base, mode: 'solo_ffa', bestOfRounds: 3 })
-    expect(solo.map((line) => line.label)).not.toContain('Escouades mixtes')
+    expect(solo.map((line) => line.label)).not.toContain('Squads mixtes')
     expect(solo.find((line) => line.label === 'Manches retenues')?.value).toBe('les 3 meilleures')
     expect(tournamentRuleLines({ ...base, mode: 'solo_ffa', bestOfRounds: 1 })[2].value).toBe('la meilleure')
+  })
+})
+
+describe('compactSquadLabel', () => {
+  it('écrit le tag une fois par clan, dans l’ordre des joueurs', () => {
+    expect(compactSquadLabel(['[SMK] Viande_Hachee', '[SMK] 37u51v3', '[UNG] TigrOo-SmK', '[BEE] Serejaah'])).toBe(
+      '[SMK] Viande_Hachee, 37u51v3 + [UNG] TigrOo-SmK + [BEE] Serejaah'
+    )
+  })
+
+  it('garde tel quel un joueur sans tag', () => {
+    expect(compactSquadLabel(['Joueur 99', '[FR] Vi1nny'])).toBe('Joueur 99 + [FR] Vi1nny')
+  })
+  it('groupe les joueurs par clan pour les tableaux (tag en gras, pseudos en graisse normale)', () => {
+    expect(squadLabelGroups(['[LTF] P0mpoko', '[OCD] Valino13', '[OCD] ZaPiT'])).toEqual([
+      { tag: '[LTF]', names: ['P0mpoko'] },
+      { tag: '[OCD]', names: ['Valino13', 'ZaPiT'] },
+    ])
   })
 })

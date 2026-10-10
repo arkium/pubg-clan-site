@@ -10,6 +10,8 @@ import {
 } from '@/lib/tournament-service'
 import {
   buildClanTrophy,
+  buildPlayerBreakdown,
+  buildPlayerRounds,
   buildRoundViews,
   buildSquadBreakdown,
   buildStandingViews,
@@ -68,6 +70,10 @@ export async function GET(
         rules.mode === 'inter_clan'
           ? buildRoundViews(matches, participantClanIds, { ...rules, mode: 'custom_teams' }, clans, members)
           : [],
+      // Détail par player (2026-10-11) : même barème, et les kills de chaque joueur à chaque manche.
+      playerBreakdown:
+        rules.mode === 'inter_clan' ? buildPlayerBreakdown(matches, participantClanIds, rules, clans, members) : [],
+      playerRounds: rules.mode === 'inter_clan' ? buildPlayerRounds(matches, participantClanIds, rules) : [],
       // Trophée des clans : n'a de sens qu'en solo, où le classement principal est individuel.
       clanTrophy: rules.mode === 'solo_ffa' ? buildClanTrophy(modeStandings, clans) : [],
       rounds: buildRoundViews(matches, participantClanIds, rules, clans, members, tournament.organizerClanId),

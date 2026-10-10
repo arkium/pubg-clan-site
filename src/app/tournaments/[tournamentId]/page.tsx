@@ -9,11 +9,13 @@ import TournamentBroadcastModal from '@/components/discord/TournamentBroadcastMo
 import TournamentDetailHeader from '@/components/tournaments/TournamentDetailHeader'
 import { tournamentModeClass } from '@/components/tournaments/TournamentModeBadge'
 import {
+  TournamentClanFilter,
   TournamentClanTrophy,
   TournamentEmptyStandings,
   TournamentPodium,
   TournamentRounds,
   TournamentRulesPanel,
+  TournamentPlayerTable,
   TournamentStandingsTable,
   TournamentViewerChip,
   type TournamentRules,
@@ -34,6 +36,7 @@ import {
 } from '@/lib/tournament-sync-summary'
 import {
   TOURNAMENT_MODE_DISPLAY,
+  participantClanIds,
   resolveTournamentPhase,
   viewerPosition,
   type TournamentViewer,
@@ -59,6 +62,13 @@ type StandingsResponse = {
   squadBreakdown?: TournamentStandingView[]
   /** Manches escouade par escouade : tableau de chaque manche et forme du détail par escouade (inter-clans). */
   squadRounds?: TournamentRoundView[]
+  /** Détail par player (inter-clans) : même barème, joueur par joueur. */
+  playerBreakdown?: TournamentStandingView[]
+  /** Kills de chaque player à chaque manche. */
+  playerRounds?: Array<{ index: number; scores: Array<{ key: string; bestPlacement: number; totalKills: number }> }>
+  /** Clans qui ont participé, et leurs noms : le filtre « Clan » des détails par squad et par player. */
+  participantClanIds?: number[]
+  clans?: Record<string, { name: string; tag: string | null }>
   clanTrophy?: Array<{ clanId: number; label: string; points: number; kills: number; players: number }>
   rounds?: TournamentRoundView[]
   mvp?: { memberId: number; label: string; kills: number; damage: number } | null
@@ -99,7 +109,9 @@ export default function TournamentDetailPage() {
   const [payload, setPayload] = useState<StandingsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [granularity, setGranularity] = useState<'clan' | 'squad'>('clan')
+  const [granularity, setGranularity] = useState<'clan' | 'squad' | 'player'>('clan')
+  // Filtre « Clan » des détails par squad et par player (`null` = tous).
+  const [clanFilter, setClanFilter] = useState<number | null>(null)
   const [broadcastOpen, setBroadcastOpen] = useState(false)
   const [syncing, setSyncing] = useState(false)
   const [notice, setNotice] = useState<Notice | null>(null)
@@ -203,7 +215,29 @@ export default function TournamentDetailPage() {
   const heroImage =
     mapAssetUrl(tournament?.mapName) ?? mapAssetUrl(lastRound?.mapName) ?? '/ClanLeaderboardTable.jpg'
   const squadView = rules?.mode === 'inter_clan' && granularity === 'squad'
-  const displayedStandings = squadView ? (payload?.squadBreakdown ?? []) : standings
+  const playerView = rules?.mode === 'inter_clan' && granularity === 'player'
+  const displayedStandings = squadView
+    ? (payload?.squadBreakdown ?? [])
+    : playerView
+      ? (payload?.playerBreakdown ?? [])
+      : standings
+  // Les squads ou players d'un clan qui a participé ; le rang reste celui du classement complet.
+  const filterable = squadView || playerView
+  const filteredStandings =
+    filterable && clanFilter !== null
+      ? displayedStandings.filter((standing) => participantClanIds(standing.participant).includes(clanFilter))
+      : displayedStandings
+  const filterClans = (payload?.participantClanIds ?? [])
+    .map((id) => {
+      const clan = payload?.clans?.[String(id)]
+      return { id, label: clan ? (clan.tag ? `[${clan.tag}] ${clan.name}` : clan.name) : `Clan ${id}` }
+    })
+    .sort((left, right) => left.label.localeCompare(right.label, 'fr'))
+  const displayedUnit = squadView
+    ? { one: 'squad', many: 'squads' }
+    : playerView
+      ? { one: 'player', many: 'players' }
+      : display?.unit
   // Forme : place de chaque escouade à chaque manche en détail par escouade, de chaque participant du mode sinon.
   const formRounds = squadView ? (payload?.squadRounds ?? []) : rounds
   // Manches escouade par escouade en inter-clans (demande du 2026-10-11) : une ligne par équipe PUBG, joueurs et clans,
@@ -316,29 +350,47 @@ export default function TournamentDetailPage() {
               <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
                 <h2 id="tournament-standings-title" className="t-section-title">Classement</h2>
                 <span className="t-meta">
-                  {displayedStandings.length} {displayedStandings.length > 1 ? (squadView ? 'squads' : display.unit.many) : squadView ? 'squad' : display.unit.one} ·{' '}
+                  {filteredStandings.length} {filteredStandings.length > 1 ? displayedUnit?.many : displayedUnit?.one}
+                  {filteredStandings.length !== displayedStandings.length ? ` sur ${displayedStandings.length}` : ''} ·{' '}
                   {rounds.length} manche{rounds.length > 1 ? 's' : ''}
-                  {formRounds.length > 0 ? ' · la forme montre la place à chaque manche' : ''}
+                  {playerView
+                    ? ` · M1 à M${rounds.length} : kills de chaque player à chaque manche`
+                    : formRounds.length > 0
+                      ? ' · la forme montre la place à chaque manche'
+                      : ''}
                 </span>
                 {rules.mode === 'inter_clan' && (payload?.squadBreakdown ?? []).length > 0 ? (
                   // Granularité du classement : contrôle propre à la section, il reste ici (sticky.md, « contrôle de section »).
-                  <SegmentedControl
-                    className="ml-auto"
+                  <span className="ml-auto flex flex-wrap items-stretch gap-2">
+                    {filterable && filterClans.length > 1 ? (
+                      <TournamentClanFilter clans={filterClans} value={clanFilter} onChange={setClanFilter} />
+                    ) : null}
+                    <SegmentedControl
                     options={[
                       { value: 'clan', label: 'Cumul par clan' },
                       { value: 'squad', label: 'Détail par squad' },
+                      { value: 'player', label: 'Détail par player' },
                     ]}
-                    value={granularity}
-                    onChange={setGranularity}
-                  />
+                      value={granularity}
+                      onChange={setGranularity}
+                    />
+                  </span>
                 ) : null}
               </div>
               {displayedStandings.length === 0 ? (
                 <TournamentEmptyStandings upcoming={phase === 'upcoming'} canManage={canManageTournament} />
+              ) : playerView ? (
+                // Clé du filtre : changer de clan ramène à la première page.
+                <TournamentPlayerTable
+                  key={clanFilter ?? 'tous'}
+                  standings={filteredStandings}
+                  rounds={payload?.playerRounds ?? []}
+                  viewer={viewer}
+                />
               ) : (
                 <TournamentStandingsTable
                   mode={squadView ? 'custom_teams' : rules.mode}
-                  standings={displayedStandings}
+                  standings={filteredStandings}
                   rounds={formRounds}
                   viewer={viewer}
                   showForm={formRounds.length > 0}

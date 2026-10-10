@@ -2,6 +2,8 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildClanTrophy,
+  buildPlayerBreakdown,
+  buildPlayerRounds,
   buildRoundViews,
   buildSquadBreakdown,
   buildSquadRounds,
@@ -157,5 +159,27 @@ describe('buildSquadBreakdown', () => {
     for (const round of squadRounds) {
       expect(round.scores.every((score) => keys.includes(score.key))).toBe(true)
     }
+  })
+})
+
+describe('détail par player', () => {
+  it('même barème que le mode Solo : place de sa squad, ses kills, bonus du Top 1', () => {
+    const players = buildPlayerBreakdown([round1, round2], [1, 2], RULES, CLANS, MEMBERS)
+    expect(players.map((view) => [view.rank, view.label, view.totalPoints, view.totalKills, view.wins])).toEqual([
+      // 27 points chacun, départagés par les kills. Nova : 2e (6) + 2 kills, puis 1re (10 + 4) + 5 kills.
+      // Pagiotte : 1re (10 + 4) + 3 kills, puis 3e (barème par défaut, 10).
+      [1, '[RATZ] Nova', 27, 7, 1],
+      [2, '[SMK] Pagiotte', 27, 3, 1],
+      [3, '[SMK] TigrOo', 15, 1, 1],
+    ])
+  })
+
+  it('donne les kills de chaque player à chaque manche, avec les clés du classement', () => {
+    const playerRounds = buildPlayerRounds([round2, round1], [1, 2], RULES)
+    expect(playerRounds.map((round) => round.index)).toEqual([1, 2])
+    expect(playerRounds[1].scores).toEqual([
+      { key: 'player:10', bestPlacement: 3, totalKills: 0 },
+      { key: 'player:20', bestPlacement: 1, totalKills: 5 },
+    ])
   })
 })

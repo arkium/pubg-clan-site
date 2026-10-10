@@ -346,6 +346,14 @@ Discord) ; le reste du site (débrief d'une partie, notifications) dit toujours 
   débrief, `matchTournamentReplayPath`) sont en **haut** de la colonne, le tableau des squads étant plus haut que la
   carte.
 - **Débrief** : points d'une manche arrondis à une décimale (`formatTournamentPoints`).
+- **Détail par player** (3e onglet, inter-clans) : même barème que le mode Solo — la place de sa squad, ses propres
+  kills, le bonus d'un Top 1 —, sans prorata (`buildPlayerBreakdown`). Colonnes Points, Kills, Dégâts, Top 1, puis M1 à
+  Mx avec **les kills** du player à chaque manche (`buildPlayerRounds`, « – » s'il n'a pas joué). **Paginé par 20**
+  (`Pagination`). Sous chaque en-tête M1…Mx, un sous-titre dit ce que montre la colonne : « place » au détail par
+  squad, « kills » au détail par player.
+- **Filtre « Clan »** des détails par squad et par player (`TournamentClanFilter`, menu de la charte) : les clans qui
+  ont participé (`participantClanIds` et `clans` de la route). Une squad mixte apparaît sous chacun de ses clans ; le
+  rang affiché reste celui du **classement complet** (« 18 players sur 75 »). Changer de clan ramène à la page 1.
 
 ### Anciennes adresses
 

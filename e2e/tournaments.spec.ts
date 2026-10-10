@@ -199,6 +199,41 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await expect(page.locator('#tournament-standings tbody tr')).toHaveCount(4)
   })
 
+  test('détail par player : même barème, kills à chaque manche, pagination', async ({ page }, testInfo) => {
+    await page.getByRole('button', { name: 'Détail par player' }).click()
+    const table = page.locator('#tournament-standings')
+    await expect(table.locator('tbody tr')).toHaveCount(20)
+    await expect(table).toContainText('25 players')
+    await expect(table.locator('tbody tr').first()).toContainText('Joueur Alpha')
+    // Le lecteur (membre 1) est repéré.
+    await expect(table.locator('tbody tr').first()).toContainText('Toi')
+    if (testInfo.project.name !== 'chromium-mobile' && testInfo.project.name !== 'webkit-iphone') {
+      await expect(table.locator('thead')).toContainText('Dégâts')
+      await expect(table.locator('thead')).toContainText('M1')
+    }
+    const pager = page.getByRole('navigation', { name: 'Pages du détail par player' })
+    await expect(pager).toContainText('Players 1–20 sur 25')
+    await pager.getByRole('button', { name: '2', exact: true }).click()
+    await expect(table.locator('tbody tr')).toHaveCount(5)
+    await expect(pager).toContainText('Players 21–25 sur 25')
+  })
+
+  test('filtre « Clan » des détails : seuls les squads et players du clan choisi, rang du classement complet', async ({ page }) => {
+    const standings = page.locator('#tournament-standings')
+    // Rien à filtrer dans le cumul par clan.
+    await expect(standings.getByRole('button', { name: /^Clan : / })).toHaveCount(0)
+    await page.getByRole('button', { name: 'Détail par player' }).click()
+    await standings.getByRole('button', { name: 'Clan : tous les clans' }).click()
+    await expect(standings.getByRole('menu', { name: 'Clan' })).toContainText('[DEMO] Clan Démo')
+    await standings.getByRole('menuitemradio', { name: '[RATZ] Les Ratz' }).click()
+    // Aucun player des Ratz dans l'exemple : la liste se vide, le décompte le dit.
+    await expect(standings).toContainText('0 player sur 25')
+    await standings.getByRole('button', { name: 'Clan : [RATZ] Les Ratz' }).click()
+    await standings.getByRole('menuitemradio', { name: '[DEMO] Clan Démo' }).click()
+    await expect(standings.locator('tbody tr')).toHaveCount(20)
+    await expect(standings).toContainText('25 players')
+  })
+
   test('manches une par une, la dernière d’abord, avec le bouton du replay 2D', async ({ page }) => {
     const rounds = page.locator('#tournament-rounds')
     await expect(rounds.getByRole('article')).toHaveAttribute('aria-label', 'Manche 5')

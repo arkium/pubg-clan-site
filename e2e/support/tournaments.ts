@@ -165,6 +165,33 @@ export function liveTournamentStandings(roundCount = MAPS.length) {
         ],
       }
     }),
+    // 25 players : la pagination (20 par page) a deux pages.
+    playerBreakdown: Array.from({ length: 25 }, (_, index) =>
+      view(
+        summary(
+          `player:${index + 1}`,
+          { kind: 'player', memberId: index + 1, clanId: CLAN_ID },
+          index === 0 ? '[DEMO] Joueur Alpha' : `[DEMO] Joueur ${index + 1}`,
+          60 - index,
+          20 - Math.floor(index / 2),
+          index < 4 ? 1 : 0,
+          [CLAN_ID]
+        ),
+        index + 1
+      )
+    ),
+    playerRounds: Array.from({ length: roundCount }, (_, index) => ({
+      index: index + 1,
+      scores: Array.from({ length: 25 }, (_, player) => ({ key: `player:${player + 1}`, bestPlacement: 2, totalKills: (player + index) % 5 })),
+    })),
+    // Clans participants et leurs noms : le filtre « Clan » des détails.
+    participantClanIds: LIVE_STANDINGS.map((row) => (row.participant as { clanId: number }).clanId),
+    clans: Object.fromEntries(
+      LIVE_STANDINGS.map((row) => {
+        const clanId = (row.participant as { clanId: number }).clanId
+        return [clanId, { name: CLANS[clanId]?.name ?? `Clan ${clanId}`, tag: CLANS[clanId]?.tag ?? null }]
+      })
+    ),
     clanTrophy: [],
     rounds: rounds(roundCount),
     mvp: { memberId: 1, label: '[DEMO] Joueur Alpha', kills: 24, damage: 3380 },

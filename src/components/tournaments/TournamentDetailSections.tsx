@@ -1,14 +1,15 @@
 'use client'
 
-import { ArrowRight, ChevronLeft, ChevronRight, Crown, MapPin, Play, Trophy } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Crown, MapPin, Play, Trophy } from 'lucide-react'
 import Link from 'next/link'
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useRef, useState } from 'react'
 
+import Pagination from '@/components/ui/Pagination'
 import PodiumCards from '@/components/ui/PodiumCards'
 import RankCell from '@/components/ui/RankCell'
 import SortableTh from '@/components/ui/SortableTh'
 import { matchTournamentReplayPath } from '@/lib/match-links'
-import { paginationItems } from '@/lib/pagination'
+import { paginate, paginationItems } from '@/lib/pagination'
 import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
 import { tournamentMapLabel } from '@/lib/tournament-filters'
 import {
@@ -254,7 +255,11 @@ export function TournamentStandingsTable({
                     className={`max-md:hidden ${roundVisibility(rounds.length - index)} ${index === rounds.length - 1 ? 'pr-3' : ''}`}
                     title={`Place à la manche ${round.index}`}
                   >
-                    M{round.index}
+                    {/* « place » sous l'en-tête : le détail par player met des kills dans les mêmes colonnes. */}
+                    <span className="inline-flex flex-col items-center leading-tight">
+                      M{round.index}
+                      <span className="text-[10px] font-semibold normal-case tracking-normal text-gray-500">place</span>
+                    </span>
                   </SortableTh>
                 ))
               : null}
@@ -546,6 +551,208 @@ export function TournamentRounds({
         </table>
       </article>
     </>
+  )
+}
+
+// ── Filtre par clan ─────────────────────────────────────────────────────────────────────────────────
+
+/**
+ * Filtre « Clan » des détails par squad et par player (demande du 2026-10-11) : les clans qui ont participé, en menu de
+ * la charte (`app-menu-trigger` / `app-menu`), jamais de `<select>` natif. `null` = tous les clans.
+ */
+export function TournamentClanFilter({
+  clans,
+  value,
+  onChange,
+}: {
+  clans: Array<{ id: number; label: string }>
+  value: number | null
+  onChange: (clanId: number | null) => void
+}) {
+  const [open, setOpen] = useState(false)
+  const rootRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    if (!open) return
+    const close = (event: PointerEvent | KeyboardEvent) => {
+      if (event instanceof KeyboardEvent ? event.key === 'Escape' : !rootRef.current?.contains(event.target as Node)) setOpen(false)
+    }
+    document.addEventListener('pointerdown', close)
+    document.addEventListener('keydown', close)
+    return () => {
+      document.removeEventListener('pointerdown', close)
+      document.removeEventListener('keydown', close)
+    }
+  }, [open])
+  const current = clans.find((clan) => clan.id === value)
+  const options: Array<{ id: number | null; label: string }> = [{ id: null, label: 'Tous les clans' }, ...clans]
+  return (
+    // Étiré à la hauteur du sélecteur voisin (« Cumul par clan / Détail par squad… »).
+    <div ref={rootRef} className="relative flex shrink-0 self-stretch">
+      <button
+        type="button"
+        onClick={() => setOpen((state) => !state)}
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label={`Clan : ${current?.label ?? 'tous les clans'}`}
+        className={`app-menu-trigger ${current ? 'app-menu-trigger--active' : ''}`}
+      >
+        <span className="max-w-[12rem] truncate">{current ? current.label : 'Tous les clans'}</span>
+        <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+      </button>
+      {open ? (
+        <div role="menu" aria-label="Clan" className="app-menu absolute right-0 top-full z-50 mt-1.5 max-h-72 w-[15rem] overflow-y-auto">
+          {options.map((option) => (
+            <button
+              key={option.id ?? 'tous'}
+              type="button"
+              role="menuitemradio"
+              aria-checked={option.id === value}
+              onClick={() => {
+                onChange(option.id)
+                setOpen(false)
+              }}
+              className={`app-menu__item ${option.id === value ? 'app-menu__item--active' : ''}`}
+            >
+              <span className="truncate">{option.label}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  )
+}
+
+// ── Détail par player ───────────────────────────────────────────────────────────────────────────────
+
+const PLAYER_PAGE_SIZE = 20
+
+/**
+ * Détail par player d'un tournoi inter-clans (demande du 2026-10-11) : même barème que les squads, joueur par joueur —
+ * la place de sa squad, ses propres kills, le bonus d'un Top 1. Colonnes M1, M2… : ses kills à chaque manche (« – » quand
+ * il n'a pas joué). Paginé par 20 : un tournoi compte vite 70 joueurs, et une liste longue se pagine (règle du site).
+ */
+export function TournamentPlayerTable({
+  standings,
+  rounds,
+  viewer,
+}: {
+  standings: TournamentStandingView[]
+  rounds: Array<{ index: number; scores: Array<{ key: string; totalKills: number }> }>
+  viewer: TournamentViewer
+}) {
+  const [page, setPage] = useState(1)
+  const { current, pageCount, visible } = paginate(standings, page, PLAYER_PAGE_SIZE)
+  const top = Math.max(1, standings[0]?.totalPoints ?? 1)
+  const killsByRound = rounds.map((round) => new Map(round.scores.map((score) => [score.key, score.totalKills])))
+  // Âge d'une manche (1 = la dernière) : les plus anciennes se masquent selon la largeur, comme la forme.
+  const roundVisibility = (age: number) => (age > FORM_DESKTOP ? 'hidden' : age > FORM_TABLET ? 'max-lg:hidden' : '')
+
+  return (
+    <div className="flex flex-col gap-2.5">
+      <div className="app-table-shell overflow-hidden">
+        <table className="w-full table-auto text-[13px]">
+          <thead className="app-table-head">
+            <tr>
+              <SortableTh align="left" className="w-12 pl-3">Rang</SortableTh>
+              <SortableTh align="left">Player</SortableTh>
+              <SortableTh align="left" className="max-md:text-right">Points</SortableTh>
+              <SortableTh className="max-md:hidden">Kills</SortableTh>
+              <SortableTh className="max-md:hidden">Dégâts</SortableTh>
+              <SortableTh className={`max-md:hidden ${rounds.length > 0 ? '' : 'pr-3'}`}>Top 1</SortableTh>
+              {rounds.map((round, index) => (
+                <SortableTh
+                  key={round.index}
+                  className={`max-md:hidden ${roundVisibility(rounds.length - index)} ${index === rounds.length - 1 ? 'pr-3' : ''}`}
+                  title={`Kills à la manche ${round.index}`}
+                >
+                  <span className="inline-flex flex-col items-center leading-tight">
+                    M{round.index}
+                    <span className="text-[10px] font-semibold normal-case tracking-normal text-gray-500">kills</span>
+                  </span>
+                </SortableTh>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visible.map((standing) => {
+              const mine = isViewerParticipant(standing.participant, viewer)
+              return (
+                <tr key={standing.key} className={`app-table-row${mine ? ' tournament-row--viewer' : ''}`} aria-current={mine ? 'true' : undefined}>
+                  <td className="py-2 pl-3 pr-[9px]">
+                    <RankCell rank={standing.rank} />
+                  </td>
+                  <td className="min-w-0 px-[9px] py-2">
+                    <span className="flex min-w-0 flex-col gap-1">
+                      <span className="flex min-w-0 items-center gap-1.5">
+                        <span className="truncate text-sm text-gray-900">
+                          <SquadLabel memberLabels={[standing.label]} fallback={standing.label} />
+                        </span>
+                        {mine ? (
+                          <span className="shrink-0 rounded-md bg-[var(--theme-ui-accent-soft)] px-1.5 py-px text-[11px] font-extrabold uppercase text-[var(--theme-ui-accent-text)]">
+                            {TOURNAMENT_MODE_DISPLAY.solo_ffa.viewer}
+                          </span>
+                        ) : null}
+                      </span>
+                      <span className="t-meta t-num md:hidden">
+                        {standing.totalKills} kills · {numberFormat.format(Math.round(standing.totalDamage))} dégâts · {standing.wins} Top 1
+                      </span>
+                    </span>
+                  </td>
+                  <td className="px-[9px] py-2 max-md:text-right">
+                    <span className="flex items-center gap-2 max-md:justify-end">
+                      <span className="h-2 min-w-[4rem] flex-1 overflow-hidden rounded-md bg-[var(--theme-ui-surface-strong)] max-md:hidden" aria-hidden="true">
+                        <span
+                          className="block h-full rounded-md bg-[var(--tmode)]"
+                          style={{ width: `${Math.max(0, Math.round((standing.totalPoints / top) * 100))}%` }}
+                        />
+                      </span>
+                      <b className="t-num min-w-[2.5rem] text-right text-[15px] font-extrabold text-gray-900">
+                        {formatTournamentPoints(standing.totalPoints)}
+                      </b>
+                    </span>
+                  </td>
+                  <td className="t-num px-[9px] py-2 text-right text-gray-700 max-md:hidden">{standing.totalKills}</td>
+                  <td className="t-num px-[9px] py-2 text-right text-gray-700 max-md:hidden">
+                    {numberFormat.format(Math.round(standing.totalDamage))}
+                  </td>
+                  <td
+                    className={`t-num py-2 pl-[9px] text-right font-extrabold max-md:hidden ${rounds.length > 0 ? 'pr-[9px]' : 'pr-3'} ${
+                      standing.wins > 0 ? 't-gold' : 'text-gray-500'
+                    }`}
+                  >
+                    {standing.wins}
+                  </td>
+                  {killsByRound.map((kills, index) => {
+                    const value = kills.get(standing.key)
+                    const round = rounds[index].index
+                    return (
+                      <td
+                        key={round}
+                        className={`t-num py-2 pl-[9px] text-center max-md:hidden ${roundVisibility(rounds.length - index)} ${
+                          index === rounds.length - 1 ? 'pr-3' : 'pr-[9px]'
+                        } ${value === undefined ? 'text-gray-500' : 'text-gray-900'}`}
+                        title={value === undefined ? `Manche ${round} : absent` : `Manche ${round} : ${value} kill${value > 1 ? 's' : ''}`}
+                      >
+                        {value === undefined ? '–' : value}
+                      </td>
+                    )
+                  })}
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+      <Pagination
+        page={current}
+        pageCount={pageCount}
+        total={standings.length}
+        pageSize={PLAYER_PAGE_SIZE}
+        onPageChange={setPage}
+        ariaLabel="Pages du détail par player"
+        itemLabel="Players"
+      />
+    </div>
   )
 }
 

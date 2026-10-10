@@ -258,3 +258,33 @@ export function buildSquadRounds(
     scores: entries.map((entry) => ({ key: entry.key, bestPlacement: entry.bestPlacement })),
   }))
 }
+
+/**
+ * Détail par player d'un tournoi inter-clans (demande du 2026-10-11) : même barème que le mode Solo — la place de sa
+ * squad, ses propres kills, le bonus d'un Top 1 —, sans prorata.
+ */
+export function buildPlayerBreakdown(
+  matches: MatchLike[],
+  participantClanIds: number[],
+  rulesInput: TournamentRulesInput | NormalizedTournamentRules,
+  clans: ClanDirectory,
+  members: MemberDirectory
+): TournamentStandingView[] {
+  const rules = normalizeTournamentRules(rulesInput)
+  const standings = computeTournamentModeStandings(matches, participantClanIds, { ...rules, mode: 'solo_ffa' })
+  return buildStandingViews(standings, clans, members)
+}
+
+/** Kills de chaque player à chaque manche, pour les colonnes M1, M2… du détail par player (mêmes clés). */
+export function buildPlayerRounds(
+  matches: MatchLike[],
+  participantClanIds: number[],
+  rulesInput: TournamentRulesInput | NormalizedTournamentRules
+): Array<{ index: number; scores: Array<{ key: string; bestPlacement: number; totalKills: number }> }> {
+  const rules = normalizeTournamentRules(rulesInput)
+  const { rounds } = groupMatchesByMode(matches, participantClanIds, { ...rules, mode: 'solo_ffa' })
+  return rounds.map(({ entries }, index) => ({
+    index: index + 1,
+    scores: entries.map((entry) => ({ key: entry.key, bestPlacement: entry.bestPlacement, totalKills: entry.totalKills })),
+  }))
+}

@@ -134,6 +134,27 @@ couleurs dans les deux thèmes. Le reste passe par les jetons (`--page-surface`,
 **Mouvement.** Zoom lent du héros, boussole, entrée des lignes du feed, halo du bouton et défilement des bandes du hub sont coupés sous
 `prefers-reduced-motion: reduce`, et le feed cesse alors de tourner.
 
+**Performance et accessibilité (PageSpeed du 2026-10-11).** Ordinateur 98 / 95 / 96 / 100 ; mobile 73 en performance,
+plombé par l'image du héros, élément LCP de la page (5,9 s) : en fond CSS, le navigateur ne la découvrait qu'après la
+feuille de style (43 Ko, bloquante), puis l'affichait encore 1,7 s plus tard, en JPEG de 135 Ko.
+
+- **Image du héros** : vraie image `next/image` (`fill`, `sizes="100vw"`, `fetchPriority="high"`, `loading="eager"` — la
+  doc de Next 16 les préfère à `preload`), cadrée par `object-position` (`.home-hero-img`) ; React 19 en tire un
+  préchargement prioritaire en tête de page, avant la feuille de style. WebP à la taille de l'écran : 32 Ko à 640 px,
+  71 Ko au plus (l'original fait 1 024 px). Le Ken Burns reste sur l'enveloppe `.home-hero-bg`.
+- **`<main>`** autour de la vitrine, pied de page dehors (il garde son rôle) : la page n'avait aucune zone principale,
+  le shell qui la fournit ailleurs n'étant pas rendu sur `/`.
+- **Contrastes** : numéros décoratifs « 01 / 02 / 03 » des cartes « Pourquoi atterrir ici » en pseudo-élément
+  (`.home-why-number`, `data-number`) — un motif pâle, dispensé de contraste, que les outils comptaient comme texte
+  (1,7:1) ; étiquette d'arme et distance du kill feed à 85 % de blanc : les lignes anciennes s'estompent jusqu'à 55 %, et
+  leur texte de 11 px doit y rester à 4,5:1 (2,7 à 4,3:1 avant).
+- **Console** : `GET /api/auth/session` répond 200 « non connecté » à un visiteur sans cookie, au lieu d'un 401 qui
+  s'affichait en erreur (quatre fois, la palette de commandes demandant la session) et déclenchait autant de
+  déconnexions inutiles — voir [auth.md](auth.md).
+- **Contrôle** : axe-core (le moteur de Lighthouse) ne relève plus aucune violation sur l'accueil, ordinateur et mobile.
+  Non fait : intégrer la feuille de style au HTML (`experimental.inlineCss`, environ 0,6 s de blocage en moins sur
+  mobile), à mesurer à part car il touche tout le site.
+
 ---
 
 ## 5. Tests

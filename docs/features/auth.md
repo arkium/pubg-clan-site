@@ -166,6 +166,12 @@ La session est gérée via un cookie httpOnly créé au moment du login ou de l'
 
 **Type applicatif `UserSession` :** exposé par `GET /api/auth/session`, contient l'état de l'utilisateur courant, ses permissions, son `activeMemberId` et son `defaultClanId`.
 
+**Sans session** (2026-10-11) : `GET /api/auth/session` répond **200** `{ authenticated: false }` quand la requête ne porte
+**aucun** cookie de session — un simple visiteur, rien à purger —, et **401** quand un cookie est présent mais invalide,
+révoqué ou expiré : `useAuthSession` appelle alors `POST /api/auth/logout` pour l'effacer. Avant, le visiteur recevait lui
+aussi un 401 : une erreur dans la console de chaque page publique (relevée par PageSpeed sur l'accueil) et une
+déconnexion inutile. Testé par `src/lib/auth/session-route.test.ts`.
+
 La session est invalidée :
 - À la déconnexion (`POST /api/auth/logout`).
 - Lors d'une réinitialisation de mot de passe (toutes les sessions actives du compte sont révoquées).

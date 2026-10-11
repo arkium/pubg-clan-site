@@ -318,7 +318,8 @@ Session is **cookie-based** with server-side validation:
    ```
 3. **Client Hook:** `useAuthSession()` calls `GET /api/auth/session`
    - Returns `{ user, expires, role }`
-   - Auto-logs out on 401 (expired token)
+   - Auto-logs out on 401 (expired token) ; a visitor **without** a session cookie gets `200 { authenticated: false }`
+     (no console error, nothing to purge — 2026-10-11)
 
 **Auth Flow:**
 - `POST /api/auth/login` → validates password → sets cookie → redirects

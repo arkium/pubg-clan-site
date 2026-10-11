@@ -2772,6 +2772,12 @@ html[data-app-theme='dark'] .home-showcase {
   --home-link: rgb(165 180 252 / 1);
 }
 
+/* Numéro décoratif des cartes « Pourquoi atterrir ici » : un motif pâle, pas du texte (contenu généré). */
+.home-why-number::before {
+  content: attr(data-number);
+  color: var(--theme-ui-border);
+}
+
 .home-display {
   font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif;
 }
@@ -2796,13 +2802,17 @@ html[data-app-theme='dark'] .home-showcase {
 
 .home-hero-bg {
   inset: -2%;
-  background-position: 78% center;
   animation: home-kenburns 26s ease-in-out infinite alternate;
 }
 
+/* L'image du héros est une vraie image (`next/image`, préchargée) : son cadrage passe par object-position. */
+.home-hero-img {
+  object-position: 78% center;
+}
+
 @media (min-width: 1024px) {
-  .home-hero-bg {
-    background-position: center 40%;
+  .home-hero-img {
+    object-position: center 40%;
   }
 }
 
@@ -2852,9 +2862,11 @@ html[data-app-theme='dark'] .home-showcase {
   color: rgb(28 16 3 / 1);
 }
 
+/* Texte de 11 px sur des lignes estompées jusqu'à 55 % (les plus anciennes) : à 85 %, il garde 4,5:1 (PageSpeed du
+   2026-10-11 : 2,7 à 4,3:1 à 65 %). */
 .home-feed-weapon {
   border: 1px solid rgb(255 255 255 / 0.25);
-  color: rgb(255 255 255 / 0.65);
+  color: rgb(255 255 255 / 0.85);
 }
 
 .home-feed-enter {

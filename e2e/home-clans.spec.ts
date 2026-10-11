@@ -21,7 +21,9 @@ test('le hub des clans ferme la vitrine, juste après « Lecture de zone »', as
   const hub = page.getByTestId('home-clans-hub')
   await expect(hub).toBeVisible()
   await expect(page.locator('section[aria-labelledby="home-zone-reading-title"] + section[data-testid="home-clans-hub"]')).toHaveCount(1)
-  await expect(page.locator('[data-testid="home-clans-hub"] + footer.home-footer')).toHaveCount(1)
+  // Dernière section de la zone principale, juste avant le pied de page (<main> autour de la vitrine, 2026-10-11).
+  await expect(page.locator('main > [data-testid="home-clans-hub"]:last-child')).toHaveCount(1)
+  await expect(page.locator('main + footer.home-footer')).toHaveCount(1)
 
   await expect(hub.getByRole('heading', { level: 2, name: /Pas un clan\.\s*Tous les clans\./i })).toBeVisible()
   const counters = hub.getByTestId('home-hub-counters')

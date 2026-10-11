@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
+import Image from 'next/image'
 import Link from 'next/link'
 import {
   ArrowRight,
@@ -146,7 +147,7 @@ function KillFeed({ entries, mobile, paused }: { entries: readonly ShowcaseFeedE
               {entry.victimClanTag ? `un joueur [${entry.victimClanTag}]` : 'un adversaire'}
             </span>
             {entry.distanceMeters !== null ? (
-              <span className="ml-auto shrink-0 pl-2 text-[11px] tabular-nums text-white/55">{entry.distanceMeters} m</span>
+              <span className="ml-auto shrink-0 pl-2 text-[11px] tabular-nums text-white/85">{entry.distanceMeters} m</span>
             ) : null}
           </li>
         )
@@ -416,9 +417,9 @@ function WhyLandSection() {
           <span className={`inline-flex h-11 w-11 items-center justify-center rounded-xl border ${item.iconClass}`}>
             <Icon className="h-[22px] w-[22px]" aria-hidden="true" />
           </span>
-          <span className="home-display text-[40px] leading-none" style={{ color: 'var(--theme-ui-border)' }} aria-hidden="true">
-            {item.number}
-          </span>
+          {/* Numéro décoratif, volontairement pâle : en pseudo-élément (`.home-why-number`), il n'est pas du texte de la page
+              — un motif dispensé de contraste (WCAG 1.4.3), qu'axe et Lighthouse signalaient pourtant (1,7:1). */}
+          <span className="home-why-number home-display text-[40px] leading-none" data-number={item.number} aria-hidden="true" />
         </div>
         <span className="text-xs font-bold uppercase tracking-[0.12em] text-gray-500">{item.eyebrow}</span>
         <h3 id={`why-${item.number}`} className="home-display m-0 text-[32px] font-semibold uppercase leading-[0.92] lg:text-[40px]">
@@ -708,13 +709,18 @@ export default function HomeShowcase({
 
   return (
     <div className="home-showcase w-full">
+      {/* Zone principale (`<main>`, accessibilité — PageSpeed du 2026-10-11) : la vitrine n'a pas le shell qui la fournit
+          ailleurs. Le pied de page reste dehors : il garde son rôle de pied de page. */}
+      <main>
       {/* HÉROS */}
       <section className="home-hero relative overflow-hidden text-white">
-        <div
-          className="home-hero-bg absolute bg-cover bg-no-repeat"
-          style={{ backgroundImage: `url(${HERO_IMAGE})` }}
-          aria-hidden="true"
-        />
+        {/* Image du héros = élément LCP de l'accueil (PageSpeed du 2026-10-11 : 5,9 s sur mobile). Plus en fond CSS, que
+            le navigateur ne découvrait qu'après la feuille de style : une vraie image dans le HTML, demandée en priorité
+            (`fetchPriority`, `loading="eager"` — ce que la doc de Next 16 préfère à `preload`), en WebP et à la taille de
+            l'écran (32 Ko sur mobile au lieu d'un JPEG de 135 Ko). Le Ken Burns reste sur l'enveloppe. */}
+        <div className="home-hero-bg absolute" aria-hidden="true">
+          <Image src={HERO_IMAGE} alt="" fill fetchPriority="high" loading="eager" sizes="100vw" className="home-hero-img object-cover" />
+        </div>
         <div className="home-hero-shade absolute inset-0" aria-hidden="true" />
 
         <header className="absolute inset-x-0 top-0 z-[3] flex items-center gap-4 px-4 py-3 md:px-8 lg:px-14 lg:py-5">
@@ -920,6 +926,8 @@ export default function HomeShowcase({
 
       {/* HUB DES CLANS — fin de page : le site réunit tous les clans, pas un seul (maquette « Accueil - Bandeau clans » 1a). */}
       <HomeClansHub clans={data?.clans ?? []} stats={stats} />
+
+      </main>
 
       {/* Même contenu que le footer du site (masqué ici), aux marges de la vitrine : docs/features/pages-legales.md. */}
       <footer className="home-footer px-4 py-5 md:px-8 lg:px-14">

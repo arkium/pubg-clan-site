@@ -1,13 +1,16 @@
 
 import { getOwnerFeatureAccessMap } from '@/lib/auth/owner-features'
 import { listLinkedMembers } from '@/lib/auth-service'
-import { getSessionFromRequest } from '@/lib/auth-session'
+import { getSessionFromRequest, getSessionTokenFromRequest } from '@/lib/auth-session'
 import { getMemberPermissionKeys } from '@/lib/role-service'
 
 export async function GET(request: Request) {
   const session = await getSessionFromRequest(request)
   if (!session) {
-    return Response.json({ authenticated: false }, { status: 401 })
+    // Visiteur sans cookie : réponse normale, il n'y a rien à purger (PageSpeed du 2026-10-11 : quatre 401 dans la
+    // console de l'accueil, et autant d'appels inutiles à /api/auth/logout). Un cookie présent mais expiré ou révoqué
+    // garde son 401 : `useAuthSession` le purge.
+    return Response.json({ authenticated: false }, { status: getSessionTokenFromRequest(request) ? 401 : 200 })
   }
 
   const linkedMembers = await listLinkedMembers(session.userId)

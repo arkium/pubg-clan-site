@@ -84,8 +84,9 @@ export function useAuthSession() {
         ownerFeatures?: Record<string, OwnerFeatureAccess>
       }
 
+      // 200 sans session : aucun cookie (la route répond 401 à un cookie expiré), donc rien à purger.
       if (!data.authenticated) {
-        await resetToLoggedOut(true)
+        await resetToLoggedOut(false)
         return
       }
 

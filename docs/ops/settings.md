@@ -74,7 +74,7 @@ En ligne de commande : `npx tsx scripts/set-clan-lifecycle-config.ts --show | --
 
 ## `/settings/pubg-api` — Monitoring PUBG API
 
-Accès : Owner (`owner.pubg-api`, permission `*`).
+Accès : SuperUser (`superuser.pubg-api`, ex-`owner.pubg-api` renommée le 2026-10-11).
 
 ### Catégorisation des appels
 
@@ -138,7 +138,7 @@ Permet de surveiller la consommation de l'API PUBG, détecter les 429, identifie
 
 ## `/settings/email-delivery` — Livraison email
 
-Accès : Owner (`owner.email-delivery`).
+Accès : SuperUser (`superuser.email-delivery`, ex-`owner.email-delivery` renommée le 2026-10-11).
 
 ### Données configurées
 

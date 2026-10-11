@@ -1,246 +1,129 @@
-# Télémétrie — Dashboard et monitoring
+# Télémétrie — « Données » d'un clan
 
-Ce document décrit les pages d'administration et de monitoring du pipeline télémétrie.
+Pages d'exploitation du pipeline de télémétrie d'un clan : onglets de `/clans/[clanId]/settings/data`, réservés au
+SuperUser (`AdminAccessGate` Plateforme dans le `layout.tsx` du dossier, routes en `requirePlatformAdmin`), jamais
+délégués aux Owners ([administration.md](../TODO/administration.md) Q17, Q20).
 
-## Pages disponibles
+> **Trois onglets depuis le 2026-10-11** ([administration.md](../TODO/administration.md) §8) : Santé, Soirées,
+> Récupérations. Les anciens onglets État, Erreurs et Synchronisation sont fondus ou supprimés ; leurs adresses sont
+> redirigées (`next.config.ts`). Une seule entrée de menu : `superuser.clan-data` (« Données du clan »).
 
-> Depuis le 2026-10-07 ([administration.md](../TODO/administration.md), Q20) : les outils sont des onglets de « Données »
-> (`/clans/[clanId]/settings/data`), réservés au SuperUser (`requirePlatformAdmin`), jamais délégués aux Owners depuis
-> le 2026-10-08 — onglet « Santé des données » et resynchronisation rapide (50 parties par 24 h) compris.
-> Les anciennes adresses `/clans/[clanId]/telemetry/…` sont redirigées.
+## Deux files, un worker
 
-| URL | Rôle requis | Description |
-|-----|-------------|-------------|
-| `/clans/[clanId]/settings/data/state` | SuperUser | Métriques en temps réel de la queue |
-| `/clans/[clanId]/settings/data/errors` | SuperUser | Liste et retry des jobs échoués |
-| `/clans/[clanId]/settings/data/sessions` | SuperUser | Soirées du clan avec statut télémétrie |
-| `/clans/[clanId]/settings/data/sessions/[date]` | SuperUser | Panneau d'exploitation d'une soirée (sync, file, effacement) |
-| `/clans/[clanId]/settings/data/recoveries` | SuperUser | Console d'observabilité avancée |
-| `/clans/[clanId]/settings/data/sync` | SuperUser | Interface de sync batch manuelle |
+Le worker (`scripts/telemetry-resync-worker.ts`) consomme deux files distinctes de `CronExecution` :
 
----
+| File | `action` | Rôle | Alimentée par |
+|---|---|---|---|
+| Récupération PUBG | `telemetry_live_sync` | télécharge le fichier chez PUBG, puis l'analyse | synchronisation nocturne, mise en file d'une soirée, backlog et urgences de Récupérations, console `/settings/telemetry`, relance d'un échec, synchronisation d'un tournoi |
+| Retraitement de fichiers | `telemetry_resync_file` | réanalyse un fichier déjà capturé dans `.telemetry-captured/` | soirée (mode « Traiter les fichiers »), CLI `telemetry:batch` |
 
-## Page dashboard — `/clans/[clanId]/settings/data/state`
+Les pages nomment toujours la file dont elles parlent : avant le 2026-10-11, État et Santé affichaient chacun une
+« File de traitement », sur deux files différentes.
 
-Fichier source : `src/app/clans/[clanId]/settings/data/state/page.tsx`
+## Pages
 
-### Métriques affichées
+| Adresse | Contenu |
+|---|---|
+| `/clans/[clanId]/settings/data` | **Santé des données** : couverture, pipeline, files du worker |
+| `/clans/[clanId]/settings/data/sessions` | **Soirées** : soirées de la période et part de leurs parties analysées |
+| `/clans/[clanId]/settings/data/sessions/[date]` | Panneau d'exploitation d'une soirée |
+| `/clans/[clanId]/settings/data/recoveries` | **Récupérations** : couverture et mises en file, échecs, échantillon, historique |
 
-La page affiche 5 compteurs issus de `GET /api/clans/[clanId]/telemetry/sync-batch-manual` :
+| Ancienne adresse | Redirigée vers |
+|---|---|
+| `…/settings/data/state`, `/clans/[clanId]/telemetry/dashboard` | `…/settings/data` |
+| `…/settings/data/errors`, `/clans/[clanId]/telemetry/errors` | `…/settings/data/recoveries#echecs` |
+| `…/settings/data/sync`, `/clans/[clanId]/telemetry/sync-batch-manual` | `…/settings/data/sessions` |
+| `/clans/[clanId]/telemetry/recoveries` | `…/settings/data/recoveries` |
 
-| Compteur | Description | Couleur |
-|----------|-------------|---------|
-| En attente | Jobs `queued` | Ambre |
-| En traitement | Jobs `running` | Bleu |
-| Succès | Jobs `success` | Vert |
-| Echoués | Jobs `failed` | Rouge |
-| Total | Somme de tous les statuts | Slate |
-
-### Jauges visuelles
-
-Deux barres de progression horizontales :
-
-- **Taux de succès** : `(success / (success + failed)) * 100`, affichée en vert.
-- **Taux d'erreur** : `(failed / total) * 100`, affichée en rouge.
-
-Les pourcentages affichent `N/A` si `total === 0`.
-
-### Actualisation automatique
-
-- Auto-refresh toutes les 30 secondes via `setInterval`.
-- Case à cocher pour activer/désactiver l'auto-refresh.
-- Bouton "Actualiser" pour un refresh manuel immédiat.
-- Heure de la dernière actualisation affichée en bas de page.
-
-### Actions rapides
-
-Trois boutons disponibles :
-
-| Bouton | Action API | Paramètre |
-|--------|-----------|-----------|
-| Réorganiser priorités | `POST /queue-cleanup` | `{ action: 'reorder-priority' }` |
-| Nettoyer les anciens jobs | `POST /queue-cleanup` | `{ action: 'cleanup-stale', maxAgeHours: 24 }` |
-| Exporter métriques (Prometheus) | `GET /metrics?format=prometheus` | Téléchargement fichier `.txt` |
-
-Chaque action est suivie d'un refresh automatique des métriques.
-
-### Permissions
-
-Page accessible exclusivement au rôle Owner. Utilise `SettingsSectionNav` avec la section `owner-menu`.
+Onglets : `dataSectionTabs` (`src/lib/clan-data-section.ts`), rendus par `DataSectionTabs` sous le bandeau
+(soulignement accent dès 768 px, menu déroulant en dessous). Liens internes et ancres (`#echecs`, `#couverture`) : même
+module. Calculs des deux files : `src/lib/clan-telemetry-view.ts`.
 
 ---
 
-## Page erreurs — `/clans/[clanId]/settings/data/errors`
+## Santé des données — `/clans/[clanId]/settings/data`
 
-Fichier source : `src/app/clans/[clanId]/settings/data/errors/page.tsx`
+Fichier : `src/app/clans/[clanId]/settings/data/page.tsx`. Bouton « Actualiser » du bandeau : relit les trois sources.
 
-### Source de données
+| Bloc | Source | Contenu |
+|---|---|---|
+| Télémétrie des parties | `GET …/settings/data-health` | parties des 30 derniers jours, avec et sans télémétrie (dont expirées chez PUBG), dernière télémétrie. « Mettre en file → » mène à Récupérations › Couverture |
+| Pipeline de récupération (`PipelineHealthSection`) | `GET …/telemetry/observability?window=…&limit=200` | jobs live_sync de la période (24 h, 7 j, 30 j, Tout) : nombre, taux de succès et d'échec hors parties expirées, durée p95, alertes de seuil (échec > 5 %, p95 > 15 s) |
+| Files du worker pour ce clan (`WorkerQueuesPanel`) | `…/settings/data-health` et `GET …/telemetry/sync-batch-manual` | « Récupération PUBG » : en file, échecs sur 7 jours. « Retraitement de fichiers » : en attente, en cours, réussis, échoués (depuis l'origine) |
 
-La page lit `GET /api/clans/[clanId]/telemetry/sync-batch-manual` et filtre les jobs ayant `status === 'failed'` dans `recentJobs`.
+Actions du bloc des files, sur la file de retraitement seulement :
 
-### Filtrage temporel
+| Action | Route | Effet |
+|---|---|---|
+| Nettoyer la file de retraitement (modale de confirmation) | `POST …/telemetry/queue-cleanup` `{ action: 'cleanup-stale', maxAgeHours: 24 }` | **supprime** les jobs en attente depuis plus de 24 h et les échecs de plus de 7 h, clôt ceux en cours depuis plus de 4 h |
+| Exporter les métriques | `GET …/telemetry/metrics?format=prometheus` | fichier texte : compteurs de la file de retraitement du clan |
 
-Quatre filtres disponibles :
+Retirés le 2026-10-11 : la **resynchronisation rapide** (même sélection que « Mettre en file le backlog », plafond de
+50 parties par 24 h pensé pour l'Owner, jamais utilisée ; la route `settings/data-health/resync` reste, sans
+appelant), le **réordonnancement** de la file (aucune trace d'usage, permettait de passer devant les autres clans) et
+l'actualisation automatique toutes les 30 s.
 
-| Filtre | Fenêtre |
-|--------|---------|
-| Tous | Aucune limite |
-| Dernière heure | `jobAge < 3 600 000 ms` |
-| Dernier jour | `jobAge < 86 400 000 ms` |
-| Dernière semaine | `jobAge < 604 800 000 ms` |
+## Soirées — `/clans/[clanId]/settings/data/sessions` et `…/[date]`
 
-Le filtre est calculé depuis `job.finishedAt` et s'applique côté client sans nouvel appel API.
+Inchangées par la consolidation. La liste montre chaque soirée de la période (bandeau de période docké) et la part de
+ses parties analysées. La soirée liste ses parties à cocher et propose trois modes :
 
-### Affichage d'un job échoué
+| Mode | Route | File |
+|---|---|---|
+| Mise en file directe | `POST …/telemetry/sync-selected-enqueue` | live_sync ; file suivie en direct toutes les 5 s |
+| Capture seule | `POST …/telemetry/fetch-files-selected` | aucune : téléchargement pendant la requête, fichiers gardés sur le serveur |
+| Traiter les fichiers | `POST …/telemetry/resync-files-queue` (ou `resync-files-selected`, « Traiter maintenant ») | resync_file ; « Annuler les jobs en cours » (`queue-cleanup` `cancel-old`) |
 
-Chaque job apparaît sous forme de carte expandable :
+Plus l'effacement de la télémétrie et des fichiers des parties cochées (`POST …/telemetry/clear-selected`, modale de
+confirmation). C'est l'endroit où l'on agit sur une partie précise : Récupérations y renvoie.
 
-- **En-tête (toujours visible) :** message d'erreur, identifiant court (`id.slice(0, 12)...`), date de fin.
-- **Détail (expandable) :** viewer JSON du champ `details` (fond blanc, police mono, hauteur max 192px avec scroll).
-- **Bouton retry :** appelle `POST /api/clans/[clanId]/telemetry/dead-letter` avec `{ jobIds: [job.id] }`, puis rafraîchit la liste.
+## Récupérations — `/clans/[clanId]/settings/data/recoveries`
+
+Fichier : `src/app/clans/[clanId]/settings/data/recoveries/page.tsx`. Sélecteur de clan, lien « Moteur et tous les
+clans » vers `/settings/telemetry` (worker, file commune, synchronisation nocturne), lien « Matchs du clan ».
+
+| Bloc | Source | Contenu |
+|---|---|---|
+| Couverture et backlog (`#couverture`) | `GET …/telemetry/recoveries?limit=150` | toutes les parties du clan : complétées, expirées, récupérables, urgentes (7 à 14 jours), en file. Actions : mettre en file les urgences ou le backlog (`POST …/telemetry/recoveries`, 250 parties par clic), réparer les JSON manquants (`POST …/telemetry/backfill-null-json`, jusqu'à 150 parties retéléchargées chez PUBG pendant la requête). Rappel de la CLI `npm run telemetry:batch -- --clan <id> --all-matches` |
+| Échecs (`#echecs`, `TelemetryFailuresSection`) | `GET …/telemetry/observability?limit=300` et `GET …/telemetry/sync-batch-manual` | une liste par file, sur la période choisie. Récupération PUBG : dernier job de chaque partie s'il a échoué hors expiration, lien « État de la partie » ; relance = `POST …/telemetry/sync-selected-enqueue`. Retraitement de fichiers : échecs parmi les 20 derniers jobs ; relance = `POST …/telemetry/dead-letter`. « Tout relancer » : 50 au plus par file. Les échecs par expiration chez PUBG sont comptés, pas relançables |
+| Échantillon récent | `…/telemetry/recoveries` | compteurs des 150 dernières lignes de télémétrie du clan |
+| Historique des récupérations | `…/telemetry/recoveries` | filtres, tri par en-têtes, export CSV, pagination ; « Soirée » et « Partie » mènent à la soirée des Données (période choisie d'après la date de la partie) |
+
+`GET …/telemetry/recoveries` ne calcule plus que la couverture du clan demandé (`getClanTelemetryBacklog`, 0,3 à
+0,55 s mesurées le 2026-10-11 contre 7 s pour l'agrégat de tous les clans) et ne renvoie plus l'état du moteur.
+
+Retirés le 2026-10-11 : le bloc « Moteur et file d'attente » (identique à `/settings/telemetry`), le bloc « Santé de
+la télémétrie » (taux recalculés dans le navigateur, taille et délai médians), la liste sans action d'« Observabilité
+des jobs » (ses indicateurs sont dans Santé, ses jobs dans Échecs), l'onglet Erreurs (fondu dans Échecs) et l'onglet
+Synchronisation (saisie d'identifiants, sans usage tracé : on agit depuis la soirée, la page « État » d'un match ou la
+CLI ; `POST …/telemetry/sync-batch-manual` reste, sans appelant).
 
 ---
 
-## Export de métriques — `/api/clans/[clanId]/telemetry/metrics`
+## Export de métriques — `GET /api/clans/[clanId]/telemetry/metrics`
 
-Fichier source : `src/app/api/clans/[clanId]/telemetry/metrics/route.ts`
-
-### Format JSON (défaut)
-
-```
-GET /api/clans/1/telemetry/metrics
-```
+Fichier : `src/app/api/clans/[clanId]/telemetry/metrics/route.ts`. Compteurs lus dans `CronExecution`, **file de
+retraitement de fichiers seulement** (`telemetry_resync_file`) :
 
 ```typescript
 {
-  queued: number           // jobs en file d'attente
-  running: number          // jobs en cours de traitement
-  success: number          // total jobs réussis
-  failed: number           // total jobs échoués
-  recent_failures: number  // jobs échoués dans la dernière heure
-  success_rate: number     // taux de succès en %, sur 50 samples
-  avg_duration_ms: number  // durée moyenne des jobs réussis, en ms
+  clanId: number
+  timestamp: string
+  queue: { queued, running, success, failed, total }
+  performance: {
+    avgDurationMs: number   // moyenne des 100 derniers jobs réussis
+    successRate: number     // success / (success + failed), en %
+    recentFailures: number  // échecs de la dernière heure
+  }
 }
 ```
 
-### Format Prometheus
+`?format=prometheus` renvoie les mêmes valeurs en texte (`telemetry_jobs_queued{clan="…"}`, etc.).
 
-```
-GET /api/clans/1/telemetry/metrics?format=prometheus
-Content-Type: text/plain
-```
+## Pistes
 
-Chaque métrique est exportée avec commentaires `HELP` et `TYPE`, et le label `clan_id`. Voir l'exemple complet dans `docs/telemetry/api.md#get-metrics`.
-
-### Limites des métriques en mémoire
-
-- Les métriques sont stockées dans `WorkerHealthMonitor` avec un buffer de 50 samples.
-- Elles sont perdues au redémarrage du worker ou du serveur Next.js.
-- Elles ne sont pas persistées en base de données.
-
-Pour un historique durable, il faudrait soit écrire les samples en DB, soit exporter vers Prometheus avec un scraping régulier.
-
----
-
-## Page soirées — `/clans/[clanId]/settings/data/sessions`
-
-Onglet « Soirées » des Données du clan (SuperUser seul). L'ancienne
-adresse `/clans/[clanId]/telemetry/matches` redirige vers la liste joueur `/clans/[clanId]/matches`.
-
-Liste des matchs du clan avec leur statut de télémétrie. Chaque match affiche :
-
-| Statut | Signification | Action disponible |
-|--------|---------------|-------------------|
-| OK | Télémétrie traitée avec succès | Resync forcé (optionnel) |
-| Capture | Fichier capturé, traitement en attente | Resync via worker |
-| Manquant | Fichier non encore téléchargé | Capture puis resync |
-| Gros | Fichier trop volumineux (>250 Mo) | Non traitable |
-
----
-
-## Page soirée — `/clans/[clanId]/settings/data/sessions/[date]`
-
-L'ancienne adresse `/clans/[clanId]/telemetry/matches/session/[date]` redirige vers la soirée joueur
-`/clans/[clanId]/matches/session/[date]`.
-
-Fichier source référencé dans `TELEMETRY_MATCHES_SESSION_INTERFACE.md`.
-
-Interface de récupération télémétrie en 4 étapes :
-
-### Etape 1 — Sélection des matchs
-
-Checkboxes individuelles par match, avec boutons "Tout sélectionner" et "Vider la sélection". Un compteur affiche le nombre de matchs sélectionnés.
-
-### Etape 2 — Mode de récupération
-
-Trois modes disponibles, présentés sous forme de cartes :
-
-| Mode | Quand l'utiliser | Limite recommandée |
-|------|------------------|--------------------|
-| Direct Sync | Test rapide, validation | Moins de 50 matchs |
-| Capture seule | Archivage, workflow production | 50 à 1000 matchs |
-| Queue Resync | Production, gros volumes | 100 matchs et plus |
-
-**Direct Sync :** télécharge, capture et parse en une seule opération synchrone. Résultat immédiat mais peut timeout au-delà de 50 matchs.
-
-**Capture seule :** télécharge et sauvegarde dans `.telemetry-captured/`, sans parser. Non bloquant. Les fichiers sont rejouables à tout moment.
-
-**Queue Resync :** enqueue des jobs pour le worker asynchrone. Nécessite que `npm run telemetry:worker` soit actif. Retourne immédiatement.
-
-### Etape 3 — Options
-
-- Case "Réinitialiser télémétrie avant traitement" : vide les données existantes avant de parser.
-- Case "Recalculer agrégats après traitement" : relance le calcul des agrégats périodiques.
-
-### Etape 4 — Exécution et résultat
-
-Affichage du résultat JSON avec compteurs de succès/échec et logs des opérations.
-
----
-
-## Page recoveries — `/clans/[clanId]/settings/data/recoveries`
-
-Console d'observabilité officielle du pipeline. Affiche :
-
-- Totaux (`scanned`, `parsed`, `failed`) sur la fenêtre sélectionnée.
-- P95 des latences techniques (`fetchMatchMs`, `downloadAssetMs`, `parseMs`, `persistMs`).
-- Alertes seuils (taux d'échec élevé, latences anormales).
-- Historique des exécutions cron avec statuts.
-
-Accessible via le menu owner et depuis la page `/clans/[clanId]/settings/cron`.
-
----
-
-## Page sync-batch-manual — `/clans/[clanId]/settings/data/sync`
-
-Interface en 4 étapes identique à celle de la vue session, mais sans contexte de date préchargé. Permet d'ajouter des matchIds manuellement via un champ texte, ou de les importer en lot.
-
-Voir `docs/archive/TELEMETRY_UI_GUIDE.md` pour la maquette complète.
-
----
-
-## Ce qui reste à implémenter
-
-### WebSocket temps réel
-
-Le dashboard utilise actuellement du polling à 30 secondes. Une connexion WebSocket permettrait des mises à jour instantanées sans polling, mais ajoute de la complexité d'infrastructure. Le polling 30s est suffisant pour le monitoring de batch.
-
-### Historique des métriques en base
-
-Les métriques sont en mémoire (50 samples, perdues au redémarrage). Pour un historique persistant :
-
-- Ajouter une table `TelemetryMetricSample` avec `(clanId, timestamp, queued, running, success, failed, avgDurationMs)`.
-- Écrire un sample toutes les 5 minutes depuis le worker.
-- Exposer une route `/metrics/history?window=24h` pour les graphes temporels.
-
-### Filtrage avancé des erreurs
-
-La page `/errors` filtre uniquement par âge. Des filtres supplémentaires utiles :
-
-- Par type d'erreur (réseau CDN, parsing JSON, timeout, erreur DB).
-- Par match spécifique (recherche par `squadMatchId`).
-- Par membre (matchs du joueur concerné).
-
-### Auto-cleanup cron
-
-Les jobs stale s'accumulent en DB sans nettoyage automatique. Voir `docs/telemetry/ops.md` pour la procédure recommandée.
+- **Métriques de la file de récupération** : l'export Prometheus ne compte que la file de retraitement, qui ne sert
+  plus guère ; l'étendre à `telemetry_live_sync` le rendrait utile.
+- **Filtrer les échecs** par code d'erreur ou par joueur, si leur nombre le justifie un jour.
+- **Nettoyage automatique** de la file de retraitement : voir `docs/telemetry/ops.md`.

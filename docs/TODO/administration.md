@@ -865,6 +865,8 @@ présentation seulement, aucune route, garde, table ni entrée de menu modifiée
 
 > **Étape 1 — analyse rédigée le 2026-10-11** : lecture du code et lecture seule de la base de production
 > (`AdminActionLog`, `CronExecution`, `AppConfig`, `NavItem`). Aucune page, route, donnée ni entrée de menu modifiée.
+> **Étape 2 réalisée le 2026-10-11** (§8.7) : code, tests et documentation ; aucune donnée ni entrée de menu modifiée
+> en base (le script de menus attend son `--apply` après déploiement).
 > **Étape 2 validée le 2026-10-11** : recommandations Q-D1 à Q-D10 acceptées telles quelles, et optimisation de
 > `GET T/recoveries` (backlog du seul clan affiché) incluse, dans un commit à part. Branche `refactor/donnees-clan`.
 
@@ -1243,3 +1245,96 @@ mêmes lignes. Le script affichera le plan, puis demandera une confirmation au c
 - **Q-D10 — `owner.encountered-opponents`** : après le script, cette entrée vit dans les statistiques du clan (rôle
   membre) mais garde un nom en `owner.`. La renommer dans la foulée (`clan.encountered-opponents`) ou la laisser hors
   périmètre ?
+
+**Réglées le 2026-10-11** : recommandations Q-D1 à Q-D10 acceptées telles quelles, et optimisation de
+`GET T/recoveries` incluse (§8.7).
+
+### 8.7 Réalisation (2026-10-11, branche `refactor/donnees-clan`)
+
+**Fait.** Neuf commits, chacun laissant la suite de tests verte :
+
+| Commit | Contenu |
+|---|---|
+| `667ca06` docs | ce §8 |
+| `dc0dfa6` Santé + État | Santé : couverture, « Pipeline de récupération » (indicateurs d'Observabilité), « Files du worker pour ce clan » (les deux files nommées, nettoyage, export). État supprimé ; resynchronisation rapide et « Réordonner » retirés |
+| `882660c` Récupérations | bloc « Échecs » (`TelemetryFailuresSection`) pour les deux files, avec relance ; Moteur, Santé de la télémétrie et Observabilité retirés ; historique vers la soirée des Données ; Erreurs et Synchronisation supprimées |
+| `da2e7e7` perf | `GET T/recoveries` : couverture du seul clan (`getClanTelemetryBacklog`), plus d'`engineStatus` |
+| `1f055dc` menus | registre et `scripts/cleanup-admin-nav.ts` (§8.5) ; confirmation « oui » avant écriture |
+| `94c5090` correctif | rendu mobile (bouton du bandeau, période des Échecs), vu sur les captures Playwright |
+| `8db5903` tests | voir ci-dessous |
+| (ce commit) docs | ce §8.7, `docs/telemetry/dashboard.md` réécrit, `api-reference.md`, `ops/settings.md`, `navigation-arborescence.md`, `ui/index.html` |
+
+**Mesures** :
+
+- Pages et composants : 690 lignes ajoutées, 1 579 retirées. Le dossier `D/` passe de 4 283 à 2 845 lignes ; les
+  trois composants partagés de `src/components/clan-settings/data/` en ajoutent environ 640.
+- Code partagé (`src/lib/`, hors tests) : +250 lignes. Ce sont deux modules purs, `clan-data-section.ts` et
+  `clan-telemetry-view.ts`, et le découpage de `telemetry-recoveries-backlog.ts`.
+- Tests : +814 lignes.
+- `GET T/recoveries`, mesuré en lecture seule sur la base de production : l'agrégat de tous les clans prenait 7,0 s ;
+  celui d'un clan prend 0,3 à 0,55 s, avec les mêmes chiffres pour les clans 1, 7 et 25.
+
+**Tests** :
+
+- Nouveaux :
+  - `src/lib/clan-data-section.test.ts` : 3 onglets ; ancres ; soirée d'une partie ; redirections des 7 anciennes
+    adresses en un seul saut ; **aucune redirection en chaîne** dans tout `next.config.ts`.
+  - `clan-telemetry-view.test.ts` : lecture des routes, échecs des deux files, relance limitée à 50.
+  - `telemetry-recoveries-route.test.ts` : contrat de la route.
+  - `admin-cleanup-plans.test.ts` : plan appliqué aux lignes `NavItem` de production du 2026-10-11, idempotence,
+    surcharges conservées, doublons.
+  - `e2e/clan-data.spec.ts` : Santé en clair et en sombre, Récupérations et relances, anciennes adresses ;
+    ordinateur et mobile, toutes les API simulées.
+- Adaptés : `clan-data-gates`, `nav-registry-links`, `owner-features`, `telemetry-recoveries`.
+
+**Recette du 2026-10-11** :
+
+- Vitest : 181 fichiers, 2 019 tests verts (1 ignoré, comme avant). Sans les trois fichiers qui écrivent dans la
+  base de `DATABASE_URL`.
+- Playwright `clan-data` : 8 sur 8 (`chromium-desktop`, `chromium-mobile`). WebKit ne se lance pas sur ce poste.
+- `tsc` : rien hors les types générés de `.next/`.
+- Build de production : réussi.
+- Lint : aucune erreur nouvelle. Les 97 erreurs du dépôt existaient déjà ; parmi les fichiers touchés, la soirée (7)
+  et `telemetry-recoveries.test.ts` (4) les portaient déjà, et deux erreurs de la palette sont corrigées.
+
+**Reste à faire** :
+
+1. **Fusionner et déployer** : seul le service `web` est concerné (pages, `next.config.ts`, une route).
+2. **Appliquer le script de menus, après le déploiement** :
+   1. `npx tsx scripts/cleanup-admin-nav.ts` : la simulation affiche le plan ;
+   2. `npx tsx scripts/cleanup-admin-nav.ts --apply` : il faut taper « oui » dans un terminal. L'utilisateur qui le
+      lance doit pouvoir lire `.env` (voir l'ordre de déploiement du lot 2) ;
+   3. puis `scripts/remove-admin-moderator-roles.ts`, qui attend toujours depuis le lot 2.
+
+   Avant l'étape 2, l'accueil Plateforme garde ses anciennes cartes, qui redirigent directement vers leur nouvelle
+   destination. « Données du clan » n'apparaît qu'après.
+3. **Une fois le script appliqué**, retirer les anciennes clés `owner.pubg-api` et `owner.email-delivery` de
+   `PlatformHub.tsx` et de `SettingsHubCard.tsx`, gardées pour la transition.
+4. **Vérifier dans le navigateur** :
+   - Santé en clair, en sombre et sur mobile ;
+   - le bouton « Nettoyer… » (modale, puis message) et l'export Prometheus ;
+   - dans Échecs, un « Relancer » sur chaque file, puis « Tout relancer » ;
+   - dans Récupérations, les urgences, le backlog et la réparation des JSON ;
+   - dans la soirée, les trois modes, l'annulation, l'effacement et le nouveau texte de la modale ;
+   - les liens « Soirée » et « Partie » de l'historique ;
+   - les adresses `/data/state`, `/data/errors`, `/data/sync` et `/telemetry/{dashboard,errors,sync-batch-manual}` ;
+   - la palette de commandes (Ctrl+K) ;
+   - la carte « Données du clan », une fois le script appliqué.
+5. **Routes sans appelant**, à décider plus tard :
+   - POST `T/sync-batch-manual` ;
+   - POST `settings/data-health/resync`, avec `requestCappedResync` et le registre `owner_resync_ledger:*` (vide) ;
+   - l'action `reorder-priority` de `T/queue-cleanup` ;
+   - le champ `resync` de `GET settings/data-health`, que plus aucune page ne lit.
+
+**Écarts au §8.4** :
+
+- **Liens des échecs de récupération** : ils mènent à « État de la partie » (`matchTelemetryAuditPath`), pas à la
+  soirée. La série d'Observabilité ne donne pas la date de la partie ; la soirée aurait demandé de modifier la route.
+  Les liens de l'historique mènent bien à la soirée.
+- **Fenêtre des Échecs** : 24 h, 7 j, 30 j ou Tout ; le filtre « 1 h » d'Erreurs disparaît.
+- **`MetricCard` (Récupérations) et `KpiGrid` (Santé) restent distincts** : ce sont deux densités, des tuiles dans
+  une carte et des indicateurs de page.
+- **Répartition des tests** : les tests existants sont adaptés dans le commit qui les touche, pour que chaque commit
+  reste vert ; le commit « tests » n'ajoute que les nouveaux.
+- **Documentation** : `docs/telemetry/dashboard.md` est réécrit, pas seulement complété. Il décrivait des métriques
+  « en mémoire » et un mode direct « synchrone », tous deux faux.

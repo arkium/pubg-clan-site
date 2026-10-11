@@ -377,7 +377,8 @@ En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
 | GET | `/api/clans/[clanId]/city-insights` | `requireNavPermission('clan.overview')` | ✅ Pertinent | Villes et zones de combat du clan (Top 5 par métrique, ville favorite, évolution 8 semaines) — `?period=week\|month\|month-1\|month-2\|all`, `?matchType=`, `?mode=`. Lu dans `PositionMetricCell`, voir [Positions et villes](../features/positions-villes.md) |
-| POST | `/sync-batch-manual` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Enqueue/traite des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/sync-batch-manual` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | État de la file de retraitement de fichiers du clan (`telemetry_resync_file`) et 20 derniers jobs — Santé, Échecs, soirée |
+| POST | `/sync-batch-manual` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Met des parties en file de retraitement — **sans appelant** depuis la suppression de l'onglet Synchronisation (2026-10-11, [administration.md](../TODO/administration.md) §8), conservée |
 | GET | `/resync-files-queue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Liste des jobs de resync fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/resync-files-queue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Enqueue des jobs de resync fichiers — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/sync-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Sync direct des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
@@ -390,7 +391,7 @@ En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 | POST | `/queue-cleanup` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Actions de maintenance (reorder/cleanup/cancel) — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/metrics` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Métriques queue (JSON ou Prometheus) — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/observability` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Totaux, p95, taux d'échec, alertes — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/recoveries` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Stats de récupération de jobs bloqués — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/recoveries` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Onglet « Récupérations » : 150 dernières lignes de télémétrie du clan, compteurs, couverture du **seul clan demandé** (`backlog`, `getClanTelemetryBacklog`). Plus d'`engineStatus` depuis le 2026-10-11 : l'état du moteur est sur `/api/settings/telemetry-recoveries/status` |
 | POST | `/recalc-aggregates-batch` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Recalcule les agrégats périodiques — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/import-file` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/backfill-null-json` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
@@ -401,10 +402,10 @@ En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 
 Non documenté dans [Télémétrie API](../telemetry/api.md) (absent de la liste "Gestion de la queue").
 
-- **Auth :** `requireRole(['Owner'])` sur les deux méthodes.
+- **Auth :** `requirePlatformAdmin` sur les deux méthodes (SuperUser, jamais délégué).
 - **POST — body :** `{ squadMatchIds: string[] }` → enqueue via `enqueueTelemetryForSelectedSquadMatches()` (queue `telemetry_live_sync`, distincte de la queue resync classique). Réponse : `{ ok: true, clanId, ...result }`.
 - **GET :** renvoie l'état de la queue live-sync pour polling après enqueue : `{ ok: true, clanId, queue: <TelemetryLiveSyncQueueStats>, recentJobs: Array<{ id, status, message, createdAt, finishedAt }> }` (20 derniers jobs `CronExecution` de type `telemetry_live_sync`).
-- Sert le panneau "Direct Sync" de la page `/clans/[clanId]/settings/data/sync` (voir aussi `src/app/clans/[clanId]/settings/data/sync/page.tsx`).
+- Sert la mise en file directe d'une soirée (`/clans/[clanId]/settings/data/sessions/[date]`) et la relance d'un échec de récupération (Récupérations › Échecs, `TelemetryFailuresSection`). L'onglet Synchronisation qui l'appelait aussi est supprimé (2026-10-11).
 
 ---
 

@@ -36,9 +36,9 @@ export function dataCoverageHref(clanId: string | number) {
 /**
  * Soirée des Données qui contient une partie, là où l'on agit sur elle (mise en file, retraitement, effacement). La
  * page de la soirée charge les parties d'une période calendaire : on prend la première de `MATCH_PERIODS` qui contient
- * la partie. `null` au-delà du mois d'avant-dernier, que la page ne propose pas.
+ * la partie. `null` pour une partie antérieure aux deux mois précédents : la page n'a pas de période pour elle.
  */
-export function dataSessionHref(clanId: string | number, matchCreatedAt: string, now: Date, squadMatchId?: string) {
+export function dataSessionHref(clanId: string | number, matchCreatedAt: string, now: Date) {
   const createdAt = new Date(matchCreatedAt)
   if (Number.isNaN(createdAt.getTime())) return null
   const period = MATCH_PERIODS.find((candidate) => {
@@ -46,6 +46,5 @@ export function dataSessionHref(clanId: string | number, matchCreatedAt: string,
     return range !== null && createdAt >= range.start && createdAt < range.end
   })
   if (!period) return null
-  const anchor = squadMatchId ? `#match-${squadMatchId}` : ''
-  return `${clanDataBase(clanId)}/sessions/${sessionDateOf(createdAt)}?period=${period}${anchor}`
+  return `${clanDataBase(clanId)}/sessions/${sessionDateOf(createdAt)}?period=${period}`
 }

@@ -66,7 +66,9 @@ tous les types, le classement du mois est presque vide hors Normal : les seuils 
 
 - **Charte UI** (04/10/2026, `.charte` + `.game-ui`) : titre Teko sur la photo, tampon `app-stamp`, chiffres des marches
   en Teko, couronne en or de jeu (`.app-on-photo` sur le podium, toujours sombre), titres aux jetons de jeu, rangs par
-  `RankCell`, textes à 11 px minimum. Signatures conservées : podium en marches, fil, blue zone (seul bleu autorisé).
+  `RankCell`, textes à 11 px minimum. Signatures conservées : podium en marches, fil, blue zone (seul bleu autorisé). Le
+  podium vit depuis le 2026-10-11 dans `src/components/ui/PodiumSteps.tsx`, partagé avec la page d'un tournoi
+  (`LeaguePodium` n'y passe que le logo, le nom, le tag et la valeur du critère).
 - **Bandeau** (`DockingToolbar`) sur une ligne, **docké aussi sur mobile** : exception nommée à sticky.md §2
   (`MOBILE_DOCKED_EXTRA_CONTROLS`) — période, **type de partie** (menu à partir de 640 px ; sur mobile, segmented en
   seconde ligne au repos, absent une fois docké), critère (Power, Placement, Win rate, Dégâts, Kills, Knocks : segments

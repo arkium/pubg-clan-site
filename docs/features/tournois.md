@@ -237,24 +237,35 @@ internes ne comptent pas.
 | `rounds` | Manches numérotées chronologiquement, avec vainqueur, MVP et score de chaque participant |
 | `mvp` | Meilleur joueur du tournoi : le plus de kills, départagé par les dégâts |
 | `standings` | Vue historique par clan, conservée pour les écrans clan |
+| `playerBreakdown` | Détail par player (barème du mode Solo) : l'onglet en inter-clans, les top scorers et les awards dans **tous** les modes (en scrims internes, les seuls membres du clan organisateur) |
+| `clanAverages` | En inter-clans : moyenne par player de chaque clan (onglet « Moyenne par clan ») |
+| `leaders` | `killers` (toutes les manches, kills puis dégâts : le premier est le MVP) et `scorers` (ordre du détail par player) |
+| `awards` | Fun facts et awards du tournoi, `telemetryRounds` / `rounds` ; `null` si leur calcul a échoué (le classement reste servi) |
+| `weapons` | Les 8 armes les plus meurtrières et leurs 3 meilleurs tireurs |
+| `clanImages` | Logo des clans du podium (`login_welcome_image_url`, comme la ligue) |
 
 La page montre :
 
 1. **En-tête sur la carte** (celle du tournoi, sinon celle de la dernière manche — `TournamentDetailHeader`) : état,
    mode, format, organisateur, dates, fin ou début, et **le mode en clair** (« Inter-clans : une ligne par clan… ») ;
    manches, participants, heure de la dernière manche. Actions d'organisateur (synchroniser, diffuser, paramètres) pour
-   qui peut les exécuter.
-2. **Bandeau collant** : ancres Classement / Manches / Barème (`SectionAnchorNav`) et, connecté, la place du lecteur
-   (« Ton clan : 2e · à 6 pts du 1er », `TournamentViewerChip`). Docke aussi sur mobile (exception à sticky.md §2). Sans
-   manche, l'ancre « Manches » disparaît avec sa section.
-3. **Podium** (`PodiumCards`, ordinateur) et **MVP dans tous les modes** (il n'apparaissait qu'en solo).
+   qui peut les exécuter. Au bas de la photo, le bandeau de remerciement aux clans (2026-10-11).
+2. **Bandeau collant** : ancres Podium / Classement / Manches / Awards / Armes / Barème (`SectionAnchorNav`) et,
+   connecté, la place du lecteur (« Ton clan : 2e · à 6 pts du 1er », `TournamentViewerChip`). Docke aussi sur mobile
+   (exception à sticky.md §2). Une section absente (pas de podium, de manche, d'award ou d'arme) perd son ancre. Docké :
+   une seule ligne, Awards et Armes partagent l'ancre « Stats », la phrase du lecteur se coupe (« … ») plutôt que de
+   passer à la ligne ; docké sur mobile, « Podium » et « Barème » s'effacent aussi (mesuré le 2026-10-11 : 392 px pour
+   343 avec « Podium »).
+3. **Podium en marches** et **top killers / top scorers** (2026-10-11, voir « Statistiques du tournoi ») : le MVP est le
+   premier des top killers.
 4. **Classement** : ta ligne surlignée et marquée, barre de points à la couleur du mode, kills, Top 1 et **forme** (place
    à chaque manche, #1 en accent plein, « – » absent). Composition en pastilles pour les équipes libres. En inter-clans,
-   « Cumul par clan / Détail par escouade » reste proposé (décision du 2026-09-27).
+   « Cumul par clan / Moyenne par clan / Détail par squad / Détail par player ».
 5. **Trophée des clans** en solo, rangs par `RankCell`.
 6. **Manches une par une** : puces M1…Mn et chevrons, la dernière d'abord ; carte, tampon « Chicken dinner » et
    vainqueur, MVP, lien vers le débrief 2D, scores (ta ligne surlignée).
-7. **Barème** en barres Top 1 → Top 10, puis par kill, bonus Top 1, manches retenues et, en inter-clans, la règle
+7. **Awards du tournoi** (fun facts et awards en carrousel) puis **Armes du tournoi**.
+8. **Barème** en barres Top 1 → Top 10, puis par kill, bonus Top 1, manches retenues et, en inter-clans, la règle
    d'escouade mixte (`placementScale`, `tournamentRuleLines`).
 
 **Charte UI** (`docs/ui/index.html`, section « Tournois », 2026-10-04) : la page porte `.charte` (avec `.game-ui` et la
@@ -271,8 +282,8 @@ classe du mode) ; classes de rôle partout (`t-section-title`, `t-card-title`, `
   marque blanche sur l'accent). Dans le bandeau, la pastille prend la hauteur de la ligne des ancres (`self-stretch`,
   plus de `h-[34px]`). **Docké sur mobile, une seule ligne** (charte §6) : ancres sans icône, pastille réduite au rang
   (« 2e », phrase entière en infobulle et pour les lecteurs d'écran).
-- **Or et accent** : Top 1 du classement en `t-gold`, MVP du tournoi dans un `.app-panel` teinté or (`--game-gold-soft`,
-  chiffres en Teko) ; place #1 d'une manche (`.tournament-place--win`) en accent plein. Barème : une seule barre à
+- **Or et accent** : Top 1 du classement en `t-gold`, MVP du tournoi marqué en or en tête des top killers (sa bande
+  `.app-panel` teintée or a disparu le 2026-10-11) ; place #1 d'une manche (`.tournament-place--win`) en accent plein. Barème : une seule barre à
   l'accent, le Top 1, les autres à la couleur des traits (`--game-track-strong`, charte §5g). Lien « Débrief 2D » à
   l'accent sur la photo (plus d'indigo).
 - **Aucun défilement horizontal** (charte §4) : le tableau n'a plus de conteneur défilant ; sous 768 px, kills et Top 1
@@ -287,8 +298,7 @@ classe du mode) ; classes de rôle partout (`t-section-title`, `t-card-title`, `
 Sans manche comptabilisée, le message du joueur ne parle pas de synchronisation : seul l'organisateur reçoit
 « Lancez une synchronisation PUBG… ».
 
-**Écarts assumés avec la maquette** (règles de la refonte) : podium par `PodiumCards` (cartes alignées, pas l'ordre
-2-1-3) et MVP sur sa propre ligne ; rangs par `RankCell` ; puces de manche et ancres en accent, pas en or ; hauteur du
+**Écarts assumés avec la maquette** (règles de la refonte) : rangs par `RankCell` ; puces de manche et ancres en accent, pas en or ; hauteur du
 bandeau d'image de la liste inchangée ; « Tous formats » (et non « Tous les modes ») quand le format est libre, le mot
 « mode » désignant ici le mode du tournoi.
 
@@ -354,6 +364,55 @@ Discord) ; le reste du site (débrief d'une partie, notifications) dit toujours 
 - **Filtre « Clan »** des détails par squad et par player (`TournamentClanFilter`, menu de la charte) : les clans qui
   ont participé (`participantClanIds` et `clans` de la route). Une squad mixte apparaît sous chacun de ses clans ; le
   rang affiché reste celui du **classement complet** (« 18 players sur 75 »). Changer de clan ramène à la page 1.
+
+### Statistiques du tournoi (2026-10-11)
+
+Demande faite après le premier tournoi [FR] (2026-10-10), d'après le tableur des organisateurs. Calcul pur dans
+`src/lib/tournament-stats.ts` (testé), chargement dans `src/lib/tournament-stats-service.ts`, affichage dans
+`src/components/tournaments/TournamentStatsSections.tsx`.
+
+- **Bandeau de remerciement** au bas de l'en-tête (`TournamentDetailHeader`, prop `thanksClans`) : « Merci à tous les
+  clans pour leur participation », puis les clans qui ont joué au moins une manche, **par ordre alphabétique** (un merci,
+  pas un classement). Fond transparent, Teko en jaune d'accent, défilement continu (`.tournament-ticker`, durée selon la
+  longueur du texte), arrêté au survol et figé si le système réduit les animations ; la phrase entière est donnée une
+  fois aux lecteurs d'écran. Superposé à la marge basse : la marge haute rend ce que gagne la marge basse, **la hauteur
+  de l'en-tête ne change pas**. Absent avant la première manche.
+- **Ancre « Podium »** (podium et tops) en tête du bandeau collant ; absente sur mobile docké, faute de place.
+- **Podium en marches 2-1-3, comme la ligue** (`PodiumSteps`, partagé avec `/clans-leaderboard`), à la place des trois
+  cartes et de la bande MVP : logo du clan (celui du joueur en solo, le premier clan d'une équipe), nom, tag, points sur
+  une **plaque de score** biseautée façon habillage esport (`.podium-plate`, au métal de la marche, halo or sur le 1er —
+  charte §36), kills et Top 1 en blanc (l'un sous l'autre sur mobile). Variante `emphasis` du composant : la ligue garde
+  sa pilule.
+- **Top killers / top scorers** sur deux colonnes sous le podium (une seule sur mobile). Killers : toutes les manches,
+  kills puis dégâts — la règle du MVP, qui en est le premier (couronne « MVP »). Scorers : le détail par player (place de
+  sa squad, ses kills, bonus Top 1). Top 5, puis **la ligne du lecteur** s'il est plus loin (« ⋮ ») ; « Voir les N
+  players » déplie tout le classement (décision du 2026-10-11 : « que chacun puisse se trouver »).
+- **Onglet « Moyenne par clan »** (inter-clans, après « Cumul par clan ») : somme des points des players du clan au
+  détail par player ÷ nombre de players — la formule du tableur. Le cumul avantage les clans venus à plusieurs squads.
+  **Tous les clans sont classés**, même à un seul player (décision du 2026-10-11) ; le nombre de players est affiché.
+  Formules écartées le 2026-10-11 : par manche jouée, et cumul du clan ÷ players (le placement n'y compte qu'une fois
+  par squad et avantage les petits effectifs : au 10/10, OCD 16,7 devant BEE, 1 player, 14,8).
+- **Awards du tournoi** (après les manches) : 4 fun facts (kills dont à la tête, manche la plus sanglante, dégâts,
+  distance en véhicule) puis 20 awards au plus, sur le modèle des awards d'un clan mais limités au tournoi et à ses
+  players (`TOURNAMENT_AWARDS`). Compteurs du résumé PUBG (`SquadMember` : carton en une manche, dégâts, knocks,
+  headshots, kill le plus long, réanimations, assistances, survie, distances, boosts, soins, véhicules détruits, kills en
+  véhicule, armes ramassées) et télémétrie (`memberStats` : dégâts encaissés, temps hors zone ; `killFeedSamples` :
+  premier sang, premier éliminé). Un award sans valeur positive n'apparaît pas ; un award « meilleure manche » ou un
+  premier sang unique porte sa manche (« M3 »). Écartés : plus de kills (déjà les top killers), tirs alliés (désignerait
+  un joueur d'un autre clan), pointe de vitesse (`maxVehicleSpeedKph` compte l'avion : médiane de 1 067 km/h).
+  - **Carrousel** sombre « esport » : 1 carte (mobile), 2 (≥ 640 px), 3 (≥ 1 024 px) ; chevrons, compteur, **glisser à
+    la souris ou au doigt** (événements « pointer », 20 % d'une carte pour changer, résistance aux bords ; un geste
+    vertical fait défiler la page : `touch-action: pan-y`), **défilement automatique** toutes les 6 s avec barre de
+    progression en or, arrêté au survol, au focus, pendant un glissement, par le bouton pause ou si le système réduit
+    les animations ; « Tout voir » passe en grille. La piste glisse sous un cadre fixe : aucun défilement horizontal.
+    Les cartes hors cadre sont `inert`.
+- **Armes du tournoi** : les 8 armes qui ont fait le plus de kills (players du classement, dégâts pour départager) et
+  leurs 3 meilleurs tireurs, depuis `memberStats.weapons` de chaque manche (compte PUBG → membre). Variantes regroupées
+  par le catalogue (`findWeaponEntry`) ; catégorie « Autre » (véhicules, zone) exclue. Cartes de l'armurerie
+  (`.armory-showcase`, silhouette `ArmoryWeaponImage`) ; sur mobile, les 4 premières puis « Voir les 8 armes ».
+- **Coût** : une requête `SquadMember` et une `SquadMatchTelemetry` (`memberStats`, `killFeedSamples`, colonnes `*Gz`
+  décodées par `decodeTelemetryRow`) par affichage — 189 ms pour les 5 manches du 10/10. Une erreur à cette étape est
+  journalisée et la route renvoie le classement sans awards ni armes.
 
 ### Anciennes adresses
 
@@ -432,11 +491,12 @@ moteur n'y est pas décrit.
 | `tournament-route-contracts.test.ts` | Passage du mode à la création et à la modification, suppression et son refus hors clan |
 | `tournament-list-filters.test.ts` | Recherche (vainqueur compris), statut (brouillons avec « à venir »), filtre de mode, compteurs, répartition direct / à venir / palmarès |
 | `tournament-overview.test.ts` | Liste publique : vainqueur et participants selon le mode (joueur en solo, escouade en intra-clan), dernière manche, classement détaillé seulement en direct, noms en deux requêtes |
-| `tournament-mode-display.test.ts` | Unités par mode, repérage du lecteur (clan, joueur, équipe), phrase « Ton clan est 2e… », forme par manche, comptes à rebours, barème et règles |
+| `tournament-mode-display.test.ts` | Unités par mode, repérage du lecteur (clan, joueur, équipe), phrase « Ton clan est 2e… », forme par manche, comptes à rebours, barème et règles, top 5 + ligne du lecteur, format des awards (durées, km, singulier) |
 | `next-redirects.test.ts` | Chaque redirection de `next.config.ts` mène à une page existante et ne masque aucune page ; anciennes adresses de tournoi par clan |
-| `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections ; charte du détail (2026-10-04) : « en direct » à l'accent sans couleur en dur, `.tournament-place` ≥ 11 px, aucun défilement horizontal, bandeau docké sur une ligne à 375 px, 12 manches (puces paginées, forme bornée), tournoi à venir |
+| `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections ; charte du détail (2026-10-04) : « en direct » à l'accent sans couleur en dur, `.tournament-place` ≥ 11 px, aucun défilement horizontal, bandeau docké sur une ligne à 375 px, 12 manches (puces paginées, forme bornée), tournoi à venir ; statistiques (2026-10-11) : podium en marches, top killers / scorers (MVP, ligne du lecteur, liste dépliable), moyenne par clan, awards (fun facts, chevrons, pause, « Tout voir », glisser à la souris et au doigt), armes, ancre « Stats » docké |
 | `e2e/tournament-admin.spec.ts` | Administration (2026-10-04) : liste et archives, recherche et statut, création et modification (corps vérifiés), suppression en modale, synchronisation, diffusion Discord simulée, guide, refus sans droit, aucun défilement horizontal ni select natif |
-| `tournament-standings-view.test.ts` | Libellés des participants, rangs, MVP, manches numérotées, trophée des clans, détail par escouade |
+| `tournament-standings-view.test.ts` | Libellés des participants, rangs, MVP, manches numérotées, trophée des clans, détail par escouade, détail par player limité au clan organisateur |
+| `tournament-stats.test.ts` | Moyenne par clan (formule du tableur, clan à un player, égalités), top killers (règle du MVP) et scorers, awards (total, meilleure manche, télémétrie absente, premier sang), fun facts, armes (variantes, véhicules exclus, 3 tireurs, 8 armes) |
 | `discord/discord-tournament-embed.test.ts` | Intitulés par mode, note de prorata, format des lignes, limites Discord |
 | `discord/discord-tournament-service.test.ts` | Diffusion dans les 4 modes, MVP restreint en scrims internes, webhooks, journalisation |
 | `tournament-guide.test.ts` | Couverture des modes par le guide, cohérence avec le moteur, fiches non vides, pièges rappelés, résumé en quatre lignes |
@@ -456,6 +516,13 @@ npx tsx scripts/inspect-tournament-overviews.ts
 
 Ce que `GET /api/tournaments` renverra, en lecture seule : état, mode, manches, participants et vainqueur selon le mode,
 temps de calcul.
+
+```bash
+npx tsx scripts/inspect-tournament-stats.ts <tournamentId>
+```
+
+Statistiques telles que la page les reçoit, en lecture seule : moyenne par clan, top killers et scorers, fun facts,
+awards (avec la manche du record) et armes, temps de calcul.
 
 ## Voir aussi
 

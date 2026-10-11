@@ -75,6 +75,18 @@ function useTableSort<K extends string>(initial: K): {
   jaune plein en texte).
 - Mobile : non affiché (la liste porte déjà le rang).
 
+## `PodiumSteps`
+
+`{ ariaLabel; title; entries: PodiumStepEntry[]; stamp? }` — podium en marches 2-1-3 (signature §0b), né dans la Ligue
+inter-clans, partagé avec la page d'un tournoi depuis le 2026-10-11 (`src/components/ui/PodiumSteps.tsx`).
+
+- Toujours sombre (`.app-on-photo`, dégradé slate 900 → 950, rayon 14) ; intitulé 11 px uppercase à gauche, tampon
+  « Winner winner chicken dinner » (`app-stamp--sm`) à droite.
+- `entries` dans l'ordre du classement (le composant les place 2-1-3) : `identity` (logo `ClanLogo` + nom, lien
+  éventuel), `caption` (tag en mono), `value` (pastille sombre), `detail` facultatif (« 66 kills · 2 Top 1 »).
+- Couronne en or de jeu au-dessus du rang 1 ; marches argent / or / bronze à couleurs fixes, chiffre en Teko.
+- Affiché aussi sur mobile (marches plus basses), contrairement à `PodiumCards`.
+
 ## `DistinctionStrip`
 
 `{ items: { key: DistinctionBadgeKey; memberName: string; value: string }[] }` — icônes et libellés de

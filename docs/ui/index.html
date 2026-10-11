@@ -1798,6 +1798,40 @@ html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103
   box-shadow: inset 3px 0 0 var(--theme-ui-accent);
 }
 
+/* Plaque de score du podium (PodiumSteps, variante « emphasis » — page d'un tournoi, 11/10/2026) : biseautée façon
+   habillage esport, au métal de sa marche. Toujours sur le fond sombre du podium : couleurs fixes, encre sombre sur
+   l'or et l'argent (§1.2 : jamais de blanc sur le jaune), claire sur le bronze. Copie de src/app/globals.css. */
+.podium-plate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 5px 13px 1px;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), inset 0 -2px 0 rgb(0 0 0 / 0.18);
+  color: #1c1003;
+  line-height: 1;
+  white-space: nowrap;
+}
+.podium-plate--gold { background: linear-gradient(180deg, #fde68a 0%, #fbbf24 48%, #d97706 100%); }
+.podium-plate--silver { background: linear-gradient(180deg, #f8fafc 0%, #cbd5e1 52%, #94a3b8 100%); }
+.podium-plate--bronze { background: linear-gradient(180deg, #fdba74 0%, #ea580c 55%, #9a3412 100%); color: #fff7ed; }
+.podium-plate-glow { display: inline-flex; filter: drop-shadow(0 0 10px rgb(251 191 36 / 0.5)); }
+.podium-plate .podium-plate__value { font-size: 24px; line-height: 0.9; }
+.podium-plate--lead .podium-plate__value { font-size: 28px; }
+.podium-plate .podium-plate__unit {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+@media (min-width: 640px) {
+  .podium-plate { padding: 6px 18px 2px; clip-path: polygon(11px 0, 100% 0, calc(100% - 11px) 100%, 0 100%); }
+  .podium-plate .podium-plate__value { font-size: 30px; }
+  .podium-plate--lead .podium-plate__value { font-size: 38px; }
+  .podium-plate .podium-plate__unit { font-size: 12px; }
+}
+
 /* Zones de drop : la carte suivante arrive du côté du geste (docs/features/drop-zones.md). */
 @keyframes dz-slide-from-right {
   from { transform: translateX(28%); opacity: 0; }
@@ -3492,6 +3526,7 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">app-podium-badge--gold · --silver · --bronze</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Pastille de podium</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">status-pill--online · --offline · --pending · --error</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Statut (en attente = orange, jamais jaune)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">member-role-badge · member-access-badge</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Rôle et accès d’un membre</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
+                <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">podium-plate · podium-plate--{gold|silver|bronze} · podium-plate--lead · podium-plate-glow</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Plaque de score biseautée du podium d’un tournoi (§36) : métal de la marche, chiffre en Teko, encre sombre sur l’or et l’argent ; halo or sur le 1er. Uniquement sur le fond sombre du podium</td><td style="padding:8px 12px;vertical-align:middle;background:#0f172a;"><span class="podium-plate-glow"><span class="podium-plate podium-plate--gold podium-plate--lead"><b class="t-hero podium-plate__value">144</b> <span class="podium-plate__unit">pts</span></span></span></td></tr>
                 <tr class="app-table-row"><td style="padding:8px 12px;vertical-align:top;"><code class="docs-code">tournament-place · tournament-mode</code></td><td class="t-body text-gray-700" style="padding:8px 12px;vertical-align:top;">Place à une manche ; identité d’un mode de tournoi (--tmode)</td><td style="padding:8px 12px;vertical-align:middle;"></td></tr>
               </tbody>
             </table>
@@ -7915,7 +7950,7 @@ return (
             </ol>
           </div>
           <code class="docs-code">section toujours sombre (dégradé slate-900 → slate-950) · couronne --game-gold sur le #1 · marches à hauteurs 92/64/48 avec bande hachurée en pied · score en pilule #020617 tabular-nums</code>
-          <div class="docs-label">Classement au Power score (placement, dégâts, kills, knocks, pondéré par le nombre de parties ; seuil de qualification) par type de partie (Normal, Ranked, Casual, Tournois / Custom) sur la semaine, le mois ou depuis le début. Le tampon « Winner winner » passe à l'accent (Token §0b). Chiffres des marches en Teko (<code>.t-hero</code>).</div>
+          <div class="docs-label">Classement au Power score (placement, dégâts, kills, knocks, pondéré par le nombre de parties ; seuil de qualification) par type de partie (Normal, Ranked, Casual, Tournois / Custom) sur la semaine, le mois ou depuis le début. Le tampon « Winner winner » passe à l'accent (Token §0b). Chiffres des marches en Teko (<code>.t-hero</code>). Depuis le 11/10/2026, le podium est un composant partagé : <code>PodiumSteps</code> (<code>src/components/ui/PodiumSteps.tsx</code>), repris par la page d'un tournoi avec sa variante <code>emphasis</code> (plaque de score, §36). La ligue garde la pilule.</div>
         </div>
 
         <div class="docs-subsection">
@@ -9355,7 +9390,7 @@ return (
           Tournois — modes &amp; places
           <span class="sync-tag sync-tag--new" style="margin-left:auto;">Ajouté depuis le code</span>
         </h2>
-        <div class="sync-note"><b>Source :</b> classes <code>.tournament-*</code> de <code>src/app/globals.css</code>, <code>TournamentModeBadge</code> + <code>tournamentModeClass</code> (<code>src/components/tournaments/TournamentModeBadge.tsx</code>, <code>src/lib/tournament-mode-display.ts</code>) — docs/features/tournois.md. <code>.tournament-place</code> à 11&nbsp;px depuis le 04/10/2026. État d'un tournoi (<code>TournamentPhaseBadge</code>, <code>src/components/tournaments/TournamentDetailHeader.tsx</code>) : « en direct » en accent plein à encre sombre, « à venir » / « terminé » / « brouillon » en puce neutre sur photo avec icône (horloge, drapeau, crayon) — aucune teinte en dur.</div>
+        <div class="sync-note"><b>Source :</b> classes <code>.tournament-*</code> et <code>.podium-plate*</code> de <code>src/app/globals.css</code>, <code>PodiumSteps</code> (podium en marches, partagé avec la ligue), <code>TournamentModeBadge</code> + <code>tournamentModeClass</code> (<code>src/components/tournaments/TournamentModeBadge.tsx</code>, <code>src/lib/tournament-mode-display.ts</code>) — docs/features/tournois.md. <code>.tournament-place</code> à 11&nbsp;px depuis le 04/10/2026. État d'un tournoi (<code>TournamentPhaseBadge</code>, <code>src/components/tournaments/TournamentDetailHeader.tsx</code>) : « en direct » en accent plein à encre sombre, « à venir » / « terminé » / « brouillon » en puce neutre sur photo avec icône (horloge, drapeau, crayon) — aucune teinte en dur.</div>
 
         <div class="docs-subsection">
           <div class="docs-subsection-title">Identité des modes — <code>.tournament-mode--*</code> (variables <code>--tmode</code>)</div>
@@ -9389,6 +9424,56 @@ return (
             <div class="text-gray-900" style="display:flex;align-items:center;gap:0.75rem;padding:0.5rem 0.875rem;"><span class="text-gray-500" style="width:1.5rem;text-align:center;font-weight:700;">5</span><span>Clan Echo</span><span class="t-num" style="margin-left:auto;">120 pts</span></div>
           </div>
           <div class="docs-label">« Ton clan », « Toi »… : fond accent doux + liseré gauche 3&nbsp;px accent. Les états actifs de la page (segmented, ancres) restent en accent (§6 bis).</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Plaque de score du podium — <code>.podium-plate</code> <span class="sync-tag sync-tag--new">Ajouté depuis le code · 11/10/2026</span></div>
+          <div style="display:flex;flex-direction:column;gap:14px;overflow:hidden;border-radius:14px;border:1px solid var(--theme-ui-border);background:linear-gradient(180deg,#0f172a,#020617);padding:18px 20px;color:#e2e8f0;max-width:620px;">
+            <div style="display:grid;grid-template-columns:repeat(3,1fr);align-items:end;gap:16px;text-align:center;">
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                <span style="font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:#e2e8f0;">[FR]</span>
+                <span class="podium-plate podium-plate--silver"><b class="t-hero podium-plate__value">111,8</b> <span class="podium-plate__unit">pts</span></span>
+                <span style="font-size:13px;font-weight:600;color:#e2e8f0;"><b style="color:#fff;">59</b> kills · <b style="color:var(--game-gold);">1</b> Top 1</span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                <span style="font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:#e2e8f0;">[FUN]</span>
+                <span class="podium-plate-glow"><span class="podium-plate podium-plate--gold podium-plate--lead"><b class="t-hero podium-plate__value">144</b> <span class="podium-plate__unit">pts</span></span></span>
+                <span style="font-size:13px;font-weight:600;color:#e2e8f0;"><b style="color:#fff;">66</b> kills · <b style="color:var(--game-gold);">2</b> Top 1</span>
+              </div>
+              <div style="display:flex;flex-direction:column;align-items:center;gap:6px;">
+                <span style="font-family:ui-monospace,monospace;font-size:13px;font-weight:700;color:#e2e8f0;">[AUFU]</span>
+                <span class="podium-plate podium-plate--bronze"><b class="t-hero podium-plate__value">99</b> <span class="podium-plate__unit">pts</span></span>
+                <span style="font-size:13px;font-weight:600;color:#e2e8f0;"><b style="color:#fff;">58</b> kills · <b style="color:#fff;">0</b> Top 1</span>
+              </div>
+            </div>
+          </div>
+          <code class="docs-code">&lt;PodiumSteps emphasis entries={…} /&gt; → span.podium-plate-glow (1er seulement) &gt; span.podium-plate.podium-plate--{silver|gold podium-plate--lead|bronze} &gt; b.t-hero.podium-plate__value + span.podium-plate__unit</code>
+          <div class="docs-label">
+            <b>Rôle</b> : la donnée du podium d'un tournoi (ses points), mise en scène comme un habillage de retransmission esport — même registre que le tampon <code>app-stamp</code> (§3) : une étiquette de métal posée de biais, pas une pastille arrondie.
+            <b>Forme</b> : parallélogramme par <code>clip-path</code> (biseau 8 px, 11 px dès 640 px), liseré clair en haut et ombre en pied (relief), padding 5×13 (6×18 dès 640 px).
+            <b>Métal</b> : celui de la marche — argent (2e), or (1er), bronze (3e) — par la position d'affichage, comme les marches. Le 1er est plus grand (<code>--lead</code> : 28 px, 38 px dès 640 px ; 24 / 30 px sinon) et porte un halo or (<code>.podium-plate-glow</code>, sur une <b>enveloppe</b> : <code>clip-path</code> couperait l'ombre portée de la plaque elle-même).
+            <b>Texte</b> : chiffre en Teko (<code>t-hero</code>), unité « pts » en capitales 10–12 px à 80 % ; encre <code>#1c1003</code> sur l'or et l'argent (§1.2, jamais de blanc sur le jaune), <code>#fff7ed</code> sur le bronze, plus sombre.
+            <b>Contexte</b> : uniquement sur le fond toujours sombre du podium (<code>.app-on-photo</code>) — couleurs fixes, identiques dans les deux thèmes, comme les marches. Au-dessus : le tag du clan en mono 13 px <code>slate-200</code> ; dessous : kills et Top 1, chiffres en blanc (Top 1 en or s'il y en a), l'un sous l'autre sur mobile (colonnes d'environ 110 px) plutôt que coupés.
+            <b>À ne pas faire</b> : la réutiliser hors du podium, la poser sur un fond clair, mettre le chiffre en or sur l'or. La ligue garde sa pilule sombre (variante par défaut de <code>PodiumSteps</code>).
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">Bandeau de remerciement — <code>.tournament-ticker</code> <span class="sync-tag sync-tag--new">Ajouté depuis le code · 11/10/2026</span></div>
+          <div style="position:relative;overflow:hidden;border-radius:14px;border:1px solid var(--theme-ui-border);background:linear-gradient(90deg,#020617,#1e293b);height:64px;max-width:620px;">
+            <div style="position:absolute;inset:auto 0 0 0;height:28px;overflow:hidden;-webkit-mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);mask-image:linear-gradient(90deg,transparent,#000 5%,#000 95%,transparent);">
+              <div class="t-hero" style="display:flex;width:max-content;align-items:center;gap:20px;padding-top:3px;font-size:21px;line-height:1;letter-spacing:0.06em;text-transform:uppercase;color:var(--theme-ui-accent);text-shadow:0 1px 2px rgb(0 0 0 / 0.85);">
+                <span>Merci à tous les clans pour leur participation</span><span style="color:rgb(255 255 255 / 0.45);font-size:10px;">★</span><span>[BOFS] Bof Team</span><span style="color:rgb(255 255 255 / 0.45);font-size:10px;">★</span><span>[DEMO] Clan Démo</span><span style="color:rgb(255 255 255 / 0.45);font-size:10px;">★</span><span>[LMT] La Meute</span>
+              </div>
+            </div>
+          </div>
+          <code class="docs-code">TournamentDetailHeader thanksClans={…} → div.tournament-ticker (absolu, bas de l'en-tête, 22 / 28 px) &gt; p.sr-only + div.tournament-ticker__track.t-hero (piste doublée, aria-hidden)</code>
+          <div class="docs-label">
+            Au bas de la photo de l'en-tête d'un tournoi, dès la première manche : « Merci à tous les clans pour leur participation », puis les clans participants <b>par ordre alphabétique</b> (un merci, pas un classement), séparés d'une étoile lucide blanche à 45 %. <b>Fond transparent</b> (fondu sur les bords par <code>mask-image</code>), Teko en majuscules 17 / 21 px, <b>jaune d'accent</b> (<code>--theme-ui-accent</code>) avec une ombre portée pour la lisibilité sur la photo.
+            <b>Mouvement</b> : la piste, doublée, glisse de la moitié de sa largeur en boucle (<code>@keyframes tournament-ticker</code>), à vitesse de lecture constante (durée selon la longueur, ~45 s pour 14 clans) ; arrêtée au survol, figée si <code>prefers-reduced-motion</code>. Ce n'est pas un défilement horizontal (§4) : rien ne se fait défiler à la main, le cadre coupe la piste.
+            <b>Hauteur</b> : superposé à la marge basse de l'en-tête ; la marge haute rend ce que gagne la marge basse (10 + 22 px au lieu de 16 + 16 sur mobile, 16 + 32 au lieu de 24 + 24 dès 768 px) — la hauteur du bandeau d'image ne change pas.
+            <b>Accessibilité</b> : la phrase entière une fois en <code>sr-only</code> ; la piste animée est cachée aux lecteurs d'écran.
+          </div>
         </div>
       </section>
 

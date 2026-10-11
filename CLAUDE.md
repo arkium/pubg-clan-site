@@ -672,6 +672,11 @@ npx prisma migrate reset
 
 ### Production Deployment
 
+**Mise à jour courante :** `sudo bash /home/smk/apps/pubg-clan-site/scripts/deploy.sh` (git en root, tout le reste en
+`smk`, ne touche jamais au `.env`) — procédure dans [deployment.md](docs/ops/deployment.md), « Mise à jour courante ».
+
+Installation initiale :
+
 1. Apply migrations: `npx prisma migrate deploy`
 2. Build: `npm run build`
 3. Copy `/.next/standalone` to production

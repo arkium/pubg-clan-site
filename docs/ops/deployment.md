@@ -113,26 +113,20 @@ Git reste en root (il a l'accès au dépôt distant) ; **tout ce qui écrit dans
 `.env` recopié par le build appartient à root et le site démarre sans variables (incident du 2026-10-10, ci-dessous).
 
 ```bash
-APP=/home/smk/apps/pubg-clan-site
-cd "$APP"
-git -c safe.directory="$APP" fetch origin
-git -c safe.directory="$APP" checkout main || git -c safe.directory="$APP" checkout -b main origin/main
-git -c safe.directory="$APP" pull origin main
-chown -R smk:smk "$APP"            # ce que git vient d'écrire en root revient à smk
-
-sudo -u smk -H npm install
-sudo -u smk -H npx prisma migrate deploy
-sudo -u smk -H npx prisma generate
-sudo -u smk -H rm -rf .next
-sudo -u smk -H npm run build       # s'il échoue : ne pas redémarrer, corriger d'abord
-
-# smk doit lire les deux .env, sinon le web démarre sans aucune variable
-sudo -u smk test -r .env && sudo -u smk test -r .next/standalone/.env && echo "OK : .env lisibles par smk"
-
-systemctl daemon-reload
-systemctl restart pubg-clan-site-web pubg-clan-site-cron pubg-clan-site-telemetry-worker pubg-clan-site-telemetry-aggregates
-systemctl status pubg-clan-site-web pubg-clan-site-cron pubg-clan-site-telemetry-worker pubg-clan-site-telemetry-aggregates --no-pager -l
+sudo bash /home/smk/apps/pubg-clan-site/scripts/deploy.sh
 ```
+
+[`scripts/deploy.sh`](../../scripts/deploy.sh) fait foi ; il enchaîne, et s'arrête à la première erreur :
+
+1. en root : `git fetch` / `checkout main` / `pull origin main` (avec `safe.directory`), puis `chown -R smk:smk` ;
+2. en smk (`sudo -u smk -H`) : `npm install`, `prisma migrate deploy`, `prisma generate`, `rm -rf .next`,
+   `npm run build` ;
+3. vérifie que smk lit `.env` **et** `.next/standalone/.env` — sinon le web démarrerait sans aucune variable ;
+4. `systemctl daemon-reload`, redémarrage puis statut des 4 units.
+
+Un build en échec ou un `.env` illisible arrête le script **avant** le redémarrage : corriger, puis le relancer. Il ne
+lit ni ne réécrit jamais le `.env`. Le script arrive avec le code : sur un serveur qui ne l'a pas encore, faire une
+première fois le `git pull` à la main (en root, avec `-c safe.directory=…`).
 
 `rm -rf .next` coupe le site en cours de build (le web sert ses fichiers depuis `.next/standalone`) : déployer hors
 des soirées de jeu.

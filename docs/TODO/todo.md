@@ -791,9 +791,10 @@ persistance de la période par l'URL et une mémoire de visite.
 - [ ] 🐞 **Premier visiteur sur un lien direct de clan renvoyé vers `/clans`** (course dans `useSelectedClan` entre
   `setClanId` et la lecture asynchrone du mode visiteur) — découvert par les tests Playwright, hors de ce lot —
   [tests-e2e.md](../ops/tests-e2e.md#points-connus)
-- [ ] **Supprimer le workflow obsolète `.github/workflows/main_smkclan.yml`** (déploiement vers une Web App Azure
-  qui ne sert plus ; la production se déploie par build autonome et systemd). Il se déclenche encore à chaque push
-  sur `main`
+- [x] **Supprimer le workflow obsolète `.github/workflows/main_smkclan.yml`** (déploiement vers une Web App Azure
+  qui ne sert plus ; la production se déploie par build autonome et systemd) — supprimé le 2026-09-26 (`2bd0115`) ;
+  `startup.sh` et `.deployment` (démarrage Azure App Service) et `deploy-phase2.sh` retirés le 2026-10-11, remplacés
+  par `scripts/deploy.sh`
 
 #### Lot 6 — Sous-domaine par clan (`<clan>.chickendinner.fr`) — 📐 Cadrage validé le 2026-09-26, à implémenter
 

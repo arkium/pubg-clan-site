@@ -299,6 +299,42 @@ test.describe('organisateur (manage_settings)', () => {
     await expect(page.getByTestId('tournament-admin-toast')).toContainText('Classement par squad publié sur Discord.')
   })
 
+  test('joueurs non suivis : liste, destination de chacun, ajout puis message à la fermeture', async ({ page }) => {
+    await card(page, 'Coupe d’automne').getByRole('button', { name: 'Joueurs non suivis' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Joueurs non suivis' })
+    const list = dialog.getByRole('list', { name: 'Joueurs non suivis' })
+    await expect(list.getByRole('listitem')).toHaveCount(2)
+    await expect(list).toContainText('vOdKaNiCe38')
+    await expect(list).toContainText('Manches 1, 3 · 11 kills')
+    await expect(list).toContainText('Inscrira son clan [BAN] BanAndNotorious sur le site')
+    await expect(list).toContainText('Rejoindra [DEMO] Clan Démo')
+    await expectNoHorizontalScroll(page)
+
+    // L'ajout prend de quelques secondes à une minute : retenu ici le temps de lire le message d'attente.
+    let release!: () => void
+    const gate = new Promise<void>((resolve) => {
+      release = resolve
+    })
+    await page.route(`**/api/clans/${CLAN_ID}/tournaments/${ACTIVE_TOURNAMENT_ID}/untracked-players`, async (route) => {
+      if (route.request().method() === 'POST') await gate
+      return route.fallback()
+    })
+
+    const gurugun = list.getByRole('listitem').filter({ hasText: 'gurugun' })
+    await gurugun.getByRole('button', { name: 'Ajouter au site' }).click()
+    await expect(gurugun.getByRole('status')).toContainText('Ajout en cours')
+    await expect(gurugun.getByRole('status')).toContainText('attendez le message final')
+    await expect(gurugun.getByRole('button', { name: 'Ajout en cours…' })).toBeDisabled()
+    await expect(dialog.getByRole('button', { name: 'Fermer', exact: true }).last()).toBeDisabled()
+    release()
+    await expect(gurugun).toContainText('Ajouté')
+    expect(calls.untrackedAdds).toEqual([{ id: ACTIVE_TOURNAMENT_ID, body: { accountId: 'account.gurugun' } }])
+
+    await dialog.getByRole('button', { name: 'Fermer', exact: true }).last().click()
+    await expect(dialog).toHaveCount(0)
+    await expect(page.getByTestId('tournament-admin-toast')).toContainText('gurugun ajouté à [DEMO] Clan Démo')
+  })
+
   test('guide : sept fiches, en onglet', async ({ page }) => {
     await toolbar(page).getByRole('button', { name: 'Guide', exact: true }).click()
     const guide = page.getByTestId('tournament-guide')

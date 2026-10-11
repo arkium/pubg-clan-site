@@ -107,6 +107,10 @@ import {
 } from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/route'
 import { POST as postTournamentDiscord } from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/discord/route'
 import { POST as postTournamentSync } from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/sync/route'
+import {
+  GET as getTournamentUntracked,
+  POST as postTournamentUntracked,
+} from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/untracked-players/route'
 import { GET as getEncounteredPlayers } from '@/app/api/clans/[clanId]/encountered-players/route'
 import { GET as getDataHealth } from '@/app/api/clans/[clanId]/settings/data-health/route'
 import { POST as postDataHealthResync } from '@/app/api/clans/[clanId]/settings/data-health/resync/route'
@@ -199,6 +203,8 @@ const CLAN_OWNER_ROUTES: Array<[string, Handler]> = [
   ['DELETE tournaments/[id]', () => deleteTournament(req('/api/clans/7/tournaments/t1', 'DELETE') as never, clanTournament)],
   ['POST tournaments/[id]/discord', () => postTournamentDiscord(req('/api/clans/7/tournaments/t1/discord', 'POST'), clanTournament)],
   ['POST tournaments/[id]/sync', () => postTournamentSync(req('/api/clans/7/tournaments/t1/sync', 'POST'), clanTournament)],
+  ['GET tournaments/[id]/untracked-players', () => getTournamentUntracked(req('/api/clans/7/tournaments/t1/untracked-players'), clanTournament)],
+  ['POST tournaments/[id]/untracked-players', () => postTournamentUntracked(req('/api/clans/7/tournaments/t1/untracked-players', 'POST', { accountId: 'account.x' }), clanTournament)],
   ['GET encountered-players', () => getEncounteredPlayers(req('/api/clans/7/encountered-players'), clan)],
   ['POST /api/members (clan 7)', () => postMembers(req('/api/members', 'POST', { pubgPlayerName: 'Joueur', clanId: 7 }))],
 ]

@@ -18,6 +18,7 @@ import {
   RefreshCw,
   Scale,
   Trash2,
+  UserPlus,
   Trophy,
   X,
   type LucideIcon,
@@ -247,6 +248,8 @@ export type TournamentCardActions = {
   onBroadcast: (tournament: AdminTournament) => void
   onEdit: (tournament: AdminTournament) => void
   onDelete: (tournament: AdminTournament) => void
+  /** Joueurs des manches que le site ne suit pas (2026-10-11). */
+  onUntracked: (tournament: AdminTournament) => void
 }
 
 export function TournamentAdminCard({ tournament, actions }: { tournament: AdminTournament; actions: TournamentCardActions }) {
@@ -294,6 +297,10 @@ export function TournamentAdminCard({ tournament, actions }: { tournament: Admin
           <Eye className="h-3.5 w-3.5" aria-hidden="true" />
           Voir le classement
         </Link>
+        <button type="button" onClick={() => actions.onUntracked(tournament)} className="app-btn app-btn--xs app-btn--secondary gap-1.5">
+          <UserPlus className="h-3.5 w-3.5" aria-hidden="true" />
+          Joueurs non suivis
+        </button>
         <button type="button" onClick={() => actions.onEdit(tournament)} className="app-btn app-btn--xs app-btn--secondary gap-1.5">
           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
           Modifier

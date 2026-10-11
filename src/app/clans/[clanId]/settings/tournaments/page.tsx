@@ -26,6 +26,7 @@ import {
   type TournamentFormErrors,
   type TournamentFormState,
 } from '@/components/tournament-admin/tournament-form'
+import TournamentUntrackedPlayersModal from '@/components/tournament-admin/TournamentUntrackedPlayersModal'
 import TournamentDeleteModal from '@/components/tournaments/TournamentDeleteModal'
 import TournamentGuide from '@/components/tournaments/TournamentGuide'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
@@ -94,6 +95,7 @@ export default function ClanTournamentSettingsPage() {
   const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null)
   const [broadcastTournament, setBroadcastTournament] = useState<AdminTournament | null>(null)
   const [deleteTournament, setDeleteTournament] = useState<AdminTournament | null>(null)
+  const [untrackedTournament, setUntrackedTournament] = useState<AdminTournament | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -351,6 +353,7 @@ export default function ClanTournamentSettingsPage() {
                 onBroadcast: setBroadcastTournament,
                 onEdit: editTournament,
                 onDelete: setDeleteTournament,
+                onUntracked: setUntrackedTournament,
               }}
             />
           )
@@ -392,6 +395,18 @@ export default function ClanTournamentSettingsPage() {
         />
       ) : null}
 
+      {untrackedTournament && clanId ? (
+        <TournamentUntrackedPlayersModal
+          clanId={clanId}
+          tournamentId={untrackedTournament.id}
+          tournamentTitle={untrackedTournament.title}
+          onClose={() => setUntrackedTournament(null)}
+          onAdded={(message) => {
+            setSyncNotice({ tone: 'success', message })
+            void refreshTournaments(false)
+          }}
+        />
+      ) : null}
       {deleteTournament ? (
         <TournamentDeleteModal
           clanId={clanId}

@@ -196,6 +196,7 @@ export type TournamentAdminCalls = {
   deletes: string[]
   syncs: string[]
   broadcasts: Array<{ id: string; body: Record<string, unknown> }>
+  untrackedAdds: Array<{ id: string; body: Record<string, unknown> }>
 }
 
 /**
@@ -204,7 +205,7 @@ export type TournamentAdminCalls = {
  * `ApiMock` : une route Playwright dédiée, enregistrée après lui, le prend et laisse passer le reste.
  */
 export async function mockTournamentAdmin(api: ApiMock, page: Page): Promise<TournamentAdminCalls> {
-  const calls: TournamentAdminCalls = { creates: [], updates: [], deletes: [], syncs: [], broadcasts: [] }
+  const calls: TournamentAdminCalls = { creates: [], updates: [], deletes: [], syncs: [], broadcasts: [], untrackedAdds: [] }
   let tournaments = adminTournaments()
   const base = `/api/clans/${CLAN_ID}/tournaments`
 
@@ -244,6 +245,40 @@ export async function mockTournamentAdmin(api: ApiMock, page: Page): Promise<Tou
             telemetryQueued: 3,
           },
         }
+      })
+      // Joueurs non suivis : un joueur d'un clan déjà suivi, un autre dont le clan PUBG n'est pas inscrit.
+      .on('GET', `${path}/untracked-players`, {
+        body: {
+          roundCount: 3,
+          roundsWithoutTelemetry: [],
+          players: [
+            {
+              accountId: 'account.vodka',
+              name: 'vOdKaNiCe38',
+              platformShard: 'steam',
+              rounds: [1, 3],
+              kills: 11,
+              teammates: ['[LMT] Wolfy'],
+              pubgClan: { tag: 'BAN', name: 'BanAndNotorious' },
+              siteClan: null,
+            },
+            {
+              accountId: 'account.gurugun',
+              name: 'gurugun',
+              platformShard: 'steam',
+              rounds: [1, 2, 3],
+              kills: 0,
+              teammates: ['[DEMO] Joueur Alpha'],
+              pubgClan: { tag: 'DEMO', name: 'Clan Démo' },
+              siteClan: { id: CLAN_ID, tag: 'DEMO', name: 'Clan Démo' },
+            },
+          ],
+        },
+      })
+      .on('POST', `${path}/untracked-players`, (_url, request) => {
+        const body = request.postDataJSON() as Record<string, unknown>
+        calls.untrackedAdds.push({ id: tournament.id, body })
+        return { body: { ok: true, message: 'gurugun ajouté à [DEMO] Clan Démo et rattaché à 3 manches.' } }
       })
       .on('GET', `${path}/discord`, (url) => {
         const matchId = url.searchParams.get('matchId')

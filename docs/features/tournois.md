@@ -365,6 +365,29 @@ Discord) ; le reste du site (débrief d'une partie, notifications) dit toujours 
   ont participé (`participantClanIds` et `clans` de la route). Une squad mixte apparaît sous chacun de ses clans ; le
   rang affiché reste celui du **classement complet** (« 18 players sur 75 »). Changer de clan ramène à la page 1.
 
+### Joueurs non suivis (2026-10-11)
+
+Une manche ne retient que les joueurs **suivis** (`ClanMember` actif d'un clan actif). Un joueur que le site ne suit
+pas ne marque rien et ses kills manquent à sa squad ; le prorata se calcule sur les seuls joueurs suivis. Au tournoi
+[FR] du 2026-10-10, 4 joueurs sur ~77 par manche étaient dans ce cas (11 kills manquants à la squad LTF + OCD). Le
+site les **connaissait** pourtant (adversaires croisés : `Player`, `EncounteredPlayer`, avec leur clan PUBG).
+
+- **Liste** : bouton « Joueurs non suivis » sur la carte d'un tournoi (administration). La télémétrie couvre tout le
+  lobby (`memberStats`, une entrée par compte PUBG) : `src/lib/tournament-untracked-players.ts` la compare aux joueurs
+  suivis, manche par manche, sans les bots (`ai.…`) ni les animaux (`Monster.Bear-…` sur Dihor Otok). Chaque joueur :
+  pseudo, clan PUBG, manches, kills, coéquipiers suivis (sa squad) et destination. Une manche sans télémétrie est
+  signalée « non vérifiée ».
+- **« Ajouter au site »** (`POST /api/clans/[clanId]/tournaments/[tournamentId]/untracked-players`) : mêmes règles
+  qu'« Ajouter un joueur » (`POST /api/members`, appelé tel quel). Le **SuperUser** ajoute le joueur au clan qui suit
+  son clan PUBG, **inscrit sur le site au besoin** (décision du 2026-10-11) ; un Owner seulement dans son propre clan.
+  Puis `materializeTournamentCustomMatches` rattache le joueur aux manches : le classement se recalcule aussitôt. La
+  réponse dit combien de manches sont réellement rattachées (aucune si le clan est inactif, en attente de validation).
+  L'ajout prend de quelques secondes à une minute (appels PUBG, inscription du clan, rattachement) : la ligne affiche
+  « Ajout en cours : … attendez le message final », et la fenêtre ne se ferme pas avant la réponse.
+- **Premier usage** (2026-10-11, tournoi [FR]) : gurugun et Bobzore ajoutés à [BF], vOdKaNiCe38 et maladus7 avec leurs
+  clans [BAN] et [GFG] inscrits ; les 5 manches sont depuis couvertes à 100 %.
+- **En ligne de commande**, lecture seule : `npx tsx scripts/tournament-participant-coverage.ts <id du tournoi>`.
+
 ### Statistiques du tournoi (2026-10-11)
 
 Demande faite après le premier tournoi [FR] (2026-10-10), d'après le tableur des organisateurs. Calcul pur dans

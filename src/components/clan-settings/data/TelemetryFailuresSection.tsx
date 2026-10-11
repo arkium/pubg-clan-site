@@ -165,8 +165,13 @@ export default function TelemetryFailuresSection({ clanId, refreshToken }: { cla
       icon={AlertTriangle}
       title="Échecs"
       meta="Jobs du worker en échec pour ce clan, dans les deux files. Corrigez d’abord la cause (partie introuvable, fichier absent…) : sinon le job échouera de nouveau."
-      aside={<SegmentedControl<TelemetryWindow> size="sm" value={range} onChange={changeRange} options={TELEMETRY_WINDOW_OPTIONS} />}
     >
+      {/* Dans le corps, pas en `aside` : à côté du titre, il écrasait le texte d'introduction sur mobile. */}
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="t-label">Période</span>
+        <SegmentedControl<TelemetryWindow> size="sm" value={range} onChange={changeRange} options={TELEMETRY_WINDOW_OPTIONS} />
+      </div>
+
       {error ? <p className="t-body t-neg m-0">{error}</p> : null}
 
       {!loaded ? (

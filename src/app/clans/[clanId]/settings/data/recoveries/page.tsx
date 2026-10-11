@@ -581,7 +581,8 @@ export default function TelemetryRecoveriesPage() {
       action={
         <button type="button" className={BANNER_GLASS_BUTTON} onClick={refreshAll} disabled={refreshing}>
           <RefreshCw className={`h-3.5 w-3.5 shrink-0 sm:h-4 sm:w-4 ${refreshing ? 'animate-spin' : ''}`} aria-hidden="true" />
-          {refreshing ? 'Actualisation…' : 'Actualiser'}
+          {/* Icône seule sur mobile : le bouton, en haut à droite du bandeau, recouvrait le titre. */}
+          <span className="sr-only sm:not-sr-only">{refreshing ? 'Actualisation…' : 'Actualiser'}</span>
         </button>
       }
     />

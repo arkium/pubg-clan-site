@@ -858,3 +858,388 @@ présentation seulement, aucune route, garde, table ni entrée de menu modifiée
   reste au SuperUser (livré au 3b-2).
 
 **À trancher** : plus aucune question ouverte (la liste posée avant les lots 2 et 3 est entièrement réglée ci-dessus).
+
+---
+
+## 8. Consolidation Données du clan
+
+> **Étape 1 — analyse rédigée le 2026-10-11** : lecture du code et lecture seule de la base de production
+> (`AdminActionLog`, `CronExecution`, `AppConfig`, `NavItem`). Aucune page, route, donnée ni entrée de menu modifiée.
+> **Étape 2 validée le 2026-10-11** : recommandations Q-D1 à Q-D10 acceptées telles quelles, et optimisation de
+> `GET T/recoveries` (backlog du seul clan affiché) incluse, dans un commit à part. Branche `refactor/donnees-clan`.
+
+Point de départ : sous « Dépannage du clan sélectionné », l'accueil Plateforme affiche six cartes qui mènent toutes à la
+section « Données » d'un clan. Or cette section a déjà six onglets (`DataSectionTabs.tsx:11-21`), qui se recouvrent.
+Cible à évaluer : trois onglets (Santé, Soirées, Récupérations) et une seule carte.
+
+Abréviations propres à cette section : `D/` = `src/app/clans/[clanId]/settings/data/` ; `T/` =
+`src/app/api/clans/[clanId]/telemetry/`, comme dans le reste du document. Les lignes citées sont celles du dépôt au
+2026-10-11.
+
+### 8.0 Deux files, pas une
+
+Le worker (`scripts/telemetry-resync-worker.ts:712,722`) consomme **deux files distinctes**, toutes deux dans
+`CronExecution`. Ce point explique la plupart des recouvrements.
+
+| File | `action` | Rôle | Alimentée par | En base le 2026-10-11 |
+|---|---|---|---|---|
+| Récupération PUBG | `telemetry_live_sync` | télécharge le fichier chez PUBG, puis l'analyse | cron nocturne, Santé (resynchronisation rapide), Soirée et Synchronisation (mode direct), Récupérations (urgences, backlog), console `/settings/telemetry`, synchronisation d'un tournoi | 31 625 réussis, 407 échecs (dont 25 en octobre), rien en attente |
+| Retraitement de fichiers | `telemetry_resync_file` | réanalyse un fichier déjà capturé sur le disque du serveur (`.telemetry-captured/`) | Soirée et Synchronisation (mode « fichiers »), CLI `telemetry:batch` | 887 réussis, 228 échecs ; **aucun job depuis le 2026-09-01** ; jobs présents pour 2 clans seulement (1 et 6) |
+
+**État, Erreurs et l'export Prometheus ne lisent que la file de retraitement** :
+
+- `T/sync-batch-manual/route.ts:146-194` ;
+- `T/dead-letter/route.ts:11` ;
+- `T/queue-cleanup/route.ts:80-86`, puis `src/lib/pubg-telemetry/queue-priority.ts:3` et `stale-cleanup.ts:3` ;
+- `T/metrics/route.ts:34-78`.
+
+**Santé, Récupérations et `/settings/telemetry` ne lisent que la file de récupération** :
+
+- `src/lib/clan-data-health.ts:86-91` ;
+- `T/observability/route.ts:115-116` ;
+- `src/lib/telemetry-recoveries-status.ts:102-106`.
+
+Les onglets Santé et État affichent pourtant tous deux un bloc intitulé « File de traitement », sans préciser de quelle
+file il s'agit.
+
+### 8.1 Inventaire des six onglets
+
+Communs à la section : `layout.tsx` (garde Plateforme, 9 lignes), `DataSectionHeader.tsx` (46 l.) et
+`DataSectionTabs.tsx` (64 l.). Le dossier fait 4 283 lignes, layout compris.
+
+| Onglet | Adresse | Taille | Blocs affichés | Routes API appelées | Écritures possibles |
+|---|---|---|---|---|---|
+| Santé des données | `/clans/[clanId]/settings/data` (`D/page.tsx`) | 260 l. | Télémétrie des parties : 4 KPI sur 30 jours `:199-202`. File de traitement : en file et en cours, échecs sur 7 jours, file live_sync `:204-207`. Resynchronisation rapide : jauge du quota `:209-255` | GET `settings/data-health` `:40` ; POST `settings/data-health/resync` `:141` | Resynchronisation rapide : parties des 14 derniers jours sans télémétrie, au plus 50 par 24 h et par clan, à basse priorité (`clan-data-health.ts:113-176`) |
+| État | `…/data/state` (`D/state/page.tsx`) | 345 l. | File de traitement : 5 KPI, actualisation automatique toutes les 30 s ou manuelle `:243-258`. Taux de succès et d'échec, calculés **depuis l'origine** `:202-204`, `:260-263`. Actions sur la file `:265-340` | GET `T/sync-batch-manual` `:47` (toutes les 30 s, `:146`) ; POST `T/queue-cleanup` `:157` ; GET `T/metrics?format=prometheus` `:186` | Réordonner (`reorder-priority` : réécrit `startedAt` ; M8). Nettoyer, confirmé en deux temps (`cleanup-stale` : **supprime** les jobs en attente depuis plus de 24 h et les échecs de plus de 7 h, clôt ceux en cours depuis plus de 4 h). Exporter. Les trois actions ne touchent que la file de retraitement |
+| Soirées | `…/data/sessions` et `…/sessions/[date]` | 159 + 1 496 l. | **Liste** : soirées de la période, bandeau de période docké, part des parties analysées `:95-149`. **Soirée** : parties à cocher `:1094-1108` ; « Récupération manuelle », 3 modes `:1110-1348` ; file en direct actualisée toutes les 5 s (`:451-573`, `LiveQueue :1414`) ; serveur web (PID, Node, hôte) toutes les 20 s `:422` ; effacement de la télémétrie `:1331-1347` | Liste : `GET clans/:id/matches` (`useSquadMatches`). Soirée : GET/POST `T/sync-selected-enqueue` `:521,601` ; POST `T/fetch-files-selected` `:1001` ; POST `T/resync-files-selected` (aperçu `:385,719,895`, traitement `:765`, agrégats `:821`) ; POST `T/resync-files-queue` `:920` ; GET `T/sync-batch-manual` `:464` ; POST `T/queue-cleanup` (`cancel-old`) `:960` ; POST `T/clear-selected` `:651` ; GET `dev/runtime-status` `:424` | Mise en file directe (live_sync). Capture des fichiers chez PUBG, **pendant la requête**. Retraitement des fichiers, en file (resync_file) ou immédiat, avec effacement préalable coché par défaut. Annulation des jobs en cours (resync_file). Effacement de la télémétrie et des fichiers |
+| Erreurs | `…/data/errors` (`D/errors/page.tsx`) | 199 l. | Jobs en échec **parmi les 20 derniers jobs** de la file de retraitement ; filtre 1 h / 24 h / 7 j appliqué dans le navigateur `:120-188` ; encadré « corriger la cause » `:190-196` | GET `T/sync-batch-manual` (échecs filtrés `:39`) ; POST `T/dead-letter` `:87` | Relancer un job, ou tous (50 au plus, `:175`) : les jobs `telemetry_resync_file` en échec repassent en `queued` (`T/dead-letter/route.ts:53-66`) |
+| Synchronisation | `…/data/sync` (`D/sync/page.tsx`) | 328 l. | Étape 1, saisie d'identifiants `squadMatchId` `:164-210`. Étape 2, choix du mode `:212-253`. Étape 3, options et exécution ; la réponse s'affiche en JSON brut `:255-315`. Rappel de la ligne de commande `:317-325` | POST `T/sync-selected-enqueue`, `T/fetch-files-selected`, `T/sync-batch-manual` (`:134-147`) ; GET `T/sync-batch-manual` (bouton « Vérifier l'état de la file », JSON brut `:295-302`) | Les trois modes de la soirée, appliqués à des identifiants saisis à la main (50 au plus pour le retraitement, `T/sync-batch-manual/route.ts:54`). Ni « Traiter maintenant » ni effacement |
+| Récupérations | `…/data/recoveries` (`D/recoveries/page.tsx`) | 1 487 l. | Sélecteur de clan, liens « Tous les clans » et « Matchs du clan » `:916-943`. Moteur et file d'attente `:951-977`. Couverture et backlog `:979-1083`. Échantillon récent `:1087-1101`. Santé de la télémétrie `:1103-1121`. Observabilité des jobs `:1123-1222`. Historique (filtres, tri, export CSV, pagination) `:1224-1398` | GET `/api/clans` `:534` ; GET `T/recoveries?limit=150` `:547` ; GET `T/observability?window=…&limit=200` `:585` ; POST `T/recoveries` `:630` ; POST `T/backfill-null-json` `:682` | Mettre en file les urgences (parties de 7 à 14 jours) ou tout le backlog, 250 parties au plus par clic (`T/recoveries/route.ts:244-253`). Réparer les JSON manquants : jusqu'à 150 parties **retéléchargées chez PUBG pendant la requête**, sans passer par une file (`T/backfill-null-json/route.ts:114-122`). Export CSV, local |
+
+### 8.2 Carte des recouvrements
+
+**a) La file du worker apparaît à plusieurs endroits — nuancé : il y a deux files, sur deux portées.**
+
+| Où | File | Portée | Contenu | Source |
+|---|---|---|---|---|
+| Santé › File de traitement | live_sync | clan | en file et en cours, échecs sur 7 jours | `clan-data-health.ts:86-91` |
+| État › File de traitement | resync_file | clan | en attente, en cours, réussis, échoués, total (depuis l'origine) | `T/sync-batch-manual/route.ts:146-176` |
+| Récupérations › Moteur et file d'attente | live_sync, worker, planificateur | **toute la plateforme** | PID du worker, en attente, en cours, restant, durée estimée, prochain cron, total | `T/recoveries/route.ts:110` → `telemetry-recoveries-status.ts:102-131` |
+| Soirée › file en direct (mode direct) | live_sync | clan | 6 tuiles et 5 derniers jobs, toutes les 5 s | GET `T/sync-selected-enqueue`, `D/sessions/[date]/page.tsx:516-573` |
+| Soirée › file en direct (mode « fichiers ») | resync_file | clan | idem | GET `T/sync-batch-manual`, `:451-514` |
+| `/settings/telemetry` › Moteur de récupération | live_sync, worker, planificateur | plateforme | worker, file, synchronisation | `src/app/settings/telemetry/page.tsx:451-508`, via `A/settings/telemetry-recoveries/status/route.ts:19` |
+| *(en plus)* `/settings/cron` | live_sync | plateforme | état des workers | `A/settings/cron-workers-status/route.ts:76` |
+
+Verdicts :
+
+- **Récupérations › Moteur et `/settings/telemetry` › Moteur : confirmé, à l'identique.** Même fonction
+  (`getTelemetryRecoveriesStatus`), portée plateforme ; le bloc ne dit rien du clan affiché.
+- **État et Santé : pas un doublon, mais une confusion.** Le même intitulé couvre deux files différentes.
+- **Soirée : légitime.** Elle suit en direct l'action qu'on vient de lancer, à côté du bouton qui remplit la file.
+
+**b) « Mettre des parties en file » — confirmé, et plus de cinq variantes.**
+
+| # | Où | Sélection | File | Plafond | Route |
+|---|---|---|---|---|---|
+| 1 | Santé › Resynchronisation rapide | parties de 14 j sans télémétrie réussie, hors expirées | live_sync, basse priorité | 50 par 24 h et par clan | `settings/data-health/resync` → `clan-data-health.ts:132-163` |
+| 2 | Récupérations › Urgences / Backlog | **la même sélection** (7 à 14 j pour les urgences) | live_sync, priorité normale | 250 par clic | `T/recoveries` POST → `telemetry-recoveries-backlog.ts:207-300` |
+| 3 | Console `/settings/telemetry` (tous les clans ou un seul) | la même, tous clans | live_sync | 250 | `A/settings/telemetry-recoveries/enqueue-backlog` |
+| 4 | Soirée, mode direct | parties cochées | live_sync | — | `T/sync-selected-enqueue` |
+| 5 | Synchronisation, mode direct | identifiants saisis | live_sync | — | même route |
+| 6 | Soirée, mode « fichiers » | parties cochées | resync_file, ou traitement immédiat | — | `T/resync-files-queue` (ou `T/resync-files-selected`) |
+| 7 | Synchronisation, mode « fichiers capturés » | identifiants saisis | resync_file | 50 | `T/sync-batch-manual` POST : **autre route, même fonction** (`enqueueTelemetryResyncJobs`) |
+| 8 | Erreurs › Relancer | jobs en échec | resync_file | 50 | `T/dead-letter` |
+| 9 | Récupérations › Réparer les JSON manquants | télémétries sans JSON analysé | **aucune** : retéléchargement pendant la requête | 150 | `T/backfill-null-json` |
+| — | hors section : page « État » d'un match ; synchronisation d'un tournoi | une partie ; parties du tournoi | immédiat ; live_sync | — | `T/sync-selected`, `tournaments/[id]/sync` |
+
+Nuances :
+
+- **1 et 2 font la même sélection.** La resynchronisation rapide est un backlog plafonné et retardé, conçu pour l'Owner
+  (Q17). Elle n'a plus d'objet depuis que la section est réservée au SuperUser (Q17 révisée le 2026-10-08).
+- **4 et 5, comme 6 et 7, sont les mêmes modes.** La Synchronisation n'ajoute que la saisie libre d'identifiants.
+- **8 ne relance que la file de retraitement.** Aucune page ne relance un à un les échecs de la file de récupération :
+  seul le backlog (2) les reprend, avec toute partie sans télémétrie réussie.
+
+**c) « Santé de la télémétrie » (Récupérations) et l'onglet Santé — nuancé.**
+
+- **L'onglet Santé** compte les **parties** des 30 derniers jours qui ont leur télémétrie (`clan-data-health.ts:71-108`).
+- **Le bloc de Récupérations** est calculé dans le navigateur, sur les **150 dernières lignes `SquadMatchTelemetry`** du
+  clan filtrées par fenêtre (`D/recoveries/page.tsx:791-860`) : taux de succès hors expirées, lignes observées, taille
+  médiane, délai médian entre la partie et son analyse.
+- **Ce qui se recoupe** : la notion de taux de succès, calculée différemment. **Ce qui n'existe que là** : la taille
+  médiane et le délai médian.
+- **Quatre taux de succès dans la section** : État (file de retraitement, depuis l'origine), ce bloc, Observabilité
+  (`:1149-1150`) et, sous forme de part, Santé.
+
+**d) « Observabilité des jobs » et l'onglet Erreurs — aucune donnée commune, même besoin.**
+
+- **Observabilité** : jobs **live_sync** du clan sur une fenêtre (200 au plus). Compteurs, taux, durée p95, alertes de
+  seuil, 8 derniers jobs, **sans aucune action** (`:1123-1222`).
+- **Erreurs** : jobs **resync_file** en échec parmi les 20 derniers de cette file, avec bouton de relance.
+- **Aucune ligne commune**, mais les deux répondent à « qu'est-ce qui a échoué ? ».
+- **Ce qui manque** : les échecs live_sync (407 en base) n'ont aucune liste sur laquelle agir. Les échecs que montre
+  Erreurs datent tous du 2026-09-01 au plus tard.
+
+**e) Autres recouvrements relevés**
+
+- **Couverture** : Santé (30 jours) et Récupérations › Couverture et backlog (tout l'historique) se complètent ;
+  pas de doublon.
+- **Échantillon récent** : ses 6 compteurs portent sur les 150 lignes que l'Historique liste juste en dessous.
+- **`GET T/recoveries`** calcule à chaque chargement l'état du moteur global (`:110`) et le backlog de **tous** les
+  clans, pour n'en garder qu'un (`:111,161`). Ce coût serveur reste tant que la route ne change pas, même si la page
+  n'affiche plus le moteur (hors périmètre, §8.4).
+
+### 8.3 Usage réel
+
+Lecture seule le 2026-10-11 : `AdminActionLog`, `CronExecution` (les deux files, et les messages que laissent les
+actions), `AppConfig` (registre de la resynchronisation rapide).
+
+**Journal d'administration** : 74 lignes, de la première (le 2026-10-08 à 22:14) au 2026-10-11.
+
+- **Aucune écriture sur une route des Données d'un clan** (`T/*` et `settings/data-health/resync`).
+- Seule action de télémétrie : `settings/telemetry-recoveries/enqueue-backlog`, la console tous les clans, 5 fois, par
+  le SuperUser (les 10 et 11 octobre).
+
+**Resynchronisation rapide (Santé)** : le registre `owner_resync_ledger:*` est vide. **Jamais utilisée** depuis sa
+création, le 2026-10-07.
+
+**File de retraitement** (remplie par la soirée, la Synchronisation et la CLI ; lue par État, Erreurs et l'export) :
+1 115 jobs, aucun avec auteur.
+
+- **Clan 1, du 2026-06-07 au 2026-07-04** : 968 jobs, presque tous avec effacement préalable, le réglage par défaut de
+  la soirée. Exception : un lot de 48 jobs sans effacement le 2026-06-07 à 14:36, le jour où la page de synchronisation
+  a été créée. Il vient d'elle ou de la CLI.
+- **Clan 6, le 2026-09-01 à 16:54** : 147 jobs **en une minute**, sans effacement, **tous en échec**. C'est plus que
+  les 50 qu'accepte la Synchronisation par appel : très probablement la CLI `telemetry:batch`.
+- **Rien depuis.**
+
+**Actions de file d'État** : aucune trace.
+
+- 0 ligne « Reordered to position… » (message du réordonnancement) et 0 ligne « Timeout: job running… » (message du
+  nettoyage).
+- Les suppressions du nettoyage ne laissent rien, et le journal ne contient aucun appel à `queue-cleanup`.
+- Les 37 jobs « Cancelled: exceeded max running time » (du 2026-06-11 au 2026-07-04) viennent du bouton « Annuler les
+  jobs en cours » de la soirée, seul appelant de `cancel-old`.
+
+**Relance des échecs (Erreurs)** : aucun job « Retried from dead letter queue », et un journal vide. La première trace
+n'est pas probante : le worker réécrit le message quand il reprend le job.
+
+**Synchronisation** : aucune trace attribuable.
+
+- **Depuis le 2026-10-08** : le journal ne contient aucun appel à ses trois routes.
+- **Avant** :
+  - son mode « fichiers » n'a pu produire, au plus, que le lot du jour de sa création ;
+  - son mode direct ne se distingue pas de la soirée (même route, même auteur) ;
+  - son mode capture ne laisse aucune trace.
+- **Conclusion** : on ne peut pas prouver qu'elle n'a jamais servi, mais rien n'indique d'usage après le jour de sa
+  création.
+
+**File de récupération, mises en file avec auteur** : 2 605 jobs du SuperUser, du 2026-07-05 au 2026-10-11.
+
+- **14 rafales sur plusieurs clans à la fois** (1 106 jobs, septembre et octobre) : c'est la console tous les clans.
+- **90 rafales d'un seul clan** (1 499 jobs) : elles peuvent venir de la soirée (mode direct), de la Synchronisation,
+  de Récupérations ou de la console clan par clan. Impossible de trancher avant le journal ; depuis, toutes viennent
+  de la console.
+- **Hors section** : les 16 jobs de l'auteur 47 (le 2026-10-10, clan 7) sont la synchronisation du tournoi lancée par
+  l'Owner (compte 9).
+
+**Conclusion** :
+
+- **État et Synchronisation**, que la cible fait disparaître, n'ont aucune trace d'usage depuis juillet, et la file
+  qu'ils pilotent est inactive.
+- **Pour remettre des parties en file**, l'outil qu'on utilise vraiment est la console `/settings/telemetry`. Avant le
+  journal, il y a eu en plus des mises en file d'un clan à la fois, dont on ne peut pas dire d'où elles venaient.
+
+### 8.4 Cible proposée
+
+**La cible à trois onglets tient**, avec quatre ajustements tirés des §8.0 à 8.3.
+
+1. **Nommer les deux files plutôt que les fusionner.** Ramener la file d'État telle quelle dans Santé y mettrait deux
+   « File de traitement » aux chiffres différents. Santé aura un seul bloc, « Files du worker pour ce clan », sur deux
+   lignes :
+   - « Récupération PUBG » : la file live_sync, comme aujourd'hui dans Santé ;
+   - « Retraitement de fichiers » : la file resync_file, comme aujourd'hui dans État.
+2. **Les taux viennent d'Observabilité, pas d'État.**
+   - **Ceux d'État** portent sur la file inactive, depuis l'origine : ils affichent « — » ou un chiffre figé pour
+     presque tous les clans.
+   - **Ceux d'Observabilité** portent sur la vraie file, sur la fenêtre choisie : jobs, taux de succès et d'échec hors
+     expirées, durée p95, alertes de seuil. Ce sont des indicateurs de santé, ils passent dans Santé.
+   - **La liste des jobs d'Observabilité** reste dans Récupérations, fondue avec Erreurs.
+3. **Une seule vue « Échecs » pour les deux files**, sans nouvelle route :
+   - les échecs de récupération, tirés de la série d'Observabilité (fenêtre choisie, 200 derniers jobs, expirées exclues), se relancent par
+     `T/sync-selected-enqueue`, que la soirée appelle déjà ;
+   - les échecs de retraitement, ceux de l'actuel onglet Erreurs, se relancent par `T/dead-letter`.
+
+   Chaque ligne mène à la soirée de sa partie, dans les Données : c'est là qu'on agit sur une partie précise.
+4. **Synchronisation : suppression pure plutôt qu'un panneau « Parties précises »** (§8.3). Agir sur une partie précise
+   reste possible par trois chemins :
+   - la soirée, atteinte depuis l'Historique ou les Échecs ;
+   - la page « État » d'un match (« Resync ce match », SuperUser) ;
+   - la CLI, pour tout un clan.
+
+   Seule perte : coller une liste d'identifiants de parties de dates différentes (Q-D1).
+
+**Destination de chaque bloc**
+
+| Page actuelle | Bloc | Destination |
+|---|---|---|
+| Santé | Bandeau, pastille « parties analysées » | **gardé** ; le bouton « Actualiser » d'État y est ajouté |
+| Santé | Télémétrie des parties (4 KPI sur 30 j) | **gardé** |
+| Santé | File de traitement (live_sync) | **fusionné** : Santé › Files du worker, ligne « Récupération PUBG » ; la tuile « Échecs » renvoie à Récupérations › Échecs |
+| Santé | Resynchronisation rapide | **supprimé (proposé, Q-D2)** : même sélection que le backlog. Remplacé par un lien « Mettre en file → Récupérations » sous la tuile « Sans télémétrie » |
+| État | File de traitement (5 KPI) | **fusionné** : Santé › Files du worker, ligne « Retraitement de fichiers » |
+| État | Actualisation automatique 30 s ou manuelle | **remplacé** par le bouton « Actualiser » du bandeau (Q-D9) ; le suivi en direct reste dans la soirée |
+| État | Lien « Voir les erreurs » (tuile Échoués) | **remplacé** par un lien vers Récupérations › Échecs |
+| État | Taux de succès et d'échec | **remplacé** par les indicateurs d'Observabilité dans Santé (Q-D3) |
+| État | Réordonner les priorités | **supprimé (proposé, Q-D4)** : aucune trace, file inactive, permet de passer devant les autres clans (M8) |
+| État | Nettoyer la file | **déplacé** dans Santé › Files du worker, renommé « Nettoyer la file de retraitement » |
+| État | Exporter les métriques (Prometheus) | **déplacé** dans Santé ; la description précise qu'il ne compte que la file de retraitement |
+| Soirées | Liste et soirée | **inchangées**, à une exception près : le texte de confirmation « relancés depuis l'onglet Erreurs » (`:1386-1387`) devient « depuis Récupérations › Échecs » |
+| Erreurs | Liste, filtre 1 h / 24 h / 7 j, Relancer, Tout relancer | **fusionné** : Récupérations › Échecs, partie « Retraitement de fichiers » |
+| Erreurs | Encadré « corriger d'abord la cause » | **déplacé** dans Récupérations › Échecs |
+| Synchronisation | Saisie, 3 modes, options, réponse JSON, « Vérifier l'état de la file » | **supprimé (proposé, Q-D1)** ; sinon, panneau repliable « Parties précises » dans Récupérations |
+| Synchronisation | Rappel de la CLI `telemetry:batch` | **déplacé** dans Récupérations › Couverture et backlog, sur une ligne |
+| Récupérations | Sélecteur de clan, « Tous les clans », « Matchs du clan » | **gardés** |
+| Récupérations | Moteur et file d'attente | **supprimé** ; remplacé par un lien « Moteur et file commune » vers `/settings/telemetry` |
+| Récupérations | Couverture et backlog (urgences, backlog, réparation des JSON) | **gardé** |
+| Récupérations | Échantillon récent | **gardé** (au choix : ses compteurs deviennent l'en-tête de l'Historique, qui porte sur les mêmes 150 lignes) |
+| Récupérations | Santé de la télémétrie | **supprimé** ; la taille médiane et le délai médian disparaissent avec lui (Q-D5) |
+| Récupérations | Observabilité des jobs | **scindé** : indicateurs et alertes → Santé ; liste des jobs → Récupérations › Échecs, avec relance |
+| Récupérations | Historique | **gardé** ; les liens « Soirée » et « Partie » mènent à la soirée des Données plutôt qu'à la page joueur (Q-D8) |
+
+Ordre des blocs :
+
+- **Santé** : Télémétrie des parties → Pipeline (indicateurs d'Observabilité, avec fenêtre) → Files du worker (avec
+  nettoyage et export).
+- **Récupérations** : Couverture et backlog → Échecs → Échantillon récent → Historique.
+
+**Composants partagés à extraire** (utilisés par deux onglets) :
+
+- **Lecture d'Observabilité**, pour les indicateurs de Santé et les Échecs de Récupérations.
+- **Lecture de la file de retraitement** (`GET T/sync-batch-manual`), pour Santé (compteurs) et Récupérations (échecs).
+- **Pastille de statut d'un job** (`StatusTag`, aujourd'hui dans `D/recoveries/page.tsx:360-376`).
+- **Tuile d'indicateur** : `MetricCard` (Récupérations) double `KpiGrid` (Santé) ; une seule suffit.
+
+**Ordre de grandeur** : les trois pages supprimées font 872 lignes, et Récupérations perd ses blocs Moteur et Santé
+(environ 150 lignes avec leurs calculs). Les Échecs unifiés et les files nommées en ajoutent environ 250. Gain net
+estimé : 750 à 800 lignes.
+
+**Redirections** (`next.config.ts`, 307 comme le reste de la réorganisation) :
+
+| Ancienne adresse | Nouvelle destination |
+|---|---|
+| `/clans/:c/settings/data/state` | `/clans/:c/settings/data` |
+| `/clans/:c/settings/data/errors` | `/clans/:c/settings/data/recoveries#echecs` |
+| `/clans/:c/settings/data/sync` | `/clans/:c/settings/data/sessions` si la page est supprimée ; `…/recoveries#parties-precises` si elle devient un panneau |
+
+- **Ancre dans une redirection** : le comportement n'est pas documenté dans `node_modules/next/dist/docs` ; à vérifier.
+  Sinon, redirection vers l'onglet seul.
+- **Chaînes de redirection à raccourcir** : `/clans/:c/telemetry/dashboard`, `…/errors` et `…/sync-batch-manual`
+  (`next.config.ts:44-46`) mènent aujourd'hui à `data/state`, `data/errors` et `data/sync`. Ils pointeront directement
+  vers la destination finale.
+- **Palette de commandes** (`GlobalCommandPalette.tsx:109,118`) : ses deux liens suivent.
+
+**Routes qui perdent leur dernier appelant** (notées ici, aucune n'est supprimée) :
+
+- POST `T/sync-batch-manual`, si la Synchronisation disparaît (le GET garde ses appelants) ;
+- POST `settings/data-health/resync`, avec `requestCappedResync` et le registre `owner_resync_ledger:*`, si la
+  resynchronisation rapide disparaît ;
+- l'action `reorder-priority` de `T/queue-cleanup`, si « Réordonner » disparaît (la route garde ses autres actions).
+
+Reste en place, sans être affiché : `engineStatus` et le backlog de tous les clans, calculés par `GET T/recoveries`.
+
+**Tests à adapter** (aucun test e2e ne couvre ces pages) :
+
+- `src/lib/auth/clan-data-gates.test.ts:39` : la liste des dossiers d'outils passe à `recoveries` et `sessions` ;
+- `src/lib/nav-registry-links.test.ts:43-46` ;
+- `src/lib/admin-cleanup-plans.test.ts` ;
+- `src/lib/auth/owner-features.test.ts:101-102` ;
+- nouveaux tests : `dataSectionTabs` (3 onglets) et les redirections.
+
+### 8.5 Entrées de menu
+
+**État en base le 2026-10-11.** `scripts/cleanup-admin-nav.ts` (lots 2 et 3) **n'a toujours pas été appliqué** :
+
+- `owner.clan-data` est absente ;
+- les libellés et les adresses sont ceux d'avant le lot 2 ;
+- les rôles `admin` sont encore en base.
+
+Le code des lots 0 à 3 est pourtant en production : le journal écrit depuis le 2026-10-08. Les cartes « Dépannage du clan
+sélectionné » visibles aujourd'hui (`useSettingsHubItems.ts:110-112` : toute entrée dont l'adresse contient `:clanId`) :
+
+| Clé | Libellé en base | Adresse en base | Mène aujourd'hui à |
+|---|---|---|---|
+| `owner.telemetry-dashboard` | Dashboard télémétrie | `/clans/:clanId/telemetry/dashboard` | `data/state` (redirection) |
+| `owner.telemetry-errors` | Erreurs télémétrie | `…/telemetry/errors` | `data/errors` |
+| `owner.telemetry-sync-batch` | Sync batch manuel | `…/telemetry/sync-batch-manual` | `data/sync` |
+| `owner.telemetry-recoveries` | Recoveries telemetry | `…/telemetry/recoveries` | `data/recoveries` |
+| `owner.telemetry-matches` | Télémétrie matchs | `…/telemetry/matches` | **la page joueur** `/clans/:c/matches` (`next.config.ts:52`), pas les Soirées |
+| `owner.encountered-opponents` | Adversaires rencontrés | `…/telemetry/opponents` | `/clans/:c/stats/opponents` |
+
+Il y a bien six cartes aujourd'hui, mais quatre seulement mènent aux Données. Les « six cartes vers les Données »
+correspondent à l'état qu'appliquerait le script en attente : `owner.clan-data` créée, les cinq adresses suivies,
+`owner.encountered-opponents` déplacée dans les statistiques du clan.
+
+**À supprimer, pas à masquer** : `owner.telemetry-dashboard`, `-errors`, `-sync-batch`, `-recoveries`, `-matches`.
+
+- **Masquer ne servirait à rien** : depuis Q18, une entrée `hidden` reste visible du SuperUser, avec l'étiquette
+  « masquée » (`useSettingsHubItems.ts:39`), et le SuperUser est le seul public de ces cartes.
+- **Aucune n'est une clé de garde** (`NAV_GUARD_KEYS`, `nav-permissions-service.ts:26-38`).
+- **Usages à retirer du code** :
+  - registre `:430-469` ;
+  - `SettingsHubCard.tsx:49-53` ;
+  - `nav-parent-registry.ts:102-111` (fil d'Ariane des soirées : `labelKey` vers la nouvelle clé) ;
+  - `admin-nav-cleanup.ts:42,57-62,73-76` ;
+  - les tests cités au §8.4.
+
+**À créer** : `superuser.clan-data`, « Données du clan », vers `/clans/:clanId/settings/data`, section
+`superuser-menu`, rôle `superuser`. Elle remplace `owner.clan-data`, que le script en attente créerait. C'est la seule
+carte de « Dépannage du clan sélectionné » ; `DataSectionTabs` passe à trois onglets.
+
+**Clés `owner.*` restées en `owner-menu` alors qu'elles sont superuser** :
+
+| Avant | Après | En base aujourd'hui |
+|---|---|---|
+| `owner.clan-data` | `superuser.clan-data` | absente |
+| `owner.email-delivery` | `superuser.email-delivery` | `sectionOverride` = `superuser-menu`, `roleOverride` = `superuser`, aucune surcharge de libellé |
+| `owner.pubg-api` | `superuser.pubg-api` | idem |
+
+- **Renommer** : mise à jour de `navKey` sur la ligne existante. Restent intacts : `id`, `sortOrder`, `isActive`,
+  `labelOverride`, et tout `roleOverride` différent du nouveau rôle de base.
+- **Surcharges devenues identiques à la base** (section `superuser-menu`, rôle `superuser`) : effacées, comme le script
+  du lot 2 le fait pour les libellés (Q-D7).
+- **Références dans le code** : `PlatformHub.tsx:17,32`, `SettingsHubCard.tsx:54-55`, `admin-nav-cleanup.ts:77-78`,
+  les tests, `docs/ops/nav-permissions.md`.
+
+Une fois ces entrées supprimées ou renommées, la section `owner-menu` est vide, dans le registre comme en base. La
+retirer (`ClanNavigation.tsx:431`, `settings/nav-permissions/page.tsx:65-98`, registre `:21,38`) est hors périmètre :
+c'est noté.
+
+**Script** : étendre le plan pur `planNavCleanup` (`src/lib/admin-nav-cleanup.ts`) et `scripts/cleanup-admin-nav.ts`
+plutôt qu'écrire un second script. Comme le premier n'a jamais tourné, deux scripts à la suite créeraient
+`owner.clan-data` et mettraient à jour 4 libellés et 5 adresses, pour que le second supprime ou renomme aussitôt ces
+mêmes lignes. Le script affichera le plan, puis demandera une confirmation au clavier (aujourd'hui, c'est le drapeau
+`--apply`). Q-D6.
+
+### 8.6 Questions ouvertes
+
+- **Q-D1 — Synchronisation** : suppression pure (recommandé : aucune trace d'usage, ses trois modes existent dans la
+  soirée) ou panneau repliable « Parties précises » dans Récupérations ?
+- **Q-D2 — Resynchronisation rapide de Santé** : la supprimer (recommandé : même sélection que « Mettre en file le
+  backlog », jamais utilisée, plafond pensé pour l'Owner) ou la garder telle quelle ?
+- **Q-D3 — Taux de succès et d'échec** : les indicateurs d'Observabilité dans Santé, la liste dans les Échecs
+  (recommandé), ou toute l'Observabilité dans Récupérations comme le prévoyait la cible ?
+- **Q-D4 — « Réordonner les priorités »** : supprimer le bouton (recommandé) ou le garder dans Santé ?
+- **Q-D5 — Taille médiane et délai médian** : les laisser disparaître, ou ajouter le délai médian à Santé ? Il faudrait
+  alors un champ de plus dans `settings/data-health` : la route serait modifiée, pas supprimée.
+- **Q-D6 — Script de menus** : étendre `cleanup-admin-nav.ts` (recommandé) ou écrire un script séparé à lancer après
+  lui ? Et quand l'appliquer : le `--apply` du lot 2 attend toujours, et `remove-admin-moderator-roles.ts` aussi.
+- **Q-D7 — Surcharges devenues identiques à la base après renommage** : les effacer (recommandé) ou les garder telles
+  quelles ?
+- **Q-D8 — Liens « Soirée » et « Partie »** de l'Historique et des Échecs : vers la soirée des Données (recommandé :
+  c'est là qu'on agit) ou vers la page joueur, comme aujourd'hui ?
+- **Q-D9 — Actualisation automatique toutes les 30 s (État)** : seulement le bouton « Actualiser » dans Santé
+  (recommandé), ou garder le choix Auto / Manuelle ?
+- **Q-D10 — `owner.encountered-opponents`** : après le script, cette entrée vit dans les statistiques du clan (rôle
+  membre) mais garde un nom en `owner.`. La renommer dans la foulée (`clan.encountered-opponents`) ou la laisser hors
+  périmètre ?

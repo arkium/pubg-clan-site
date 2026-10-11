@@ -36,6 +36,6 @@ describe('Données du clan', () => {
       .filter((entry) => entry.isDirectory())
       .map((entry) => entry.name)
       .sort()
-    expect(tools).toEqual(['errors', 'recoveries', 'sessions', 'sync'])
+    expect(tools).toEqual(['recoveries', 'sessions'])
   })
 })

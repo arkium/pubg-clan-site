@@ -115,8 +115,8 @@ export function GlobalCommandPalette() {
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/stats/opponents`))}>
               <Target className="mr-2 h-4 w-4" /> Adversaires
             </Command.Item>
-            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/errors`))}>
-              <Shield className="mr-2 h-4 w-4" /> Erreurs d'analyse
+            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/recoveries#echecs`))}>
+              <Shield className="mr-2 h-4 w-4" /> Échecs de télémétrie
             </Command.Item>
           </Command.Group>
         )}

@@ -44,8 +44,12 @@ const nextConfig: NextConfig = {
       // ancienne adresse mène directement à sa destination finale, sans redirection en chaîne.
       { source: '/clans/:clanId/telemetry/dashboard', destination: '/clans/:clanId/settings/data', permanent: false },
       { source: '/clans/:clanId/settings/data/state', destination: '/clans/:clanId/settings/data', permanent: false },
-      { source: '/clans/:clanId/telemetry/errors', destination: '/clans/:clanId/settings/data/errors', permanent: false },
-      { source: '/clans/:clanId/telemetry/sync-batch-manual', destination: '/clans/:clanId/settings/data/sync', permanent: false },
+      // Les échecs des deux files, avec leur relance, sont un bloc de « Récupérations ».
+      { source: '/clans/:clanId/telemetry/errors', destination: '/clans/:clanId/settings/data/recoveries#echecs', permanent: false },
+      { source: '/clans/:clanId/settings/data/errors', destination: '/clans/:clanId/settings/data/recoveries#echecs', permanent: false },
+      // Synchronisation par identifiants supprimée : on agit sur une partie depuis sa soirée.
+      { source: '/clans/:clanId/telemetry/sync-batch-manual', destination: '/clans/:clanId/settings/data/sessions', permanent: false },
+      { source: '/clans/:clanId/settings/data/sync', destination: '/clans/:clanId/settings/data/sessions', permanent: false },
       { source: '/clans/:clanId/telemetry/recoveries', destination: '/clans/:clanId/settings/data/recoveries', permanent: false },
       // « Adversaires rencontrés » rejoint les statistiques du clan (Q5).
       { source: '/clans/:clanId/telemetry/opponents', destination: '/clans/:clanId/stats/opponents', permanent: false },

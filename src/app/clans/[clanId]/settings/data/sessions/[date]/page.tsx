@@ -1384,7 +1384,7 @@ export default function TelemetrySessionDatePage() {
           }}
         >
           Tous les jobs de traitement du clan en cours d’exécution passent en échec ; ils pourront être relancés depuis
-          l’onglet Erreurs.
+          Récupérations › Échecs.
         </ConfirmDialog>
       ) : null}
     </div>

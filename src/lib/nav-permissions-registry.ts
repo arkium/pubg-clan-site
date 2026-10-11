@@ -419,54 +419,8 @@ export const NAV_REGISTRY: NavItemDef[] = [
   },
 
   // --- Owner menu (sidebar) ---
-  {
-    navKey: 'owner.clan-data',
-    section: 'owner-menu',
-    label: 'Données du clan',
-    hrefTemplate: '/clans/:clanId/settings/data',
-    defaultRole: 'superuser',
-    description: 'Santé des données, soirées et outils de télémétrie du clan — SuperUser seul, jamais délégué aux Owners.',
-  },
-  {
-    navKey: 'owner.telemetry-dashboard',
-    section: 'owner-menu',
-    label: 'État de la télémétrie',
-    hrefTemplate: '/clans/:clanId/settings/data/state',
-    defaultRole: 'superuser',
-    description: 'Tableau de bord de monitoring de la télémétrie.',
-  },
-  {
-    navKey: 'owner.telemetry-errors',
-    section: 'owner-menu',
-    label: 'Erreurs télémétrie',
-    hrefTemplate: '/clans/:clanId/settings/data/errors',
-    defaultRole: 'superuser',
-    description: 'Erreurs et jobs bloqués de la télémétrie.',
-  },
-  {
-    navKey: 'owner.telemetry-sync-batch',
-    section: 'owner-menu',
-    label: 'Synchronisation manuelle',
-    hrefTemplate: '/clans/:clanId/settings/data/sync',
-    defaultRole: 'superuser',
-    description: 'Déclenchement manuel d\'un batch de synchronisation télémétrie.',
-  },
-  {
-    navKey: 'owner.telemetry-recoveries',
-    section: 'owner-menu',
-    label: 'Récupérations',
-    hrefTemplate: '/clans/:clanId/settings/data/recoveries',
-    defaultRole: 'superuser',
-    description: 'Récupération des jobs de télémétrie bloqués.',
-  },
-  {
-    navKey: 'owner.telemetry-matches',
-    section: 'owner-menu',
-    label: 'Soirées de télémétrie',
-    hrefTemplate: '/clans/:clanId/settings/data/sessions',
-    defaultRole: 'superuser',
-    description: 'Soirées du clan et panneau d’exploitation : récupération, file et effacement de la télémétrie.',
-  },
+  // Vide depuis le 2026-10-11 (docs/TODO/administration.md §8) : ses entrées étaient toutes réservées au SuperUser et
+  // vivent désormais en `superuser.*`. « Adversaires rencontrés » garde sa clé historique, dans les stats du clan.
   {
     navKey: 'owner.encountered-opponents',
     section: 'clan-section',
@@ -475,24 +429,32 @@ export const NAV_REGISTRY: NavItemDef[] = [
     defaultRole: 'member',
     description: 'Joueurs et clans adverses croisés en match, non trackés — membres connectés du clan (Q5).',
   },
+
+  // --- SuperUser menu (sidebar) ---
   {
-    navKey: 'owner.email-delivery',
-    section: 'owner-menu',
+    navKey: 'superuser.clan-data',
+    section: 'superuser-menu',
+    label: 'Données du clan',
+    hrefTemplate: '/clans/:clanId/settings/data',
+    defaultRole: 'superuser',
+    description: 'Santé des données, soirées et récupérations de la télémétrie du clan sélectionné — jamais délégué aux Owners.',
+  },
+  {
+    navKey: 'superuser.email-delivery',
+    section: 'superuser-menu',
     label: 'Email d’envoi',
     hrefTemplate: '/settings/email-delivery',
     defaultRole: 'superuser',
     description: "Test de l'envoi d'emails.",
   },
   {
-    navKey: 'owner.pubg-api',
-    section: 'owner-menu',
+    navKey: 'superuser.pubg-api',
+    section: 'superuser-menu',
     label: 'API PUBG',
     hrefTemplate: '/settings/pubg-api',
     defaultRole: 'superuser',
     description: "Monitoring des appels à l'API PUBG.",
   },
-
-  // --- SuperUser menu (sidebar) ---
   {
     navKey: 'superuser.cron',
     section: 'superuser-menu',

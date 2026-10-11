@@ -31,7 +31,7 @@ describe('planNavCleanup', () => {
       row('owner.switch-clan'),
       row('superuser.switch-clan'),
       row('clan.reports'),
-      row('owner.telemetry-dashboard', { label: 'Dashboard télémétrie' }),
+      row('superuser.cron', { label: 'Ops Cron' }),
       // En production : base « Stats armes », surcharge égale au libellé du registre
       row('clan.stats-weapons', { label: 'Stats armes', labelOverride: armory }),
     ]
@@ -43,14 +43,15 @@ describe('planNavCleanup', () => {
       ['primary.mortar', 5],
       ['primary.resources', 6],
       ['primary.zone-reading', 7],
-      ['superuser.players', 0],
-      ['superuser.privacy-requests', 1],
-      ['superuser.delegation', 2],
-      ['owner.clan-data', 1],
-      ['superuser.admin-journal', 3],
+      // Après `superuser.cron` (position 0 du menu Plateforme).
+      ['superuser.players', 1],
+      ['superuser.privacy-requests', 2],
+      ['superuser.delegation', 3],
+      ['superuser.clan-data', 4],
+      ['superuser.admin-journal', 5],
     ])
     expect(plan.labelUpdates).toEqual([
-      { navKey: 'owner.telemetry-dashboard', from: 'Dashboard télémétrie', to: 'État de la télémétrie', clearOverride: false },
+      { navKey: 'superuser.cron', from: 'Ops Cron', to: 'Tâches planifiées', clearOverride: false },
       { navKey: 'clan.stats-weapons', from: 'Stats armes', to: armory, clearOverride: true },
     ])
   })
@@ -99,13 +100,13 @@ describe('planNavCleanup', () => {
       row('superuser.players'),
       row('superuser.privacy-requests'),
       row('superuser.delegation'),
-      row('owner.clan-data'),
+      row('superuser.clan-data'),
       row('superuser.admin-journal'),
       row('superuser.opponents'),
-      row('owner.pubg-api'),
+      row('superuser.pubg-api'),
     ]
     const plan = planNavCleanup(rows, NAV_REGISTRY)
-    expect(plan).toEqual({ deletes: [], creates: [], labelUpdates: [], hrefUpdates: [], resets: [] })
+    expect(plan).toEqual({ deletes: [], renames: [], creates: [], labelUpdates: [], hrefUpdates: [], resets: [] })
   })
 
   it('ne supprime jamais une clé qui protège des routes d’API', () => {

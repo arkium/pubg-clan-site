@@ -7,16 +7,21 @@
  * - aligne les libellés de base francisés sur le registre (et efface une surcharge devenue identique) ;
  * - lots 3a et 3b : crée `superuser.players`, `superuser.privacy-requests`, `superuser.delegation`, et suit les nouvelles adresses des pages
  *   Plateforme déplacées (`/settings/clans`, `/settings/clans/lifecycle`, `/settings/database`, `/settings/telemetry`) ;
- * - lot 3b : place « Adversaires rencontrés » dans les statistiques du clan (rôle membre, surcharges effacées).
+ * - lot 3b : place « Adversaires rencontrés » dans les statistiques du clan (rôle membre, surcharges effacées) ;
+ * - §8 (2026-10-11) : supprime les cinq cartes `owner.telemetry-*`, crée `superuser.clan-data` (seule carte « Dépannage
+ *   du clan sélectionné ») et renomme en `superuser.*` les clés `owner.*` réservées au SuperUser, surcharges conservées.
  *
- * Simulation par défaut : affiche le plan sans rien écrire. Idempotent : relancé, il ne trouve plus rien à faire.
- * Les rôles `admin` restants sont traités par scripts/remove-admin-moderator-roles.ts.
+ * Simulation par défaut : affiche le plan sans rien écrire. Avec `--apply`, affiche le plan puis demande de taper « oui »
+ * (terminal interactif obligatoire) avant d'écrire, en une seule transaction. Idempotent : relancé, il ne trouve plus
+ * rien à faire. Les rôles `admin` restants sont traités par scripts/remove-admin-moderator-roles.ts.
  *
  * Usage :
  *   npx tsx scripts/cleanup-admin-nav.ts            # simulation
- *   npx tsx scripts/cleanup-admin-nav.ts --apply    # écriture
+ *   npx tsx scripts/cleanup-admin-nav.ts --apply    # plan, confirmation, écriture
  */
 import 'dotenv/config'
+
+import { createInterface } from 'node:readline/promises'
 
 import { isEmptyNavCleanupPlan, planNavCleanup } from '../src/lib/admin-nav-cleanup'
 import { NAV_REGISTRY } from '../src/lib/nav-permissions-registry'
@@ -49,6 +54,11 @@ async function main() {
 
   console.info(`[cleanup-admin-nav] ${rows.length} entrées en base`)
   console.info('  À supprimer :', plan.deletes.length ? plan.deletes.join(', ') : 'aucune')
+  for (const rename of plan.renames) {
+    const cleared = [rename.clearSectionOverride ? 'section' : null, rename.clearRoleOverride ? 'rôle' : null].filter(Boolean)
+    const note = cleared.length ? `, surcharge de ${cleared.join(' et ')} effacée (identique)` : ''
+    console.info(`  Renommée    : ${rename.from} → ${rename.to} (${rename.section}, rôle ${rename.defaultRole}${note})`)
+  }
   console.info('  À créer     :', plan.creates.length ? plan.creates.map((item) => item.navKey).join(', ') : 'aucune')
   for (const update of plan.labelUpdates) {
     console.info(`  Libellé     : ${update.navKey} « ${update.from} » → « ${update.to} »${update.clearOverride ? ' (surcharge effacée)' : ''}`)
@@ -68,9 +78,26 @@ async function main() {
     console.info('[cleanup-admin-nav] Simulation : relancer avec --apply pour écrire.')
     return
   }
+  if (!(await confirm())) {
+    console.info('[cleanup-admin-nav] Annulé : rien n’a été écrit.')
+    return
+  }
 
   await prisma.$transaction([
     prisma.navItem.deleteMany({ where: { navKey: { in: plan.deletes } } }),
+    // Avant les libellés : ils visent les nouvelles clés.
+    ...plan.renames.map((rename) =>
+      prisma.navItem.update({
+        where: { navKey: rename.from },
+        data: {
+          navKey: rename.to,
+          section: rename.section,
+          defaultRole: rename.defaultRole,
+          ...(rename.clearSectionOverride ? { sectionOverride: null } : {}),
+          ...(rename.clearRoleOverride ? { roleOverride: null } : {}),
+        },
+      })
+    ),
     ...plan.creates.map((item) =>
       prisma.navItem.create({
         data: {
@@ -108,6 +135,21 @@ async function main() {
     ),
   ])
   console.info('[cleanup-admin-nav] Écrit.')
+}
+
+/** Confirmation au clavier : « oui » écrit, toute autre réponse annule. Jamais d'écriture sans terminal. */
+async function confirm() {
+  if (!process.stdin.isTTY) {
+    console.error('[cleanup-admin-nav] Confirmation impossible sans terminal interactif : rien n’a été écrit.')
+    return false
+  }
+  const prompt = createInterface({ input: process.stdin, output: process.stdout })
+  try {
+    const answer = await prompt.question('Écrire ces modifications dans la base ? Tapez « oui » pour confirmer : ')
+    return answer.trim().toLowerCase() === 'oui'
+  } finally {
+    prompt.close()
+  }
 }
 
 main()

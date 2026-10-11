@@ -1,8 +1,8 @@
 import type { NavItemDef } from '@/lib/nav-permissions-registry'
 
 /**
- * Nettoyage des menus du lot 2 (docs/TODO/administration.md §6) — calcul pur, appliqué par
- * `scripts/cleanup-admin-nav.ts` (simulation par défaut, `--apply` pour écrire).
+ * Nettoyage des menus d'administration (docs/TODO/administration.md §6, lots 2 et 3, puis §8) — calcul pur, appliqué
+ * par `scripts/cleanup-admin-nav.ts` (simulation par défaut ; `--apply` affiche le plan et demande confirmation).
  */
 
 export type NavItemRow = {
@@ -26,7 +26,25 @@ export const NAV_KEYS_TO_DELETE = [
   'admin.weapon-categories',
   'clan.reports',
   'clan.items',
+  // §8 : cinq cartes « Dépannage du clan sélectionné » qui menaient toutes aux Données du clan, remplacées par la seule
+  // `superuser.clan-data`. Supprimées et non masquées : une entrée masquée reste visible du SuperUser (Q18).
+  'owner.telemetry-dashboard',
+  'owner.telemetry-errors',
+  'owner.telemetry-sync-batch',
+  'owner.telemetry-recoveries',
+  'owner.telemetry-matches',
 ] as const
+
+/**
+ * Clés `owner.*` restées dans le menu Propriétaire alors qu'elles sont réservées au SuperUser (§8) : renommées et
+ * placées dans le menu Plateforme. La ligne garde son id, son ordre, son état et ses surcharges ; une surcharge de
+ * section ou de rôle devenue identique à la nouvelle base est effacée (elle ne surcharge plus rien).
+ */
+export const NAV_KEY_RENAMES: ReadonlyArray<readonly [from: string, to: string]> = [
+  ['owner.clan-data', 'superuser.clan-data'],
+  ['owner.email-delivery', 'superuser.email-delivery'],
+  ['owner.pubg-api', 'superuser.pubg-api'],
+]
 
 /**
  * Entrées du registre absentes de la base : liens écrits en dur dans la barre latérale (pour pouvoir les masquer ou
@@ -39,7 +57,7 @@ export const NAV_KEYS_TO_CREATE = [
   'superuser.players',
   'superuser.privacy-requests',
   'superuser.delegation',
-  'owner.clan-data',
+  'superuser.clan-data',
   // Lot 3c : journal des actions d'administration (Q10)
   'superuser.admin-journal',
 ] as const
@@ -53,13 +71,6 @@ export const NAV_KEYS_HREF_FROM_REGISTRY = [
   // Lot 3b : gestion des membres en onglets
   'clan.members-pending',
   'admin.add-player',
-  // Lot 3b : outils de télémétrie sous « Données »
-  'owner.telemetry-dashboard',
-  'owner.telemetry-errors',
-  'owner.telemetry-sync-batch',
-  'owner.telemetry-recoveries',
-  // Lot 3b : soirées de télémétrie (panneau d'exploitation) sous « Données »
-  'owner.telemetry-matches',
 ] as const
 
 /**
@@ -70,12 +81,8 @@ export const NAV_KEYS_RESET_FROM_REGISTRY = ['owner.encountered-opponents'] as c
 
 /** Libellés de base alignés sur le registre (libellés francisés, et « Stats armes » resté en base). */
 export const NAV_KEYS_LABEL_FROM_REGISTRY = [
-  'owner.telemetry-dashboard',
-  'owner.telemetry-matches',
-  'owner.telemetry-sync-batch',
-  'owner.telemetry-recoveries',
-  'owner.email-delivery',
-  'owner.pubg-api',
+  'superuser.email-delivery',
+  'superuser.pubg-api',
   'superuser.cron',
   'superuser.telemetry-recoveries',
   'superuser.platform-settings',
@@ -83,19 +90,65 @@ export const NAV_KEYS_LABEL_FROM_REGISTRY = [
   'clan.stats-weapons',
 ] as const
 
+export type NavRename = {
+  from: string
+  to: string
+  section: string
+  defaultRole: string
+  clearSectionOverride: boolean
+  clearRoleOverride: boolean
+}
+
 export type NavCleanupPlan = {
   deletes: string[]
+  renames: NavRename[]
   creates: Array<NavItemDef & { sortOrder: number }>
   labelUpdates: Array<{ navKey: string; from: string; to: string; clearOverride: boolean }>
   hrefUpdates: Array<{ navKey: string; from: string; to: string }>
   resets: Array<{ navKey: string; section: string; hrefTemplate: string; defaultRole: string }>
 }
 
-export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly NavItemDef[]): NavCleanupPlan {
-  const byKey = new Map(rows.map((row) => [row.navKey, row]))
-  const registryByKey = new Map(registry.map((item) => [item.navKey, item]))
+/** Renommages à faire, et lignes telles qu'elles seront après eux : les autres étapes du plan portent sur ces lignes. */
+function planRenames(rows: readonly NavItemRow[], registryByKey: ReadonlyMap<string, NavItemDef>) {
+  const present = new Set(rows.map((row) => row.navKey))
+  const renames: NavRename[] = []
+  // Ancienne clé dont la nouvelle existe déjà : doublon, supprimé.
+  const duplicates: string[] = []
+  const renamedRows = rows.map((row) => {
+    const target = NAV_KEY_RENAMES.find(([from]) => from === row.navKey)?.[1]
+    const definition = target ? registryByKey.get(target) : undefined
+    if (!target || !definition) return row
+    if (present.has(target)) {
+      duplicates.push(row.navKey)
+      return row
+    }
+    const rename: NavRename = {
+      from: row.navKey,
+      to: target,
+      section: definition.section,
+      defaultRole: definition.defaultRole,
+      clearSectionOverride: row.sectionOverride === definition.section,
+      clearRoleOverride: row.roleOverride === definition.defaultRole,
+    }
+    renames.push(rename)
+    return {
+      ...row,
+      navKey: target,
+      section: definition.section,
+      defaultRole: definition.defaultRole,
+      sectionOverride: rename.clearSectionOverride ? null : row.sectionOverride,
+      roleOverride: rename.clearRoleOverride ? null : row.roleOverride,
+    }
+  })
+  return { renames, duplicates, rows: renamedRows }
+}
 
-  const deletes = NAV_KEYS_TO_DELETE.filter((navKey) => byKey.has(navKey))
+export function planNavCleanup(currentRows: readonly NavItemRow[], registry: readonly NavItemDef[]): NavCleanupPlan {
+  const registryByKey = new Map(registry.map((item) => [item.navKey, item]))
+  const { renames, duplicates, rows } = planRenames(currentRows, registryByKey)
+  const byKey = new Map(rows.map((row) => [row.navKey, row]))
+
+  const deletes = [...NAV_KEYS_TO_DELETE.filter((navKey) => byKey.has(navKey)), ...duplicates]
 
   const creates: NavCleanupPlan['creates'] = []
   for (const navKey of NAV_KEYS_TO_CREATE) {
@@ -147,6 +200,7 @@ export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly N
 
   return {
     deletes,
+    renames,
     creates,
     labelUpdates,
     hrefUpdates: hrefUpdates.filter((update) => !resets.some((reset) => reset.navKey === update.navKey)),
@@ -157,6 +211,7 @@ export function planNavCleanup(rows: readonly NavItemRow[], registry: readonly N
 export function isEmptyNavCleanupPlan(plan: NavCleanupPlan) {
   return (
     plan.deletes.length === 0 &&
+    plan.renames.length === 0 &&
     plan.creates.length === 0 &&
     plan.labelUpdates.length === 0 &&
     plan.hrefUpdates.length === 0 &&

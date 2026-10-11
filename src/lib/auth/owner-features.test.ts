@@ -98,8 +98,7 @@ describe('menus et fonctionnalités', () => {
   it('rattache chaque entrée de menu d’administration de clan à sa fonctionnalité', () => {
     expect(ownerFeatureOfNavKey('admin.discord-notifications')).toBe('clan-announcements')
     // Télémétrie d'un clan : jamais déléguée, ses entrées de menu restent en rôle superuser
-    expect(ownerFeatureOfNavKey('owner.telemetry-errors')).toBeNull()
-    expect(ownerFeatureOfNavKey('owner.clan-data')).toBeNull()
+    expect(ownerFeatureOfNavKey('superuser.clan-data')).toBeNull()
     expect(ownerFeatureOfNavKey('clan.overview')).toBeNull()
   })
 

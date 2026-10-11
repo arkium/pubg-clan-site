@@ -99,15 +99,14 @@ const FALLBACK_MATRIX: Record<string, FallbackDef> = {
   },
 
   // Sous-pages Télémétrie
+  // Onglet « Soirées » des Données du clan, sans entrée de menu propre depuis le 2026-10-11 (administration.md §8).
   'telemetry.match-detail': {
     hrefTemplate: '/clans/:clanId/settings/data/sessions',
-    labelKey: 'owner.telemetry-matches',
-    labelFallback: 'Soirées de télémétrie',
+    labelFallback: 'Soirées',
   },
   'telemetry.match-session': {
     hrefTemplate: '/clans/:clanId/settings/data/sessions',
-    labelKey: 'owner.telemetry-matches',
-    labelFallback: 'Soirées de télémétrie',
+    labelFallback: 'Soirées',
   },
 }
 

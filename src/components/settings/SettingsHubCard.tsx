@@ -2,16 +2,15 @@
 
 import {
   Activity,
-  AlertTriangle,
   ChevronRight,
   Clock,
   Crosshair,
   Database,
   Download,
   Globe,
+  HeartPulse,
   History,
   KeyRound,
-  LayoutDashboard,
   type LucideIcon,
   Mail,
   Map,
@@ -27,7 +26,6 @@ import {
   Trophy,
   UserPlus,
   Users,
-  Wrench,
   SlidersHorizontal,
 } from 'lucide-react'
 import Link from 'next/link'
@@ -46,11 +44,10 @@ const CARD_VISUALS: Record<string, { icon: LucideIcon; tone: Tone }> = {
   'admin.phase-labels': { icon: Activity, tone: 'sky' },
   'admin.add-player': { icon: UserPlus, tone: 'pos' },
   'clan.tournaments': { icon: Trophy, tone: 'warn' },
-  'owner.telemetry-dashboard': { icon: LayoutDashboard, tone: 'sky' },
-  'owner.telemetry-matches': { icon: History, tone: 'sky' },
-  'owner.telemetry-errors': { icon: AlertTriangle, tone: 'neg' },
-  'owner.telemetry-sync-batch': { icon: RefreshCw, tone: 'pos' },
-  'owner.telemetry-recoveries': { icon: Wrench, tone: 'pos' },
+  'superuser.clan-data': { icon: HeartPulse, tone: 'sky' },
+  'superuser.email-delivery': { icon: Mail, tone: 'sky' },
+  'superuser.pubg-api': { icon: Globe, tone: 'sky' },
+  // Anciennes clés, en base jusqu'à l'application de scripts/cleanup-admin-nav.ts (docs/TODO/administration.md §8).
   'owner.email-delivery': { icon: Mail, tone: 'sky' },
   'owner.pubg-api': { icon: Globe, tone: 'sky' },
   'owner.encountered-opponents': { icon: Crosshair, tone: 'warn' },

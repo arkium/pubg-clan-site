@@ -165,6 +165,15 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await expect(page.getByTestId('tournament-viewer-position')).toContainText('Ton clan : 2e')
     await expect(page.getByTestId('tournament-viewer-position')).toContainText('à 6 pts du 1er')
     await expect(toolbar(page).getByRole('link', { name: 'Classement' })).toHaveAttribute('href', '#tournament-standings')
+    await expect(toolbar(page).getByRole('link', { name: 'Podium' })).toHaveAttribute('href', '#tournament-podium')
+    await expect(toolbar(page).getByRole('link', { name: 'Awards' })).toHaveAttribute('href', '#tournament-awards')
+    await expect(toolbar(page).getByRole('link', { name: 'Armes' })).toHaveAttribute('href', '#tournament-weapons')
+    // Bandeau de remerciement au bas de l'en-tête : le message, puis les clans par ordre alphabétique (2026-10-11).
+    const ticker = page.getByTestId('tournament-thanks-ticker')
+    await expect(ticker).toContainText('Merci à tous les clans pour leur participation')
+    await expect(ticker.locator('.sr-only')).toHaveText(
+      'Merci à tous les clans pour leur participation : [BOFS] Bof Team, [DEMO] Clan Démo, [LMT] La Meute, [RATZ] Les Ratz.'
+    )
     // Sans droit d'organisateur : ni synchronisation ni diffusion.
     await expect(page.getByRole('button', { name: 'Synchroniser PUBG' })).toHaveCount(0)
   })
@@ -184,7 +193,123 @@ test.describe('détail d’un tournoi inter-clans', () => {
     const sizes = await page.locator('.tournament-place').evaluateAll((places) => places.map((place) => parseFloat(getComputedStyle(place).fontSize)))
     expect(sizes.length).toBeGreaterThan(0)
     expect(Math.min(...sizes)).toBeGreaterThanOrEqual(11)
-    await expect(page.getByText('MVP du tournoi')).toBeVisible()
+    // Le MVP n'a plus sa bande : il est en tête des top killers (demande du 2026-10-11).
+    await expect(page.getByTestId('tournament-killers').locator('ol > li').first()).toContainText('MVP')
+  })
+
+  test('podium en marches, top killers et top scorers : MVP en tête, ligne du lecteur, liste dépliable', async ({ page }) => {
+    const podium = page.getByRole('region', { name: 'Podium du tournoi' })
+    await expect(podium).toContainText('Winner winner chicken dinner')
+    await expect(podium.getByTestId('tournament-podium-1')).toContainText('La Meute')
+    await expect(podium.getByTestId('tournament-podium-1')).toContainText('[LMT]')
+    await expect(podium.getByTestId('tournament-podium-1')).toContainText('58 pts')
+    await expect(podium.getByTestId('tournament-podium-2')).toContainText('Clan Démo')
+    await expect(podium.getByTestId('tournament-podium-3')).toContainText('Les Ratz')
+
+    // Le lecteur est 9e des killers : top 5, « ⋮ », puis sa ligne.
+    const killers = page.getByTestId('tournament-killers')
+    await expect(killers.locator('ol > li')).toHaveCount(7)
+    await expect(killers.locator('li[aria-current="true"]')).toContainText('Joueur Alpha')
+    await expect(killers.locator('li[aria-current="true"]')).toContainText('Toi')
+    await killers.getByRole('button', { name: 'Voir les 12 players' }).click()
+    await expect(killers.locator('ol > li')).toHaveCount(12)
+    await killers.getByRole('button', { name: 'Revenir au top 5' }).click()
+    await expect(killers.locator('ol > li')).toHaveCount(7)
+
+    // Premier des scorers : déjà dans le top 5, pas de ligne en plus.
+    const scorers = page.getByTestId('tournament-scorers')
+    await expect(scorers.locator('ol > li')).toHaveCount(5)
+    await expect(scorers.locator('ol > li').first()).toContainText('Toi')
+    await expect(scorers.locator('ol > li').first()).toContainText('60')
+  })
+
+  test('moyenne par clan : points des players ÷ nombre de players, ton clan repéré', async ({ page }) => {
+    await page.getByRole('button', { name: 'Moyenne par clan' }).click()
+    const standings = page.locator('#tournament-standings')
+    await expect(standings).toContainText('moyenne = points des players du clan')
+    await expect(standings.locator('tbody tr')).toHaveCount(4)
+    // Un seul player, mais la meilleure moyenne : tous les clans sont classés (décision du 2026-10-11).
+    await expect(standings.locator('tbody tr').first()).toContainText('[RATZ] Les Ratz')
+    await expect(standings.locator('tbody tr').first()).toContainText('48,00')
+    const mine = standings.locator('tr[aria-current="true"]')
+    await expect(mine).toContainText('[DEMO] Clan Démo')
+    await expect(mine).toContainText('37,50')
+    await expect(mine).toContainText('Ton clan')
+    // Rien à filtrer par clan dans la moyenne.
+    await expect(standings.getByRole('button', { name: /^Clan : / })).toHaveCount(0)
+  })
+
+  test('awards : fun facts, carrousel à chevrons en pause, « Tout voir »', async ({ page }) => {
+    const awards = page.locator('#tournament-awards')
+    await expect(awards).toContainText('Kills au total')
+    await expect(awards).toContainText('dont 78 à la tête')
+    await expect(awards).toContainText('Manche 2')
+    await expect(awards).toContainText('978')
+
+    const width = page.viewportSize()?.width ?? 1280
+    const perView = width >= 1024 ? 3 : width >= 640 ? 2 : 1
+    const shown = awards.locator('[aria-roledescription="diapositive"]:not([inert]) article')
+    // Pause d'abord : le défilement automatique ne doit pas déplacer les cartes pendant le test.
+    await awards.getByRole('button', { name: 'Mettre le défilement en pause' }).click()
+    await expect(awards.getByRole('button', { name: 'Reprendre le défilement' })).toBeVisible()
+    await expect(shown).toHaveCount(perView)
+    await expect(shown.first()).toHaveAttribute('aria-label', 'Le carton')
+    await expect(shown.first()).toContainText('M3')
+    await expect(awards.getByRole('button', { name: 'Awards précédents' })).toBeDisabled()
+    await awards.getByRole('button', { name: 'Awards suivants' }).click()
+    await expect(shown.first()).toHaveAttribute('aria-label', 'La brute')
+
+    await awards.getByRole('button', { name: 'Tout voir' }).click()
+    await expect(awards.getByRole('article')).toHaveCount(5)
+    await expect(awards.getByRole('button', { name: 'Awards suivants' })).toHaveCount(0)
+    await expect(awards.getByRole('article', { name: 'Le brouteur d’herbe' })).toContainText('1h 45m 05s')
+    await awards.getByRole('button', { name: 'Réduire' }).click()
+    await expect(shown).toHaveCount(perView)
+  })
+
+  test('awards : glisser à la souris ou au doigt change de carte', async ({ page }, testInfo) => {
+    const awards = page.locator('#tournament-awards')
+    await awards.getByRole('button', { name: 'Mettre le défilement en pause' }).click()
+    const shown = awards.locator('[aria-roledescription="diapositive"]:not([inert]) article')
+    const carousel = awards.getByTestId('tournament-awards-carousel')
+    await carousel.scrollIntoViewIfNeeded()
+    const box = await carousel.boundingBox()
+    if (!box) throw new Error('carrousel invisible')
+    const y = box.y + box.height / 2
+    const drag = async (fromRatio: number, toRatio: number) => {
+      await page.mouse.move(box.x + box.width * fromRatio, y)
+      await page.mouse.down()
+      await page.mouse.move(box.x + box.width * toRatio, y, { steps: 8 })
+      await page.mouse.up()
+    }
+    // Vers la gauche : la carte suivante ; vers la droite : retour. Un petit geste ne change rien.
+    await drag(0.8, 0.5)
+    await expect(shown.first()).toHaveAttribute('aria-label', 'La brute')
+    await drag(0.5, 0.8)
+    await expect(shown.first()).toHaveAttribute('aria-label', 'Le carton')
+    await drag(0.5, 0.47)
+    await expect(shown.first()).toHaveAttribute('aria-label', 'Le carton')
+
+    // Au doigt (écran tactile émulé par Chromium) : même geste, mêmes événements « pointer ».
+    if (testInfo.project.name === 'chromium-mobile') {
+      const cdp = await page.context().newCDPSession(page)
+      const touch = (type: 'touchStart' | 'touchMove' | 'touchEnd', x: number) =>
+        cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] })
+      await touch('touchStart', box.x + box.width * 0.85)
+      for (let step = 1; step <= 8; step += 1) await touch('touchMove', box.x + box.width * (0.85 - (0.5 * step) / 8))
+      await touch('touchEnd', 0)
+      await expect(shown.first()).toHaveAttribute('aria-label', 'La brute')
+    }
+  })
+
+  test('armes du tournoi : classées par kills, trois meilleurs tireurs', async ({ page }) => {
+    const weapons = page.locator('#tournament-weapons').getByTestId('tournament-weapon')
+    await expect(weapons).toHaveCount(3)
+    await expect(weapons.first()).toContainText('MP5K')
+    await expect(weapons.first()).toContainText('50')
+    await expect(weapons.first()).toContainText('Pistolets-mitrailleurs')
+    await expect(weapons.first().locator('li')).toHaveCount(3)
+    await expect(weapons.nth(1).locator('li')).toHaveCount(1)
   })
 
   test('détail par escouade, gardé en inter-clans, avec la forme de chaque escouade', async ({ page }, testInfo) => {
@@ -260,17 +385,23 @@ test.describe('détail d’un tournoi inter-clans', () => {
     await expect(rules).toContainText('partage intégral')
   })
 
-  test('le bandeau docke avec ses ancres, y compris sur mobile', async ({ page }) => {
+  test('le bandeau docke avec ses ancres, y compris sur mobile', async ({ page }, testInfo) => {
     await page.waitForLoadState('networkidle')
     await expect(appHeader(page)).toBeVisible()
     await dock(page)
     await expect(toolbar(page).getByRole('link', { name: 'Manches' })).toBeVisible()
     await expect(page.getByTestId('tournament-viewer-position')).toBeVisible()
+    // Docké, awards et armes partagent l'ancre « Stats » ; sur mobile, « Podium » et « Barème » s'effacent (2026-10-11).
+    await expect(toolbar(page).getByRole('link', { name: 'Stats' })).toHaveAttribute('href', '#tournament-awards')
+    await expect(toolbar(page).getByRole('link', { name: 'Armes' })).toHaveCount(0)
+    await expect(toolbar(page).getByRole('link', { name: 'Barème' })).toHaveCount(isMobile(testInfo) ? 0 : 1)
+    // « Podium » (en haut de page) : docké sur ordinateur et tablette, pas sur mobile faute de place.
+    await expect(toolbar(page).getByRole('link', { name: 'Podium' })).toHaveCount(isMobile(testInfo) ? 0 : 1)
     // Docké, une seule ligne (charte §6), 375 px compris : ancres et place du lecteur sur la même ligne.
     const centers = await Promise.all(
       [
         toolbar(page).getByRole('link', { name: 'Classement' }),
-        toolbar(page).getByRole('link', { name: 'Barème' }),
+        toolbar(page).getByRole('link', { name: isMobile(testInfo) ? 'Stats' : 'Barème' }),
         page.getByTestId('tournament-viewer-position'),
       ].map(async (locator) => {
         const box = await locator.boundingBox()
@@ -322,6 +453,10 @@ test('tournoi à venir : état neutre, classement vide sans invitation à synchr
   await expect(standings).toContainText('Le tournoi n’a pas commencé')
   await expect(standings).not.toContainText('synchronisation')
   await expect(toolbar(page).getByRole('link', { name: 'Manches' })).toHaveCount(0)
+  // Ni bandeau de remerciement, ni award, ni arme avant la première manche : ni sections, ni ancres.
+  await expect(page.getByTestId('tournament-thanks-ticker')).toHaveCount(0)
+  await expect(toolbar(page).getByRole('link', { name: 'Awards' })).toHaveCount(0)
+  await expect(page.locator('#tournament-weapons')).toHaveCount(0)
 })
 
 test('détail d’un tournoi solo : trophée des clans, « Toi », pas d’escouades mixtes', async ({ api, page }) => {

@@ -3561,6 +3561,66 @@ html[data-app-theme='dark'] .tournament-mode--intra_clan { --tmode-text: rgb(103
   box-shadow: inset 3px 0 0 var(--theme-ui-accent);
 }
 
+/* Podium en marches, variante « emphasis » (PodiumSteps — page d'un tournoi, 2026-10-11) : plaque de score biseautée
+   façon habillage esport, au métal de sa marche. Toujours sur le fond sombre du podium : couleurs fixes, encre sombre sur
+   l'or et l'argent (charte §1.2 : jamais de blanc sur le jaune), claire sur le bronze. */
+.podium-plate {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 3px;
+  padding: 5px 13px 1px;
+  clip-path: polygon(8px 0, 100% 0, calc(100% - 8px) 100%, 0 100%);
+  box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.55), inset 0 -2px 0 rgb(0 0 0 / 0.18);
+  color: #1c1003;
+  line-height: 1;
+  white-space: nowrap;
+}
+.podium-plate--gold { background: linear-gradient(180deg, #fde68a 0%, #fbbf24 48%, #d97706 100%); }
+.podium-plate--silver { background: linear-gradient(180deg, #f8fafc 0%, #cbd5e1 52%, #94a3b8 100%); }
+.podium-plate--bronze { background: linear-gradient(180deg, #fdba74 0%, #ea580c 55%, #9a3412 100%); color: #fff7ed; }
+.podium-plate-glow { display: inline-flex; filter: drop-shadow(0 0 10px rgb(251 191 36 / 0.5)); }
+.podium-plate .podium-plate__value { font-size: 24px; line-height: 0.9; }
+.podium-plate--lead .podium-plate__value { font-size: 28px; }
+.podium-plate .podium-plate__unit {
+  font-size: 10px;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.8;
+}
+@media (min-width: 640px) {
+  .podium-plate { padding: 6px 18px 2px; clip-path: polygon(11px 0, 100% 0, calc(100% - 11px) 100%, 0 100%); }
+  .podium-plate .podium-plate__value { font-size: 30px; }
+  .podium-plate--lead .podium-plate__value { font-size: 38px; }
+  .podium-plate .podium-plate__unit { font-size: 12px; }
+}
+
+/* Bandeau de remerciement au bas de l'en-tête d'un tournoi (2026-10-11) : la piste, doublée, glisse de la moitié de sa
+   largeur pour boucler sans à-coup. Arrêtée au survol ; figée si le système réduit les animations. */
+@keyframes tournament-ticker {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+.tournament-ticker__track { animation: tournament-ticker var(--ticker-duration, 45s) linear infinite; }
+.tournament-ticker:hover .tournament-ticker__track { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) {
+  .tournament-ticker__track { animation: none; }
+}
+
+/* Awards d'un tournoi : la barre se remplit pendant qu'une carte attend la suivante (défilement automatique). Elle
+   n'est rendue qu'en lecture, et repart de zéro à chaque carte : toujours calée sur le minuteur. */
+@keyframes tournament-autoplay {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+.tournament-autoplay-bar {
+  transform-origin: left;
+  animation: tournament-autoplay var(--autoplay-ms, 6000ms) linear forwards;
+}
+@media (prefers-reduced-motion: reduce) {
+  .tournament-autoplay-bar { animation: none; }
+}
+
 /* Zones de drop : la carte suivante arrive du côté du geste (docs/features/drop-zones.md). */
 @keyframes dz-slide-from-right {
   from { transform: translateX(28%); opacity: 0; }

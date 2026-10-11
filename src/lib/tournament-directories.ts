@@ -36,3 +36,17 @@ export async function loadTournamentDirectories(
     ),
   }
 }
+
+/**
+ * Image de chaque clan (réglage `login_welcome_image_url`, comme la ligue) pour le podium d'un tournoi : seulement les
+ * clans qui y montent. Sans image, `null` : le podium affiche l'image par défaut (`clanBackgroundImage`).
+ */
+export async function loadTournamentClanImages(clanIds: number[]): Promise<Record<number, string | null>> {
+  const uniqueClanIds = [...new Set(clanIds)]
+  if (uniqueClanIds.length === 0) return {}
+  const rows = await prisma.clan.findMany({
+    where: { id: { in: uniqueClanIds } },
+    select: { id: true, clanConfigs: { where: { key: 'login_welcome_image_url' }, select: { value: true }, take: 1 } },
+  })
+  return Object.fromEntries(rows.map((clan) => [clan.id, clan.clanConfigs[0]?.value || null]))
+}

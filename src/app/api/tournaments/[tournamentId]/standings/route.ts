@@ -15,9 +15,18 @@ import {
   buildRoundViews,
   buildSquadBreakdown,
   buildStandingViews,
+  clanLabel,
+  memberLabel,
   pickMvp,
 } from '@/lib/tournament-standings-view'
-import { collectTournamentMemberIds, loadTournamentDirectories } from '@/lib/tournament-directories'
+import {
+  collectTournamentMemberIds,
+  loadTournamentClanImages,
+  loadTournamentDirectories,
+} from '@/lib/tournament-directories'
+import { participantClanIds as clanIdsOf } from '@/lib/tournament-mode-display'
+import { buildClanAverages, buildTournamentLeaders } from '@/lib/tournament-stats'
+import { loadTournamentStats } from '@/lib/tournament-stats-service'
 
 // Lecture réservée aux utilisateurs connectés (2026-09-16), ou ouverte à tous en mode visiteur
 // (DISABLE_AUTH_PERMISSIONS) : le proxy ne protège que les pages, pas `/api`.
@@ -55,6 +64,32 @@ export async function GET(
       clans,
       members
     )
+    // Détail par player : l'onglet en inter-clans, les top scorers et les awards dans tous les modes (en scrims
+    // internes, les seuls membres du clan organisateur).
+    const playerBreakdown = buildPlayerBreakdown(
+      matches,
+      participantClanIds,
+      rules,
+      clans,
+      members,
+      rules.mode === 'intra_clan' ? tournament.organizerClanId : undefined
+    )
+    const labelOfMember = (memberId: number) => memberLabel(memberId, members, clans)
+    const eligibleMemberIds = playerBreakdown.flatMap((standing) =>
+      standing.participant.kind === 'player' ? [standing.participant.memberId] : []
+    )
+
+    // Awards, fun facts et armes (2026-10-11) : une erreur de télémétrie ne doit pas priver la page du classement.
+    let stats: Awaited<ReturnType<typeof loadTournamentStats>> | null = null
+    try {
+      stats = await loadTournamentStats(matches, eligibleMemberIds, labelOfMember)
+    } catch (error) {
+      console.error('Error loading tournament stats:', error)
+    }
+    // Logo de chaque clan du podium (celui du joueur en solo, le premier clan d'une équipe).
+    const clanImages = await loadTournamentClanImages(
+      modeStandings.slice(0, 3).flatMap((standing) => clanIdsOf(standing.participant).slice(0, 1))
+    )
 
     return Response.json({
       tournament: { ...tournament, rules },
@@ -71,9 +106,16 @@ export async function GET(
           ? buildRoundViews(matches, participantClanIds, { ...rules, mode: 'custom_teams' }, clans, members)
           : [],
       // Détail par player (2026-10-11) : même barème, et les kills de chaque joueur à chaque manche.
-      playerBreakdown:
-        rules.mode === 'inter_clan' ? buildPlayerBreakdown(matches, participantClanIds, rules, clans, members) : [],
+      playerBreakdown,
       playerRounds: rules.mode === 'inter_clan' ? buildPlayerRounds(matches, participantClanIds, rules) : [],
+      // Moyenne par player de chaque clan (2026-10-11) : l'onglet « Moyenne par clan », inter-clans seulement.
+      clanAverages:
+        rules.mode === 'inter_clan' ? buildClanAverages(playerBreakdown, (clanId) => clanLabel(clanId, clans)) : [],
+      // Top killers et top scorers sous le podium ; le premier des killers est le MVP.
+      leaders: buildTournamentLeaders(matches, playerBreakdown, labelOfMember),
+      awards: stats?.awards ?? null,
+      weapons: stats?.weapons ?? [],
+      clanImages,
       // Trophée des clans : n'a de sens qu'en solo, où le classement principal est individuel.
       clanTrophy: rules.mode === 'solo_ffa' ? buildClanTrophy(modeStandings, clans) : [],
       rounds: buildRoundViews(matches, participantClanIds, rules, clans, members, tournament.organizerClanId),

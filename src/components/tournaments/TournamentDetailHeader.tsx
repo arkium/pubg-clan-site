@@ -1,8 +1,8 @@
 'use client'
 
-import { Clock, Flag, PencilLine, Trophy, type LucideIcon } from 'lucide-react'
+import { Clock, Flag, PencilLine, Star, Trophy, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { Fragment, type CSSProperties, type ReactNode } from 'react'
 
 import TournamentModeBadge, { tournamentModeClass } from '@/components/tournaments/TournamentModeBadge'
 import { tournamentFormatLabel } from '@/components/tournaments/TournamentListSections'
@@ -38,6 +38,49 @@ const dayMonth = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'shor
 const hourMinute = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' })
 const shortDate = new Intl.DateTimeFormat('fr-FR', { day: '2-digit', month: '2-digit' })
 
+export const TOURNAMENT_THANKS_MESSAGE = 'Merci à tous les clans pour leur participation'
+
+/**
+ * Bandeau qui défile au bas de l'en-tête (demande du 2026-10-11) : le remerciement, puis les clans participants par
+ * ordre alphabétique (un merci, pas un classement). Fond transparent, Teko en jaune d'accent, superposé à la marge basse
+ * de l'en-tête : sa hauteur ne change pas. Arrêté au survol, et figé si le système réduit les animations
+ * (`.tournament-ticker`, globals.css). La phrase entière est donnée une fois aux lecteurs d'écran ; la piste animée,
+ * doublée pour boucler sans à-coup, leur est cachée.
+ */
+function TournamentThanksTicker({ clans }: { clans: string[] }) {
+  const items = [TOURNAMENT_THANKS_MESSAGE, ...clans]
+  // Vitesse de lecture constante : la durée suit la longueur du texte (45 s environ pour 14 clans).
+  const duration = Math.max(20, Math.round(items.join('').length * 0.17))
+  const run = (copy: number) => (
+    <span className="flex shrink-0 items-center gap-4 pr-4 md:gap-5 md:pr-5" aria-hidden={copy > 0 ? true : undefined}>
+      {items.map((item, index) => (
+        <Fragment key={`${copy}-${index}`}>
+          <span className={`whitespace-nowrap ${index === 0 ? 'text-[var(--theme-ui-accent)]' : 'text-[var(--theme-ui-accent)]/90'}`}>{item}</span>
+          <Star className="h-2.5 w-2.5 shrink-0 fill-current text-white/45" aria-hidden="true" />
+        </Fragment>
+      ))}
+    </span>
+  )
+  return (
+    <div
+      className="tournament-ticker absolute inset-x-0 bottom-0 h-[22px] overflow-hidden [mask-image:linear-gradient(90deg,transparent,#000_5%,#000_95%,transparent)] md:h-7"
+      data-testid="tournament-thanks-ticker"
+    >
+      <p className="sr-only">
+        {TOURNAMENT_THANKS_MESSAGE} : {clans.join(', ')}.
+      </p>
+      <div
+        className="tournament-ticker__track t-hero flex w-max items-center pt-[3px] text-[17px] uppercase leading-none tracking-[0.06em] drop-shadow-[0_1px_2px_rgb(0_0_0/0.85)] md:text-[21px]"
+        style={{ '--ticker-duration': `${duration}s` } as CSSProperties}
+        aria-hidden="true"
+      >
+        {run(0)}
+        {run(1)}
+      </div>
+    </div>
+  )
+}
+
 export function TournamentPhaseBadge({ phase }: { phase: TournamentPhase }) {
   const badge = PHASE_BADGES[phase]
   const Icon = badge.icon
@@ -66,6 +109,7 @@ export default function TournamentDetailHeader({
   lastRoundAt,
   heroImage,
   actions,
+  thanksClans = [],
 }: {
   tournament: TournamentHeaderInfo
   mode: TournamentMode
@@ -77,6 +121,8 @@ export default function TournamentDetailHeader({
   heroImage: string
   /** Actions d'organisateur, seulement pour qui peut les exécuter. */
   actions?: ReactNode
+  /** Clans participants (libellés), pour le bandeau de remerciement ; vide : pas de bandeau. */
+  thanksClans?: string[]
 }) {
   const display = TOURNAMENT_MODE_DISPLAY[mode]
   const endsIn = phase === 'live' ? countdownLabel(tournament.endDate, now) : null
@@ -98,7 +144,13 @@ export default function TournamentDetailHeader({
       style={{ backgroundImage: `url('${heroImage}')` }}
     >
       <div className="absolute inset-0 bg-gradient-to-t from-slate-950/95 from-40% to-slate-950/55 md:bg-gradient-to-r md:from-slate-950/95 md:via-slate-950/75 md:to-slate-950/45" />
-      <div className="relative grid items-end gap-4 p-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] md:p-6">
+      {/* Avec le bandeau de remerciement, la marge basse grandit de ce que perd la marge haute : même hauteur d'en-tête
+          (16 + 16 = 10 + 22 px sur mobile, 24 + 24 = 16 + 32 px dès 768 px). */}
+      <div
+        className={`relative grid items-end gap-4 md:grid-cols-[minmax(0,1.4fr)_minmax(0,1fr)] ${
+          thanksClans.length > 0 ? 'px-4 pb-[22px] pt-2.5 md:px-6 md:pb-8 md:pt-4' : 'p-4 md:p-6'
+        }`}
+      >
         <div className="flex min-w-0 flex-col gap-3">
           <div className="flex flex-wrap items-center gap-1.5">
             <TournamentPhaseBadge phase={phase} />
@@ -148,6 +200,7 @@ export default function TournamentDetailHeader({
           ))}
         </div>
       </div>
+      {thanksClans.length > 0 ? <TournamentThanksTicker clans={thanksClans} /> : null}
     </header>
   )
 }

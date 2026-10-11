@@ -4,6 +4,7 @@ import { CLAN_ID } from './data'
 import type { TournamentOverview, TournamentStandingSummary } from '@/lib/tournament-overview'
 import type { TournamentParticipant } from '@/lib/tournament-service'
 import type { TournamentRoundView, TournamentStandingView } from '@/lib/tournament-standings-view'
+import type { TournamentAwardsView, TournamentClanAverage, TournamentLeaders, TournamentWeapon } from '@/lib/tournament-stats'
 
 /**
  * Tournois fictifs des tests de rendu (e2e/tournaments.spec.ts). Les dates sont relatives à l'heure du test : un
@@ -125,6 +126,87 @@ const RULES = {
   bestOfRounds: null,
 }
 
+// ── Statistiques (podium, tops, moyenne par clan, awards, armes — 2026-10-11) ──────────────────────────
+
+/** Le lecteur (membre 1) est 9e des killers : sa ligne s'ajoute sous le top 5. Premier des scorers. */
+function leaders(): TournamentLeaders {
+  const killers = Array.from({ length: 12 }, (_, index) => {
+    const memberId = index === 8 ? 1 : 100 + index
+    return {
+      key: `player:${memberId}`,
+      memberId,
+      label: memberId === 1 ? '[DEMO] Joueur Alpha' : `[LMT] Tireur ${index + 1}`,
+      rank: index + 1,
+      kills: 24 - index * 2,
+      damage: 3000 - index * 200,
+      points: 40 - index,
+    }
+  })
+  const scorers = Array.from({ length: 12 }, (_, index) => {
+    const memberId = index === 0 ? 1 : 200 + index
+    return {
+      key: `player:${memberId}`,
+      memberId,
+      label: memberId === 1 ? '[DEMO] Joueur Alpha' : `[RATZ] Joueur ${index + 1}`,
+      rank: index + 1,
+      kills: 10,
+      damage: 1200,
+      points: 60 - index * 3,
+    }
+  })
+  return { killers, scorers }
+}
+
+/** Moyenne par player : le clan du lecteur est 2e, Les Ratz passent devant avec un seul player. */
+function clanAverages(): TournamentClanAverage[] {
+  const rows: Array<[number, number, number, number]> = [
+    [6, 1, 48, 12],
+    [CLAN_ID, 4, 150, 21],
+    [9, 8, 240, 18],
+    [4, 4, 60, 8],
+  ]
+  return rows.map(([clanId, players, points, kills], index) => ({
+    key: `clan:${clanId}`,
+    participant: { kind: 'clan', clanId },
+    label: clanLabel(clanId),
+    rank: index + 1,
+    players,
+    points,
+    kills,
+    average: points / players,
+  }))
+}
+
+function awards(): TournamentAwardsView {
+  const winner = (memberId: number, label: string, value: number, round: number | null = null) => ({ memberId, label, value, round })
+  return {
+    rounds: 5,
+    telemetryRounds: 5,
+    facts: [
+      { key: 'kills', label: 'Kills au total', value: 364, format: 'count', unit: 'kills', detail: 'dont 78 à la tête' },
+      { key: 'bloodiest_round', label: 'Manche la plus sanglante', value: 79, format: 'count', unit: 'kills', detail: 'Manche 2' },
+      { key: 'damage', label: 'Dégâts infligés', value: 64909, format: 'damage', unit: 'dégâts', detail: null },
+      { key: 'vehicle_distance', label: 'Parcourus en véhicule', value: 978259, format: 'distance', unit: 'm', detail: null },
+    ],
+    awards: [
+      { key: 'best_round', label: 'Le carton', description: 'Plus de kills en une seule manche', unit: 'kills', format: 'count', winners: [winner(30, '[LMT] Wolfy', 10, 3), winner(1, '[DEMO] Joueur Alpha', 9, 1)] },
+      { key: 'top_damage', label: 'La brute', description: 'Plus de dégâts infligés', unit: 'dégâts', format: 'damage', winners: [winner(1, '[DEMO] Joueur Alpha', 2677)] },
+      { key: 'sniper', label: 'Le sniper', description: 'Kill le plus long du tournoi', unit: 'm', format: 'distance', winners: [winner(20, '[RATZ] Nova', 428, 3)] },
+      { key: 'survivor', label: 'Le brouteur d’herbe', description: 'Plus long temps de survie cumulé', unit: '', format: 'duration', winners: [winner(30, '[LMT] Wolfy', 6305)] },
+      { key: 'revives', label: 'L’ange gardien', description: 'Plus de coéquipiers relevés', unit: 'réanimations', format: 'count', winners: [winner(21, '[RATZ] Zed', 9)] },
+    ],
+  }
+}
+
+function weapons(): TournamentWeapon[] {
+  const shooter = (memberId: number, label: string, kills: number) => ({ memberId, label, kills, damage: kills * 120 })
+  return [
+    { id: 'mp5k', name: 'MP5K', iconId: 'WeapMP5K_C', category: 'SMG', kills: 50, headshots: 9, damage: 6100, shooters: [shooter(30, '[LMT] Wolfy', 5), shooter(1, '[DEMO] Joueur Alpha', 5), shooter(20, '[RATZ] Nova', 4)] },
+    { id: 'm24', name: 'M24', iconId: 'WeapM24_C', category: 'SR', kills: 34, headshots: 12, damage: 3900, shooters: [shooter(20, '[RATZ] Nova', 9)] },
+    { id: 'frag grenade', name: 'Frag Grenade', iconId: 'ProjGrenade_C', category: 'THROWABLE', kills: 13, headshots: 0, damage: 1500, shooters: [shooter(21, '[RATZ] Zed', 2)] },
+  ]
+}
+
 export function liveTournamentStandings(roundCount = MAPS.length) {
   return {
     tournament: {
@@ -195,6 +277,11 @@ export function liveTournamentStandings(roundCount = MAPS.length) {
     clanTrophy: [],
     rounds: rounds(roundCount),
     mvp: { memberId: 1, label: '[DEMO] Joueur Alpha', kills: 24, damage: 3380 },
+    clanAverages: clanAverages(),
+    leaders: leaders(),
+    awards: awards(),
+    weapons: weapons(),
+    clanImages: {},
   }
 }
 

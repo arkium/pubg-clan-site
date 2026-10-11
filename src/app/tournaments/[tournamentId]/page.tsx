@@ -12,7 +12,6 @@ import {
   TournamentClanFilter,
   TournamentClanTrophy,
   TournamentEmptyStandings,
-  TournamentPodium,
   TournamentRounds,
   TournamentRulesPanel,
   TournamentPlayerTable,
@@ -20,6 +19,13 @@ import {
   TournamentViewerChip,
   type TournamentRules,
 } from '@/components/tournaments/TournamentDetailSections'
+import {
+  TournamentAwards,
+  TournamentClanAverageTable,
+  TournamentLeaders,
+  TournamentPodium,
+  TournamentWeapons,
+} from '@/components/tournaments/TournamentStatsSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
@@ -42,6 +48,12 @@ import {
   type TournamentViewer,
 } from '@/lib/tournament-mode-display'
 import type { TournamentRoundView, TournamentStandingView } from '@/lib/tournament-standings-view'
+import type {
+  TournamentAwardsView,
+  TournamentClanAverage,
+  TournamentLeaders as TournamentLeadersData,
+  TournamentWeapon,
+} from '@/lib/tournament-stats'
 
 type Tournament = {
   id: string
@@ -72,19 +84,43 @@ type StandingsResponse = {
   clanTrophy?: Array<{ clanId: number; label: string; points: number; kills: number; players: number }>
   rounds?: TournamentRoundView[]
   mvp?: { memberId: number; label: string; kills: number; damage: number } | null
+  /** Moyenne par player de chaque clan (inter-clans) : l'onglet « Moyenne par clan ». */
+  clanAverages?: TournamentClanAverage[]
+  /** Top killers (le premier est le MVP) et top scorers, sous le podium. */
+  leaders?: TournamentLeadersData
+  /** Awards et fun facts ; `null` si la route n'a pas pu les calculer. */
+  awards?: TournamentAwardsView | null
+  weapons?: TournamentWeapon[]
+  /** Logo des clans du podium. */
+  clanImages?: Record<string, string | null>
   error?: string
 }
 
 const SECTIONS: SectionAnchorNavItem[] = [
+  { id: 'tournament-podium', label: 'Podium', icon: 'podium' },
   { id: 'tournament-standings', label: 'Classement', icon: 'victory' },
   { id: 'tournament-rounds', label: 'Manches', icon: 'combat' },
+  { id: 'tournament-awards', label: 'Awards', icon: 'award' },
+  { id: 'tournament-weapons', label: 'Armes', icon: 'weapon' },
   { id: 'tournament-rules', label: 'Barème', icon: 'other' },
 ]
-/** Sans manche comptabilisée, pas d'ancre vers une section absente. Constantes : SectionAnchorNav dépend de `items`. */
-const SECTIONS_WITHOUT_ROUNDS = SECTIONS.filter((section) => section.id !== 'tournament-rounds')
-/** Docké sur mobile : ancres sans icône, pour tenir sur une ligne avec la place du lecteur (charte §6). */
-const COMPACT_SECTIONS: SectionAnchorNavItem[] = SECTIONS.map(({ id, label }) => ({ id, label }))
-const COMPACT_SECTIONS_WITHOUT_ROUNDS = COMPACT_SECTIONS.filter((section) => section.id !== 'tournament-rounds')
+
+/**
+ * Ancres du bandeau docké, sur une seule ligne avec la place du lecteur (charte §6) : awards et armes, qui se suivent,
+ * y partagent une ancre « Stats » (vers la première des deux présente). Sur mobile, ni icône, ni « Podium » (en haut de
+ * page), ni « Barème » : mesuré le 2026-10-11, 392 px pour 343 avec « Podium ».
+ */
+function dockedSections(present: SectionAnchorNavItem[], compact: boolean): SectionAnchorNavItem[] {
+  const merged: SectionAnchorNavItem[] = []
+  for (const section of present) {
+    const stats = section.id === 'tournament-awards' || section.id === 'tournament-weapons'
+    if (stats && merged.some((entry) => entry.label === 'Stats')) continue
+    if (compact && (section.id === 'tournament-rules' || section.id === 'tournament-podium')) continue
+    const label = stats ? 'Stats' : section.label
+    merged.push(compact ? { id: section.id, label } : { id: section.id, label, icon: stats ? 'award' : section.icon })
+  }
+  return merged
+}
 
 type Notice = { tone: 'progress' | 'success' | 'waiting' | 'error'; message: string }
 
@@ -97,8 +133,9 @@ const NOTICE_ICONS: Record<Notice['tone'], { icon: LucideIcon; ink: string }> = 
 
 /**
  * Page d'un tournoi — docs/features/tournois.md, « Pages joueurs » (maquette « Tournois », 2026-09-27). En-tête sur la
- * carte avec le mode en clair, bandeau collant (ancres + place du lecteur), podium et MVP dans tous les modes,
- * classement avec la forme manche par manche, manches une par une, barème en barres.
+ * carte avec le mode en clair, bandeau collant (ancres + place du lecteur), podium en marches et top killers / top
+ * scorers (le MVP en tête des killers), classement avec la forme manche par manche (et la moyenne par clan en
+ * inter-clans), manches une par une, awards et fun facts, armes du tournoi, barème en barres.
  * Charte UI : docs/ui/index.html, section « Tournois » (04/10/2026).
  */
 export default function TournamentDetailPage() {
@@ -109,7 +146,7 @@ export default function TournamentDetailPage() {
   const [payload, setPayload] = useState<StandingsResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
-  const [granularity, setGranularity] = useState<'clan' | 'squad' | 'player'>('clan')
+  const [granularity, setGranularity] = useState<'clan' | 'average' | 'squad' | 'player'>('clan')
   // Filtre « Clan » des détails par squad et par player (`null` = tous).
   const [clanFilter, setClanFilter] = useState<number | null>(null)
   const [broadcastOpen, setBroadcastOpen] = useState(false)
@@ -179,6 +216,25 @@ export default function TournamentDetailPage() {
     [rules, standings, viewer]
   )
 
+  // Pas d'ancre vers une section absente (sans manche, sans award, sans arme). Mémorisées : SectionAnchorNav dépend de
+  // l'identité de `items`.
+  const hasPodium = standings.length > 0
+  const hasRounds = rounds.length > 0
+  const awards = payload?.awards ?? null
+  const hasAwards = Boolean(awards && (awards.awards.length > 0 || awards.facts.length > 0))
+  const weapons = useMemo(() => payload?.weapons ?? [], [payload?.weapons])
+  const hasWeapons = weapons.length > 0
+  const anchors = useMemo(() => {
+    const present = SECTIONS.filter(
+      (section) =>
+        (section.id !== 'tournament-podium' || hasPodium) &&
+        (section.id !== 'tournament-rounds' || hasRounds) &&
+        (section.id !== 'tournament-awards' || hasAwards) &&
+        (section.id !== 'tournament-weapons' || hasWeapons)
+    )
+    return { rest: present, docked: dockedSections(present, false), compact: dockedSections(present, true) }
+  }, [hasPodium, hasRounds, hasAwards, hasWeapons])
+
   async function syncTournament() {
     if (!organizerClanId || !tournamentId || !tournament) return
     setSyncing(true)
@@ -216,6 +272,9 @@ export default function TournamentDetailPage() {
     mapAssetUrl(tournament?.mapName) ?? mapAssetUrl(lastRound?.mapName) ?? '/ClanLeaderboardTable.jpg'
   const squadView = rules?.mode === 'inter_clan' && granularity === 'squad'
   const playerView = rules?.mode === 'inter_clan' && granularity === 'player'
+  // Moyenne par clan (2026-10-11) : points des players du clan ÷ nombre de players.
+  const averageView = rules?.mode === 'inter_clan' && granularity === 'average'
+  const clanAverages = payload?.clanAverages ?? []
   const displayedStandings = squadView
     ? (payload?.squadBreakdown ?? [])
     : playerView
@@ -244,8 +303,6 @@ export default function TournamentDetailPage() {
   // plutôt que des clans aux points partagés. Le cumul par clan d'une manche reste au débrief, onglet du tournoi.
   const squadRounds = payload?.squadRounds ?? []
   const roundsBySquad = rules?.mode === 'inter_clan' && squadRounds.length === rounds.length && squadRounds.length > 0
-  const sections = rounds.length > 0 ? SECTIONS : SECTIONS_WITHOUT_ROUNDS
-  const compactSections = rounds.length > 0 ? COMPACT_SECTIONS : COMPACT_SECTIONS_WITHOUT_ROUNDS
 
   const organizerActions = canManageTournament ? (
     <>
@@ -316,6 +373,8 @@ export default function TournamentDetailPage() {
             lastRoundAt={lastRound?.createdAt ?? null}
             heroImage={heroImage}
             actions={organizerActions}
+            // Bandeau de remerciement (2026-10-11) : les clans qui ont joué au moins une manche, par ordre alphabétique.
+            thanksClans={rounds.length > 0 ? filterClans.map((clan) => clan.label) : []}
           />
         ) : null}
       </div>
@@ -328,9 +387,16 @@ export default function TournamentDetailPage() {
             docké sur mobile (charte §6) : ancres sans icône, place réduite au rang.
           */}
           <DockingToolbar ariaLabel="Sections du tournoi">
-            {({ compact }) => (
-              <div className={`flex w-full min-w-0 items-center ${compact ? 'flex-nowrap gap-1.5' : 'flex-wrap gap-2.5'}`}>
-                <SectionAnchorNav ariaLabel="Sections du tournoi" items={compact ? compactSections : sections} />
+            {({ isSticky, compact }) => (
+              // Docké : une seule ligne ; les ancres gardent leur largeur, la phrase du lecteur se coupe (« … ») si besoin.
+              <div
+                className={`flex w-full min-w-0 items-center ${isSticky ? 'flex-nowrap' : 'flex-wrap'} ${compact ? 'gap-1.5' : 'gap-2.5'}`}
+              >
+                <SectionAnchorNav
+                  ariaLabel="Sections du tournoi"
+                  items={compact ? anchors.compact : isSticky ? anchors.docked : anchors.rest}
+                  className={isSticky ? 'shrink-0' : undefined}
+                />
                 {position ? <TournamentViewerChip position={position} compact={compact} /> : null}
               </div>
             )}
@@ -344,21 +410,34 @@ export default function TournamentDetailPage() {
               </div>
             ) : null}
 
-            <TournamentPodium standings={standings} mvp={payload?.mvp ?? null} />
+            {/* Podium en marches comme la ligue, puis top killers et top scorers (demande du 2026-10-11). */}
+            {hasPodium ? (
+              <div id="tournament-podium" className="flex flex-col gap-4 sm:gap-5">
+                <TournamentPodium mode={rules.mode} standings={standings} clanImages={payload?.clanImages ?? {}} />
+                {payload?.leaders ? <TournamentLeaders leaders={payload.leaders} viewer={viewer} /> : null}
+              </div>
+            ) : null}
 
             <section id="tournament-standings" aria-labelledby="tournament-standings-title" className="flex flex-col gap-2.5">
               <div className="flex flex-wrap items-center gap-x-2 gap-y-2">
                 <h2 id="tournament-standings-title" className="t-section-title">Classement</h2>
-                <span className="t-meta">
-                  {filteredStandings.length} {filteredStandings.length > 1 ? displayedUnit?.many : displayedUnit?.one}
-                  {filteredStandings.length !== displayedStandings.length ? ` sur ${displayedStandings.length}` : ''} ·{' '}
-                  {rounds.length} manche{rounds.length > 1 ? 's' : ''}
-                  {playerView
-                    ? ` · M1 à M${rounds.length} : kills de chaque player à chaque manche`
-                    : formRounds.length > 0
-                      ? ' · la forme montre la place à chaque manche'
-                      : ''}
-                </span>
+                {averageView ? (
+                  <span className="t-meta">
+                    {clanAverages.length} clan{clanAverages.length > 1 ? 's' : ''} · moyenne = points des players du clan
+                    (détail par player) ÷ nombre de players
+                  </span>
+                ) : (
+                  <span className="t-meta">
+                    {filteredStandings.length} {filteredStandings.length > 1 ? displayedUnit?.many : displayedUnit?.one}
+                    {filteredStandings.length !== displayedStandings.length ? ` sur ${displayedStandings.length}` : ''} ·{' '}
+                    {rounds.length} manche{rounds.length > 1 ? 's' : ''}
+                    {playerView
+                      ? ` · M1 à M${rounds.length} : kills de chaque player à chaque manche`
+                      : formRounds.length > 0
+                        ? ' · la forme montre la place à chaque manche'
+                        : ''}
+                  </span>
+                )}
                 {rules.mode === 'inter_clan' && (payload?.squadBreakdown ?? []).length > 0 ? (
                   // Granularité du classement : contrôle propre à la section, il reste ici (sticky.md, « contrôle de section »).
                   <span className="ml-auto flex flex-wrap items-stretch gap-2">
@@ -368,6 +447,7 @@ export default function TournamentDetailPage() {
                     <SegmentedControl
                     options={[
                       { value: 'clan', label: 'Cumul par clan' },
+                      ...(clanAverages.length > 0 ? [{ value: 'average' as const, label: 'Moyenne par clan' }] : []),
                       { value: 'squad', label: 'Détail par squad' },
                       { value: 'player', label: 'Détail par player' },
                     ]}
@@ -379,6 +459,8 @@ export default function TournamentDetailPage() {
               </div>
               {displayedStandings.length === 0 ? (
                 <TournamentEmptyStandings upcoming={phase === 'upcoming'} canManage={canManageTournament} />
+              ) : averageView ? (
+                <TournamentClanAverageTable entries={clanAverages} viewer={viewer} />
               ) : playerView ? (
                 // Clé du filtre : changer de clan ramène à la première page.
                 <TournamentPlayerTable
@@ -413,6 +495,18 @@ export default function TournamentDetailPage() {
                   viewer={viewer}
                   bySquad={roundsBySquad}
                 />
+              </section>
+            ) : null}
+
+            {awards && hasAwards ? (
+              <section id="tournament-awards" aria-label="Awards du tournoi">
+                <TournamentAwards data={awards} />
+              </section>
+            ) : null}
+
+            {hasWeapons ? (
+              <section id="tournament-weapons" aria-label="Armes du tournoi">
+                <TournamentWeapons weapons={weapons} viewer={viewer} />
               </section>
             ) : null}
 

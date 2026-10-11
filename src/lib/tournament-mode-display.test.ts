@@ -6,7 +6,9 @@ import {
   countdownLabel,
   elapsedLabel,
   formatTournamentPoints,
+  formatTournamentStat,
   isViewerParticipant,
+  leaderWindow,
   participantClanIds,
   participantCountLabel,
   participantForm,
@@ -166,5 +168,34 @@ describe('compactSquadLabel', () => {
       { tag: '[LTF]', names: ['P0mpoko'] },
       { tag: '[OCD]', names: ['Valino13', 'ZaPiT'] },
     ])
+  })
+})
+
+describe('statistiques du tournoi — affichage', () => {
+  const NNBSP = ' '
+  const entries = Array.from({ length: 12 }, (_, index) => ({ key: `player:${index + 1}`, rank: index + 1 }))
+
+  it('les cinq premiers, puis la ligne du lecteur s’il est plus loin', () => {
+    expect(leaderWindow(entries, new Set(['player:9']))).toEqual({ top: entries.slice(0, 5), viewer: entries[8] })
+    // Déjà dans le top 5 ou absent : pas de ligne en plus.
+    expect(leaderWindow(entries, new Set(['player:2'])).viewer).toBeNull()
+    expect(leaderWindow(entries, new Set()).viewer).toBeNull()
+    expect(leaderWindow(entries, new Set(['player:4']), 3).viewer).toEqual(entries[3])
+  })
+
+  it('durées comme les awards du clan, distances en km au-delà de 1 000 m', () => {
+    expect(formatTournamentStat(6305, 'duration', '')).toEqual({ value: '1h 45m 05s', unit: '' })
+    expect(formatTournamentStat(1343, 'duration', '')).toEqual({ value: '22m 23s', unit: '' })
+    expect(formatTournamentStat(42, 'duration', '')).toEqual({ value: '42s', unit: '' })
+    expect(formatTournamentStat(428.4, 'distance', 'm')).toEqual({ value: '428', unit: 'm' })
+    expect(formatTournamentStat(2537.4, 'distance', 'm')).toEqual({ value: '2,5', unit: 'km' })
+    expect(formatTournamentStat(978259, 'distance', 'm')).toEqual({ value: `978`, unit: 'km' })
+  })
+
+  it('nombres entiers avec séparateur de milliers ; unité au singulier pour 1, sauf « fois »', () => {
+    expect(formatTournamentStat(64909.4, 'damage', 'dégâts')).toEqual({ value: `64${NNBSP}909`, unit: 'dégâts' })
+    expect(formatTournamentStat(1, 'count', 'réanimations')).toEqual({ value: '1', unit: 'réanimation' })
+    expect(formatTournamentStat(1, 'count', 'fois')).toEqual({ value: '1', unit: 'fois' })
+    expect(formatTournamentStat(3, 'count', 'kills')).toEqual({ value: '3', unit: 'kills' })
   })
 })

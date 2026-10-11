@@ -1,5 +1,6 @@
 'use client'
 
+import { Crown, Medal, Target } from 'lucide-react'
 import { useEffect, useState } from 'react'
 
 import { readHeaderHeight } from '@/hooks/useStickyToolbar'
@@ -13,6 +14,9 @@ export type SectionAnchorNavIcon =
   | 'movement'
   | 'other'
   | 'category'
+  | 'award'
+  | 'weapon'
+  | 'podium'
 
 export type SectionAnchorNavItem = {
   id: string
@@ -27,6 +31,11 @@ type SectionAnchorNavProps = {
 }
 
 function renderIcon(icon: SectionAnchorNavIcon) {
+  // Podium, awards et armes d'un tournoi (2026-10-11) : icônes lucide, à la taille des autres.
+  if (icon === 'podium') return <Crown className="h-4 w-4" strokeWidth={2.25} />
+  if (icon === 'award') return <Medal className="h-4 w-4" strokeWidth={2.25} />
+  if (icon === 'weapon') return <Target className="h-4 w-4" strokeWidth={2.25} />
+
   if (icon === 'combat') {
     return (
       <svg viewBox="0 0 20 20" className="h-4 w-4" fill="currentColor">

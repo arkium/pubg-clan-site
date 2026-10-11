@@ -174,6 +174,14 @@ describe('détail par player', () => {
     ])
   })
 
+  it('se limite aux membres d’un clan (scrims internes : le clan organisateur), rangs recalculés', () => {
+    const players = buildPlayerBreakdown([round1, round2], [1, 2], RULES, CLANS, MEMBERS, 1)
+    expect(players.map((view) => [view.rank, view.label])).toEqual([
+      [1, '[SMK] Pagiotte'],
+      [2, '[SMK] TigrOo'],
+    ])
+  })
+
   it('donne les kills de chaque player à chaque manche, avec les clés du classement', () => {
     const playerRounds = buildPlayerRounds([round2, round1], [1, 2], RULES)
     expect(playerRounds.map((round) => round.index)).toEqual([1, 2])

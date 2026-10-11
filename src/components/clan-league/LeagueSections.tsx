@@ -1,9 +1,10 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronDown, CircleDashed, Crosshair, Crown, Flame, HandFist, Hourglass, Info, Rocket, ShieldCheck, Swords, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react'
+import { ChevronDown, CircleDashed, Crosshair, Flame, HandFist, Hourglass, Info, Rocket, ShieldCheck, Swords, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
+import PodiumSteps, { ClanLogo } from '@/components/ui/PodiumSteps'
 import RankCell from '@/components/ui/RankCell'
 import {
   LEAGUE_MATCH_TYPE_OPTIONS,
@@ -18,12 +19,12 @@ import {
   type LeagueSettings,
 } from '@/lib/clan-league'
 import type { LeagueEntry } from '@/lib/clan-league-service'
-import { clanBackgroundImage } from '@/lib/clan-image'
 
 /**
  * Blocs de la Ligue Inter-Clans (maquette « Ligue clans », 22a–22e ; docs/features/ligue-clans.md), selon la charte UI
  * (docs/ui/index.html, section « Ligue inter-clans », 04/10/2026). Signatures conservées : podium en marches (toujours
- * sombre, `.app-on-photo`), couronne en or de jeu, fil de la ligue, blue zone (seul bleu autorisé).
+ * sombre, `.app-on-photo`, partagé avec les tournois : `PodiumSteps`), couronne en or de jeu, fil de la ligue, blue zone
+ * (seul bleu autorisé).
  */
 
 export type RankedEntry = LeagueEntry & { position: number }
@@ -48,17 +49,6 @@ function ClanLink({ access, clanId, className, children, label }: { access: Clan
     <Link href={clanHref(clanId)} onClick={() => access.onOpen(clanId)} className={`${className} transition hover:bg-gray-50`} aria-label={label}>
       {children}
     </Link>
-  )
-}
-
-/** Logo du clan (photo) : fond sombre fixe derrière l'image, dans les deux thèmes. */
-function ClanLogo({ imageUrl, size, className = '' }: { imageUrl: string | null; size: number; className?: string }) {
-  return (
-    <span
-      aria-hidden="true"
-      className={`inline-block shrink-0 bg-slate-950 bg-cover bg-center ${className}`}
-      style={{ width: size, height: size, backgroundImage: clanBackgroundImage(imageUrl) }}
-    />
   )
 }
 
@@ -124,55 +114,27 @@ export function MatchTypeMenu({ value, onChange }: { value: LeagueMatchType; onC
 
 // ── Podium ────────────────────────────────────────────────────────────────────────────────────────
 
-/** Marches argent / or / bronze (signature §0b, toujours sur fond sombre) : couleurs fixes, comme sur une photo. */
-const STEPS = [
-  { ring: 'rgba(203,213,225,.55)', gradient: 'linear-gradient(180deg, rgba(148,163,184,.25), rgba(148,163,184,.75))', height: 'h-[70px] sm:h-[110px]', number: 'rgba(255,255,255,.55)' },
-  { ring: 'rgba(251,191,36,.7)', gradient: 'linear-gradient(180deg, rgba(146,64,14,.35), #d97706)', height: 'h-[100px] sm:h-[150px]', number: 'rgba(28,16,3,.45)' },
-  { ring: 'rgba(234,88,12,.55)', gradient: 'linear-gradient(180deg, rgba(124,45,18,.3), #9a3412)', height: 'h-[52px] sm:h-[80px]', number: 'rgba(255,255,255,.55)' },
-]
-
 export function LeaguePodium({ ranked, criterion, access }: { ranked: RankedEntry[]; criterion: LeagueCriterion; access: ClanAccess }) {
   const meta = leagueCriterion(criterion)
-  const order = [ranked[1], ranked[0], ranked[2]]
   return (
-    <section
-      aria-label={`Podium · ${meta.long}`}
-      className="app-on-photo relative flex min-w-0 flex-col gap-2.5 overflow-hidden rounded-[14px] border border-gray-200 bg-gradient-to-b from-slate-900 to-slate-950 px-2.5 pt-3.5 text-slate-100 sm:px-5 sm:pt-4"
-    >
-      <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
-        <span className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">Podium · {meta.long}</span>
-        <span className="app-stamp app-stamp--sm">Winner winner chicken dinner</span>
-      </div>
-      <ol className="grid grid-cols-3 items-end gap-2 sm:gap-4">
-        {order.map((entry, index) =>
-          entry ? (
-            <li key={entry.clanId} id={`league-clan-${entry.clanId}`} className="flex min-w-0 scroll-mt-[160px] flex-col items-center gap-1.5" style={{ order: index }} data-testid={`podium-${entry.position}`}>
-              {entry.position === 1 ? <Crown className="h-6 w-6 text-[var(--game-gold)]" aria-label="Premier" /> : null}
-              <ClanLink access={access} clanId={entry.clanId} className="flex min-w-0 max-w-full flex-col items-center gap-1 rounded-lg hover:!bg-transparent hover:opacity-90">
-                <ClanLogo imageUrl={entry.imageUrl} size={48} className="rounded-[14px] sm:h-14 sm:w-14" />
-                <b className="max-w-full truncate text-sm font-extrabold tracking-tight sm:text-lg">{entry.name}</b>
-              </ClanLink>
-              <span className="font-mono text-xs text-slate-400">[{entry.tag}]</span>
-              <span className="t-num whitespace-nowrap rounded-full bg-slate-950 px-2.5 py-0.5 text-xs font-extrabold">
-                {meta.format(meta.value(entry))}
-                {criterion === 'winRate' ? ' WR' : ''}
-              </span>
-              <span
-                className={`relative flex w-full justify-center overflow-hidden rounded-t-xl rounded-b-sm border pt-2.5 ${STEPS[index].height}`}
-                style={{ background: STEPS[index].gradient, borderColor: STEPS[index].ring }}
-                aria-hidden="true"
-              >
-                {/* Chiffre des marches en Teko (charte, section « Ligue inter-clans »). */}
-                <span className="t-hero text-[38px] sm:text-[56px]" style={{ color: STEPS[index].number }}>{entry.position}</span>
-                <span className="absolute inset-x-0 bottom-0 h-2.5 bg-[repeating-linear-gradient(90deg,rgba(0,0,0,.18)_0_8px,transparent_8px_16px)]" />
-              </span>
-            </li>
-          ) : (
-            <li key={`empty-${index}`} style={{ order: index }} />
-          )
-        )}
-      </ol>
-    </section>
+    <PodiumSteps
+      ariaLabel={`Podium · ${meta.long}`}
+      title={`Podium · ${meta.long}`}
+      entries={ranked.slice(0, 3).map((entry) => ({
+        key: String(entry.clanId),
+        position: entry.position,
+        id: `league-clan-${entry.clanId}`,
+        testId: `podium-${entry.position}`,
+        identity: (
+          <ClanLink access={access} clanId={entry.clanId} className="flex min-w-0 max-w-full flex-col items-center gap-1 rounded-lg hover:!bg-transparent hover:opacity-90">
+            <ClanLogo imageUrl={entry.imageUrl} size={48} className="rounded-[14px] sm:h-14 sm:w-14" />
+            <b className="max-w-full truncate text-sm font-extrabold tracking-tight sm:text-lg">{entry.name}</b>
+          </ClanLink>
+        ),
+        caption: `[${entry.tag}]`,
+        value: `${meta.format(meta.value(entry))}${criterion === 'winRate' ? ' WR' : ''}`,
+      }))}
+    />
   )
 }
 

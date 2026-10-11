@@ -1,11 +1,10 @@
 'use client'
 
-import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, Crown, MapPin, Play, Trophy } from 'lucide-react'
+import { ArrowRight, ChevronDown, ChevronLeft, ChevronRight, MapPin, Play, Trophy } from 'lucide-react'
 import Link from 'next/link'
 import { Fragment, useEffect, useRef, useState } from 'react'
 
 import Pagination from '@/components/ui/Pagination'
-import PodiumCards from '@/components/ui/PodiumCards'
 import RankCell from '@/components/ui/RankCell'
 import SortableTh from '@/components/ui/SortableTh'
 import { matchTournamentReplayPath } from '@/lib/match-links'
@@ -33,6 +32,7 @@ import type { TournamentRoundView, TournamentStandingView } from '@/lib/tourname
  * (docs/ui/index.html, section « Tournois », 04/10/2026) : classes de rôle (`t-section-title`, `t-meta`, `t-num`,
  * `t-hero`), lecteur en accent (`.tournament-row--viewer`), Top 1 et MVP en or de jeu (`--game-gold`), barres de points
  * à la couleur du mode (`--tmode`), rangs par `RankCell`, aucun défilement horizontal (forme et manches paginées).
+ * Podium, tops, moyenne par clan, awards et armes : `TournamentStatsSections.tsx` (2026-10-11).
  */
 
 export type TournamentRules = {
@@ -86,53 +86,6 @@ export function TournamentViewerChip({ position, compact }: { position: ViewerPo
         </>
       )}
     </span>
-  )
-}
-
-// ── Podium et MVP ───────────────────────────────────────────────────────────────────────────────────
-
-export function TournamentPodium({
-  standings,
-  mvp,
-}: {
-  standings: TournamentStandingView[]
-  mvp: { label: string; kills: number; damage: number } | null
-}) {
-  if (standings.length === 0 && !mvp) return null
-  return (
-    <section aria-label="Podium" className="flex flex-col gap-3">
-      <PodiumCards
-        metricLabel="Points"
-        entries={standings.slice(0, 3).map((standing) => ({
-          key: standing.key,
-          name: standing.label,
-          subline: `${standing.totalKills} kills · ${standing.wins} Top 1`,
-          value: formatTournamentPoints(standing.totalPoints),
-        }))}
-      />
-      {mvp ? (
-        // Bloc bordé = `.app-panel` (charte §2), teinté de l'or du Top 1 : `!` car la bordure et le fond de la classe
-        // globale l'emportent sinon sur les utilitaires.
-        <div className="app-panel flex flex-wrap items-center gap-x-5 gap-y-2 border-[var(--game-gold-ring)]! bg-[var(--game-gold-soft)]! px-4 py-3">
-          <span className="t-label t-gold inline-flex items-center gap-1.5">
-            <Crown className="h-3.5 w-3.5" aria-hidden="true" />
-            MVP du tournoi
-          </span>
-          <b className="t-card-title">{mvp.label}</b>
-          <div className="flex items-baseline gap-3.5 text-gray-900">
-            <span className="flex items-baseline gap-1">
-              <b className="t-hero t-hero--sm">{mvp.kills}</b>
-              <span className="t-meta">kills</span>
-            </span>
-            <span className="flex items-baseline gap-1">
-              <b className="t-hero t-hero--sm">{numberFormat.format(mvp.damage)}</b>
-              <span className="t-meta">dégâts</span>
-            </span>
-          </div>
-          <span className="t-meta sm:ml-auto">Le plus de kills, départagé par les dégâts</span>
-        </div>
-      ) : null}
-    </section>
   )
 }
 
@@ -190,7 +143,7 @@ function FormHeader({ count }: { count: number }) {
  * Squad en une ligne dans un tableau : le tag de chaque clan en gras, les pseudos en graisse normale, plus légers à lire
  * (demande du 2026-10-11). « [FUN] A, B + [OCD] C », comme `compactSquadLabel`.
  */
-function SquadLabel({ memberLabels, fallback }: { memberLabels: string[]; fallback: string }) {
+export function SquadLabel({ memberLabels, fallback }: { memberLabels: string[]; fallback: string }) {
   const groups = squadLabelGroups(memberLabels)
   if (groups.length === 0) return <>{fallback}</>
   return (

@@ -214,3 +214,48 @@ export function tournamentRuleLines(rules: RulesLike) {
   }
   return lines
 }
+
+// ── Statistiques du tournoi ─────────────────────────────────────────────────────────────────────────
+
+/**
+ * Les premiers d'un classement individuel (top killers, top scorers), puis la ligne du lecteur s'il est plus loin :
+ * « pour que chacun puisse se trouver quelque part » (demande du 2026-10-11).
+ */
+export function leaderWindow<T extends { key: string }>(entries: readonly T[], viewerKeys: ReadonlySet<string>, size = 5) {
+  const top = entries.slice(0, size)
+  const viewer = entries.slice(size).find((entry) => viewerKeys.has(entry.key)) ?? null
+  return { top, viewer }
+}
+
+const integerFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
+const oneDecimalFormat = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 1 })
+
+/** Unités au singulier pour 1 (« 1 kill », « 1 réanimation ») ; « fois » ne change pas. */
+const singular = (unit: string) => (unit.endsWith('s') && unit !== 'fois' ? unit.slice(0, -1) : unit)
+
+/**
+ * Valeur d'un award ou d'un fun fact, en deux morceaux (chiffre en Teko, unité en petit) : durées en « 1h 45m 05s »
+ * comme les awards du clan, distances en km au-delà de 1 000 m, nombres entiers sinon.
+ */
+export function formatTournamentStat(
+  value: number,
+  format: 'count' | 'damage' | 'distance' | 'duration',
+  unit: string
+): { value: string; unit: string } {
+  if (format === 'duration') {
+    const total = Math.max(0, Math.round(value))
+    const hours = Math.floor(total / 3600)
+    const minutes = Math.floor((total % 3600) / 60)
+    const seconds = String(total % 60).padStart(2, '0')
+    if (hours > 0) return { value: `${hours}h ${String(minutes).padStart(2, '0')}m ${seconds}s`, unit: '' }
+    if (minutes > 0) return { value: `${minutes}m ${seconds}s`, unit: '' }
+    return { value: `${total % 60}s`, unit: '' }
+  }
+  if (format === 'distance') {
+    if (value >= 10_000) return { value: integerFormat.format(value / 1000), unit: 'km' }
+    if (value >= 1000) return { value: oneDecimalFormat.format(value / 1000), unit: 'km' }
+    return { value: integerFormat.format(value), unit: 'm' }
+  }
+  const rounded = Math.round(value)
+  return { value: integerFormat.format(rounded), unit: rounded === 1 ? singular(unit) : unit }
+}

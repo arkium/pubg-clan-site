@@ -67,13 +67,13 @@ type MatchLike = {
   }>
 }
 
-function clanLabel(clanId: number, clans: ClanDirectory) {
+export function clanLabel(clanId: number, clans: ClanDirectory) {
   const clan = clans[clanId]
   if (!clan) return `Clan ${clanId}`
   return clan.tag ? `[${clan.tag}] ${clan.name}` : clan.name
 }
 
-function memberLabel(memberId: number, members: MemberDirectory, clans: ClanDirectory) {
+export function memberLabel(memberId: number, members: MemberDirectory, clans: ClanDirectory) {
   const member = members[memberId]
   if (!member) return `Joueur ${memberId}`
   const tag = member.clanId !== null && member.clanId !== undefined ? clans[member.clanId]?.tag : null
@@ -261,18 +261,24 @@ export function buildSquadRounds(
 
 /**
  * Détail par player d'un tournoi inter-clans (demande du 2026-10-11) : même barème que le mode Solo — la place de sa
- * squad, ses propres kills, le bonus d'un Top 1 —, sans prorata.
+ * squad, ses propres kills, le bonus d'un Top 1 —, sans prorata. Sert aussi aux top scorers de tous les modes ;
+ * `onlyClanId` le limite aux membres d'un clan (scrims internes : le clan organisateur), rangs recalculés.
  */
 export function buildPlayerBreakdown(
   matches: MatchLike[],
   participantClanIds: number[],
   rulesInput: TournamentRulesInput | NormalizedTournamentRules,
   clans: ClanDirectory,
-  members: MemberDirectory
+  members: MemberDirectory,
+  onlyClanId?: number
 ): TournamentStandingView[] {
   const rules = normalizeTournamentRules(rulesInput)
   const standings = computeTournamentModeStandings(matches, participantClanIds, { ...rules, mode: 'solo_ffa' })
-  return buildStandingViews(standings, clans, members)
+  const kept =
+    onlyClanId === undefined
+      ? standings
+      : standings.filter((standing) => standing.participant.kind === 'player' && standing.participant.clanId === onlyClanId)
+  return buildStandingViews(kept, clans, members)
 }
 
 /** Kills de chaque player à chaque manche, pour les colonnes M1, M2… du détail par player (mêmes clés). */

@@ -109,7 +109,7 @@ const SECTION_LOCAL_CONTROL_PAGES = [
  */
 const MOBILE_DOCKING_WITHOUT_PERIOD: Record<string, string> = {
   'src/app/tournaments/page.tsx': 'recherche et statut de la liste',
-  'src/app/tournaments/[tournamentId]/page.tsx': 'ancres Classement / Manches / Barème et place du lecteur',
+  'src/app/tournaments/[tournamentId]/page.tsx': 'ancres Classement / Manches / Stats / Barème et place du lecteur',
   'src/app/members/[id]/stats/page.tsx': 'carrière PUBG sans période : mode (Tous / Squad / Duo / Solo) et synchro, sur une ligne',
   // Écart constaté le 2026-09-27 par ce contrôle, pas une décision : sticky.md §2 dit « rien de docké sur mobile »
   // pour /clans, la refonte de l'annuaire (2026-09-26) docke recherche et tri. À trancher, puis retirer d'ici.

@@ -43,43 +43,52 @@ function parseSquadMatchIdFromDetails(details: Prisma.JsonValue | null): string 
     : null
 }
 
-export async function getTelemetryBacklogSummary(): Promise<GlobalBacklogSummary> {
-  // 1. Récupérer les jobs actuellement en file ou en cours
+type BacklogRow = {
+  clanId: number
+  totalMatches: number
+  completedMatches: number
+  expiredMatches: number
+  recoverableBacklog: number
+  urgentBacklog: number
+}
+
+/** Parties en file ou en cours dans la file de récupération : toutes, ou celles d'un clan. */
+async function getQueuedMatchIds(clanId?: number) {
   const activeJobs = await prisma.cronExecution.findMany({
     where: {
       action: TELEMETRY_LIVE_SYNC_QUEUE_ACTION,
       status: { in: ['queued', 'running'] },
+      ...(typeof clanId === 'number' ? { clanId } : {}),
     },
     select: { clanId: true, details: true },
     take: 5000,
   })
 
-  const queuedMatchIdsByClan = new Map<number, Set<string>>()
-  const allQueuedMatchIds = new Set<string>()
+  const byClan = new Map<number, Set<string>>()
+  const all = new Set<string>()
 
   for (const job of activeJobs) {
     const squadMatchId = parseSquadMatchIdFromDetails(job.details)
     if (squadMatchId) {
-      allQueuedMatchIds.add(squadMatchId)
+      all.add(squadMatchId)
       if (typeof job.clanId === 'number') {
-        const set = queuedMatchIdsByClan.get(job.clanId) ?? new Set<string>()
+        const set = byClan.get(job.clanId) ?? new Set<string>()
         set.add(squadMatchId)
-        queuedMatchIdsByClan.set(job.clanId, set)
+        byClan.set(job.clanId, set)
       }
     }
   }
 
-  // 2. Requête SQL d'agrégation haute performance groupée par clan
-  const rows = await prisma.$queryRaw<
-    Array<{
-      clanId: number
-      totalMatches: number
-      completedMatches: number
-      expiredMatches: number
-      recoverableBacklog: number
-      urgentBacklog: number
-    }>
-  >(Prisma.sql`
+  return { byClan, all }
+}
+
+/**
+ * Agrégat de couverture groupé par clan : tous les clans, ou un seul. Le filtre porte sur la sous-requête des couples
+ * clan-partie, la plus coûteuse : pour un clan, la base ne parcourt que ses parties.
+ */
+function queryBacklogRows(clanId?: number) {
+  const clanFilter = typeof clanId === 'number' ? Prisma.sql`cm.clanId = ${clanId}` : Prisma.sql`cm.clanId IS NOT NULL`
+  return prisma.$queryRaw<BacklogRow[]>(Prisma.sql`
     SELECT
       pairs.clanId AS clanId,
       COUNT(DISTINCT sm.id) AS totalMatches,
@@ -110,12 +119,66 @@ export async function getTelemetryBacklogSummary(): Promise<GlobalBacklogSummary
       SELECT DISTINCT cm.clanId AS clanId, sdm.squadMatchId AS squadMatchId
       FROM SquadMember sdm
       INNER JOIN ClanMember cm ON cm.id = sdm.memberId
-      WHERE cm.clanId IS NOT NULL
+      WHERE ${clanFilter}
     ) pairs
     INNER JOIN SquadMatch sm ON sm.id = pairs.squadMatchId AND sm.matchType != 'airoyale'
     LEFT JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
     GROUP BY pairs.clanId
   `)
+}
+
+function toClanBacklogStat(
+  row: BacklogRow,
+  clan: { name: string; tag: string | null } | undefined | null,
+  inQueueCount: number
+): ClanBacklogStat {
+  const clanId = Number(row.clanId)
+  const totalMatches = Number(row.totalMatches || 0)
+  const completedMatches = Number(row.completedMatches || 0)
+  const expiredMatches = Number(row.expiredMatches || 0)
+  const recoverableBacklog = Number(row.recoverableBacklog || 0)
+  const urgentBacklog = Number(row.urgentBacklog || 0)
+
+  // Dénominateur de complétion : matchs vivants ou complétés (hors historique expiré non récupérable)
+  const denominator = totalMatches - expiredMatches
+  const completionRate =
+    denominator > 0 ? Math.min(100, Math.round((completedMatches / denominator) * 1000) / 10) : null
+
+  return {
+    clanId,
+    clanName: clan?.name ?? `Clan #${clanId}`,
+    clanTag: clan?.tag ?? '',
+    totalMatches,
+    completedMatches,
+    expiredMatches,
+    recoverableBacklog,
+    urgentBacklog,
+    inQueueCount,
+    toQueueCount: Math.max(0, recoverableBacklog - inQueueCount),
+    completionRate,
+  }
+}
+
+/**
+ * Couverture d'un seul clan (onglet « Récupérations » des Données) : mêmes chiffres que sa ligne dans
+ * `getTelemetryBacklogSummary`, sans agréger tous les autres clans. `null` si le clan n'a aucune partie.
+ */
+export async function getClanTelemetryBacklog(clanId: number): Promise<ClanBacklogStat | null> {
+  const [queued, rows, clan] = await Promise.all([
+    getQueuedMatchIds(clanId),
+    queryBacklogRows(clanId),
+    prisma.clan.findUnique({ where: { id: clanId }, select: { name: true, tag: true } }),
+  ])
+  const row = rows.find((candidate) => Number(candidate.clanId) === clanId)
+  return row ? toClanBacklogStat(row, clan, queued.byClan.get(clanId)?.size ?? 0) : null
+}
+
+export async function getTelemetryBacklogSummary(): Promise<GlobalBacklogSummary> {
+  // 1. Récupérer les jobs actuellement en file ou en cours
+  const queued = await getQueuedMatchIds()
+
+  // 2. Requête SQL d'agrégation haute performance groupée par clan
+  const rows = await queryBacklogRows()
 
   const clanIds = rows.map((r) => Number(r.clanId))
   const clans =
@@ -127,55 +190,20 @@ export async function getTelemetryBacklogSummary(): Promise<GlobalBacklogSummary
       : []
   const clanMap = new Map(clans.map((c) => [c.id, c]))
 
-  let globalTotal = 0
-  let globalCompleted = 0
-  let globalExpired = 0
-  let globalRecoverable = 0
-  let globalUrgent = 0
+  const clanStats: ClanBacklogStat[] = rows.map((row) =>
+    toClanBacklogStat(row, clanMap.get(Number(row.clanId)), queued.byClan.get(Number(row.clanId))?.size ?? 0)
+  )
 
-  const clanStats: ClanBacklogStat[] = rows.map((row) => {
-    const clanId = Number(row.clanId)
-    const clan = clanMap.get(clanId)
-    const totalMatches = Number(row.totalMatches || 0)
-    const completedMatches = Number(row.completedMatches || 0)
-    const expiredMatches = Number(row.expiredMatches || 0)
-    const recoverableBacklog = Number(row.recoverableBacklog || 0)
-    const urgentBacklog = Number(row.urgentBacklog || 0)
-
-    const clanQueuedSet = queuedMatchIdsByClan.get(clanId)
-    const inQueueCount = clanQueuedSet ? clanQueuedSet.size : 0
-    const toQueueCount = Math.max(0, recoverableBacklog - inQueueCount)
-
-    globalTotal += totalMatches
-    globalCompleted += completedMatches
-    globalExpired += expiredMatches
-    globalRecoverable += recoverableBacklog
-    globalUrgent += urgentBacklog
-
-    // Dénominateur de complétion : matchs vivants ou complétés (hors historique expiré non récupérable)
-    const denominator = totalMatches - expiredMatches
-    const completionRate =
-      denominator > 0 ? Math.min(100, Math.round((completedMatches / denominator) * 1000) / 10) : null
-
-    return {
-      clanId,
-      clanName: clan?.name ?? `Clan #${clanId}`,
-      clanTag: clan?.tag ?? '',
-      totalMatches,
-      completedMatches,
-      expiredMatches,
-      recoverableBacklog,
-      urgentBacklog,
-      inQueueCount,
-      toQueueCount,
-      completionRate,
-    }
-  })
+  const globalTotal = clanStats.reduce((sum, stat) => sum + stat.totalMatches, 0)
+  const globalCompleted = clanStats.reduce((sum, stat) => sum + stat.completedMatches, 0)
+  const globalExpired = clanStats.reduce((sum, stat) => sum + stat.expiredMatches, 0)
+  const globalRecoverable = clanStats.reduce((sum, stat) => sum + stat.recoverableBacklog, 0)
+  const globalUrgent = clanStats.reduce((sum, stat) => sum + stat.urgentBacklog, 0)
 
   // Trier par volume de backlog à récupérer décroissant, puis par total
   clanStats.sort((a, b) => b.recoverableBacklog - a.recoverableBacklog || b.totalMatches - a.totalMatches)
 
-  const globalInQueue = allQueuedMatchIds.size
+  const globalInQueue = queued.all.size
   const globalToQueue = Math.max(0, globalRecoverable - globalInQueue)
   const globalDenominator = globalTotal - globalExpired
   const globalCompletionRate =

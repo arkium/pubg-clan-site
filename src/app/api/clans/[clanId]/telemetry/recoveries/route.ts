@@ -8,11 +8,7 @@ import {
   buildTelemetrySuccessResponse,
 } from '@/lib/pubg-telemetry/api-contract'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
-import {
-  enqueueTelemetryBacklog,
-  getTelemetryBacklogSummary,
-} from '@/lib/telemetry-recoveries-backlog'
-import { getTelemetryRecoveriesStatus } from '@/lib/telemetry-recoveries-status'
+import { enqueueTelemetryBacklog, getClanTelemetryBacklog } from '@/lib/telemetry-recoveries-backlog'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
 
 function parseClanId(clanId: string) {
@@ -51,7 +47,9 @@ export async function GET(
     const url = new URL(request.url)
     const limit = parseLimit(url.searchParams.get('limit'))
 
-    const [rows, engineStatus, backlogSummary, clan] = await Promise.all([
+    // Couverture du seul clan demandé (docs/TODO/administration.md §8) : l'état du moteur, commun à tous les clans,
+    // est sur /settings/telemetry, et le backlog global n'est plus calculé pour n'en garder qu'une ligne.
+    const [rows, clanBacklog, clan] = await Promise.all([
       prisma.$queryRaw<Array<{
         id: string
         squadMatchId: string
@@ -107,8 +105,7 @@ export async function GET(
         ORDER BY t.updatedAt DESC
         LIMIT ${limit}
       `),
-      getTelemetryRecoveriesStatus().catch(() => null),
-      getTelemetryBacklogSummary().catch(() => null),
+      getClanTelemetryBacklog(parsedClanId).catch(() => null),
       prisma.clan.findUnique({
         where: { id: parsedClanId },
         select: { id: true, name: true, tag: true },
@@ -158,8 +155,6 @@ export async function GET(
       withParsedPayload: counts.withParsedPayload,
     }
 
-    const clanBacklog = backlogSummary?.clans.find((c) => c.clanId === parsedClanId) ?? null
-
     const normalizedRows = rows.map((row) => ({
       id: row.id,
       squadMatchId: row.squadMatchId,
@@ -187,7 +182,6 @@ export async function GET(
       limit,
       summary,
       backlog: clanBacklog,
-      engineStatus,
       rows: normalizedRows,
     }
 

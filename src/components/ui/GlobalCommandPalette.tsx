@@ -80,7 +80,7 @@ export function GlobalCommandPalette() {
         {clanId && (
           <Command.Group heading="Clan Courant">
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/overview`))}>
-              <BarChart3 className="mr-2 h-4 w-4" /> Vue d'ensemble
+              <BarChart3 className="mr-2 h-4 w-4" /> Vue d’ensemble
             </Command.Item>
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/members`))}>
               <Users className="mr-2 h-4 w-4" /> Membres
@@ -106,8 +106,8 @@ export function GlobalCommandPalette() {
         {/* Outils de télémétrie : réservés au SuperUser tant qu'ils restent verrouillés (src/lib/auth/owner-features.ts) */}
         {clanId && isSuperUser && (
           <Command.Group heading="Télémétrie & Administration">
-            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/state`))}>
-              <Shield className="mr-2 h-4 w-4" /> État de la télémétrie
+            <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data`))}>
+              <Shield className="mr-2 h-4 w-4" /> Santé des données
             </Command.Item>
             <Command.Item onSelect={() => runCommand(() => router.push(`/clans/${clanId}/settings/data/sessions`))}>
               <Swords className="mr-2 h-4 w-4" /> Soirées de télémétrie

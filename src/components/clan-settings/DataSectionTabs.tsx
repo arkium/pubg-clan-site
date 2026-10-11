@@ -4,21 +4,7 @@ import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
-
-export type DataSectionTab = { href: string; label: string }
-
-/** Onglets de « Données » d’un clan (docs/TODO/administration.md Q17, Q20), section réservée au SuperUser. */
-export function dataSectionTabs(clanId: string | number): DataSectionTab[] {
-  const base = `/clans/${clanId}/settings/data`
-  return [
-    { href: base, label: 'Santé des données' },
-    { href: `${base}/state`, label: 'État' },
-    { href: `${base}/sessions`, label: 'Soirées' },
-    { href: `${base}/errors`, label: 'Erreurs' },
-    { href: `${base}/sync`, label: 'Synchronisation' },
-    { href: `${base}/recoveries`, label: 'Récupérations' },
-  ]
-}
+import { dataSectionTabs, type DataSectionTab } from '@/lib/clan-data-section'
 
 /**
  * Navigation entre les onglets de « Données » : soulignement accent dès 768 px, menu déroulant en dessous — jamais de

@@ -2,8 +2,8 @@
 
 > **Étape 1 — analyse, rédigée le 2026-10-06. Étape 2 — décisions du 2026-10-07 (§5.3, §5.4, §7).**
 > **Étape 3 — lots 0, 1, 2, 3a, 3b et 3c réalisés les 2026-10-07 et 08** (branche `fix/admin-rights`, §6),
-> **fusionnés dans `main` le 2026-10-08, pas encore déployés** ; les deux scripts du lot 2 restent à appliquer après le
-> déploiement (§6, lot 2, « Ordre de déploiement »).
+> **fusionnés dans `main` le 2026-10-08, déployés** ; les deux scripts du lot 2 (§6, « Ordre de déploiement ») ont été
+> **appliqués le 2026-10-12**, avec la consolidation des Données du clan (§8.7).
 > **Étape 4 — pages d'administration et d'accès refaites selon la charte UI le 2026-10-08** (§6, fin du lot 3) : aucune
 > route, garde ni table modifiée.
 > **Révision du 2026-10-08** : la télémétrie d'un clan (santé des données, resynchronisation, outils) est réservée au
@@ -1296,6 +1296,15 @@ mêmes lignes. Le script affichera le plan, puis demandera une confirmation au c
 - Build de production : réussi.
 - Lint : aucune erreur nouvelle. Les 97 erreurs du dépôt existaient déjà ; parmi les fichiers touchés, la soirée (7)
   et `telemetry-recoveries.test.ts` (4) les portaient déjà, et deux erreurs de la palette sont corrigées.
+
+**Mise à jour du 2026-10-12** : `main` poussé (`ee2c820`) et déployé, redirections vérifiées en production. En `smk`,
+`scripts/cleanup-admin-nav.ts` (simulation conforme au plan, puis `--apply`) et `scripts/remove-admin-moderator-roles.ts`
+appliqués. Contrôle en lecture seule après coup : 62 entrées de menu (64 − 10 + 8), `superuser.clan-data` créée,
+`superuser.email-delivery` et `superuser.pubg-api` renommées (ordre 48 et 49 conservé, surcharges identiques effacées),
+seule clé `owner.*` restante : `owner.encountered-opponents` (`clan-section`, `member`), plus aucun rôle `admin` en
+menu ni rôle de clan Admin ou Moderator (19 Owner, 19 Member). Les anciennes clés de transition sont retirées de
+`PlatformHub.tsx` et `SettingsHubCard.tsx`. Les points 1 à 3 ci-dessous sont donc faits ; restent les vérifications
+navigateur (4) et la décision sur les routes sans appelant (5).
 
 **Reste à faire** :
 

@@ -47,9 +47,6 @@ const CARD_VISUALS: Record<string, { icon: LucideIcon; tone: Tone }> = {
   'superuser.clan-data': { icon: HeartPulse, tone: 'sky' },
   'superuser.email-delivery': { icon: Mail, tone: 'sky' },
   'superuser.pubg-api': { icon: Globe, tone: 'sky' },
-  // Anciennes clés, en base jusqu'à l'application de scripts/cleanup-admin-nav.ts (docs/TODO/administration.md §8).
-  'owner.email-delivery': { icon: Mail, tone: 'sky' },
-  'owner.pubg-api': { icon: Globe, tone: 'sky' },
   'owner.encountered-opponents': { icon: Crosshair, tone: 'warn' },
   'superuser.site-config': { icon: SlidersHorizontal, tone: 'sky' },
   'superuser.platform-settings': { icon: ShieldAlert, tone: 'neutral' },

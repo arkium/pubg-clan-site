@@ -4,11 +4,7 @@ import { Star } from 'lucide-react'
 
 import SettingsHub, { type HubThemes } from '@/components/settings/SettingsHub'
 
-/**
- * Thèmes de l'accueil Plateforme (docs/TODO/administration.md §5.2) : Clans, Joueurs, Données, Référentiels, Site.
- * `owner.pubg-api` et `owner.email-delivery` : anciennes clés, en base jusqu'à l'application de
- * scripts/cleanup-admin-nav.ts (§8), qui les renomme en `superuser.*`.
- */
+/** Thèmes de l'accueil Plateforme (docs/TODO/administration.md §5.2) : Clans, Joueurs, Données, Référentiels, Site. */
 const PLATFORM_THEMES: HubThemes = [
   { title: 'Clans', navKeys: ['superuser.opponents', 'superuser.clan-lifecycle'] },
   { title: 'Joueurs', navKeys: ['superuser.players'] },
@@ -19,7 +15,6 @@ const PLATFORM_THEMES: HubThemes = [
       'superuser.cron',
       'superuser.match-import',
       'superuser.pubg-api',
-      'owner.pubg-api',
       'superuser.database',
     ],
   },
@@ -35,7 +30,6 @@ const PLATFORM_THEMES: HubThemes = [
       'superuser.delegation',
       'superuser.admin-journal',
       'superuser.email-delivery',
-      'owner.email-delivery',
       'superuser.privacy-requests',
     ],
   },

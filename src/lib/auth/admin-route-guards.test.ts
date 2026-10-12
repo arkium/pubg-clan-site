@@ -82,10 +82,7 @@ import { GET as getObservability } from '@/app/api/clans/[clanId]/telemetry/obse
 import { GET as getRecoveries, POST as postRecoveries } from '@/app/api/clans/[clanId]/telemetry/recoveries/route'
 import { POST as postResyncFilesQueue } from '@/app/api/clans/[clanId]/telemetry/resync-files-queue/route'
 import { POST as postResyncFilesSelected } from '@/app/api/clans/[clanId]/telemetry/resync-files-selected/route'
-import {
-  GET as getSyncBatchManual,
-  POST as postSyncBatchManual,
-} from '@/app/api/clans/[clanId]/telemetry/sync-batch-manual/route'
+import { GET as getSyncBatchManual } from '@/app/api/clans/[clanId]/telemetry/sync-batch-manual/route'
 import { POST as postSyncSelected } from '@/app/api/clans/[clanId]/telemetry/sync-selected/route'
 import {
   GET as getSyncSelectedEnqueue,
@@ -113,7 +110,6 @@ import {
 } from '@/app/api/clans/[clanId]/tournaments/[tournamentId]/untracked-players/route'
 import { GET as getEncounteredPlayers } from '@/app/api/clans/[clanId]/encountered-players/route'
 import { GET as getDataHealth } from '@/app/api/clans/[clanId]/settings/data-health/route'
-import { POST as postDataHealthResync } from '@/app/api/clans/[clanId]/settings/data-health/resync/route'
 
 type Handler = () => Promise<Response>
 
@@ -154,7 +150,7 @@ const PLATFORM_ROUTES: Array<[string, Handler]> = [
   ['DELETE cron-control', () => deleteCronControl(req('/api/clans/7/cron-control', 'DELETE'), clan)],
   ['GET dev/runtime-status', () => getRuntimeStatus(req('/api/clans/7/dev/runtime-status'), clan)],
   ['POST sync-stats', () => postSyncStats(req('/api/clans/7/sync-stats', 'POST') as never, clan)],
-  ['POST queue-cleanup', () => postQueueCleanup(req(`${T}/queue-cleanup`, 'POST', { action: 'reorder-priority' }) as never, clan)],
+  ['POST queue-cleanup', () => postQueueCleanup(req(`${T}/queue-cleanup`, 'POST', { action: 'cleanup-stale' }) as never, clan)],
   ['POST recalc-aggregates-batch', () => postRecalcBatch(req(`${T}/recalc-aggregates-batch`, 'POST', { scope: 'all-clans' }) as never, clan)],
   ['GET settings/privacy-requests', () => getPrivacyRequests(req('/api/settings/privacy-requests?status=all'))],
   ['GET settings/admin-actions', () => getAdminActions(req('/api/settings/admin-actions?page=2'))],
@@ -166,7 +162,6 @@ const PLATFORM_ROUTES: Array<[string, Handler]> = [
 // Télémétrie d'un clan (données, resynchronisation, outils) : SuperUser seul, jamais déléguée (2026-10-08)
 const TELEMETRY_TOOL_ROUTES: Array<[string, Handler]> = [
   ['GET settings/data-health', () => getDataHealth(req('/api/clans/7/settings/data-health'), clan)],
-  ['POST settings/data-health/resync', () => postDataHealthResync(req('/api/clans/7/settings/data-health/resync', 'POST'), clan)],
   ['POST backfill-null-json', () => postBackfillNullJson(req(`${T}/backfill-null-json`, 'POST') as never, clan)],
   ['POST clear-selected', () => postClearSelected(req(`${T}/clear-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['POST dead-letter', () => postDeadLetter(req(`${T}/dead-letter`, 'POST') as never, clan)],
@@ -179,7 +174,6 @@ const TELEMETRY_TOOL_ROUTES: Array<[string, Handler]> = [
   ['POST resync-files-queue', () => postResyncFilesQueue(req(`${T}/resync-files-queue`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['POST resync-files-selected', () => postResyncFilesSelected(req(`${T}/resync-files-selected`, 'POST', { squadMatchIds: ['s'], resetBeforeSync: true }) as never, clan)],
   ['GET sync-batch-manual', () => getSyncBatchManual(req(`${T}/sync-batch-manual`) as never, clan)],
-  ['POST sync-batch-manual', () => postSyncBatchManual(req(`${T}/sync-batch-manual`, 'POST') as never, clan)],
   ['POST sync-selected', () => postSyncSelected(req(`${T}/sync-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['GET sync-selected-enqueue', () => getSyncSelectedEnqueue(req(`${T}/sync-selected-enqueue`) as never, clan)],
   ['POST sync-selected-enqueue', () => postSyncSelectedEnqueue(req(`${T}/sync-selected-enqueue`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],

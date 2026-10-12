@@ -1,16 +1,20 @@
-import { NextRequest } from 'next/server'
 import { withAdminActionLog } from '@/lib/admin-action-log'
 import { prisma } from '@/lib/prisma'
 import { requirePlatformAdmin } from '@/lib/auth/admin-guards'
-import { reorderQueueByPriority } from '@/lib/pubg-telemetry/queue-priority'
 import { cleanupClanStaleJobs } from '@/lib/pubg-telemetry/stale-cleanup'
+
+/**
+ * Maintenance de la file de retraitement de fichiers d'un clan : `cleanup-stale` (Santé des données) et `cancel-old`
+ * (soirée). Les actions `reorder-priority` et `cleanup-failed`, sans appelant, ont été retirées le 2026-10-12
+ * (docs/TODO/administration.md §8).
+ */
 
 function parseClanId(value: string) {
   const parsed = Number(value)
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-type QueueCleanupAction = 'cleanup-stale' | 'reorder-priority' | 'cancel-old' | 'cleanup-failed'
+type QueueCleanupAction = 'cleanup-stale' | 'cancel-old'
 
 async function handlePost(
   request: Request,
@@ -41,20 +45,9 @@ async function handlePost(
 
     if (!action) {
       return Response.json(
-        { error: 'action is required: cleanup-stale | reorder-priority | cancel-old' },
+        { error: 'action is required: cleanup-stale | cancel-old' },
         { status: 400 }
       )
-    }
-
-    if (action === 'reorder-priority') {
-      const result = await reorderQueueByPriority(parsedClanId)
-      return Response.json({
-        ok: true,
-        clanId: parsedClanId,
-        action,
-        reordered: result.reordered,
-        message: result.summary,
-      })
     }
 
     if (action === 'cleanup-stale') {
@@ -97,22 +90,6 @@ async function handlePost(
         action,
         cancelled: cancelled.count,
         message: `Cancelled ${cancelled.count} jobs running longer than ${cancelMaxAgeMs ? cancelMaxAgeMs / 1000 : 3600} seconds`,
-      })
-    }
-
-    if (action === 'cleanup-failed') {
-      const result = await cleanupClanStaleJobs(parsedClanId, {
-        staleAgeHours: 999999, // Don't delete stale queued jobs
-        failedAgeHours: maxAgeHours ?? 1, // Default: 1 hour
-        runningTimeoutHours: 999999, // Don't timeout running jobs
-      })
-
-      return Response.json({
-        ok: true,
-        clanId: parsedClanId,
-        action,
-        deleted: result.failedTotalDeleted,
-        message: `Deleted ${result.failedTotalDeleted} failed jobs older than ${maxAgeHours ?? 1}h`,
       })
     }
 

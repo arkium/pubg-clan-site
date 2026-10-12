@@ -125,7 +125,6 @@ export function mockClanData(api: ApiMock): ClanDataCalls {
         lastTelemetryAt: at(30),
         queuedJobs: 3,
         failedJobsLast7Days: 1,
-        resync: { used: 0, limit: 50, remaining: 50, resetsAt: null },
       },
     })
     .on('GET', `${base}/telemetry/observability`, { body: observability() })

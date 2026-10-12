@@ -2,69 +2,14 @@ import 'server-only'
 
 import { prisma } from '@/lib/prisma'
 import { TELEMETRY_LIVE_SYNC_QUEUE_ACTION } from '@/lib/pubg-telemetry/live-sync-queue'
-import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 
 /**
- * « Santé des données » d'un clan (docs/TODO/administration.md Q17, lot 3b ; SuperUser seul depuis le 2026-10-08) :
- * état de la télémétrie et demande de resynchronisation rapide — 50 parties par 24 h et par clan, mises en file à basse
- * priorité, sans appel PUBG dans la requête ni réordonnancement de la file commune.
- *
- * Le plafond se compte dans un registre `AppConfig` par clan (`owner_resync_ledger:<clanId>`, nom d'origine gardé) : le
- * worker réécrit `source` et `details` des jobs, qui ne gardent donc pas la trace de leur origine. Le registre note
- * aussi l'auteur.
+ * « Santé des données » d'un clan (docs/TODO/administration.md §8 ; SuperUser seul) : couverture de la télémétrie des
+ * parties récentes et file de récupération PUBG du clan. La resynchronisation rapide plafonnée (Q17) a été retirée le
+ * 2026-10-12 : même sélection que « Mettre en file le backlog » de Récupérations, jamais utilisée.
  */
 
-export const RESYNC_REQUEST_LIMIT = 50
-export const RESYNC_REQUEST_WINDOW_MS = 24 * 60 * 60 * 1000
 const HEALTH_WINDOW_DAYS = 30
-const RESYNC_LOOKBACK_DAYS = 14
-
-export type ResyncLedgerEntry = { at: string; count: number; userId: number }
-
-export function resyncLedgerKey(clanId: number) {
-  return `owner_resync_ledger:${clanId}`
-}
-
-export function parseResyncLedger(raw: string | null): ResyncLedgerEntry[] {
-  if (!raw) return []
-  try {
-    const parsed: unknown = JSON.parse(raw)
-    if (!Array.isArray(parsed)) return []
-    return parsed.filter(
-      (entry): entry is ResyncLedgerEntry =>
-        !!entry &&
-        typeof entry === 'object' &&
-        typeof (entry as ResyncLedgerEntry).at === 'string' &&
-        Number.isFinite((entry as ResyncLedgerEntry).count) &&
-        Number.isFinite((entry as ResyncLedgerEntry).userId)
-    )
-  } catch {
-    return []
-  }
-}
-
-/** Quota restant sur la fenêtre glissante, et date à laquelle la plus ancienne demande comptée en sort. */
-export function computeResyncQuota(ledger: readonly ResyncLedgerEntry[], now = new Date()) {
-  const since = now.getTime() - RESYNC_REQUEST_WINDOW_MS
-  const recent = ledger.filter((entry) => new Date(entry.at).getTime() > since)
-  const used = recent.reduce((sum, entry) => sum + entry.count, 0)
-  const oldest = recent.reduce<number | null>((min, entry) => {
-    const at = new Date(entry.at).getTime()
-    return min === null || at < min ? at : min
-  }, null)
-  return {
-    used,
-    limit: RESYNC_REQUEST_LIMIT,
-    remaining: Math.max(0, RESYNC_REQUEST_LIMIT - used),
-    resetsAt: oldest === null ? null : new Date(oldest + RESYNC_REQUEST_WINDOW_MS).toISOString(),
-    recent,
-  }
-}
-
-async function readLedger(clanId: number) {
-  const record = await prisma.appConfig.findUnique({ where: { key: resyncLedgerKey(clanId) }, select: { value: true } })
-  return parseResyncLedger(record?.value ?? null)
-}
 
 const clanMatchFilter = (clanId: number) => ({ members: { some: { member: { clanId } } } })
 
@@ -74,7 +19,7 @@ export async function getClanDataHealth(clanId: number) {
   const failedSince = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000)
   const window = { createdAt: { gte: since }, matchType: { not: 'airoyale' }, ...clanMatchFilter(clanId) }
 
-  const [totalMatches, withTelemetry, expired, lastSuccess, queuedJobs, failedJobs, ledger] = await Promise.all([
+  const [totalMatches, withTelemetry, expired, lastSuccess, queuedJobs, failedJobs] = await Promise.all([
     prisma.squadMatch.count({ where: window }),
     prisma.squadMatch.count({ where: { ...window, telemetry: { is: { status: 'success' } } } }),
     prisma.squadMatch.count({ where: { ...window, telemetry: { is: { errorCode: 'TELEMETRY_DATA_EXPIRED' } } } }),
@@ -89,10 +34,8 @@ export async function getClanDataHealth(clanId: number) {
     prisma.cronExecution.count({
       where: { clanId, action: TELEMETRY_LIVE_SYNC_QUEUE_ACTION, status: 'failed', finishedAt: { gte: failedSince } },
     }),
-    readLedger(clanId),
   ])
 
-  const quota = computeResyncQuota(ledger, now)
   return {
     windowDays: HEALTH_WINDOW_DAYS,
     totalMatches,
@@ -102,76 +45,5 @@ export async function getClanDataHealth(clanId: number) {
     lastTelemetryAt: lastSuccess?.parsedAt.toISOString() ?? null,
     queuedJobs,
     failedJobsLast7Days: failedJobs,
-    resync: { used: quota.used, limit: quota.limit, remaining: quota.remaining, resetsAt: quota.resetsAt },
   }
-}
-
-/**
- * Met en file, à basse priorité, jusqu'au quota restant des parties récentes du clan sans télémétrie (les plus récentes
- * d'abord, celles dont la télémétrie a expiré chez PUBG exclues), puis l'inscrit au registre.
- */
-export async function requestCappedResync(clanId: number, userId: number) {
-  const ledger = await readLedger(clanId)
-  const quota = computeResyncQuota(ledger)
-  if (quota.remaining === 0) {
-    return { queuedCount: 0, remaining: 0, resetsAt: quota.resetsAt, reason: 'quota' as const }
-  }
-
-  const activeJobs = await prisma.cronExecution.findMany({
-    where: { clanId, action: TELEMETRY_LIVE_SYNC_QUEUE_ACTION, status: { in: ['queued', 'running'] } },
-    select: { details: true },
-    take: 2000,
-  })
-  const alreadyQueued = new Set(
-    activeJobs
-      .map((job) => (job.details && typeof job.details === 'object' && !Array.isArray(job.details) ? job.details.squadMatchId : null))
-      .filter((id): id is string => typeof id === 'string')
-  )
-
-  const since = new Date(Date.now() - RESYNC_LOOKBACK_DAYS * 24 * 60 * 60 * 1000)
-  const candidates = await prisma.squadMatch.findMany({
-    where: {
-      createdAt: { gte: since },
-      matchType: { not: 'airoyale' },
-      ...clanMatchFilter(clanId),
-      ...(alreadyQueued.size > 0 ? { id: { notIn: [...alreadyQueued] } } : {}),
-      OR: [
-        { telemetry: null },
-        {
-          telemetry: {
-            is: {
-              status: { not: 'success' },
-              OR: [{ errorCode: null }, { errorCode: { not: 'TELEMETRY_DATA_EXPIRED' } }],
-            },
-          },
-        },
-      ],
-    },
-    select: { id: true },
-    orderBy: { createdAt: 'desc' },
-    take: quota.remaining,
-  })
-
-  if (candidates.length === 0) {
-    return { queuedCount: 0, remaining: quota.remaining, resetsAt: quota.resetsAt, reason: 'nothing-to-sync' as const }
-  }
-
-  const result = await enqueueTelemetryForSelectedSquadMatches(
-    clanId,
-    candidates.map((match) => match.id),
-    userId,
-    { priority: 'low' }
-  )
-
-  const now = new Date()
-  const nextLedger = [...quota.recent, { at: now.toISOString(), count: result.queuedCount, userId }]
-  const value = JSON.stringify(nextLedger)
-  await prisma.appConfig.upsert({
-    where: { key: resyncLedgerKey(clanId) },
-    update: { value },
-    create: { key: resyncLedgerKey(clanId), value },
-  })
-
-  const after = computeResyncQuota(nextLedger, now)
-  return { queuedCount: result.queuedCount, remaining: after.remaining, resetsAt: after.resetsAt, reason: null }
 }

@@ -1303,8 +1303,13 @@ appliqués. Contrôle en lecture seule après coup : 62 entrées de menu (64 −
 `superuser.email-delivery` et `superuser.pubg-api` renommées (ordre 48 et 49 conservé, surcharges identiques effacées),
 seule clé `owner.*` restante : `owner.encountered-opponents` (`clan-section`, `member`), plus aucun rôle `admin` en
 menu ni rôle de clan Admin ou Moderator (19 Owner, 19 Member). Les anciennes clés de transition sont retirées de
-`PlatformHub.tsx` et `SettingsHubCard.tsx`. Les points 1 à 3 ci-dessous sont donc faits ; restent les vérifications
-navigateur (4) et la décision sur les routes sans appelant (5).
+`PlatformHub.tsx` et `SettingsHubCard.tsx`. Vérifications navigateur faites (« web okay »). Routes sans appelant
+supprimées le même jour, sur accord : POST `T/sync-batch-manual` (le GET reste), POST `settings/data-health/resync`
+(avec `requestCappedResync`, le registre `owner_resync_ledger:*` — vide en base — et l'option « basse priorité » de
+`enqueueTelemetryForSelectedSquadMatches` / `enqueueTelemetryLiveSyncJobs`, devenue sans appelant), actions
+`reorder-priority` et `cleanup-failed` de `T/queue-cleanup` (avec `src/lib/pubg-telemetry/queue-priority.ts`, dont
+`getQueuePriority` n'avait déjà plus d'appelant). `GET settings/data-health` ne lit plus le registre ni ne renvoie
+`resync`. **Les cinq points ci-dessous sont faits.**
 
 **Reste à faire** :
 

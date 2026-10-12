@@ -214,7 +214,7 @@ Le recalcul des agrégats relit tous les `SquadMatchTelemetry` d'un clan sur une
 
 ### Phase 1 — Mode manuel avec monitoring (complete)
 
-- Endpoint `POST /sync-batch-manual` : enqueue de jobs depuis l'UI ou le CLI
+- Endpoint `POST /sync-batch-manual` : enqueue de jobs depuis l'UI (retiré le 2026-10-12 avec l'onglet Synchronisation ; le CLI met en file lui-même)
 - CLI `npm run telemetry:batch` : enqueue batch, check statut, dead letter
 - Worker dédié hors process Next.js
 - Monitoring de la file en temps réel

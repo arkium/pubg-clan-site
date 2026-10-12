@@ -191,11 +191,11 @@ Le tuner ne modifie pas directement le comportement du worker (qui traite 1 job 
 
 ---
 
-## Priorité des jobs (queue-priority.ts)
+## Priorité des jobs
 
-La fonction `reorderQueueByPriority` réordonne les jobs `queued` par récence du match associé (matchs les plus récents traités en premier). Elle est appelée via l'action `reorder-priority` de l'endpoint `queue-cleanup` ou depuis le dashboard.
-
-La priorité est implémentée en manipulant `startedAt` des enregistrements `CronExecution` : une valeur plus ancienne de `startedAt` = priorité plus haute (orderBy `startedAt asc`).
+Les deux files sont prises par `startedAt` croissant. Le réordonnancement par récence du match (`queue-priority.ts`,
+action `reorder-priority` de `queue-cleanup`) a été supprimé le 2026-10-12 : aucun usage, et il laissait un clan passer
+devant les autres dans la file commune ([administration.md](../TODO/administration.md) M8, §8).
 
 ---
 

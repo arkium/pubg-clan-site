@@ -296,36 +296,11 @@ type QueueStatus = {
 }
 ```
 
-### POST /sync-batch-manual
+### POST /sync-batch-manual — retiré le 2026-10-12
 
-**Auth :** Owner uniquement
-
-**Corps :**
-
-```typescript
-{
-  matchIds: string[]      // liste des squadMatchId à enqueuer
-  mode?: 'direct' | 'capture' | 'queue'  // défaut: 'direct'
-  resetBefore?: boolean   // réinitialiser la télémétrie avant traitement
-  recalcAfter?: boolean   // recalculer les agrégats après traitement
-}
-```
-
-**Réponse (mode direct) :**
-
-```typescript
-{
-  successCount: number
-  failedCount: number
-  results: Array<{
-    squadMatchId: string
-    status: 'success' | 'failed'
-    error?: string
-    positionSamples?: number
-    trajectorySegments?: number
-  }>
-}
-```
+Sans appelant depuis la suppression de l’onglet Synchronisation des Données du clan
+([administration.md](../TODO/administration.md) §8). Le `GET` reste : état de la file de retraitement de fichiers
+(`telemetry_resync_file`) du clan et ses 20 derniers jobs. Mise en file d’un clan entier : `npm run telemetry:batch`.
 
 ---
 
@@ -395,12 +370,6 @@ Remet en file d'attente des jobs depuis la dead-letter.
 
 ---
 
-### GET /queue-cleanup
-
-**Auth :** Owner uniquement
-
-Retourne l'état de la queue et les informations de priorité courantes.
-
 ### POST /queue-cleanup
 
 **Auth :** Owner uniquement
@@ -411,18 +380,19 @@ Exécute une action de maintenance sur la queue.
 
 ```typescript
 {
-  action: 'reorder-priority' | 'cleanup-stale' | 'cleanup-failed' | 'cancel-old'
-  maxAgeHours?: number      // pour cleanup-stale (défaut: 24) et cleanup-failed (défaut: 1)
+  action: 'cleanup-stale' | 'cancel-old'
+  maxAgeHours?: number      // pour cleanup-stale (défaut: 24)
   cancelMaxAgeMs?: number   // pour cancel-old (défaut: 3600000, soit 1h)
 }
 ```
 
 | Action | Effet |
 |--------|-------|
-| `reorder-priority` | Réordonne les jobs `queued` par ancienneté de match (les plus récents en premier) |
-| `cleanup-stale` | Supprime les jobs `queued` plus anciens que `maxAgeHours` heures |
-| `cleanup-failed` | Supprime les jobs `failed` plus anciens que `maxAgeHours` heures |
-| `cancel-old` | Marque comme `timeout-failed` les jobs `running` depuis plus de `cancelMaxAgeMs` ms |
+| `cleanup-stale` | Supprime les jobs en attente depuis plus de `maxAgeHours` heures et les échecs de plus de 7 h, clôt les jobs en cours depuis plus de 4 h (« Santé des données ») |
+| `cancel-old` | Passe en `failed` les jobs `running` depuis plus de `cancelMaxAgeMs` ms (soirée, « Annuler les jobs en cours ») |
+
+Les actions `reorder-priority` et `cleanup-failed`, sans appelant, ont été retirées le 2026-10-12. Toutes portent sur la
+file de retraitement de fichiers (`telemetry_resync_file`).
 
 ---
 

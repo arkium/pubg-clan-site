@@ -60,9 +60,10 @@ Actions du bloc des files, sur la file de retraitement seulement :
 | Exporter les métriques | `GET …/telemetry/metrics?format=prometheus` | fichier texte : compteurs de la file de retraitement du clan |
 
 Retirés le 2026-10-11 : la **resynchronisation rapide** (même sélection que « Mettre en file le backlog », plafond de
-50 parties par 24 h pensé pour l'Owner, jamais utilisée ; la route `settings/data-health/resync` reste, sans
-appelant), le **réordonnancement** de la file (aucune trace d'usage, permettait de passer devant les autres clans) et
-l'actualisation automatique toutes les 30 s.
+50 parties par 24 h pensé pour l'Owner, jamais utilisée), le **réordonnancement** de la file (aucune trace d'usage,
+permettait de passer devant les autres clans) et l'actualisation automatique toutes les 30 s. Le 2026-10-12, leurs
+routes devenues sans appelant ont été supprimées : `POST …/settings/data-health/resync` (avec son registre de quota
+et l'option « basse priorité » de la mise en file), les actions `reorder-priority` et `cleanup-failed` de `queue-cleanup`.
 
 ## Soirées — `/clans/[clanId]/settings/data/sessions` et `…/[date]`
 
@@ -97,7 +98,7 @@ Retirés le 2026-10-11 : le bloc « Moteur et file d'attente » (identique à `/
 la télémétrie » (taux recalculés dans le navigateur, taille et délai médians), la liste sans action d'« Observabilité
 des jobs » (ses indicateurs sont dans Santé, ses jobs dans Échecs), l'onglet Erreurs (fondu dans Échecs) et l'onglet
 Synchronisation (saisie d'identifiants, sans usage tracé : on agit depuis la soirée, la page « État » d'un match ou la
-CLI ; `POST …/telemetry/sync-batch-manual` reste, sans appelant).
+CLI ; son `POST …/telemetry/sync-batch-manual` a été supprimé le 2026-10-12).
 
 ---
 

@@ -244,15 +244,11 @@ Ajouter dans `src/lib/cron-jobs.ts` un job de nettoyage périodique qui appelle 
 // src/lib/cron-jobs.ts
 
 async function runTelemetryCleanup(clanId: number) {
+  // `cleanup-stale` supprime aussi les échecs de plus de 7 h (l'action `cleanup-failed` a été retirée le 2026-10-12).
   await fetch(`/api/clans/${clanId}/telemetry/queue-cleanup`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ action: 'cleanup-stale', maxAgeHours: 24 }),
-  })
-  await fetch(`/api/clans/${clanId}/telemetry/queue-cleanup`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ action: 'cleanup-failed', maxAgeHours: 168 }), // 7 jours
   })
 }
 ```

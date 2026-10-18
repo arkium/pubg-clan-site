@@ -1,6 +1,47 @@
+import { cache } from 'react'
+
+import JsonLd from '@/components/seo/JsonLd'
 import { isAuthDisabled } from '@/lib/auth-mode'
+import { siteUrl } from '@/lib/seo/page-seo'
+import { sportsEventJsonLd, toJsonLd } from '@/lib/seo/structured-data'
 import { tournamentFindings } from '@/lib/tournament-findings'
 import { getTournamentOverview } from '@/lib/tournament-overview'
+
+/** Une seule lecture par requête pour le résumé et les données structurées (`cache`). Mode visiteur seulement. */
+const loadTournamentSummary = cache(async (tournamentId: string) => {
+  if (!isAuthDisabled()) return null
+  try {
+    const overview = await getTournamentOverview(tournamentId)
+    const findings = overview ? tournamentFindings(overview) : null
+    if (!overview || !findings) return null
+    const organizer = overview.organizerClan
+    // Le tournoi comme compétition en ligne (src/lib/seo/structured-data.ts). Participants nommés en inter-clans
+    // seulement, comme le podium affiché.
+    const structuredData = toJsonLd(
+      sportsEventJsonLd(siteUrl(), {
+        id: overview.id,
+        title: overview.title,
+        description: `${findings.status} ${findings.attendance}`,
+        startDate: overview.startDate,
+        endDate: overview.endDate,
+        organizer: organizer ? { id: organizer.id, label: `${organizer.tag ? `[${organizer.tag}] ` : ''}${organizer.name}` } : null,
+        competitors: findings.podium.map((line) => line.label),
+      })
+    )
+    return { findings, structuredData }
+  } catch (error) {
+    console.error('[tournament] Résumé illisible :', error instanceof Error ? error.name : 'UnknownError')
+    return null
+  }
+})
+
+/**
+ * Données structurées du tournoi, à côté de la page et non dans le résumé : celui-ci disparaît quand le classement
+ * arrive, et Google lit la page rendue.
+ */
+export async function TournamentStructuredData({ tournamentId }: { tournamentId: string }) {
+  return <JsonLd json={(await loadTournamentSummary(tournamentId))?.structuredData ?? null} />
+}
 
 /**
  * Page d'un tournoi — résumé, composant serveur (docs/TODO/geo-seo-propositions.md, lot 2). Seul texte du HTML avant le
@@ -8,14 +49,7 @@ import { getTournamentOverview } from '@/lib/tournament-overview'
  * résumé disparaît alors). Mode visiteur seulement, comme `GET /api/tournaments/[id]/standings`.
  */
 export default async function TournamentFindings({ tournamentId }: { tournamentId: string }) {
-  if (!isAuthDisabled()) return null
-  let findings = null
-  try {
-    const overview = await getTournamentOverview(tournamentId)
-    findings = overview ? tournamentFindings(overview) : null
-  } catch (error) {
-    console.error('[tournament] Résumé illisible :', error instanceof Error ? error.name : 'UnknownError')
-  }
+  const findings = (await loadTournamentSummary(tournamentId))?.findings
   if (!findings) return null
 
   return (

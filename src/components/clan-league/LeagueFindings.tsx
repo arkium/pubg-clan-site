@@ -1,7 +1,10 @@
 import Link from 'next/link'
 
+import JsonLd from '@/components/seo/JsonLd'
 import { leagueFindings } from '@/lib/clan-league-findings'
 import { getClanLeague } from '@/lib/clan-league-service'
+import { siteUrl } from '@/lib/seo/page-seo'
+import { itemListJsonLd, toJsonLd } from '@/lib/seo/structured-data'
 
 /**
  * Ligue des clans — « En bref », composant serveur (docs/TODO/geo-seo-propositions.md, lot 2) : podium de la semaine en
@@ -17,9 +20,21 @@ export default async function LeagueFindings() {
     console.error('[clans-leaderboard] Résumé illisible :', error instanceof Error ? error.name : 'UnknownError')
   }
   if (!findings) return null
+  // Données structurées : le podium, tel que ce bloc le montre (src/lib/seo/structured-data.ts).
+  const structuredData =
+    findings.podium.length > 0
+      ? toJsonLd(
+          itemListJsonLd(
+            siteUrl(),
+            'Podium de la semaine de la Ligue des clans PUBG',
+            findings.podium.map((line) => ({ name: line.label, path: `/clans/${line.clanId}/overview` }))
+          )
+        )
+      : null
 
   return (
     <section aria-labelledby="league-findings-title" className="app-panel flex flex-col gap-3 p-4 sm:p-5" data-testid="league-findings">
+      <JsonLd json={structuredData} />
       <div className="flex flex-col gap-1">
         <h2 id="league-findings-title" className="t-section-title">
           {findings.title}

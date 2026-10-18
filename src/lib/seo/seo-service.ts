@@ -25,17 +25,29 @@ const loadTournamentRef = cache(async (tournamentId: string): Promise<Tournament
   return { id: tournament.id, title: tournament.title, indexable: TOURNAMENT_PUBLIC_STATUSES.includes(tournament.status) }
 })
 
-/** Référencement de la page ; une base indisponible donne la description par défaut, sans indexation (prudence). */
-export async function resolvePageSeo(pathname: string): Promise<PageSeo> {
+export type PageRefs = { clan?: ClanRef | null; tournament?: TournamentRef | null }
+
+/**
+ * Référencement de la page et ce qu'il a fallu lire pour l'établir (clan, tournoi) — le layout s'en sert aussi pour les
+ * données structurées ; lectures mises en cache le temps de la requête (`cache`). Base indisponible : description par
+ * défaut, sans indexation (prudence).
+ */
+export async function resolvePageSeoWithRefs(pathname: string): Promise<{ seo: PageSeo; refs: PageRefs }> {
   const lookup = seoLookupFor(pathname)
-  if (!lookup) return pageSeo(pathname)
+  if (!lookup) return { seo: pageSeo(pathname), refs: {} }
   try {
-    if ('clanId' in lookup) return pageSeo(pathname, { clan: await loadClanRef(lookup.clanId) })
-    return pageSeo(pathname, { tournament: await loadTournamentRef(lookup.tournamentId) })
+    const refs: PageRefs =
+      'clanId' in lookup ? { clan: await loadClanRef(lookup.clanId) } : { tournament: await loadTournamentRef(lookup.tournamentId) }
+    return { seo: pageSeo(pathname, refs), refs }
   } catch (error) {
     console.error('[seo] Page lookup failed', { pathname, name: error instanceof Error ? error.name : 'UnknownError' })
-    return pageSeo(pathname)
+    return { seo: pageSeo(pathname), refs: {} }
   }
+}
+
+/** Référencement de la page ; une base indisponible donne la description par défaut, sans indexation (prudence). */
+export async function resolvePageSeo(pathname: string): Promise<PageSeo> {
+  return (await resolvePageSeoWithRefs(pathname)).seo
 }
 
 export async function loadSitemapData() {

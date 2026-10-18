@@ -347,6 +347,13 @@ d'ensemble. Jamais de pseudo de joueur extérieur (règle de l'accueil, [accueil
 
 ### Lot 3 — données structurées (une seule source : `page-seo.ts`)
 
+**Réalisé le 2026-10-18** (`src/lib/seo/structured-data.ts`, docs/features/seo.md §6) : fil d'Ariane sur toute page
+indexée, `WebApplication` pour les trois outils, `SportsTeam` pour la vue d'ensemble d'un clan (layout), `ItemList` des
+clans et du podium de la Ligue, `SportsEvent` d'un tournoi (blocs « En bref »). Écarts au plan ci-dessous : le module
+est séparé de `page-seo.ts` ; `WebSite` / `Organization` restent sur l'accueil seul ; pas d'`Article` pour le guide du
+mortier (sans date de publication ni auteur, il n'apporterait rien) ni de `Dataset` pour la lecture de zone. Reste à
+contrôler avec l'outil de test des résultats enrichis de Google, après déploiement.
+
 Ajouter `pageJsonLd(path, refs)` à côté de `homeJsonLd` et le rendre dans le layout pour **toutes** les pages
 indexées, avec des tests dans `page-seo.test.ts`. Règle de Google : ne décrire que ce qui est visible dans la page,
 d'où ce lot **après** le lot 2.

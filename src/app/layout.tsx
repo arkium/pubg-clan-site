@@ -12,8 +12,10 @@ import { APP_THEME_STORAGE_KEY, resolveAppTheme } from '@/lib/app-theme'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
 import { getDatabaseErrorPresentation } from '@/lib/database-error'
-import { buildPageMetadata, PATHNAME_HEADER } from '@/lib/seo/page-seo'
-import { resolvePageSeo } from '@/lib/seo/seo-service'
+import JsonLd from '@/components/seo/JsonLd'
+import { buildPageMetadata, PATHNAME_HEADER, siteUrl } from '@/lib/seo/page-seo'
+import { resolvePageSeo, resolvePageSeoWithRefs } from '@/lib/seo/seo-service'
+import { pageJsonLd } from '@/lib/seo/structured-data'
 import { getSetupState } from '@/lib/setup-service'
 
 import './globals.css'
@@ -83,6 +85,13 @@ export default async function RootLayout({
     )
   }
 
+  // Données structurées que le chemin suffit à établir (fil d'Ariane, outils, clan) — src/lib/seo/structured-data.ts.
+  // Mêmes lectures que `generateMetadata`, mises en cache le temps de la requête. Le layout racine n'est pas rendu à
+  // nouveau lors d'une navigation dans le navigateur : ce bloc décrit la page chargée, celle que lit un robot.
+  const pathname = (await headers()).get(PATHNAME_HEADER) ?? '/'
+  const { seo, refs } = await resolvePageSeoWithRefs(pathname)
+  const structuredData = pageJsonLd(pathname, seo, refs, siteUrl())
+
   const authDisabled = isAuthDisabled()
   const showAppShell = setupState === 'completed' && (Boolean(session) || authDisabled)
   const bootstrap = { authDisabled, hasSession: Boolean(session), setupState, theme }
@@ -93,6 +102,7 @@ export default async function RootLayout({
     <html lang="fr" className={htmlClassName} data-app-theme={theme} suppressHydrationWarning>
       <body className={bodyClassName} data-app-theme={theme} suppressHydrationWarning>
         <ThemeInitializer />
+        <JsonLd json={structuredData} />
         <ShellBootstrapProvider value={bootstrap}>
           {showAppShell ? (
             <ClanNavigation>

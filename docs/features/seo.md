@@ -13,6 +13,7 @@ aperçus de partage, sitemap, robots.txt et données structurées. Mis en place 
 | `src/proxy.ts` | Pose l'en-tête `x-pathname` sur chaque requête de page (`passThrough`) : sans lui, le layout racine ne connaît pas le chemin |
 | `src/app/sitemap.ts`, `src/app/robots.ts` | `/sitemap.xml` et `/robots.txt`, calculés à chaque appel |
 | `src/app/page.tsx` | Données structurées schema.org (`WebSite` + `Organization`) de l'accueil |
+| `src/lib/seo/structured-data.ts` | Données structurées des autres pages (§7) : fil d'Ariane, outils, clan (`pageJsonLd`, rendu par le layout) ; listes et tournois (rendus par les blocs « En bref ») |
 | `src/app/not-found.tsx` | Page 404 (Next.js répond 404 et pose `noindex`) |
 
 **Pourquoi le layout racine.** Presque toutes les pages sont des composants client : elles ne peuvent pas exporter de
@@ -89,11 +90,31 @@ ailleurs :
   du serveur (`ShellBootstrap`) ; leurs **données** arrivent encore par l'API. Les rendre côté serveur (Ligue,
   annuaire, lecture de zone) est le prochain levier — lot 2 de [geo-seo-propositions.md](../TODO/geo-seo-propositions.md).
 
-## 6. Tests
+## 6. Données structurées (2026-10-18)
+
+Règle de Google : ne décrire que ce que la page montre. Deux sources, un module (`src/lib/seo/structured-data.ts`) :
+
+| Où | Pages | Types schema.org |
+|---|---|---|
+| Layout racine (`pageJsonLd`, d'après le chemin et les lectures du référencement, mises en cache) | toute page indexée sauf l'accueil | `BreadcrumbList` (noms courts : `STATIC_CRUMBS`) |
+| idem | `/mortier`, `/lecture-de-zone`, `/carte-des-ressources` | `WebApplication` (gratuite, `GameApplication`) |
+| idem | vue d'ensemble d'un clan | `SportsTeam` (nom, tag, sport) — **jamais de liste de joueurs** |
+| Bloc « En bref » de `/clans` | annuaire | `ItemList` des clans suivis (les liens du bloc) |
+| Bloc « En bref » de `/clans-leaderboard` | Ligue | `ItemList` du podium de la semaine |
+| `TournamentStructuredData`, à côté du résumé | page d'un tournoi | `SportsEvent` en ligne (`VirtualLocation`), clan organisateur, participants nommés en inter-clans seulement |
+
+Le `SportsEvent` d'un tournoi n'est pas dans son résumé : celui-ci s'efface quand le classement arrive, et Google lit la
+page rendue. Le layout racine n'est pas rendu à nouveau lors d'une navigation dans le navigateur : son bloc décrit la
+page chargée, celle que lit un robot. Contrôle : outil de test des résultats enrichis de Google sur l'adresse de
+production, après déploiement.
+
+## 7. Tests
 
 - `src/lib/seo/page-seo.test.ts` : règles par page, métadonnées (canonique, robots, vérification), sitemap sans
   doublon (vue d'ensemble seule pour les clans), robots.txt (API du shell et des pages publiques jamais bloquées,
   robots d'entraînement refusés), `X-Robots-Tag` de l'API, données structurées.
+- `src/lib/seo/structured-data.test.ts` : fils d'Ariane (pages fixes, sous-pages, clan, tournoi, un nom court pour chaque
+  page indexée), outils, équipe sans joueurs, rien pour l'accueil ni une page hors index, listes, tournoi, échappement.
 - `src/lib/seo/seo-service.test.ts` : clan suivi / archivé / en attente / système, tournoi lancé ou brouillon, base en
   panne, filtres du sitemap, en-tête `x-pathname` posé par le proxy (et non falsifiable).
 - `e2e/legal.spec.ts` (titres d'onglet), `e2e/not-found.spec.ts` (404).

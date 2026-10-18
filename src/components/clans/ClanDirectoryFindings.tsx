@@ -1,9 +1,12 @@
 import Link from 'next/link'
 
+import JsonLd from '@/components/seo/JsonLd'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { clanDirectoryFindings } from '@/lib/clan-directory-findings'
 import { getClanDirectory } from '@/lib/clan-directory-service'
 import { listClansWithQuickStats } from '@/lib/clan-list-service'
+import { siteUrl } from '@/lib/seo/page-seo'
+import { itemListJsonLd, toJsonLd } from '@/lib/seo/structured-data'
 
 /**
  * Annuaire des clans — « En bref », composant serveur (docs/TODO/geo-seo-propositions.md, lot 2) : totaux, clans les
@@ -21,9 +24,18 @@ export default async function ClanDirectoryFindings() {
     console.error('[clans] Résumé illisible :', error instanceof Error ? error.name : 'UnknownError')
   }
   if (!findings) return null
+  // Données structurées : la liste des clans, telle que ce bloc la montre en liens (src/lib/seo/structured-data.ts).
+  const structuredData = toJsonLd(
+    itemListJsonLd(
+      siteUrl(),
+      'Clans PUBG suivis sur chickendinner.fr',
+      findings.clans.map((entry) => ({ name: entry.label, path: `/clans/${entry.id}/overview` }))
+    )
+  )
 
   return (
     <section aria-labelledby="clan-directory-findings-title" className="app-panel flex flex-col gap-3 p-4 sm:p-5" data-testid="clan-directory-findings">
+      <JsonLd json={structuredData} />
       <div className="flex flex-col gap-1">
         <h2 id="clan-directory-findings-title" className="t-section-title">
           {findings.title}

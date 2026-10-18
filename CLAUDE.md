@@ -225,7 +225,8 @@ Maquette validée : `docs/ui/refonte/maquettes/Refonte adaptée.html` (dossier i
 ### 7. Thème actif
 
 Le thème est stocké sur `data-app-theme` de `<html>` et `<body>` (`'light'` ou `'dark'`).
-Il est initialisé côté client par `ThemeInitializer` pour éviter le flash.
+Le layout racine le pose **côté serveur** d'après le cookie `pubg_app_theme` (`src/lib/app-theme.ts`, depuis le
+2026-10-18) ; `ThemeInitializer` aligne ensuite le document sur la préférence du navigateur et réécrit le cookie.
 Ne jamais lire/écrire le thème directement depuis une page — passer par les tokens CSS.
 
 ### 8. Checklist nouvelle page
@@ -320,6 +321,12 @@ Session is **cookie-based** with server-side validation:
    const session = await getSessionFromToken(cookies())
    ```
 3. **Client Hook:** `useAuthSession()` calls `GET /api/auth/session`
+   - **Starts from what the server knows** (`ShellBootstrapProvider` in the root layout, `src/lib/shell-bootstrap.ts`,
+     since 2026-10-18): visitor mode is known at the first render, so the shell (menu, `<main>`) and public pages are
+     in the server HTML; a failed `/api/auth/mode` falls back to the server value, never to a redirect to `/login`.
+     The **session itself stays `loading` until `/api/auth/session` answers** — guards never conclude "not logged in"
+     before (Playwright simulates the session in the browser only). A public page must therefore not wait for
+     `loading` in visitor mode (`/clans`: `canView` alone).
    - Returns `{ user, expires, role }`
    - Auto-logs out on 401 (expired token) ; a visitor **without** a session cookie gets `200 { authenticated: false }`
      (no console error, nothing to purge — 2026-10-11)
@@ -516,8 +523,10 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 - **Gotcha:** Manual page refresh may show stale data briefly
 
 #### 7. **Theme Flash on Page Load**
-- **Fix:** `ThemeInitializer` component runs early to set `data-app-theme` before hydration
-- **Gotcha:** If theme reads from wrong source, flash occurs
+- **Fix:** the root layout sets `data-app-theme` server-side from the `pubg_app_theme` cookie (`src/lib/app-theme.ts`);
+  `ThemeInitializer` then migrates a preference stored before the cookie existed
+- **Gotcha:** only a theme **chosen by the user** is persisted by the shell — persisting the hydration-time value
+  would overwrite a stored preference with the server default
 
 #### 8. **Rate Limiting Strategy**
 - **Setting:** `AppConfig.pubg_api_rate_limit_rpm` (default: 10 RPM)
@@ -571,6 +580,15 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 - **Règle:** la date d'une soirée se calcule **uniquement** par `sessionDateOf(createdAt)` (`src/lib/match-sessions.ts`) :
   heure de Paris, journée commençant à 06:00 (une partie de 01:30 compte dans la soirée de la veille). Ne jamais écrire
   `createdAt.slice(0, 10)` pour une soirée : la date UTC range mal les parties de nuit (décision du 2026-09-26).
+
+#### 13. **Shell rendu côté serveur — jamais de stockage du navigateur au premier rendu**
+- **Règle:** depuis le 2026-10-18, le shell (`ClanNavigation`) et les pages publiques sont rendus dans le HTML du
+  serveur (référencement : `docs/TODO/geo-seo-propositions.md`, lot 1). Un composant rendu à l'hydratation ne lit
+  **jamais** `localStorage` / `sessionStorage` dans un initialiseur de `useState` : le HTML du serveur et celui du
+  client divergeraient. Passer par `useSyncExternalStore(subscribe, lireLeStockage, () => valeurServeur)` (exemples :
+  thème et joueur consulté dans `ClanNavigation`, cache de `useNavPermissions`), ou par `useShellBootstrap()` pour ce
+  que le serveur sait déjà.
+- **Jamais de faux zéro** pendant un chargement : « — » ou rien, le HTML est lu tel quel par les robots.
 
 ## Gotchas connus
 

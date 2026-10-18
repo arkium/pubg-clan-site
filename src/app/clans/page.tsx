@@ -75,8 +75,9 @@ export default function ClansPage() {
     if (authenticated) syncCanSwitchClan(canSwitchClan)
   }, [authLoading, authenticated, canSwitchClan, canView, router, syncCanSwitchClan])
 
+  // Mode visiteur : lecture publique, l'annuaire n'attend pas la session (il est alors dans le HTML du serveur).
   useEffect(() => {
-    if (authLoading || !canView) return
+    if (!canView) return
     const controller = new AbortController()
 
     Promise.all([
@@ -103,7 +104,7 @@ export default function ClansPage() {
       })
 
     return () => controller.abort()
-  }, [authLoading, canView, retryToken])
+  }, [canView, retryToken])
 
   const entries = useMemo<DirectoryClan[]>(() => {
     const activity = new Map((directory?.activity ?? []).map((row) => [row.clanId, row]))
@@ -134,7 +135,7 @@ export default function ClansPage() {
     router.push(`/clans/${clanId}/overview`)
   }
 
-  if (authLoading || !canView) {
+  if (!canView) {
     return (
       <div className="app-container app-main">
         <p className="text-sm text-gray-500">{authLoading ? 'Vérification de la session…' : 'Redirection…'}</p>
@@ -178,7 +179,8 @@ export default function ClansPage() {
           iconColor="var(--theme-ui-accent)"
           title="Les clans"
           chips={[
-            { text: `${totals.clans} clans suivis` },
+            // Jamais un faux zéro pendant le chargement (docs/TODO/geo-seo-propositions.md, lot 0.8).
+            ...(loading ? [] : [{ text: `${totals.clans} clans suivis` }]),
             ...(directory && directory.tonight.players > 0
               ? [{ text: `${numberFormat.format(directory.tonight.players)} joueurs ont joué ce soir`, live: true }]
               : []),

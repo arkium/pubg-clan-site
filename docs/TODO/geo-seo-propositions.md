@@ -241,6 +241,16 @@ chargée, comme les compteurs de l'accueil. À ajouter à la checklist « nouvel
 
 ### Lot 1 — le shell rendu côté serveur (petit changement, effet sur toutes les pages)
 
+**Réalisé le 2026-10-18.** Le layout transmet `ShellBootstrap` (mode visiteur, session, installation, thème) ;
+`useAuthSession` en part pour le mode visiteur, et un échec de `/api/auth/mode` retombe sur la valeur du serveur. La
+session reste « en chargement » jusqu'à `/api/auth/session` : une première version qui la déclarait absente d'emblée
+renvoyait vers `/login` les pages d'administration des tests Playwright (session simulée dans le navigateur seulement).
+`/clans` n'attend plus la session en mode visiteur. Le thème passe par un
+cookie (`pubg_app_theme`, déclaré sur `/confidentialite`), le stockage du navigateur par `useSyncExternalStore`. Faux
+zéros retirés de `/clans` et `/tournaments` (point 0.8). Vérifié sur le serveur de dev : `<main>`, H1 et 14 liens
+internes dans le HTML de `/clans`, `/tournaments`, `/clans-leaderboard`, `/lecture-de-zone`, `/mortier` ; aucune erreur
+d'hydratation sur 28 chargements (premier visiteur, thème clair avant le cookie, cookie posé, clan et joueur gardés).
+
 Problème §4 D. Le layout racine calcule déjà côté serveur `session` et `isAuthDisabled()`. Il suffit de les
 transmettre à `ClanNavigation` (ou de les fournir à `useAuthSession` comme état initial, par un contexte posé dans
 le layout) pour que le **premier rendu** soit le bon :

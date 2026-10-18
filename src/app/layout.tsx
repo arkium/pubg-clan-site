@@ -4,9 +4,11 @@ import { Inter, Teko } from 'next/font/google'
 
 import ClanNavigation from '@/components/ClanNavigation'
 import DatabaseUnavailable from '@/components/DatabaseUnavailable'
+import { ShellBootstrapProvider } from '@/components/ShellBootstrap'
 import SiteFooter from '@/components/SiteFooter'
 import ThemeInitializer from '@/components/ThemeInitializer'
 import { GlobalCommandPalette } from '@/components/ui/GlobalCommandPalette'
+import { APP_THEME_STORAGE_KEY, resolveAppTheme } from '@/lib/app-theme'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
 import { getDatabaseErrorPresentation } from '@/lib/database-error'
@@ -48,12 +50,16 @@ export default async function RootLayout({
   children: React.ReactNode
 }>) {
   const now = new Date()
+  const cookieStore = await cookies()
+  // Thème rendu côté serveur (cookie écrit par le navigateur, src/lib/app-theme.ts) : ni flash ni écart d'hydratation.
+  const theme = resolveAppTheme(cookieStore.get(APP_THEME_STORAGE_KEY)?.value)
+  const htmlClassName = `h-full antialiased ${inter.variable} ${teko.variable}${theme === 'dark' ? ' dark' : ''}`
+  const bodyClassName = `min-h-full bg-gray-50 text-gray-900 font-sans${theme === 'dark' ? ' dark' : ''}`
   let setupState
   let session
 
   try {
     setupState = await getSetupState()
-    const cookieStore = await cookies()
     const sessionToken = cookieStore.get('pubg_clan_session')?.value ?? null
     session = await getSessionFromToken(sessionToken)
   } catch (error) {
@@ -68,8 +74,8 @@ export default async function RootLayout({
     })
 
     return (
-      <html lang="fr" className={`h-full antialiased ${inter.variable} ${teko.variable}`} suppressHydrationWarning>
-        <body className="min-h-full bg-gray-50 text-gray-900 font-sans" suppressHydrationWarning>
+      <html lang="fr" className={htmlClassName} data-app-theme={theme} suppressHydrationWarning>
+        <body className={bodyClassName} data-app-theme={theme} suppressHydrationWarning>
           <ThemeInitializer />
           <DatabaseUnavailable {...databaseError} />
         </body>
@@ -77,27 +83,31 @@ export default async function RootLayout({
     )
   }
 
-  const showAppShell = setupState === 'completed' && (Boolean(session) || isAuthDisabled())
+  const authDisabled = isAuthDisabled()
+  const showAppShell = setupState === 'completed' && (Boolean(session) || authDisabled)
+  const bootstrap = { authDisabled, hasSession: Boolean(session), setupState, theme }
 
   const footer = <SiteFooter year={now.getFullYear()} />
 
   return (
-    <html lang="fr" className={`h-full antialiased ${inter.variable} ${teko.variable}`} suppressHydrationWarning>
-      <body className="min-h-full bg-gray-50 text-gray-900 font-sans" suppressHydrationWarning>
+    <html lang="fr" className={htmlClassName} data-app-theme={theme} suppressHydrationWarning>
+      <body className={bodyClassName} data-app-theme={theme} suppressHydrationWarning>
         <ThemeInitializer />
-        {showAppShell ? (
-          <ClanNavigation>
-            <div className="flex-1">{children}</div>
-            {footer}
-            <GlobalCommandPalette />
-          </ClanNavigation>
-        ) : (
-          <div className="flex min-h-full flex-col">
-            <div className="flex-1">{children}</div>
-            {footer}
-            <GlobalCommandPalette />
-          </div>
-        )}
+        <ShellBootstrapProvider value={bootstrap}>
+          {showAppShell ? (
+            <ClanNavigation>
+              <div className="flex-1">{children}</div>
+              {footer}
+              <GlobalCommandPalette />
+            </ClanNavigation>
+          ) : (
+            <div className="flex min-h-full flex-col">
+              <div className="flex-1">{children}</div>
+              {footer}
+              <GlobalCommandPalette />
+            </div>
+          )}
+        </ShellBootstrapProvider>
       </body>
     </html>
   )

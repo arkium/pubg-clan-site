@@ -38,7 +38,7 @@ en base avec alerte aux SuperUsers, adresse de contact `contact@chickendinner.fr
 
 | Affirmation | Réalité dans le code |
 |---|---|
-| Un seul cookie | `pubg_clan_session` (`src/lib/auth-session.ts`), httpOnly, 7 jours ; aucun traceur ni outil d'audience |
+| Deux cookies | `pubg_clan_session` (`src/lib/auth-session.ts`), httpOnly, 7 jours ; `pubg_app_theme` (thème clair ou sombre, 1 an, `src/lib/app-theme.ts`, depuis le 2026-10-18 : le serveur rend la bonne couleur dès le premier affichage) ; aucun traceur ni outil d'audience |
 | Préférences dans le navigateur | `localStorage` : `pubg_app_theme`, `selectedClanId`, `canSwitchClan`, `pubg_nav_collapsed`, tri de tableaux ; `sessionStorage` : fil d'Ariane, période, cache de droits |
 | Compte du site | `UserAccount` : e-mail, mot de passe (bcrypt), nom affiché, URL d'avatar libre (chargée chez un tiers) |
 | Pas de nom civil ni d'IP liée à un profil | aucun champ nom/prénom/adresse ; aucune IP ni user-agent lus ou stockés par l'application. Les journaux Nginx gardent les IP côté serveur, sans lien avec un profil |

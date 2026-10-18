@@ -2,7 +2,9 @@
 
 import { useCallback, useEffect, useState } from 'react'
 
+import { useShellBootstrap } from '@/components/ShellBootstrap'
 import type { OwnerFeatureAccess } from '@/lib/auth/owner-feature-catalog'
+import { bootstrapAuthState } from '@/lib/shell-bootstrap'
 
 type SessionMember = {
   memberId: number
@@ -42,13 +44,19 @@ const INITIAL_STATE: AuthSessionState = {
 }
 
 export function useAuthSession() {
-  const [state, setState] = useState<AuthSessionState>(INITIAL_STATE)
+  // Premier rendu = ce que sait le serveur (src/lib/shell-bootstrap.ts) : le mode visiteur, connu dès le HTML. La session
+  // reste en chargement jusqu'à la réponse de l'API.
+  const bootstrap = useShellBootstrap()
+  const [state, setState] = useState<AuthSessionState>(() => ({ ...INITIAL_STATE, ...bootstrapAuthState(bootstrap) }))
+  const serverAuthDisabled = bootstrap?.authDisabled ?? false
 
   const refresh = useCallback(async () => {
+    // Échec de l'appel : la valeur du serveur, pas « authentification exigée » — qui renvoyait un visiteur vers /login
+    // (et rendait la page blanche chez Google tant que robots.txt bloquait l'API).
     const authDisabled = await fetch('/api/auth/mode', { cache: 'no-store' })
       .then((res) => res.json())
       .then((payload: { authDisabled?: boolean }) => payload.authDisabled === true)
-      .catch(() => false)
+      .catch(() => serverAuthDisabled)
 
     async function resetToLoggedOut(clearCookie: boolean) {
       if (clearCookie) {
@@ -104,7 +112,7 @@ export function useAuthSession() {
     } catch {
       await resetToLoggedOut(false)
     }
-  }, [])
+  }, [serverAuthDisabled])
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {

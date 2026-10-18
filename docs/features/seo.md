@@ -85,7 +85,9 @@ ailleurs :
 - **Requêtes génériques** (« stats PUBG », « classement clans PUBG ») : face à op.gg, pubglookup, dak.gg, ce sont
   l'ancienneté, les **liens entrants** (Discord des clans, forums, réseaux) et la vitesse des pages qui décident.
 - Les pages sont rendues côté navigateur : Google exécute le JavaScript, mais le contenu arrive après les métadonnées.
-  Un rendu serveur des pages publiques les plus visées (Ligue, annuaire) serait le prochain levier.
+  Depuis le 2026-10-18, le shell (menu, `<main>`) et la structure des pages publiques (H1, intitulés) sont dans le HTML
+  du serveur (`ShellBootstrap`) ; leurs **données** arrivent encore par l'API. Les rendre côté serveur (Ligue,
+  annuaire, lecture de zone) est le prochain levier — lot 2 de [geo-seo-propositions.md](../TODO/geo-seo-propositions.md).
 
 ## 6. Tests
 

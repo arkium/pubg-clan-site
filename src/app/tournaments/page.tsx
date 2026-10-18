@@ -128,11 +128,12 @@ export default function TournamentsPage() {
                       aria-hidden="true"
                     />
                   ) : null}
-                  {phaseCounts.live} en direct
+                  {/* « — » pendant le chargement : jamais un faux zéro (docs/TODO/geo-seo-propositions.md, lot 0.8). */}
+                  {loading ? '—' : phaseCounts.live} en direct
                 </span>
-                <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5">{phaseCounts.upcoming} à venir</span>
+                <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5">{loading ? '—' : phaseCounts.upcoming} à venir</span>
                 <span className="rounded-full border border-white/25 bg-white/15 px-2.5 py-0.5">
-                  {phaseCounts.finished} terminé{phaseCounts.finished > 1 ? 's' : ''}
+                  {loading ? '—' : phaseCounts.finished} terminé{phaseCounts.finished > 1 ? 's' : ''}
                 </span>
               </div>
             </div>

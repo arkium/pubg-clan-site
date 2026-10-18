@@ -2,21 +2,16 @@
 
 import { useEffect } from 'react'
 
-const APP_THEME_STORAGE_KEY = 'pubg_app_theme'
+import { persistAppTheme, readStoredAppTheme, resolveAppTheme } from '@/lib/app-theme'
 
+/**
+ * Le layout pose déjà le thème du cookie côté serveur (src/lib/app-theme.ts). Ce composant aligne le document sur la
+ * préférence du navigateur et réécrit le cookie : il migre une préférence enregistrée avant le cookie, y compris sur
+ * les pages sans shell (accueil, /join).
+ */
 export default function ThemeInitializer() {
   useEffect(() => {
-    try {
-      const storedTheme = window.localStorage.getItem(APP_THEME_STORAGE_KEY)
-      const nextTheme = storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : 'dark'
-
-      document.documentElement.setAttribute('data-app-theme', nextTheme)
-      document.body.setAttribute('data-app-theme', nextTheme)
-      document.documentElement.classList.toggle('dark', nextTheme === 'dark')
-      document.body.classList.toggle('dark', nextTheme === 'dark')
-    } catch {
-      // Ignore client storage access errors.
-    }
+    persistAppTheme(readStoredAppTheme() ?? resolveAppTheme(document.documentElement.getAttribute('data-app-theme')))
   }, [])
 
   return null

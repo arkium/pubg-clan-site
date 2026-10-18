@@ -8,8 +8,8 @@ import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, HOSTING, LEGAL_UPDATED_AT, PR
  * Confidentialité, page publique — docs/features/pages-legales.md. Chaque ligne a été vérifiée contre le code
  * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026, journal d'administration ajouté le 07/10/2026, e-mail de
  * contact des demandes d'accès sans compte le 10/10/2026 (src/lib/join-request-access.ts), notifications, préférences et
- * e-mails de notification le 10/10/2026 (docs/features/notifications.md) : à revoir quand le site collecte une donnée
- * nouvelle.
+ * e-mails de notification le 10/10/2026 (docs/features/notifications.md), cookie de thème le 18/10/2026
+ * (src/lib/app-theme.ts) : à revoir quand le site collecte une donnée nouvelle.
  */
 
 
@@ -146,6 +146,13 @@ const SECTIONS: LegalSection[] = [
             <code className="t-meta font-mono">pubg_clan_session</code>
             <span className="t-body min-w-0 flex-1 text-gray-700">Garde ta connexion, 7 jours.</span>
             <span className="t-label t-pos rounded-[6px] bg-[var(--game-pos-soft)] px-2 py-0.5">Nécessaire</span>
+          </li>
+          <li className="app-panel-muted flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
+            <code className="t-meta font-mono">pubg_app_theme</code>
+            <span className="t-body min-w-0 flex-1 text-gray-700">
+              Thème clair ou sombre, pour afficher la bonne couleur dès le chargement, 1 an.
+            </span>
+            <span className="app-meta-pill">Préférence</span>
           </li>
           <li className="app-panel-muted flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2.5">
             <code className="t-meta font-mono">localStorage</code>

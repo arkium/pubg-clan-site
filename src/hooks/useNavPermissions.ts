@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useState, useSyncExternalStore } from 'react'
 import type { NavRole, NavItemDef } from '@/lib/nav-permissions-registry'
 import { NAV_REGISTRY } from '@/lib/nav-permissions-registry'
 
@@ -58,8 +58,13 @@ const EMPTY: NavPermissionsData = {
   labels: {},
 }
 
+const noopSubscribe = () => () => {}
+
 export function useNavPermissions(): NavPermissionsData {
-  const [data, setData] = useState<NavPermissionsData>(() => readCache() ?? EMPTY)
+  // Rendu hydraté (shell rendu côté serveur) : `false`, le premier rendu suit le serveur (valeurs par défaut) sans
+  // lire le cache de session. Composant monté plus tard dans le navigateur : `true`, le cache sert de point de départ.
+  const mountedAfterHydration = useSyncExternalStore(noopSubscribe, () => true, () => false)
+  const [data, setData] = useState<NavPermissionsData>(() => (mountedAfterHydration ? readCache() : null) ?? EMPTY)
 
   useEffect(() => {
     invalidateNavPermissionsCache()

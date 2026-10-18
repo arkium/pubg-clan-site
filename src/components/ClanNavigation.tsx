@@ -4,19 +4,22 @@
 
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 
 import NavIcon from '@/components/ui/NavIcon'
 import { ChevronsUpDown, Menu, PanelLeftClose, PanelLeftOpen } from 'lucide-react'
 import { ClanSwitchModal } from '@/components/clan/ClanSwitchModal'
 import { PlayerSwitchModal } from '@/components/clan/PlayerSwitchModal'
+import { useShellBootstrap } from '@/components/ShellBootstrap'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useHeaderHeightPublisher } from '@/hooks/useStickyToolbar'
 import { usePageData } from '@/hooks/usePageData'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
+import { DEFAULT_APP_THEME, persistAppTheme, readStoredAppTheme, type AppTheme } from '@/lib/app-theme'
 import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
 import { getItemRole, PERSONAL_NAV_KEYS, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
+import { isVisitorState } from '@/lib/shell-bootstrap'
 
 type ClanSummary = {
   id: number
@@ -46,18 +49,27 @@ type SubmenuItem = {
   role?: 'owner' | 'superuser'
 }
 
-type AppTheme = 'light' | 'dark'
-
 type ClanNavigationProps = {
   children: React.ReactNode
 }
 
-const APP_THEME_STORAGE_KEY = 'pubg_app_theme'
 const VIEWED_MEMBER_STORAGE_KEY = 'pubg_viewed_member_id'
 const APP_THEME_OPTIONS: Array<{ value: AppTheme; label: string }> = [
   { value: 'light', label: 'Clair' },
   { value: 'dark', label: 'Sombre' },
 ]
+
+/** Valeurs lues une fois dans le stockage du navigateur : aucun abonnement (le shell les modifie lui-même). */
+const noopSubscribe = () => () => {}
+
+function readStoredViewedMemberId(): number | null {
+  try {
+    const stored = Number(window.sessionStorage.getItem(VIEWED_MEMBER_STORAGE_KEY))
+    return Number.isInteger(stored) && stored > 0 ? stored : null
+  } catch {
+    return null
+  }
+}
 
 function cx(...classes: Array<string | false | null | undefined>) {
   return classes.filter(Boolean).join(' ')
@@ -100,10 +112,6 @@ function renderThemeIcon(theme: AppTheme) {
   )
 }
 
-function isAppTheme(value: string): value is AppTheme {
-  return value === 'light' || value === 'dark'
-}
-
 // ── Contextual sidebar nav ────────────────────────────────────────────────────
 
 const CTX_EXACT_MATCH_KEYS = new Set(['clan.stats'])
@@ -142,7 +150,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const router = useRouter()
   const { clanId, clearClanId, setClanId } = useSelectedClan()
   const { loading, authenticated, email, activeMemberId, permissions, members, isSuperUser, ownerFeatures, authDisabled, refresh } = useAuthSession()
-  const isVisitor = !authenticated && authDisabled
+  const bootstrap = useShellBootstrap()
+  const isVisitor = isVisitorState({ loading, authenticated, authDisabled }, bootstrap)
   const [clan, setClan] = useState<ClanSummary | null>(null)
   const [isCollapsed, setIsCollapsed] = useState(false)
 
@@ -158,30 +167,21 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }
   const [mobileOpen, setMobileOpen] = useState(false)
   const [mobilePanelVisible, setMobilePanelVisible] = useState(false)
-  const [appTheme, setAppTheme] = useState<AppTheme>(() => {
-    if (typeof window === 'undefined') {
-      return 'light'
-    }
-
-    const storedTheme = window.localStorage.getItem(APP_THEME_STORAGE_KEY)
-    if (storedTheme && isAppTheme(storedTheme)) {
-      return storedTheme
-    }
-
-    return 'dark'
-  })
+  // Le shell est rendu côté serveur (docs/TODO/geo-seo-propositions.md, lot 1) : son premier rendu ne lit que ce que le
+  // serveur connaît (`useShellBootstrap`). Le stockage du navigateur passe par `useSyncExternalStore` (valeur serveur
+  // `null`) : lu juste après l'hydratation, sans écart entre le HTML du serveur et celui du client.
+  const storedTheme = useSyncExternalStore(noopSubscribe, readStoredAppTheme, () => null)
+  const [chosenTheme, setAppTheme] = useState<AppTheme | null>(null)
+  const appTheme = chosenTheme ?? storedTheme ?? bootstrap?.theme ?? DEFAULT_APP_THEME
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false)
-  const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>('first_run')
+  // Le layout ne rend ce composant qu'une installation terminée : sans bootstrap (hors layout), on interroge l'API.
+  const [setupState, setSetupState] = useState<'first_run' | 'pending_activation' | 'completed'>(bootstrap?.setupState ?? 'first_run')
   const [clanImageUrl, setClanImageUrl] = useState('/pubg.png')
   const [playerAvatarUrl, setPlayerAvatarUrl] = useState<string | null>(null)
-  const [viewedMemberId, setViewedMemberId] = useState<number | null>(() => {
-    if (typeof window === 'undefined') {
-      return null
-    }
-
-    const stored = Number(window.sessionStorage.getItem(VIEWED_MEMBER_STORAGE_KEY))
-    return Number.isInteger(stored) && stored > 0 ? stored : null
-  })
+  // `undefined` : rien choisi depuis le chargement, le joueur gardé dans la session du navigateur s'applique.
+  const storedViewedMemberId = useSyncExternalStore(noopSubscribe, readStoredViewedMemberId, () => null)
+  const [chosenViewedMemberId, setViewedMemberId] = useState<number | null | undefined>(undefined)
+  const viewedMemberId = chosenViewedMemberId === undefined ? storedViewedMemberId : chosenViewedMemberId
   const [isClanSwitchModalOpen, setIsClanSwitchModalOpen] = useState(false)
   const [isPlayerSwitchModalOpen, setIsPlayerSwitchModalOpen] = useState(false)
   const previousClanIdRef = useRef<number | null>(clanId)
@@ -221,6 +221,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   const previouslyFocusedRef = useRef<HTMLElement | null>(null)
 
   useEffect(() => {
+    if (bootstrap) return
     let cancelled = false
 
     async function loadSetupStatus() {
@@ -246,7 +247,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [bootstrap])
 
   useEffect(() => {
     let cancelled = false
@@ -305,13 +306,10 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }, [activeMemberId])
 
   useEffect(() => {
-    window.localStorage.setItem(APP_THEME_STORAGE_KEY, appTheme)
-
-    document.documentElement.setAttribute('data-app-theme', appTheme)
-    document.body.setAttribute('data-app-theme', appTheme)
-    document.documentElement.classList.toggle('dark', appTheme === 'dark')
-    document.body.classList.toggle('dark', appTheme === 'dark')
-  }, [appTheme])
+    // Seul un choix fait ici est enregistré. Enregistrer `appTheme` écraserait une préférence gardée avant le cookie :
+    // pendant l'hydratation, il vaut encore le thème du serveur. ThemeInitializer applique la préférence existante.
+    if (chosenTheme) persistAppTheme(chosenTheme)
+  }, [chosenTheme])
 
   const navPerms = useNavPermissions()
   const navLabels = navPerms.labels
@@ -1048,12 +1046,13 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                       <p className={cx("truncate text-xs font-bold leading-tight", appTheme === 'dark' ? 'text-slate-200' : 'text-slate-900')}>
                         {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionné'}
                       </p>
-                      {loading ? (
+                      {/* Visiteur sans session : connu dès le HTML du serveur, avant la fin du chargement. */}
+                      {isVisitor ? (
+                        <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-amber-500' : 'text-amber-700')}>Mode visiteur</p>
+                      ) : loading ? (
                         <p className={cx("text-[10px] font-medium uppercase tracking-wider", appTheme === 'dark' ? 'text-slate-500' : 'text-slate-500')}>Vérification...</p>
                       ) : authenticated ? (
                         <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-emerald-500' : 'text-emerald-700')}>Clan actif</p>
-                      ) : isVisitor ? (
-                        <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-amber-500' : 'text-amber-700')}>Mode visiteur</p>
                       ) : (
                         <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-amber-500' : 'text-amber-700')}>Session non connectée</p>
                       )}

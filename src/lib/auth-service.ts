@@ -335,7 +335,7 @@ export async function activateMemberInvite(params: {
   const providedLoginEmail = params.loginEmail?.trim() ?? ''
 
   if (!inviteEmail && !providedLoginEmail) {
-    throw new Error('Aucun email trouve sur l\'invitation. Saisissez votre email de connexion.')
+    throw new Error('Aucun e-mail trouvé sur l’invitation. Saisis ton e-mail de connexion.')
   }
 
   const email = normalizeEmail(inviteEmail || providedLoginEmail)

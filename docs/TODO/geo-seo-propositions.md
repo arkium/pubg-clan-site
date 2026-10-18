@@ -194,7 +194,7 @@ Playwright avec réponses figées) : le site est en production.
 | 0.4 Titres | Les cinq titres proposés ; suffixe retiré d'un titre calculé trop long ; test sur toutes les pages indexées | — |
 | 0.5 Descriptions | Accueil (160), mentions légales, confidentialité ; test ≤ 160 | — |
 | 0.6 Texte alternatif | Rien à changer | Images du guide du mortier : fonds de carte sous des schémas déjà légendés, `alt=""` correct |
-| 0.7 Nom et ton | H1, page de réglages et menu : « Ligue des clans » | `/join` **non passé au tutoiement** : `/login`, `/activate` et l'API d'inscription vouvoient aussi, convertir `/join` seul déplacerait l'incohérence. Sa description passe au vouvoiement, comme la page. Registre de l'espace compte : à décider |
+| 0.7 Nom et ton | H1, page de réglages et menu : « Ligue des clans ». **Tutoiement** sur `/join`, `/login`, `/activate`, les messages de `/api/join`, l'accueil par défaut de la connexion et l'erreur d'activation (décision du 2026-10-18) | Vouvoient encore, hors de ce périmètre : les e-mails de décision d'une demande (`clan-decision-email.ts`) et la notification « a demandé à rejoindre votre clan » (`notification-service.ts`) |
 | 0.8 Faux zéros | `/clans`, `/tournaments` (lot 1) | — |
 
 **0.1 En-têtes de sécurité** (score Sécurité, constats HSTS ×10 et CSP ×10)

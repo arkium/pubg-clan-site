@@ -32,7 +32,7 @@ type WelcomeSettings = {
 
 const DEFAULT_GLOBAL_WELCOME: WelcomeSettings = {
   badge: 'Portail PUBG',
-  title: 'Votre espace membre',
+  title: 'Ton espace membre',
   message:
     'Statistiques, classements et tournois sont ouverts à tous, sans compte. Le compte sert aux membres des clans suivis : enregistrer ses entraînements, participer à la carte des ressources et, pour l’Owner, gérer son clan.',
   imageUrl: '/squad.jpg',
@@ -40,7 +40,7 @@ const DEFAULT_GLOBAL_WELCOME: WelcomeSettings = {
 
 const HIGHLIGHTS: AuthHighlight[] = [
   { icon: Crosshair, tone: 'pos', title: 'Entraînements enregistrés', text: 'séries au mortier et à la lecture de zone, classements du clan.' },
-  { icon: MapPin, tone: 'sky', title: 'Communauté', text: 'carte des ressources, mouvements entre clans, adversaires rencontrés par votre clan.' },
+  { icon: MapPin, tone: 'sky', title: 'Communauté', text: 'carte des ressources, mouvements entre clans, adversaires rencontrés par ton clan.' },
   { icon: Users, tone: 'warn', title: 'Gestion du clan (Owner)', text: 'membres, invitations, demandes d’accès, notifications Discord, tournois.' },
 ]
 
@@ -51,7 +51,7 @@ const GUIDE = [
     title: 'Invitation reçue',
     body: (
       <>
-        un clan vous a invité ?{' '}
+        un clan t’a invité ?{' '}
         <Link href="/activate" className="app-link font-semibold">
           Activer son compte
         </Link>
@@ -237,7 +237,7 @@ function LoginPageContent() {
             <LogIn className="h-5 w-5 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
             Se connecter
           </h2>
-          <p className="t-meta m-0">Votre espace de membre et, pour l’Owner, la gestion de son clan.</p>
+          <p className="t-meta m-0">Ton espace de membre et, pour l’Owner, la gestion de son clan.</p>
         </div>
 
         <AuthGuide icon={ShieldCheck} title="Première visite ?" items={GUIDE} />

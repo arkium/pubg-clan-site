@@ -72,13 +72,13 @@ const HIGHLIGHTS: AuthHighlight[] = [
 ]
 
 const GUIDE = [
-  { tone: 'pos' as const, title: 'Clan déjà suivi', body: 'son Owner accepte la demande, puis vous recevez par e-mail le lien pour créer votre compte.' },
+  { tone: 'pos' as const, title: 'Clan déjà suivi', body: 'son Owner accepte la demande, puis tu reçois par e-mail le lien pour créer ton compte.' },
   {
     tone: 'warn' as const,
     title: 'Clan pas encore suivi',
-    body: 'le SuperUser le vérifie et l’inscrit ; vous en devenez l’Owner et recevez le même lien.',
+    body: 'le SuperUser le vérifie et l’inscrit ; tu en deviens l’Owner et reçois le même lien.',
   },
-  { tone: 'sky' as const, title: 'Déjà membre du clan', body: 'demandez une invitation à son Owner : il l’envoie depuis la liste des membres.' },
+  { tone: 'sky' as const, title: 'Déjà membre du clan', body: 'demande une invitation à son Owner : il l’envoie depuis la liste des membres.' },
 ]
 
 export default function JoinPage() {
@@ -135,7 +135,7 @@ export default function JoinPage() {
         const errorMessage =
           payload && 'error' in payload && typeof payload.error === 'string'
             ? payload.error
-            : 'Impossible de vérifier votre compte PUBG. Vérifiez votre pseudo et votre plateforme.'
+            : 'Impossible de vérifier ton compte PUBG. Vérifie ton pseudo et ta plateforme.'
         setError(errorMessage)
         setErrorCode(payload && 'code' in payload && typeof payload.code === 'string' ? payload.code : null)
         setJoinStatus('error')
@@ -158,7 +158,7 @@ export default function JoinPage() {
     if (!previewData) return
 
     if ((previewData.actionType === 'create_clan' || !previewData.authenticated) && !contactEmail.trim()) {
-      setConfirmError('Saisissez une adresse e-mail de contact.')
+      setConfirmError('Saisis une adresse e-mail de contact.')
       return
     }
 
@@ -227,8 +227,8 @@ export default function JoinPage() {
             image="/squad.jpg"
             header={<img src={pubgLogo.src} alt="PUBG Battlegrounds" className="h-10 w-auto self-start object-contain" />}
             kicker="Inscription des clans"
-            title="Votre clan sur chickendinner.fr"
-            text="Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG. Demandez l’accès à votre clan, ou inscrivez-le : pas besoin de compte, il se crée à l’acceptation de la demande."
+            title="Ton clan sur chickendinner.fr"
+            text="Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG. Demande l’accès à ton clan, ou inscris-le : pas besoin de compte, il se crée à l’acceptation de la demande."
           >
             <AuthHighlights items={HIGHLIGHTS} />
           </AuthVisual>
@@ -378,11 +378,11 @@ function JoinConfirmDialog({
           ) : creating ? (
             <>
               Le clan {target} n’est pas encore suivi par le site. Son inscription est validée par le SuperUser ; une fois approuvée, le
-              clan est suivi et vous en êtes le propriétaire (Owner).
+              clan est suivi et tu en es le propriétaire (Owner).
             </>
           ) : (
             <>
-              Le clan {target} est déjà suivi : la demande est transmise à son Owner, et vous devenez membre du clan sur le site dès
+              Le clan {target} est déjà suivi : la demande est transmise à son Owner, et tu deviens membre du clan sur le site dès
               son acceptation.
             </>
           )}
@@ -414,19 +414,19 @@ function JoinConfirmDialog({
               value={contactEmail}
               onChange={(event) => onContactEmailChange(event.target.value)}
               disabled={busy}
-              placeholder="vous@exemple.com"
+              placeholder="toi@exemple.com"
               className="app-input"
               autoComplete="email"
             />
             <span className="t-meta">
-              {authenticated ? 'Pour vous notifier de la décision.' : 'Le lien pour créer votre compte y arrive quand la demande est acceptée.'}
+              {authenticated ? 'Pour te notifier de la décision.' : 'Le lien pour créer ton compte y arrive quand la demande est acceptée.'}
             </span>
           </label>
         ) : null}
 
         {!authenticated ? (
           <Callout tone="sky" icon={Mail} title="Pas besoin de compte">
-            Votre compte sera créé à l’acceptation : vous recevrez à cette adresse le lien pour choisir votre mot de passe
+            Ton compte sera créé à l’acceptation : tu recevras à cette adresse le lien pour choisir ton mot de passe
             (valable 48 heures).{' '}
             <Link href="/login?redirect=/join" className="app-link font-semibold">
               Déjà un compte ? Se connecter

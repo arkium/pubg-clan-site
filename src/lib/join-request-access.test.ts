@@ -166,7 +166,7 @@ describe('POST /api/join sans compte', () => {
 
     expect(res.status).toBe(409)
     expect(data.code).toBe('PLAYER_ALREADY_MEMBER')
-    expect(data.error).toContain("Demandez une invitation à l'Owner du clan")
+    expect(data.error).toContain("Demande une invitation à l'Owner du clan")
   })
 })
 

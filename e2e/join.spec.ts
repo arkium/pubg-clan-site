@@ -31,7 +31,7 @@ async function checkPlayer(page: Page) {
 
 test('la page parle de demander l’accès à son clan ou de l’inscrire, sans compte, jamais de recrutement', async ({ page }) => {
   await page.goto('/join')
-  await expect(page.getByRole('heading', { level: 1, name: 'Votre clan sur chickendinner.fr' })).toBeVisible()
+  await expect(page.getByRole('heading', { level: 1, name: 'Ton clan sur chickendinner.fr' })).toBeVisible()
   await expect(page.getByRole('heading', { level: 2, name: 'Demander l’accès à son clan ou l’inscrire' })).toBeVisible()
   await expect(page.getByText('Le site ne recrute pas : il suit les clans qui existent déjà dans PUBG.', { exact: false })).toBeVisible()
   await expect(page.getByText('Pas besoin de compte pour demander')).toBeVisible()
@@ -52,7 +52,7 @@ test('clan déjà suivi, visiteur sans compte : demande envoyée avec son adress
         clanId: 7,
         clanName: 'La Meute',
         memberId: 41,
-        message: "Votre demande d'accès au clan \"La Meute\" a été envoyée. Quand son Owner l'acceptera, vous recevrez à joueur@exemple.fr le lien pour créer votre compte.",
+        message: "Ta demande d'accès au clan \"La Meute\" a été envoyée. Quand son Owner l'acceptera, tu recevras à joueur@exemple.fr le lien pour créer ton compte.",
       },
     }
   })
@@ -66,13 +66,13 @@ test('clan déjà suivi, visiteur sans compte : demande envoyée avec son adress
 
   // Sans adresse, rien n'est envoyé.
   await dialog.getByRole('button', { name: 'Envoyer la demande à l’Owner' }).click()
-  await expect(dialog).toContainText('Saisissez une adresse e-mail de contact.')
+  await expect(dialog).toContainText('Saisis une adresse e-mail de contact.')
   expect(sent).toHaveLength(0)
 
   await dialog.getByLabel('Adresse e-mail de contact').fill('joueur@exemple.fr')
   await dialog.getByRole('button', { name: 'Envoyer la demande à l’Owner' }).click()
   await expect(page.getByText('Demande enregistrée')).toBeVisible()
-  await expect(page.getByText('vous recevrez à joueur@exemple.fr le lien pour créer votre compte', { exact: false })).toBeVisible()
+  await expect(page.getByText('tu recevras à joueur@exemple.fr le lien pour créer ton compte', { exact: false })).toBeVisible()
   expect(sent).toEqual([expect.objectContaining({ mode: 'join', pubgPlayerName: 'Balthazar_99', contactEmail: 'joueur@exemple.fr' })])
   await expect(page.getByRole('link', { name: 'Voir les clans' })).toHaveAttribute('href', '/clans')
 })
@@ -86,7 +86,7 @@ test('clan pas encore suivi : la modale propose de l’inscrire, e-mail de conta
   await expect(dialog).toContainText('[SMOK] Smoke Squad n’est pas encore suivi par le site')
   await expect(dialog).not.toContainText(/créer|fonder/i)
   await dialog.getByRole('button', { name: 'Soumettre au SuperUser' }).click()
-  await expect(dialog).toContainText('Saisissez une adresse e-mail de contact.')
+  await expect(dialog).toContainText('Saisis une adresse e-mail de contact.')
   await dialog.getByRole('button', { name: 'Annuler' }).click()
   await expect(dialog).toHaveCount(0)
 })

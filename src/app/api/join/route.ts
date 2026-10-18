@@ -91,7 +91,7 @@ export async function POST(request: Request) {
       if (existingMember.isActive && existingMember.joinStatus === 'active') {
         return Response.json(
           {
-            error: `Le joueur "${pubgPlayerName}" est déjà enregistré dans le clan "${existingMember.clan?.name ?? 'un clan'}". Connectez-vous à votre compte ; pas encore de compte ? Demandez une invitation à l'Owner du clan.`,
+            error: `Le joueur "${pubgPlayerName}" est déjà enregistré dans le clan "${existingMember.clan?.name ?? 'un clan'}". Connecte-toi à ton compte ; pas encore de compte ? Demande une invitation à l'Owner du clan.`,
             code: 'PLAYER_ALREADY_MEMBER',
             clanId: existingMember.clan?.id,
             clanName: existingMember.clan?.name,
@@ -152,7 +152,7 @@ export async function POST(request: Request) {
     if (clan && joinTarget === 'unfollowed') {
       return Response.json(
         {
-          error: `Le clan "${clan.name}" n'est plus suivi par la ligue : aucune demande ne peut être enregistrée. Contactez un administrateur du site pour qu'il le réactive.`,
+          error: `Le clan "${clan.name}" n'est plus suivi par la ligue : aucune demande ne peut être enregistrée. Contacte un administrateur du site pour qu'il le réactive.`,
           code: 'CLAN_NOT_FOLLOWED',
           clanId: clan.id,
           clanName: clan.name,
@@ -199,7 +199,7 @@ export async function POST(request: Request) {
       return Response.json(
         {
           error:
-            "Une adresse email de contact est requise : le lien pour créer votre compte y sera envoyé quand la demande sera acceptée.",
+            "Une adresse email de contact est requise : le lien pour créer ton compte y sera envoyé quand la demande sera acceptée.",
           code: 'CONTACT_EMAIL_REQUIRED',
         },
         { status: 400 }
@@ -212,7 +212,7 @@ export async function POST(request: Request) {
       if (pendingForEmail >= JOIN_PENDING_PER_EMAIL_LIMIT) {
         return Response.json(
           {
-            error: `Cette adresse a déjà ${pendingForEmail} demandes en attente : attendez qu'elles soient traitées avant d'en envoyer une autre.`,
+            error: `Cette adresse a déjà ${pendingForEmail} demandes en attente : attends qu'elles soient traitées avant d'en envoyer une autre.`,
             code: 'TOO_MANY_PENDING_REQUESTS',
           },
           { status: 429 }
@@ -235,7 +235,7 @@ export async function POST(request: Request) {
       if (existingUserIdentity) {
         return Response.json(
           {
-            error: `Votre compte utilisateur est déjà associé au joueur "${existingUserIdentity.member.displayName}" du clan "${existingUserIdentity.member.clan?.name ?? 'un clan'}".`,
+            error: `Ton compte utilisateur est déjà associé au joueur "${existingUserIdentity.member.displayName}" du clan "${existingUserIdentity.member.clan?.name ?? 'un clan'}".`,
           },
           { status: 409 }
         )
@@ -306,10 +306,10 @@ export async function POST(request: Request) {
         clanName: clan.name,
         memberId: clanMember.id,
         message: reopenedRejectedClan
-          ? `Le clan "${clan.name}" avait été refusé : votre demande le soumet de nouveau à la validation du SuperUser.`
+          ? `Le clan "${clan.name}" avait été refusé : ta demande le soumet de nouveau à la validation du SuperUser.`
           : session
-            ? `Votre demande d'accès au clan "${clan.name}" a été envoyée. Elle attend l'approbation de son Owner.`
-            : `Votre demande d'accès au clan "${clan.name}" a été envoyée. Quand son Owner l'acceptera, vous recevrez à ${contactEmail} le lien pour créer votre compte.`,
+            ? `Ta demande d'accès au clan "${clan.name}" a été envoyée. Elle attend l'approbation de son Owner.`
+            : `Ta demande d'accès au clan "${clan.name}" a été envoyée. Quand son Owner l'acceptera, tu recevras à ${contactEmail} le lien pour créer ton compte.`,
       }
     } else {
       // CASE 2: Clan doesn't exist - create new clan and member
@@ -321,7 +321,7 @@ export async function POST(request: Request) {
         return Response.json(
           {
             error:
-              "Une adresse email de contact est requise pour demander l'inscription d'un clan : elle sert à vous notifier de la décision du SuperUser.",
+              "Une adresse email de contact est requise pour demander l'inscription d'un clan : elle sert à te notifier de la décision du SuperUser.",
             code: 'CONTACT_EMAIL_REQUIRED',
           },
           { status: 400 }
@@ -408,8 +408,8 @@ export async function POST(request: Request) {
         clanName: newClan.name,
         memberId: clanMember.id,
         message: session
-          ? `Votre demande d'inscription du clan "${newClan.name}" a été envoyée. Elle attend la validation du SuperUser avant que le clan soit suivi par la ligue.`
-          : `Votre demande d'inscription du clan "${newClan.name}" a été envoyée. Quand le SuperUser la validera, vous recevrez à ${contactEmail} le lien pour créer votre compte d'Owner.`,
+          ? `Ta demande d'inscription du clan "${newClan.name}" a été envoyée. Elle attend la validation du SuperUser avant que le clan soit suivi par la ligue.`
+          : `Ta demande d'inscription du clan "${newClan.name}" a été envoyée. Quand le SuperUser la validera, tu recevras à ${contactEmail} le lien pour créer ton compte d'Owner.`,
       }
     }
 

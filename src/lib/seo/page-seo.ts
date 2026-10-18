@@ -105,9 +105,9 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
   },
   '/join': {
     title: 'Inscrire son clan PUBG, relier son compte',
-    // Vouvoiement, comme la page et tout l'espace compte (/login, /activate) — le reste du site tutoie.
+    // Tutoiement, comme tout le site, espace compte compris (/join, /login, /activate — décision du 2026-10-18).
     description:
-      'Donnez votre pseudo PUBG : on retrouve votre compte et votre clan. Demandez l’accès à votre clan s’il est déjà suivi, ou inscrivez-le. Le site ne recrute pas.',
+      'Donne ton pseudo PUBG : on retrouve ton compte et ton clan. Demande l’accès à ton clan s’il est déjà suivi, ou inscris-le. Le site ne recrute pas.',
     index: true,
     sitemap: { priority: 0.6, changeFrequency: 'monthly' },
   },

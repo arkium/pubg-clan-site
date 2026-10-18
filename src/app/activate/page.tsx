@@ -27,7 +27,7 @@ type WelcomeSettings = {
 const DEFAULT_WELCOME: WelcomeSettings = {
   badge: 'Portail Membres & Clans',
   title: 'Activation du compte',
-  message: 'Finalisez votre activation pour accéder aux statistiques, rapports et outils de coordination de votre clan.',
+  message: 'Finalise ton activation pour accéder aux statistiques, rapports et outils de coordination de ton clan.',
   imageUrl: '/squad.jpg',
 }
 
@@ -143,7 +143,7 @@ function ActivatePageContent() {
     event.preventDefault()
 
     if (requiresLoginEmail && !loginEmail.trim()) {
-      setError('Saisissez votre e-mail de connexion')
+      setError('Saisis ton e-mail de connexion')
       return
     }
 

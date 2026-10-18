@@ -219,6 +219,8 @@ Maquette validée : `docs/ui/refonte/maquettes/Refonte adaptée.html` (dossier i
 - **Tableaux** : `app-table-shell`, `table-layout: auto`, padding horizontal 9 px sur les cellules numériques.
 - **Rayons** : bloc bordé = `.app-panel` / `.app-panel-muted` / `.app-table-shell`, jamais `rounded` + `border` à la main.
 - **Vocabulaire** : Dégâts, Victoires / Top 1, Win rate, K/M, Temps, Jours actifs, Distinctions.
+- **Ton** : **tutoiement partout**, espace compte compris (`/join`, `/login`, `/activate`, messages de leurs API —
+  décision du 2026-10-18). Un seul nom par chose : « Ligue des clans », « Power score ».
 - **Thème** : les `dark:` existants sont **conservés** ; un nouveau composant passe par les tokens plutôt que d'en ajouter.
 - **Hauteurs** : ne jamais modifier la hauteur du bandeau d'image d'une page ni celle du header.
 

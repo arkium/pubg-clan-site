@@ -8,7 +8,7 @@ const LOGIN_WELCOME_IMAGE_URL_KEY = 'login_welcome_image_url'
 const DEFAULT_BADGE = 'Bienvenue au clan'
 const DEFAULT_TITLE = 'Connexion escouade'
 const DEFAULT_MESSAGE =
-  'Connectez-vous pour retrouver vos statistiques, votre progression et les outils de coordination du clan.'
+  'Connecte-toi pour retrouver tes statistiques, ta progression et les outils de coordination du clan.'
 
 const MAX_BADGE_LENGTH = 60
 const MAX_TITLE_LENGTH = 100

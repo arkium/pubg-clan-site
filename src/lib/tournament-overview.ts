@@ -76,8 +76,9 @@ type LoadedMatches = Awaited<ReturnType<typeof getTournamentMatches>>
  * Liste complète, classement compris. Le nombre de tournois reste petit (quelques dizaines) : un calcul par
  * tournoi est acceptable ici, et évite une requête par carte côté navigateur. Les noms sont résolus en une fois.
  */
-export async function listTournamentOverviews(now = new Date()): Promise<TournamentOverview[]> {
+export async function listTournamentOverviews(now = new Date(), options: { ids?: string[] } = {}): Promise<TournamentOverview[]> {
   const tournaments = await prisma.tournament.findMany({
+    where: options.ids ? { id: { in: options.ids } } : undefined,
     include: { organizerClan: { select: { id: true, name: true, tag: true } } },
     orderBy: [{ startDate: 'desc' }],
   })
@@ -153,4 +154,10 @@ export async function listTournamentOverviews(now = new Date()): Promise<Tournam
       winner: standings[0] && standings[0].totalPoints > 0 ? standings[0] : null,
     }
   })
+}
+
+/** Résumé d'un seul tournoi, même calcul que la liste (bloc « En bref » de sa page). `null` s'il n'existe pas. */
+export async function getTournamentOverview(tournamentId: string, now = new Date()): Promise<TournamentOverview | null> {
+  const [overview] = await listTournamentOverviews(now, { ids: [tournamentId] })
+  return overview ?? null
 }

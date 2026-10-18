@@ -407,6 +407,7 @@ export function TournamentQuickGuide() {
         type="button"
         onClick={() => setOpen((value) => !value)}
         aria-expanded={open}
+        aria-controls="tournament-quick-guide"
         className="flex items-center gap-2 text-left"
       >
         <CircleHelp className="h-4 w-4 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
@@ -416,13 +417,12 @@ export function TournamentQuickGuide() {
           <ChevronDown className={`h-4 w-4 transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
         </span>
       </button>
-      {open ? (
-        <ol className="t-body flex list-decimal flex-col gap-1.5 pl-5 text-gray-700">
-          {TOURNAMENT_QUICK_GUIDE.map((line) => (
-            <li key={line}>{withBold(line)}</li>
-          ))}
-        </ol>
-      ) : null}
+      {/* Replié par défaut, mais toujours dans le HTML (`hidden`) : les robots lisent les règles. */}
+      <ol id="tournament-quick-guide" hidden={!open} className="t-body flex list-decimal flex-col gap-1.5 pl-5 text-gray-700">
+        {TOURNAMENT_QUICK_GUIDE.map((line) => (
+          <li key={line}>{withBold(line)}</li>
+        ))}
+      </ol>
     </section>
   )
 }

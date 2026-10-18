@@ -285,6 +285,11 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
   mots, H2, podium de la semaine lié aux clans, clans classés / en qualification / sans partie, formule du Power score
   avec les réglages en vigueur. Même choix d'un bloc serveur plutôt que d'un `initialData`, pour un seul modèle sur
   toutes les pages.
+- `/tournaments` — **fait le 2026-10-18** : ici l'`initialData` s'impose (1,2 Ko) — les vraies cartes et le palmarès
+  sont rendus par le serveur, sans bloc en double. « 1 terminé » au lieu de « 0 terminé », 53 → 207 mots ;
+  « Comment ça marche ? » toujours dans le HTML (replié par `hidden`).
+- `/tournaments/[id]` — **fait le 2026-10-18** : résumé serveur à la place du chargement (H1, dates, organisateur,
+  affluence, vainqueur, podium), 38 → 161 mots. Pseudos jamais écrits : podium nommé en inter-clans seulement.
 
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).

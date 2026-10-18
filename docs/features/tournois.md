@@ -194,6 +194,12 @@ Libellés et textes des modes : **une seule source**, `TOURNAMENT_MODE_DESCRIPTI
 
 ### Liste `/tournaments`
 
+**Rendu serveur (2026-10-18)** : `src/app/tournaments/page.tsx` lit la liste (`listTournamentOverviews`, mode visiteur
+seulement) et la passe à la page client (`src/components/tournaments/TournamentsPage.tsx`) avec son instant de rendu :
+cartes, compteurs et palmarès sont dans le HTML (docs/TODO/geo-seo-propositions.md, lot 2). Le client relit l'API au
+montage, sans repli. Hors mode visiteur, la liste reste chargée par le client (route réservée aux connectés). Le
+« Comment ça marche ? » est toujours dans le HTML, replié par `hidden`.
+
 - **Bandeau d'image** : « Tournois », compteurs en direct / à venir / terminés ; « Gérer les tournois de mon clan »
   seulement pour qui a `manage_settings` (ou SuperUser).
 - **Bandeau collant** : recherche (« Tournoi ou clan » : titre, description, organisateur, vainqueur) et statut
@@ -224,6 +230,12 @@ remporté par un de ses joueurs ou un tournoi en équipes libres dont il fait pa
 internes ne comptent pas.
 
 ### Page d'un tournoi `/tournaments/[tournamentId]`
+
+**Résumé serveur (2026-10-18)** : la page serveur passe à la page client
+(`src/components/tournaments/TournamentDetailPage.tsx`) un résumé (`TournamentFindings`, textes de
+`src/lib/tournament-findings.ts`, `getTournamentOverview`) affiché pendant le chargement puis remplacé par la page
+complète : H1, mode, dates, organisateur, affluence, statut et podium dans le HTML. Le classement complet (160 Ko) n'y
+passe pas. Podium et vainqueur nommés en inter-clans seulement : ailleurs ce seraient des pseudos de joueurs.
 
 `GET /api/tournaments/[tournamentId]/standings` renvoie tout ce que la page affiche, noms déjà résolus
 (`src/lib/tournament-standings-view.ts`) :

@@ -82,8 +82,8 @@ const TOOLBAR_PAGES = [
   'src/app/clans/page.tsx',
   'src/app/clans/comparator/page.tsx',
   'src/components/clan-league/LeaguePage.tsx',
-  'src/app/tournaments/page.tsx',
-  'src/app/tournaments/[tournamentId]/page.tsx',
+  'src/components/tournaments/TournamentsPage.tsx',
+  'src/components/tournaments/TournamentDetailPage.tsx',
   'src/app/tournaments/[tournamentId]/matches/[matchId]/page.tsx',
   'src/components/zone-reading/ZoneReadingPage.tsx',
   'src/app/players/page.tsx',
@@ -109,8 +109,8 @@ const SECTION_LOCAL_CONTROL_PAGES = [
  * restent à portée pendant la lecture.
  */
 const MOBILE_DOCKING_WITHOUT_PERIOD: Record<string, string> = {
-  'src/app/tournaments/page.tsx': 'recherche et statut de la liste',
-  'src/app/tournaments/[tournamentId]/page.tsx': 'ancres Classement / Manches / Stats / Barème et place du lecteur',
+  'src/components/tournaments/TournamentsPage.tsx': 'recherche et statut de la liste',
+  'src/components/tournaments/TournamentDetailPage.tsx': 'ancres Classement / Manches / Stats / Barème et place du lecteur',
   'src/app/members/[id]/stats/page.tsx': 'carrière PUBG sans période : mode (Tous / Squad / Duo / Solo) et synchro, sur une ligne',
   // Écart constaté le 2026-09-27 par ce contrôle, pas une décision : sticky.md §2 dit « rien de docké sur mobile »
   // pour /clans, la refonte de l'annuaire (2026-09-26) docke recherche et tri. À trancher, puis retirer d'ici.

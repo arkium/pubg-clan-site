@@ -275,6 +275,13 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
 2. un instantané des données, lu par les mêmes services `src/lib/` que l'API et passé au composant client en
    `initialData` (il prend ensuite le relais, filtres compris).
 
+**Avancement.**
+
+- `/lecture-de-zone` — **fait le 2026-10-18** : bloc serveur « En bref » (`ZoneReadingFindings`) sous l'analyse,
+  diffusé dans un `Suspense`. 99 → 367 mots dans le HTML, H2 « En bref : ce que disent 11 274 parties sur Erangel »,
+  quatre constats chiffrés et datés, méthode, parties par carte. Écart au principe : pas d'`initialData`, la réponse
+  de l'API pèse 240 Ko (une entrée par partie pour tourner l'axe) et aurait alourdi d'autant le HTML.
+
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).
 
@@ -367,7 +374,10 @@ balisage est facultatif. `Dataset` pour la lecture de zone : possible plus tard 
    animations infinies (Ken Burns sur le fond, boussole, kill feed) qui occupent le processeur en mobile bridé ; sur
    les pages intérieures, le shell monté après l'hydratation (corrigé par le lot 1).
 2. Rendu serveur de la vitrine (lot 2) et préchauffage du cache de `showcase` (par le cron, par exemple).
-3. *Unused JavaScript* (26 Kio) : en dernier.
+3. **Compresser le JSON dans nginx** : les réponses de l'API ne sont pas compressées (`/api/zone-reading` : 240 Ko
+   servis tels quels le 2026-10-18, alors que le HTML, le JS et le CSS le sont). Ajouter `application/json` à
+   `gzip_types` du bloc HTTPS — gain probable de 80 à 90 % sur les grosses réponses.
+4. *Unused JavaScript* (26 Kio) : en dernier.
 
 ---
 

@@ -159,7 +159,16 @@ Aucun nom de joueur dans l'analyse : des lignes de vol et des cercles.
 
 ## 6. Page et composants
 
-`src/app/lecture-de-zone/page.tsx` — bandeau photo (`/lecture-de-zone.jpg`, sur le dégradé de repli de la charte),
+`src/app/lecture-de-zone/page.tsx` est une page **serveur** (depuis le 2026-10-18) : elle rend la page interactive,
+`src/components/zone-reading/ZoneReadingPage.tsx` (composant client), et lui passe le bloc **« En bref »**
+(`ZoneReadingFindings`, dans un `Suspense`) placé sous l'analyse. Ce bloc met l'analyse par défaut (carte la plus
+jouée, Squad, toutes les parties) en phrases datées — premier cercle, zone finale et bande, sens de fermeture, règle
+pratique —, la méthode et les parties par carte. Textes composés par `zoneReadingFindings`
+(`src/lib/zone-reading/zone-reading-findings.ts`, mêmes verdicts et seuils que l'onglet Analyse), mêmes calcul et cache
+que `GET /api/zone-reading`. But : que les chiffres soient dans le HTML, lu tel quel par les robots des moteurs
+génératifs (docs/TODO/geo-seo-propositions.md, lot 2). Les `axes` (240 Ko) ne passent jamais par le serveur de page.
+
+`ZoneReadingPage.tsx` — bandeau photo (`/lecture-de-zone.jpg`, sur le dégradé de repli de la charte),
 bandeau de filtres collant (carte ‹ ›, Squad / Duo, 30 j / 90 j / Tous, « Calculé sur N parties depuis le … »),
 onglets Analyse / Entraînement (`?tab=training`, `replaceState` : l'entraînement reste monté), mention « La zone garde
 une part de hasard… » sous les deux onglets. Docké sur mobile, la ligne reste entière (exception

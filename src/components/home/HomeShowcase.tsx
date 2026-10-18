@@ -35,7 +35,7 @@ import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { useHomeShowcase } from '@/hooks/useHomeShowcase'
 import { useHomeTournaments } from '@/hooks/useHomeTournaments'
-import { formatMatchDuration, type ShowcaseDinner, type ShowcaseFeedEntry } from '@/lib/home-showcase'
+import { formatMatchDuration, type HomeShowcasePayload, type ShowcaseDinner, type ShowcaseFeedEntry } from '@/lib/home-showcase'
 import { getPeriodStart } from '@/lib/period'
 import { DEBRIEF_TAB_PARAM } from '@/lib/pubg-telemetry/debrief-view'
 
@@ -75,8 +75,10 @@ const JOIN_STEPS = [
 ]
 
 const numberFormat = new Intl.NumberFormat('fr-FR')
-const dayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short' })
-const timeFormat = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit' })
+// Heure de Paris, comme les soirées : la vitrine peut être rendue par le serveur, dont le fuseau n'est pas celui du
+// lecteur — sans fuseau fixe, le HTML et l'hydratation divergeraient.
+const dayFormat = new Intl.DateTimeFormat('fr-FR', { weekday: 'short', day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })
+const timeFormat = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
 
 function formatPlayedAt(value: string) {
   const date = new Date(value)
@@ -166,14 +168,15 @@ function Compass() {
         {strip.map((label, index) => {
           const cardinal = /[A-Z]/.test(label)
           return (
+            // Graduation tracée en CSS (`::before`, `data-label`) : décor, hors du texte de la page que lisent les robots
+            // (l'audit GEO y voyait « N 15 30 NE 60… » mêlé au contenu).
             <span
               key={index}
-              className={`w-[38px] shrink-0 text-center ${cardinal ? 'text-xl font-semibold' : 'text-sm'} ${
+              data-label={label}
+              className={`home-compass-label w-[38px] shrink-0 text-center ${cardinal ? 'text-xl font-semibold' : 'text-sm'} ${
                 label === 'N' ? 'text-amber-400' : 'text-white/85'
               }`}
-            >
-              {label}
-            </span>
+            />
           )
         })}
       </div>
@@ -777,12 +780,15 @@ function ZoneReadingAndPlayersRow() {
 export default function HomeShowcase({
   visitorMode,
   accountHref,
+  initialShowcase = null,
 }: {
   visitorMode: boolean
   /** Tableau de bord du membre connecté ; `null` pour un visiteur. */
   accountHref: string | null
+  /** Vitrine déjà en cache au rendu serveur : compteurs, Top 1 et kill feed dans le HTML. */
+  initialShowcase?: HomeShowcasePayload | null
 }) {
-  const { data, loading, error } = useHomeShowcase()
+  const { data, loading, error } = useHomeShowcase(initialShowcase)
   // Tournois : mêmes droits que la liste `/tournaments` (session ou mode visiteur), maquette « Accueil - Tournois ».
   const { data: tournaments } = useHomeTournaments(visitorMode || accountHref !== null)
   const [now] = useState(() => new Date())

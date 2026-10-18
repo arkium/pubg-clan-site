@@ -4,10 +4,14 @@ import { useEffect, useState } from 'react'
 
 import type { HomeShowcasePayload } from '@/lib/home-showcase'
 
-/** Données de la vitrine publique de l'accueil (`GET /api/home/showcase`, sans session). */
-export function useHomeShowcase() {
-  const [data, setData] = useState<HomeShowcasePayload | null>(null)
-  const [loading, setLoading] = useState(true)
+/**
+ * Données de la vitrine publique de l'accueil (`GET /api/home/showcase`, sans session). `initial` : la vitrine rendue
+ * par le serveur quand son cache était prêt (`getHomeShowcaseIfReady`) — affichée d'emblée, puis relue sans état de
+ * chargement.
+ */
+export function useHomeShowcase(initial: HomeShowcasePayload | null = null) {
+  const [data, setData] = useState<HomeShowcasePayload | null>(initial)
+  const [loading, setLoading] = useState(initial === null)
   const [error, setError] = useState('')
 
   useEffect(() => {

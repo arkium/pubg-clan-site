@@ -40,7 +40,13 @@ vi.mock('@/lib/map-label-service', () => ({
 }))
 
 import { GET } from '@/app/api/home/showcase/route'
-import { CACHE_TTL_MS, getHomeShowcase, resetHomeShowcaseCache } from '@/lib/home-showcase-service'
+import {
+  CACHE_TTL_MS,
+  getHomeShowcase,
+  getHomeShowcaseIfReady,
+  resetHomeShowcaseCache,
+  STALE_SHOWCASE_MAX_MS,
+} from '@/lib/home-showcase-service'
 
 const ACTIVE = { isActive: true, isSystem: false, archivedAt: null }
 
@@ -251,5 +257,39 @@ describe('home-showcase-service — cache', () => {
     mocks.clanCount.mockRejectedValueOnce(new Error('db down'))
     await expect(getHomeShowcase(now)).rejects.toThrow('db down')
     await expect(getHomeShowcase(now + 1_000)).resolves.toMatchObject({ stats: { clans: 29 } })
+  })
+})
+
+describe('home-showcase-service — rendu serveur de l’accueil', () => {
+  it('rend la vitrine en cache sans attendre', async () => {
+    const now = Date.UTC(2026, 8, 26, 20)
+    await getHomeShowcase(now)
+    await expect(getHomeShowcaseIfReady(150, now + 1_000)).resolves.toMatchObject({ stats: { clans: 29 } })
+  })
+
+  it('n’attend jamais une lecture à froid, mais la laisse réchauffer le cache', async () => {
+    const now = Date.UTC(2026, 8, 26, 20)
+    let release: (value: number) => void = () => {}
+    mocks.clanCount.mockImplementationOnce(() => new Promise<number>((resolve) => (release = resolve)))
+    const started = Date.now()
+    await expect(getHomeShowcaseIfReady(30, now)).resolves.toBeNull()
+    expect(Date.now() - started).toBeLessThan(1_000)
+
+    release(29)
+    await expect(getHomeShowcaseIfReady(150, now + 1_000)).resolves.toMatchObject({ stats: { clans: 29 } })
+    expect(mocks.squadMatchFindMany).toHaveBeenCalledTimes(1)
+  })
+
+  it('une lecture en échec donne `null`, pas une erreur de page', async () => {
+    mocks.clanCount.mockRejectedValueOnce(new Error('db down'))
+    await expect(getHomeShowcaseIfReady(150, Date.UTC(2026, 8, 26, 20))).resolves.toBeNull()
+  })
+
+  it('cache expiré et nouvelle lecture lente : la dernière vitrine connue, moins d’une heure', async () => {
+    const now = Date.UTC(2026, 8, 26, 20)
+    await getHomeShowcase(now)
+    mocks.clanCount.mockImplementation(() => new Promise<number>(() => {}))
+    await expect(getHomeShowcaseIfReady(30, now + CACHE_TTL_MS)).resolves.toMatchObject({ stats: { clans: 29 } })
+    await expect(getHomeShowcaseIfReady(30, now + STALE_SHOWCASE_MAX_MS)).resolves.toBeNull()
   })
 })

@@ -302,7 +302,11 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
 - `/carte-des-ressources` — **fait le 2026-10-18** : bloc serveur « En bref » sous la carte, une phrase par carte
   (parties analysées, emplacements par famille, le plus fréquent, points des joueurs) et la méthode avec ses seuils.
   59 → 397 mots.
-- Reste : l'accueil (vitrine) et les pages de clan.
+- `/` — **fait le 2026-10-18** : vitrine rendue par le serveur quand son cache est prêt (150 ms au plus, sinon la
+  dernière vitrine connue de moins d'une heure) — compteurs, Top 1 et kill feed dans le HTML, sans « Chargement… »,
+  premier octet ~0,1 s ; jamais d'attente d'une lecture à froid. Boussole du héros en CSS : « N 15 30 NE… » sort du
+  texte de la page (constat « pollution » de l'audit).
+- Reste : les pages de clan (vue d'ensemble d'abord).
 
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).

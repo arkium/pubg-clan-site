@@ -39,21 +39,56 @@ const WIN_CANDIDATES = 16
 
 const ACTIVE_CLAN = { isActive: true, isSystem: false, archivedAt: null } as const
 
+/** Âge maximal de la dernière vitrine connue, servie au rendu serveur pendant qu'une nouvelle se calcule. */
+export const STALE_SHOWCASE_MAX_MS = 60 * 60_000
+
 let cache: { at: number; value: Promise<HomeShowcasePayload> } | null = null
+let lastResolved: { at: number; value: HomeShowcasePayload } | null = null
 
 export function resetHomeShowcaseCache() {
   cache = null
+  lastResolved = null
 }
 
 export function getHomeShowcase(now: number = Date.now()): Promise<HomeShowcasePayload> {
   if (cache && now - cache.at < CACHE_TTL_MS) return cache.value
   const value = loadHomeShowcase(new Date(now))
   cache = { at: now, value }
-  // Une lecture en échec n'est pas gardée : le visiteur suivant réessaie.
-  value.catch(() => {
-    if (cache?.value === value) cache = null
-  })
+  value.then(
+    (payload) => {
+      lastResolved = { at: now, value: payload }
+    },
+    // Une lecture en échec n'est pas gardée : le visiteur suivant réessaie.
+    () => {
+      if (cache?.value === value) cache = null
+    }
+  )
   return value
+}
+
+/**
+ * Vitrine pour le rendu serveur de l'accueil (docs/TODO/geo-seo-propositions.md, lot 2) : la réponse en cache si elle
+ * est prête dans `waitMs`, sinon la dernière vitrine connue (moins de `STALE_SHOWCASE_MAX_MS`), sinon `null`.
+ * L'accueil n'attend jamais une lecture à froid (~2 s) : elle continue en arrière-plan pour le visiteur suivant, et le
+ * navigateur relit de toute façon l'API (`useHomeShowcase`).
+ */
+export async function getHomeShowcaseIfReady(waitMs = 150, now: number = Date.now()): Promise<HomeShowcasePayload | null> {
+  const pending = getHomeShowcase(now)
+  pending.catch(() => undefined)
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const timeout = new Promise<null>((resolve) => {
+    timer = setTimeout(() => resolve(null), waitMs)
+  })
+  let ready: HomeShowcasePayload | null = null
+  try {
+    ready = await Promise.race([pending, timeout])
+  } catch {
+    ready = null
+  } finally {
+    clearTimeout(timer)
+  }
+  if (ready) return ready
+  return lastResolved && now - lastResolved.at < STALE_SHOWCASE_MAX_MS ? lastResolved.value : null
 }
 
 function isoWeekNumber(date: Date): number {

@@ -80,6 +80,14 @@ Déposée le 2026-10-18 (Gemini, 1024 × 572, convertie en JPEG qualité 82 : 42
 Route **publique** (aucune session), servie par `src/lib/home-showcase-service.ts`, logique pure dans
 `src/lib/home-showcase.ts`.
 
+**Rendu serveur (2026-10-18)** — docs/TODO/geo-seo-propositions.md, lot 2 : `src/app/page.tsx` passe la vitrine à
+`HomeShowcase` (`initialShowcase`) par `getHomeShowcaseIfReady` — la réponse en cache si elle est prête en 150 ms,
+sinon la dernière vitrine connue de moins d'une heure, sinon rien. L'accueil n'attend **jamais** une lecture à froid
+(~2 s) : elle continue en arrière-plan pour le visiteur suivant. Compteurs, Top 1 et kill feed sont alors dans le HTML,
+sans « Chargement… » ; `useHomeShowcase` relit l'API au montage, sans état de chargement. Dates des Top 1 à l'heure de
+Paris (`timeZone` fixé : rendu serveur et hydratation identiques). La boussole du héros trace ses graduations en CSS
+(`::before`, `data-label`) : elles ne sont plus dans le texte de la page.
+
 | Champ | Source |
 |---|---|
 | `stats.clans` | `Clan` actifs, non système, non archivés |

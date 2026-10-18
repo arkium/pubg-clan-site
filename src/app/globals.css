@@ -2852,6 +2852,11 @@ html[data-app-theme='dark'] .home-showcase {
   animation: home-compass 40s linear infinite alternate;
 }
 
+/* Graduations de la boussole en contenu généré : visibles, mais absentes du texte de la page. */
+.home-compass-label::before {
+  content: attr(data-label);
+}
+
 .home-feed-kill {
   background: rgb(2 6 23 / 0.62);
   color: #fff;

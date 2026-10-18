@@ -5,6 +5,7 @@ import HomeShowcase from '@/components/home/HomeShowcase'
 import PendingActivation from '@/components/PendingActivation'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
+import { getHomeShowcaseIfReady } from '@/lib/home-showcase-service'
 import { homeJsonLd, siteUrl } from '@/lib/seo/page-seo'
 import { getSetupState } from '@/lib/setup-service'
 
@@ -32,11 +33,15 @@ export default async function Home() {
       : '/members'
     : null
 
+  // Vitrine dans le HTML quand son cache est prêt (docs/TODO/geo-seo-propositions.md, lot 2) ; jamais d'attente d'une
+  // lecture à froid : elle continue en arrière-plan et le navigateur charge la vitrine par l'API.
+  const initialShowcase = await getHomeShowcaseIfReady()
+
   // Titre, description et aperçus : layout racine (src/lib/seo/page-seo.ts) ; ici, les données structurées du site.
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: homeJsonLd(siteUrl()) }} />
-      <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} />
+      <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} initialShowcase={initialShowcase} />
     </>
   )
 }

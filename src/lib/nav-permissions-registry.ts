@@ -91,6 +91,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Classement public de tous les clans actifs.',
   },
   {
+    navKey: 'primary.players',
+    section: 'nav-primary',
+    label: 'Joueurs',
+    hrefTemplate: '/players',
+    defaultRole: 'none',
+    description: 'Classement inter-clans des joueurs (podium, rôles, tendances) et comparateur de deux ou trois joueurs ou moyennes de clan.',
+  },
+  {
     navKey: 'primary.comparator',
     section: 'nav-primary',
     label: 'Comparateur',

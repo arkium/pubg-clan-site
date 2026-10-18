@@ -4,8 +4,10 @@ import Link from 'next/link'
 import { ChevronDown, CircleDashed, Crosshair, Flame, HandFist, Hourglass, Info, Rocket, ShieldCheck, Swords, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
-import PodiumSteps, { ClanLogo } from '@/components/ui/PodiumSteps'
+import ClanTag from '@/components/ui/ClanTag'
+import PodiumSteps, { ClanLogo, PodiumPlate, PodiumStats, PodiumTitle } from '@/components/ui/PodiumSteps'
 import RankCell from '@/components/ui/RankCell'
+import RankMovement from '@/components/ui/RankMovement'
 import {
   LEAGUE_MATCH_TYPE_OPTIONS,
   leagueCriterion,
@@ -54,8 +56,21 @@ function ClanLink({ access, clanId, className, children, label }: { access: Clan
 
 // ── Type de partie ────────────────────────────────────────────────────────────────────────────────
 
-/** Menu du type de partie (bandeau, à partir de `sm`) : déclencheur `app-menu-trigger`, accent hors de « Normal ». */
-export function MatchTypeMenu({ value, onChange }: { value: LeagueMatchType; onChange: (value: LeagueMatchType) => void }) {
+/**
+ * Menu du type de partie (bandeau) : déclencheur `app-menu-trigger`, accent hors de « Normal ». Le même menu à toutes les
+ * largeurs depuis le 2026-10-18 (plus de segmented sur téléphone) ; `className` / `triggerClassName` l'étirent sur mobile.
+ */
+export function MatchTypeMenu({
+  value,
+  onChange,
+  className = '',
+  triggerClassName = '',
+}: {
+  value: LeagueMatchType
+  onChange: (value: LeagueMatchType) => void
+  className?: string
+  triggerClassName?: string
+}) {
   const [open, setOpen] = useState(false)
   const rootRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
@@ -73,7 +88,7 @@ export function MatchTypeMenu({ value, onChange }: { value: LeagueMatchType; onC
   const current = LEAGUE_MATCH_TYPE_OPTIONS.find((option) => option.value === value) ?? LEAGUE_MATCH_TYPE_OPTIONS[0]
   return (
     // Étiré à la hauteur de la ligne du bandeau : même hauteur que le segmented voisin.
-    <div ref={rootRef} className="relative flex shrink-0 self-stretch">
+    <div ref={rootRef} className={`relative flex shrink-0 self-stretch ${className}`.trim()}>
       <button
         type="button"
         onClick={() => setOpen((state) => !state)}
@@ -81,7 +96,7 @@ export function MatchTypeMenu({ value, onChange }: { value: LeagueMatchType; onC
         aria-expanded={open}
         aria-label={`Type de partie : ${current.label}`}
         data-testid="match-type-chip"
-        className={`app-menu-trigger ${value !== 'official' ? 'app-menu-trigger--active' : ''}`}
+        className={`app-menu-trigger ${value !== 'official' ? 'app-menu-trigger--active' : ''} ${triggerClassName}`.trim()}
       >
         {current.label}
         <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
@@ -114,12 +129,18 @@ export function MatchTypeMenu({ value, onChange }: { value: LeagueMatchType; onC
 
 // ── Podium ────────────────────────────────────────────────────────────────────────────────────────
 
+/**
+ * Podium de la Ligue, au gabarit de la page Joueurs (demande du 2026-10-18) : titre en évidence, sans tampon, plaque de
+ * score au métal de la marche (valeur et unité du critère), « N parties · N Top 1 », tag du clan en or de jeu.
+ */
 export function LeaguePodium({ ranked, criterion, access }: { ranked: RankedEntry[]; criterion: LeagueCriterion; access: ClanAccess }) {
   const meta = leagueCriterion(criterion)
   return (
     <PodiumSteps
       ariaLabel={`Podium · ${meta.long}`}
-      title={`Podium · ${meta.long}`}
+      title={<PodiumTitle label={meta.long} />}
+      stamp={null}
+      emphasis
       entries={ranked.slice(0, 3).map((entry) => ({
         key: String(entry.clanId),
         position: entry.position,
@@ -131,8 +152,9 @@ export function LeaguePodium({ ranked, criterion, access }: { ranked: RankedEntr
             <b className="max-w-full truncate text-sm font-extrabold tracking-tight sm:text-lg">{entry.name}</b>
           </ClanLink>
         ),
-        caption: `[${entry.tag}]`,
-        value: `${meta.format(meta.value(entry))}${criterion === 'winRate' ? ' WR' : ''}`,
+        caption: <ClanTag tag={entry.tag} tone="photo" size="md" />,
+        value: <PodiumPlate value={meta.plate(meta.value(entry))} unit={meta.unit} />,
+        detail: <PodiumStats count={entry.matches} label="parties" wins={entry.wins} />,
       }))}
     />
   )
@@ -218,21 +240,6 @@ export function LeagueTitles({ titles, periodOf }: { titles: Titles; periodOf: s
 
 // ── Classement par cercle ───────────────────────────────────────────────────────────────────────
 
-function Movement({ entry }: { entry: RankedEntry }) {
-  if (entry.previousRank === null) return <span className="text-[11px] font-extrabold text-gray-500" title="Pas classé sur la période précédente">nouv.</span>
-  const delta = entry.previousRank - entry.rank
-  if (delta === 0) return <span className="text-[11px] font-extrabold text-gray-500" title="Même rang que la période précédente">=</span>
-  return (
-    <span
-      className="t-num text-[11px] font-extrabold"
-      style={{ color: delta > 0 ? 'var(--theme-ui-positive)' : 'var(--theme-ui-negative)' }}
-      title={`${delta > 0 ? 'Gagne' : 'Perd'} ${Math.abs(delta)} place${Math.abs(delta) > 1 ? 's' : ''} par rapport à la période précédente (${entry.previousRank}e)`}
-    >
-      {delta > 0 ? `▲${delta}` : `▼${-delta}`}
-    </span>
-  )
-}
-
 const MINE_BADGE = 'shrink-0 rounded-[5px] bg-[var(--theme-ui-accent-soft)] px-1.5 py-px text-[11px] font-extrabold text-[var(--theme-ui-accent-text)]'
 
 function LeagueRow({ entry, ranked, criterion, mine, showMovement, top, barColor, dimmed, access }: {
@@ -260,7 +267,7 @@ function LeagueRow({ entry, ranked, criterion, mine, showMovement, top, barColor
         <span className="flex w-[26px] shrink-0 justify-end">
           <RankCell rank={entry.position} size="xs" />
         </span>
-        {showMovement ? <span className="w-[34px] shrink-0">{<Movement entry={entry} />}</span> : null}
+        {showMovement ? <span className="w-[34px] shrink-0"><RankMovement rank={entry.rank} previousRank={entry.previousRank} /></span> : null}
         <ClanLogo imageUrl={entry.imageUrl} size={32} className={`rounded-lg ${dimmed ? 'grayscale-[.5]' : ''}`} />
         <span className="flex min-w-0 flex-1 flex-col gap-1">
           <span className="flex min-w-0 items-baseline gap-1.5">

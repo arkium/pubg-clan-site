@@ -20,7 +20,7 @@
 | Inscription | « Ton clan joue déjà. Ses stats t’attendent. », rappel « chickendinner.fr ne recrute pas : il suit les clans qui existent déjà dans PUBG », trois étapes (pseudo PUBG, demander l’accès à son clan ou l’inscrire — le compte se crée à l’acceptation —, stats), « Donner mon pseudo PUBG » (`/join`), puis `/clans` : « Voir les clans » pour un connecté, « Parcourir en visiteur » en mode visiteur, rien sinon |
 | Pourquoi atterrir ici (ajouté le 2026-09-27) | « Toute la scène PUBG francophone, dans la même zone » : trois cartes — Ligue des clans (`/clans-leaderboard`), Tournois, carte sombre « Zéro inscription » (`/tournaments`), Comparateur (`/clans/comparator`). Mêmes pages que la navigation du héros, mêmes droits d'accès |
 | Discord (ajouté le 2026-10-05) | « Winner winner ? Ton Discord le sait déjà » : bandeau sombre sur photo comme « Inscription » (`DiscordSection`, `HomeShowcase.tsx`), trois fonctions vérifiées contre [discord-notifications.md](discord-notifications.md) — alerte Chicken Dinner automatique, résultats de tournoi par manche avec MVP et classement général, réglages (modes, types de partie, rôle mentionné, simple webhook) —, lien « Inscrire mon clan » et rappel « menu Admin › Notifications Discord ». Image `public/discord-chicken-dinner.jpg` (IA) |
-| Lecture de zone (ajouté le 2026-10-06) | Sous Discord, même bandeau sombre sur photo (`ZoneReadingSection`, `HomeShowcase.tsx`) : « L'avion donne le premier cercle. Pas la zone finale. », trois points (l'avion place le premier cercle, vise le centre plutôt que la ligne, entraînement sur les parties du clan) et lien « Lire la zone → » vers `/lecture-de-zone` ([lecture-de-zone.md](lecture-de-zone.md)). Textes fixes, tirés de la mesure du 2026-10-06 : la vitrine ne charge pas l'analyse. Image `public/vitrine-lecture-de-zone.jpg` (IA, 1600 × 900) |
+| Lecture de zone · Joueurs (ligne à deux colonnes depuis le 2026-10-18) | Sous Discord, `ZoneReadingAndPlayersRow` (`HomeShowcase.tsx`) : deux bandeaux sombres sur photo de même gabarit (`PhotoPointsCard` : étiquette, titre sur deux lignes dont la seconde en ambre, trois points à icône, lien et note, lien aligné en bas), **côte à côte à partir de 1 024 px**, l'un sous l'autre en dessous. À droite, la **nouveauté Joueurs** (tampon « NOUVEAU » des cartes Nouveautés) : « Classement des joueurs », « Tu carry ton squad ? Prouve-le face à tous les clans. », trois points (classement entre tous les clans, rôles Fragger / Medic / Ghost / tireur et badge, comparateur), lien « Voir le classement des joueurs → » vers `/players` ([joueurs.md](joueurs.md)). Textes fixes, **aucun pseudo**. Image `public/vitrine-joueurs.jpg` (IA, 1024 × 572, 42 Ko — prompt ci-dessous). À gauche, Lecture de zone, inchangée : « L'avion donne le premier cercle. Pas la zone finale. », trois points (l'avion place le premier cercle, vise le centre plutôt que la ligne, entraînement sur les parties du clan) et lien « Lire la zone → » vers `/lecture-de-zone` ([lecture-de-zone.md](lecture-de-zone.md)). Textes fixes, tirés de la mesure du 2026-10-06 : la vitrine ne charge pas l'analyse. Image `public/vitrine-lecture-de-zone.jpg` (IA, 1600 × 900) |
 | Hub des clans (ajouté le 2026-10-10) | **Dernier bloc**, après « Lecture de zone », juste avant le pied de page (`HomeClansHub.tsx`) : la vitrine montre surtout un squad, ce bandeau dit que le site réunit **tous les clans**. Maquette Claude Design « Accueil - Bandeau clans », variante **1a « Bande de largage »** (1c en clair, 1e en mobile). Toujours sombre (fond quadrillé). Étiquette « Le hub des clans PUBG FR », titre « Pas un clan. Tous les clans. », phrase d’accroche, trois compteurs (clans suivis, joueurs, parties analysées) ; deux **bandes inclinées qui se croisent et défilent en sens opposés** — la jaune : logo, nom, tag, « #N Ligue » ; la noire bordée de rayures de balisage : Power score, parties de la semaine, tendance (▲ / ▼ / =, rien pour un clan non classé la semaine dernière) ; une ligne qui dit d’où viennent les chiffres ; « Explorer l’annuaire des clans » (`/clans`) et « Voir la Ligue » (`/clans-leaderboard`). Chaque clan mène à sa vue d’ensemble. Pause au survol et au clavier, figé sous `prefers-reduced-motion`. Masqué s’il n’y a aucun clan à montrer (Ligue indisponible) |
 | Nouveautés (ajouté le 2026-10-05) | « Fraîchement largué : deux nouveaux outils » : deux grandes cartes sombres sur photo (`NEWS`, `HomeShowcase.tsx`), Mortier (`/mortier`) et Carte des ressources (`/carte-des-ressources`), tampon « NOUVEAU », lien étendu à toute la carte. Images `public/nouveaute-*.jpg` générées par IA (Gemini, signalé dans les mentions légales). Pas dans la navigation du héros : à 1 024 px, six liens ne tiennent pas à côté de « Se connecter » et « Rejoindre ». Une nouveauté qui n'en est plus une sort de `NEWS` |
 | Pied de page | Même contenu que le footer du site (`LegalFooterContent`, `src/components/SiteFooter.tsx`) : © Arkium (lien vers arkium.eu), les trois liens légaux, logo texte chickendinner.fr, mention KRAFTON complète ([pages-legales.md](pages-legales.md)) ; seules les marges sont celles de la vitrine. Remplace le pied de page du layout, masqué sur cette page |
@@ -32,7 +32,27 @@ La vitrine est **plein écran pour tous**, connectés compris : pas de menu lat�
 Le menu latéral du site porte une entrée **« Accueil »** (`primary.home`, en tête) qui mène à `/`. Après la
 connexion, on arrive toujours sur son tableau de bord, pas sur la vitrine.
 
+
+### Image de la nouveauté Joueurs (`public/vitrine-joueurs.jpg`)
+
+Même famille que les autres illustrations de la vitrine (IA, Gemini — signalé dans les mentions légales) : 1600 × 900,
+JPEG ≈ 80 % (< 150 Ko), moitié gauche vide et très sombre pour le texte, sujet dans le **tiers droit** et au milieu en
+hauteur — en deux colonnes, la carte (≈ 590 × 620 px) recadre l'image sur sa partie droite (`background-position: 85% 70%`).
+Déposée le 2026-10-18 (Gemini, 1024 × 572, convertie en JPEG qualité 82 : 42 Ko) et branchée par `PLAYERS_IMAGE`
+(`HomeShowcase.tsx`). Un original en 1600 × 900 serait un peu plus net sur les grands écrans : le déposer sous le même nom.
+
+> Cinematic 16:9 digital illustration, 1600×900, dark esports battle-royale mood. The entire left half is empty, smooth
+> dark navy-to-black negative space (for text overlay). In the right third, centered vertically: three soldiers in modern
+> tactical gear (level-3 helmets, plate carriers, rifles slung) standing on a stepped winner's podium — second place on
+> the left, first place in the middle and taller, third place on the right; the first-place step glows warm amber-gold
+> and a small golden crown floats above the winner. Behind them, floating holographic HUD panels in amber and white: a
+> ranking list with rank numbers and small up/down arrows, and a radar chart with two overlapping shapes (one blue, one
+> orange) suggesting a head-to-head player comparison. Warm amber rim light on the soldiers, cool dark blue ambient,
+> light dust particles and volumetric haze, high contrast, premium esports-broadcast look, photorealistic game-render
+> style. No logos, no brand names, no readable text or numbers, no watermark.
+
 ---
+
 
 ## 2. Décisions (2026-09-26)
 

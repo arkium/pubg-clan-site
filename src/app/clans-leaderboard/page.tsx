@@ -5,8 +5,8 @@ import { Suspense, useMemo, useState } from 'react'
 
 import { LeagueFeed, LeaguePodium, LeagueRanking, LeagueTitles, MatchTypeMenu, PowerScoreHelp, type ClanAccess } from '@/components/clan-league/LeagueSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
-import SegmentedControl from '@/components/ui/SegmentedControl'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { usePageData } from '@/hooks/usePageData'
@@ -14,7 +14,6 @@ import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import {
   LEAGUE_CRITERIA,
-  LEAGUE_MATCH_TYPE_OPTIONS,
   leagueCriterion,
   leagueMatchTypeOption,
   rankByCriterion,
@@ -53,7 +52,6 @@ function LeagueContent() {
   const mine = ranked.find((entry) => entry.clanId === mineClanId) ?? null
   const mineQualifying = data?.qualifying.find((clan) => clan.clanId === mineClanId) ?? null
   const mineIdle = data?.withoutMatch.find((clan) => clan.clanId === mineClanId) ?? null
-  const criterionIndex = LEAGUE_CRITERIA.findIndex((entry) => entry.key === criterion)
   const type = leagueMatchTypeOption(matchType)
 
   const zoneEnd = data?.scoring.settings.zoneEnd ?? 8
@@ -76,37 +74,42 @@ function LeagueContent() {
     <>
       {/*
         Exception à sticky.md §2 (décision du 2026-09-27, maquette « Ligue clans ») : docké sur mobile, le bandeau garde,
-        sur une ligne, la période, le critère (un bouton qui passe au suivant) et la pastille « Mon clan ». Le type de partie
-        (2026-10-04) : menu sur la ligne à partir de `sm` ; sur mobile, seconde ligne au repos, absente une fois docké.
+        la période et le critère. Critère : liste déroulante « Classer par » (`MobileDropdownNav` compact, comme la page
+        Joueurs) ; type de partie : le même menu à toutes les largeurs (demandes du 2026-10-18). Une ligne à partir de
+        640 px. Sur téléphone, au repos : période et pastille « Mon clan », puis type de partie et critère côte à côte (ordre
+        CSS, chaque contrôle rendu une fois, rien ne déborde) ; docké : période et critère.
       */}
       <DockingToolbar ariaLabel="Filtres de la ligue inter-clans">
         {({ compact }) => (
-          <div className="flex w-full flex-col gap-2">
-            <div className="flex w-full flex-nowrap items-center gap-2">
-              <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
-              <div className="hidden self-stretch sm:flex">
-                <MatchTypeMenu value={matchType} onChange={setMatchType} />
+          <div className="flex w-full flex-wrap items-center gap-2 sm:flex-nowrap">
+            <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
+            {!compact ? (
+              <div className="order-3 flex min-w-0 flex-1 self-stretch sm:order-none sm:flex-none">
+                <MatchTypeMenu value={matchType} onChange={setMatchType} className="flex-1 sm:flex-none" triggerClassName="w-full justify-between sm:w-auto" />
               </div>
-              <div role="group" aria-label="Critère" className="hidden lg:block">
-                <SegmentedControl options={LEAGUE_CRITERIA.map((entry) => ({ value: entry.key, label: entry.label }))} value={criterion} onChange={setCriterion} />
-              </div>
-              {/* Visibilité sur le conteneur : la classe globale `app-menu-trigger` impose son `display` à `lg:hidden`. */}
-              <div className="flex shrink-0 self-stretch lg:hidden">
-                <button
-                  type="button"
-                  onClick={() => setCriterion(LEAGUE_CRITERIA[(criterionIndex + 1) % LEAGUE_CRITERIA.length].key)}
-                  aria-label={`Critère : ${leagueCriterion(criterion).label} (toucher pour passer au suivant)`}
-                  className="app-menu-trigger app-menu-trigger--active"
-                >
-                  <ArrowDownUp className="h-3.5 w-3.5" aria-hidden="true" />
-                  {leagueCriterion(criterion).label}
-                </button>
-              </div>
-              {mine || mineQualifying || mineIdle ? (
+            ) : null}
+              {/* Intitulé « Classer par » à partir de 640 px ; le nom accessible le garde (« Classer par : Power »). */}
+              <MobileDropdownNav
+                id="league-criterion"
+                label="Classer par"
+                variant="compact"
+                currentLabel={leagueCriterion(criterion).label}
+                leftIcon={<ArrowDownUp className="h-3.5 w-3.5" aria-hidden="true" />}
+                items={LEAGUE_CRITERIA.map((entry) => ({
+                  key: entry.key,
+                  label: entry.label,
+                  active: entry.key === criterion,
+                  onSelect: () => setCriterion(entry.key),
+                }))}
+                visibilityClass="block"
+                className="order-4 min-w-0 flex-1 sm:order-none sm:flex-none [&_.member-section-nav-mobile-label]:hidden sm:[&_.member-section-nav-mobile-label]:block"
+              />
+              {!compact ? <span aria-hidden="true" className="order-2 h-0 basis-full sm:hidden" /> : null}
+              {!compact && (mine || mineQualifying || mineIdle) ? (
                 <button
                   type="button"
                   onClick={goToMine}
-                  className="app-toolbar-btn ml-auto shrink-0 self-stretch"
+                  className="app-toolbar-btn order-1 ml-auto shrink-0 self-stretch sm:order-none"
                   aria-label={mineAria}
                   data-testid="mine-chip"
                 >
@@ -119,16 +122,6 @@ function LeagueContent() {
                   <span className="t-num font-bold text-gray-900">{mineLabel}</span>
                 </button>
               ) : null}
-            </div>
-            {!compact ? (
-              <div role="group" aria-label="Type de partie" className="sm:hidden">
-                <SegmentedControl
-                  options={LEAGUE_MATCH_TYPE_OPTIONS.map((option) => ({ value: option.value, label: option.short }))}
-                  value={matchType}
-                  onChange={setMatchType}
-                />
-              </div>
-            ) : null}
           </div>
         )}
       </DockingToolbar>

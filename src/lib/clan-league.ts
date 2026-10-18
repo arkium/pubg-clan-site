@@ -269,14 +269,25 @@ export type LeagueCriterion = 'power' | 'placement' | 'winRate' | 'damage' | 'ki
 const integer = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 const oneDecimal = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 
-/** Les colonnes affichent les valeurs brutes ; seul le Power score est pondéré. Le win rate reste un critère. */
-export const LEAGUE_CRITERIA: Array<{ key: LeagueCriterion; label: string; long: string; value: (standing: LeagueStanding) => number; format: (value: number) => string }> = [
-  { key: 'power', label: 'Power', long: 'Power score', value: (s) => s.powerScore, format: (v) => integer.format(Math.round(v)) },
-  { key: 'placement', label: 'Placement', long: 'Points de placement moyens', value: (s) => s.avgPlacementPoints, format: (v) => oneDecimal.format(v) },
-  { key: 'winRate', label: 'Win rate', long: 'Win rate', value: (s) => s.winRate, format: (v) => `${oneDecimal.format(v * 100)} %` },
-  { key: 'damage', label: 'Dégâts', long: 'Dégâts moyens', value: (s) => s.avgDamage, format: (v) => integer.format(Math.round(v)) },
-  { key: 'kills', label: 'Kills', long: 'Kills moyens', value: (s) => s.avgKills, format: (v) => oneDecimal.format(v) },
-  { key: 'knocks', label: 'Knocks', long: 'Knocks moyens', value: (s) => s.avgKnocks, format: (v) => oneDecimal.format(v) },
+/**
+ * Les colonnes affichent les valeurs brutes ; seul le Power score est pondéré. Le win rate reste un critère. `plate` et
+ * `unit` : la plaque de score du podium (« 1 788 PTS », « 14,8 % WR » — demande du 2026-10-18, comme la page Joueurs).
+ */
+export const LEAGUE_CRITERIA: Array<{
+  key: LeagueCriterion
+  label: string
+  long: string
+  value: (standing: LeagueStanding) => number
+  format: (value: number) => string
+  plate: (value: number) => string
+  unit: string
+}> = [
+  { key: 'power', label: 'Power', long: 'Power score', value: (s) => s.powerScore, format: (v) => integer.format(Math.round(v)), plate: (v) => integer.format(Math.round(v)), unit: 'pts' },
+  { key: 'placement', label: 'Placement', long: 'Points de placement moyens', value: (s) => s.avgPlacementPoints, format: (v) => oneDecimal.format(v), plate: (v) => oneDecimal.format(v), unit: 'pts' },
+  { key: 'winRate', label: 'Win rate', long: 'Win rate', value: (s) => s.winRate, format: (v) => `${oneDecimal.format(v * 100)} %`, plate: (v) => oneDecimal.format(v * 100), unit: '% WR' },
+  { key: 'damage', label: 'Dégâts', long: 'Dégâts moyens', value: (s) => s.avgDamage, format: (v) => integer.format(Math.round(v)), plate: (v) => integer.format(Math.round(v)), unit: 'dégâts' },
+  { key: 'kills', label: 'Kills', long: 'Kills moyens', value: (s) => s.avgKills, format: (v) => oneDecimal.format(v), plate: (v) => oneDecimal.format(v), unit: 'kills' },
+  { key: 'knocks', label: 'Knocks', long: 'Knocks moyens', value: (s) => s.avgKnocks, format: (v) => oneDecimal.format(v), plate: (v) => oneDecimal.format(v), unit: 'knocks' },
 ]
 
 export const leagueCriterion = (key: LeagueCriterion) => LEAGUE_CRITERIA.find((criterion) => criterion.key === key)!

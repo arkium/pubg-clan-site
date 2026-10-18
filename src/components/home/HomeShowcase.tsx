@@ -9,6 +9,7 @@ import {
   ChevronRight,
   CircleDot,
   Crosshair,
+  GitCompareArrows,
   LogIn,
   MapPin,
   Medal,
@@ -43,7 +44,8 @@ import { DEBRIEF_TAB_PARAM } from '@/lib/pubg-telemetry/debrief-view'
  * Maquette : Claude Design « Accueil chickendinner.dc.html » (écrans 4a à 4d).
  *
  * Plein écran, sans le shell : héros de jeu (boussole, compteurs, kill feed), Top 1 récents en carrousel, inscription
- * des clans, « Pourquoi atterrir ici » (Ligue, tournois, comparateur), nouveautés, Discord, Lecture de zone, puis le hub
+ * des clans, « Pourquoi atterrir ici » (Ligue, tournois, comparateur), nouveautés, Discord, Lecture de zone et Joueurs
+ * (deux colonnes), puis le hub
  * des clans (`HomeClansHub`). Le héros, les bandeaux sur photo, la carte Tournois et le hub des clans sont sombres par
  * construction ; le reste suit le thème.
  * Vocabulaire : le site ne recrute pas, il suit les clans qui existent déjà dans PUBG — « inscrire son clan », « relier
@@ -647,45 +649,128 @@ const ZONE_READING_POINTS = [
   },
 ] as const
 
-function ZoneReadingSection() {
+/**
+ * Joueurs (docs/features/joueurs.md) : classement inter-clans des joueurs et comparateur, nouveauté du 2026-10-18.
+ * Textes fixes, sans pseudo : la vitrine n'expose aucun joueur (docs/features/accueil.md). Image : illustration IA du
+ * 2026-10-18 (podium et panneaux de classement, prompt dans accueil.md).
+ */
+const PLAYERS_IMAGE = '/vitrine-joueurs.jpg'
+const PLAYERS_POINTS = [
+  {
+    icon: Medal,
+    title: 'Un classement entre tous les clans',
+    text: 'Dégâts, kills, knocks, réanimations, survie : les joueurs des clans suivis, classés sur leurs parties de clan, de la semaine à depuis le début.',
+  },
+  {
+    icon: Crosshair,
+    title: 'Fragger, Medic, Ghost ou tireur',
+    text: 'Un score sur 100 par rôle, face à tous les joueurs classés. Ton badge dit quel rôle tu tiens vraiment.',
+  },
+  {
+    icon: GitCompareArrows,
+    title: 'Compare-toi à qui tu veux',
+    text: 'Ton coéquipier, un rival d’un autre clan ou la moyenne de ton clan : radar des rôles, duels directs et qui fait mieux, mesure par mesure.',
+  },
+] as const
+
+/**
+ * Bandeau sombre sur photo d'une colonne (même habillage que Discord et « Inscription ») : étiquette, titre sur deux
+ * lignes (la seconde en ambre), trois points à icône, un lien et sa note. Le lien reste en bas quand les deux colonnes
+ * n'ont pas la même hauteur.
+ */
+function PhotoPointsCard({
+  titleId,
+  image,
+  eyebrow,
+  isNew = false,
+  title,
+  accent,
+  points,
+  href,
+  link,
+  note,
+}: {
+  titleId: string
+  image: string
+  eyebrow: string
+  isNew?: boolean
+  title: string
+  accent: string
+  points: ReadonlyArray<{ icon: typeof Plane; title: string; text: string }>
+  href: string
+  link: string
+  note: string
+}) {
   return (
-    <section className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20" aria-labelledby="home-zone-reading-title">
-      {/* Même bandeau sombre sur photo que Discord et « Inscription ». */}
-      <div className="home-join relative mx-auto max-w-[1200px] overflow-hidden rounded-[22px] text-white">
-        <div className="home-join-bg absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: `url(${ZONE_READING_IMAGE})` }} aria-hidden="true" />
-        <div className="home-join-shade absolute inset-0" aria-hidden="true" />
-        <div className="relative flex max-w-[640px] flex-col gap-[22px] p-6 md:p-10 lg:p-14">
-          <span className="text-xs font-bold uppercase tracking-[0.14em] text-amber-400">Lecture de zone</span>
-          <h2 id="home-zone-reading-title" className="home-display m-0 text-[40px] font-semibold uppercase leading-[0.92] lg:text-[64px]">
-            L’avion donne le premier cercle.
-            <br />
-            <span className="text-amber-400">Pas la zone finale.</span>
-          </h2>
-          <ul className="m-0 flex list-none flex-col gap-3 p-0">
-            {ZONE_READING_POINTS.map(({ icon: Icon, title, text }) => (
-              <li key={title} className="flex items-start gap-3.5">
-                <span className="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] border border-amber-400/55 bg-amber-400/10 text-amber-200">
-                  <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
-                </span>
-                <div>
-                  <p className="m-0 text-[15px] font-bold">{title}</p>
-                  <p className="m-0 mt-0.5 text-sm leading-normal text-white/75">{text}</p>
-                </div>
-              </li>
-            ))}
-          </ul>
-          <div className="flex flex-col items-start gap-2">
-            <Link
-              href="/lecture-de-zone"
-              className="inline-flex h-12 items-center rounded-xl border border-white/25 px-[18px] text-[15px] font-semibold text-white hover:bg-white/10"
-            >
-              Lire la zone →
-            </Link>
-            <p className="m-0 text-[13px] text-white/60">Analyse ouverte à tous ; séries enregistrées pour les membres d’un clan.</p>
-          </div>
+    <section aria-labelledby={titleId} className="home-join relative flex overflow-hidden rounded-[22px] text-white">
+      <div className="home-join-bg absolute inset-0 bg-cover bg-no-repeat" style={{ backgroundImage: `url(${image})` }} aria-hidden="true" />
+      <div className="home-join-shade absolute inset-0" aria-hidden="true" />
+      <div className="relative flex w-full max-w-[640px] flex-col gap-[22px] p-6 md:p-10">
+        {/* Hauteur du tampon réservée dans les deux colonnes : les titres restent alignés. */}
+        <div className="flex min-h-[26px] items-center justify-between gap-3">
+          <span className="text-xs font-bold uppercase tracking-[0.14em] text-amber-400">{eyebrow}</span>
+          {/* Même tampon que les cartes « Nouveautés ». */}
+          {isNew ? <span className="-rotate-3 rounded-[5px] bg-amber-400 px-2.5 py-1 text-[11px] font-black tracking-[0.06em] text-amber-950">NOUVEAU</span> : null}
+        </div>
+        <h2 id={titleId} className="home-display m-0 text-[40px] font-semibold uppercase leading-[0.92] lg:text-[48px]">
+          {title}
+          <br />
+          <span className="text-amber-400">{accent}</span>
+        </h2>
+        <ul className="m-0 flex list-none flex-col gap-3 p-0">
+          {points.map(({ icon: Icon, title: pointTitle, text }) => (
+            <li key={pointTitle} className="flex items-start gap-3.5">
+              <span className="inline-flex h-[34px] w-[34px] shrink-0 items-center justify-center rounded-[9px] border border-amber-400/55 bg-amber-400/10 text-amber-200">
+                <Icon className="h-[18px] w-[18px]" aria-hidden="true" />
+              </span>
+              <div>
+                <p className="m-0 text-[15px] font-bold">{pointTitle}</p>
+                <p className="m-0 mt-0.5 text-sm leading-normal text-white/75">{text}</p>
+              </div>
+            </li>
+          ))}
+        </ul>
+        <div className="mt-auto flex flex-col items-start gap-2">
+          <Link href={href} className="inline-flex h-12 items-center rounded-xl border border-white/25 px-[18px] text-[15px] font-semibold text-white hover:bg-white/10">
+            {link}
+          </Link>
+          <p className="m-0 text-[13px] text-white/60">{note}</p>
         </div>
       </div>
     </section>
+  )
+}
+
+/** Ligne « Lecture de zone · Joueurs » : deux colonnes à partir de 1 024 px (demande du 2026-10-18), l'une sous l'autre en dessous. */
+function ZoneReadingAndPlayersRow() {
+  return (
+    <div data-testid="home-zone-players" className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20">
+      <div className="mx-auto grid max-w-[1200px] gap-3.5 lg:grid-cols-2">
+        <PhotoPointsCard
+          titleId="home-zone-reading-title"
+          image={ZONE_READING_IMAGE}
+          eyebrow="Lecture de zone"
+          title="L’avion donne le premier cercle."
+          accent="Pas la zone finale."
+          points={ZONE_READING_POINTS}
+          href="/lecture-de-zone"
+          link="Lire la zone →"
+          note="Analyse ouverte à tous ; séries enregistrées pour les membres d’un clan."
+        />
+        <PhotoPointsCard
+          titleId="home-players-title"
+          image={PLAYERS_IMAGE}
+          eyebrow="Classement des joueurs"
+          isNew
+          title="Tu carry ton squad ?"
+          accent="Prouve-le face à tous les clans."
+          points={PLAYERS_POINTS}
+          href="/players"
+          link="Voir le classement des joueurs →"
+          note="Classement ouvert à tous ; « Mon rang » pour les membres connectés."
+        />
+      </div>
+    </div>
   )
 }
 
@@ -922,7 +1007,8 @@ export default function HomeShowcase({
 
       <DiscordSection />
 
-      <ZoneReadingSection />
+      {/* Lecture de zone et la nouveauté Joueurs (classement et comparateur), côte à côte sur ordinateur. */}
+      <ZoneReadingAndPlayersRow />
 
       {/* HUB DES CLANS — fin de page : le site réunit tous les clans, pas un seul (maquette « Accueil - Bandeau clans » 1a). */}
       <HomeClansHub clans={data?.clans ?? []} stats={stats} />

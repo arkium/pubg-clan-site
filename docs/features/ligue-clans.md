@@ -67,13 +67,19 @@ tous les types, le classement du mois est presque vide hors Normal : les seuils 
 - **Charte UI** (04/10/2026, `.charte` + `.game-ui`) : titre Teko sur la photo, tampon `app-stamp`, chiffres des marches
   en Teko, couronne en or de jeu (`.app-on-photo` sur le podium, toujours sombre), titres aux jetons de jeu, rangs par
   `RankCell`, textes à 11 px minimum. Signatures conservées : podium en marches, fil, blue zone (seul bleu autorisé). Le
-  podium vit depuis le 2026-10-11 dans `src/components/ui/PodiumSteps.tsx`, partagé avec la page d'un tournoi
-  (`LeaguePodium` n'y passe que le logo, le nom, le tag et la valeur du critère).
-- **Bandeau** (`DockingToolbar`) sur une ligne, **docké aussi sur mobile** : exception nommée à sticky.md §2
-  (`MOBILE_DOCKED_EXTRA_CONTROLS`) — période, **type de partie** (menu à partir de 640 px ; sur mobile, segmented en
-  seconde ligne au repos, absent une fois docké), critère (Power, Placement, Win rate, Dégâts, Kills, Knocks : segments
-  à partir de 1 024 px, sinon un bouton qui passe au suivant), pastille « Mon clan » (session ; absente pour un
-  visiteur ; « 3/5 » en qualification) qui déplie la blue zone si besoin et amène la ligne du clan à l'écran.
+  podium vit depuis le 2026-10-11 dans `src/components/ui/PodiumSteps.tsx`, partagé avec la page d'un tournoi et la page
+  Joueurs. **Depuis le 2026-10-18, au gabarit de la page Joueurs** (demande) : titre en évidence (`PodiumTitle` : coupe et
+  critère en or de jeu, « Podium » en blanc), **sans le tampon** « Winner winner chicken dinner » (`stamp={null}`), plaque
+  de score au métal de la marche (`emphasis`, `PodiumPlate` : valeur et unité du critère — « 1 788 PTS », « 14,8 % WR »,
+  `plate` et `unit` de `LEAGUE_CRITERIA`), « N parties · N Top 1 » (`PodiumStats`) et tag du clan en or (`ClanTag`).
+- **Bandeau** (`DockingToolbar`) — période, **type de partie** (menu `MatchTypeMenu`, à toutes les largeurs depuis le
+  2026-10-18 : plus de segmented sur téléphone), **critère en liste déroulante « Classer par »** (Power, Placement,
+  Win rate, Dégâts, Kills, Knocks — `MobileDropdownNav` compact comme la page Joueurs, 2026-10-18, à la place des
+  segments et du bouton qui passait au suivant), pastille « Mon clan » (session ; absente pour un visiteur ; « 3/5 » en
+  qualification) qui déplie la blue zone si besoin et amène la ligne du clan à l'écran. Une ligne à partir de 640 px.
+  **Sur téléphone**, au repos : période et pastille « Mon clan », puis type de partie et critère côte à côte, chacun la
+  moitié de la largeur (ordre CSS, chaque contrôle rendu une fois — plus rien ne déborde) ; **docké : période et
+  critère**, exception nommée à sticky.md §2 (`MOBILE_DOCKED_EXTRA_CONTROLS`).
 - **Podium** du critère choisi. **Fil de la ligue** : 5 lignes sur ordinateur, 3 sur mobile. **Titres** : plus gros
   dégâts, machine à knocks (moyennes, au moins 3 parties), meilleure remontée (rang gagné par rapport à la période
   précédente).
@@ -84,7 +90,9 @@ tous les types, le classement du mois est presque vide hors Normal : les seuils 
 - **Explication du Power score** repliable : formule, barème, pondération (score moyen de la ligue de la période) et
   seuil de la période, lus dans la réponse (`scoring`).
 
-Composants : `src/components/clan-league/LeagueSections.tsx`. Logique pure : `src/lib/clan-league.ts`.
+Composants : `src/components/clan-league/LeagueSections.tsx`. Logique pure : `src/lib/clan-league.ts`. Les flèches ▲▼ / « nouv. »
+sont depuis le 2026-10-12 la brique partagée `RankMovement` (`src/components/ui/RankMovement.tsx`), reprise par le
+classement des joueurs ([joueurs.md](joueurs.md)).
 
 ## 3. Données — `src/lib/clan-league-service.ts`
 
@@ -124,7 +132,7 @@ calcul du cache (le calcul à la volée en compte quelques-unes de plus, jamais 
 | `src/lib/league-settings-route-contracts.test.ts` | Routes `/api/settings/league` et `/preview` : SuperUser seulement, 400 champ par champ, enregistrement `AppConfig` avec l'auteur, aperçu en lecture seule (Ranked = `competitive`) |
 | `e2e/league-settings.spec.ts` | Valeurs par défaut, coefficient modifié (formule, changements, aperçu, enregistrement), seuil abaissé, erreurs et enregistrement bloqué, barème ±1 place, M = 0, annuler, pas de défilement horizontal, membre non SuperUser refusé. Données : `e2e/support/league-settings.ts` |
 | `src/lib/ui-conformance.test.ts` | Exception nommée du bandeau docké complet sur mobile |
-| `e2e/clans-league.spec.ts` | Podium qui suit le critère, fil (3 / 5 lignes), titres, zones et blue zone repliée, en qualification (« 3 / 5 parties »), type de partie (Ranked recharge, `matchType=competitive`), explication du Power score, sans partie, flèches (Power seulement, aucune pour « Tous »), visiteur sans pastille, bandeau docké sur une ligne ; membre connecté : « Mon clan · #10 », ligne visible repliée avec sa cible, pastille qui déplie et amène la ligne, liens limités à son clan. Données : `clansLeaderboardResponse` (`e2e/support/data.ts`) |
+| `e2e/clans-league.spec.ts` | Podium au gabarit de la page Joueurs (titre, sans tampon, plaque « pts », parties et Top 1) qui suit le critère choisi dans la liste déroulante « Classer par », fil (3 / 5 lignes), titres, zones et blue zone repliée, en qualification (« 3 / 5 parties »), type de partie (Ranked recharge, `matchType=competitive`), explication du Power score, sans partie, flèches (Power seulement, aucune pour « Tous »), visiteur sans pastille, bandeau docké sur une ligne ; membre connecté : « Mon clan · #10 », ligne visible repliée avec sa cible, pastille qui déplie et amène la ligne, liens limités à son clan. Données : `clansLeaderboardResponse` (`e2e/support/data.ts`) |
 
 ## 5. Réglages SuperUser — `/settings/league` (2026-10-04)
 

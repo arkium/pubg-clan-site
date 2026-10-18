@@ -151,6 +151,7 @@ Remplace les anciennes listes d'état courant (Pages transverses, Espace Clan, E
 | Dashboard | `/members/:memberId/dashboard` (1ʳᵉ page autorisée de `member-section`) | Tous | Racine du sous-arbre 8.1 #5 |
 | Mon clan | `/clans/:clanId/members` (1ʳᵉ page autorisée de `clan-section`) | Tous | Entrée directe dans le sous-arbre clan (hors passage par Overview — cf. écart ligne 37) |
 | Ligue | `/clans-leaderboard` | Tous | 8.1 #29 |
+| Joueurs | `/players` (classement inter-clans des joueurs, comparateur — [joueurs.md](features/joueurs.md)) | Tous | Page globale, hors arbre du §8 (2026-10-12) |
 | Comparateur | `/clans/comparator` | Tous | 8.1 #31 |
 | Mon compte | `/account` | Membre | 8.2 #1 |
 

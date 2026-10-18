@@ -128,6 +128,8 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
   '/reset-password': { title: 'Nouveau mot de passe', description: DEFAULT_DESCRIPTION, index: false },
   '/account': { title: 'Mon compte', description: DEFAULT_DESCRIPTION, index: false },
   '/members': { title: 'Joueurs', description: DEFAULT_DESCRIPTION, index: false },
+  // Classement et comparateur des joueurs : pseudos de tous les clans suivis, hors index comme les pages joueur (docs/features/joueurs.md).
+  '/players': { title: 'Joueurs : classement et comparateur', description: DEFAULT_DESCRIPTION, index: false },
   '/clans/mutations': { title: 'Mouvements de clan', description: DEFAULT_DESCRIPTION, index: false },
 }
 

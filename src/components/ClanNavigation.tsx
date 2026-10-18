@@ -364,6 +364,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       { navKey: 'primary.home', label: 'Accueil', href: '/', tone: 'neutral' },
       { navKey: 'primary.dashboard', label: 'Les clans', href: '/clans', tone: 'blue' },
       { navKey: 'primary.ligue', label: 'Ligue', href: '/clans-leaderboard', tone: 'brand' },
+      // Classement et comparateur des joueurs (docs/features/joueurs.md) : icône médaille (NavIcon, libellé « Joueurs »).
+      { navKey: 'primary.players', label: 'Joueurs', href: '/players', tone: 'brand' },
       { navKey: 'primary.comparator', label: 'Comparateur', href: '/clans/comparator', tone: 'emerald' },
       {
         navKey: 'primary.tournaments',

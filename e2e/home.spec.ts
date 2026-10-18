@@ -76,6 +76,28 @@ test('Lecture de zone, sous Discord : trois points et le lien vers la page', asy
   expect(overflow).toBeLessThanOrEqual(0)
 })
 
+test('nouveauté Joueurs, à côté de Lecture de zone (deux colonnes sur ordinateur) : trois points et le lien vers /players', async ({ page }, testInfo) => {
+  const players = page.getByRole('region', { name: /Prouve-le face à tous les clans/ })
+  await players.scrollIntoViewIfNeeded()
+  await expect(players).toContainText('Classement des joueurs')
+  await expect(players).toContainText('NOUVEAU')
+  await expect(players.getByRole('listitem')).toHaveCount(3)
+  await expect(players).toContainText('Un classement entre tous les clans')
+  await expect(players).toContainText('Compare-toi à qui tu veux')
+  await expect(players.getByRole('link', { name: 'Voir le classement des joueurs →' })).toHaveAttribute('href', '/players')
+  // Juste après Lecture de zone ; côte à côte à partir de 1 024 px, l'une sous l'autre en dessous.
+  const zone = page.getByRole('region', { name: /Pas la zone finale/ })
+  const [zoneBox, playersBox] = [await zone.boundingBox(), await players.boundingBox()]
+  if (testInfo.project.name === 'chromium-desktop') {
+    expect(Math.abs((zoneBox?.y ?? 0) - (playersBox?.y ?? 0))).toBeLessThan(2)
+    expect(Math.abs((zoneBox?.height ?? 0) - (playersBox?.height ?? 0))).toBeLessThan(2)
+  } else {
+    expect(playersBox?.y ?? 0).toBeGreaterThan((zoneBox?.y ?? 0) + (zoneBox?.height ?? 0) - 1)
+  }
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow).toBeLessThanOrEqual(0)
+})
+
 test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async ({ page }) => {
   const card = page.getByTestId('home-dinner')
   await expect(page.getByRole('heading', { name: 'Chicken Dinner de la semaine' }).or(page.getByRole('heading', { name: 'Derniers Chicken Dinners' }))).toBeVisible()
@@ -122,7 +144,8 @@ test('les appels à l’action parlent d’inscrire son clan, jamais de recrutem
   await expect(section.getByRole('link', { name: 'Donner mon pseudo PUBG' })).toHaveAttribute('href', '/join')
   await expect(page.getByRole('link', { name: 'Parcourir en visiteur' })).toHaveAttribute('href', '/clans')
   await expect(page.getByRole('link', { name: 'Se connecter' }).filter({ visible: true })).toHaveAttribute('href', '/login')
-  await expect(page.getByRole('link', { name: 'Voir le classement' })).toHaveAttribute('href', '/clans-leaderboard')
+  // Nom exact : « Voir le classement des joueurs → » (Joueurs) commence par les mêmes mots.
+  await expect(page.getByRole('link', { name: 'Voir le classement', exact: true })).toHaveAttribute('href', '/clans-leaderboard')
 })
 
 test('« Pourquoi atterrir ici » : Ligue, tournois et comparateur, chacun vers sa page', async ({ page }) => {

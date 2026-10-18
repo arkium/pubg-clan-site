@@ -1,4 +1,4 @@
-import { Crown } from 'lucide-react'
+import { Crown, Trophy } from 'lucide-react'
 import type { ReactNode } from 'react'
 
 import { clanBackgroundImage } from '@/lib/clan-image'
@@ -48,7 +48,8 @@ export default function PodiumSteps({
   title: ReactNode
   /** Les trois premiers, dans l'ordre du classement. */
   entries: PodiumStepEntry[]
-  stamp?: string
+  /** Tampon en haut à droite ; `null` : pas de tampon (page Joueurs, demande du 2026-10-18). */
+  stamp?: string | null
   /**
    * Données plus visibles (tournois, demande du 2026-10-11) : tag plus clair, valeur sur une plaque de score biseautée
    * au métal de la marche (or avec halo pour le premier, argent, bronze — `.podium-plate`, globals.css), détail plus
@@ -64,7 +65,7 @@ export default function PodiumSteps({
     >
       <div className="flex flex-wrap items-center justify-between gap-x-2 gap-y-1.5">
         <span className="min-w-0 truncate text-[11px] font-extrabold uppercase tracking-[0.14em] text-slate-400">{title}</span>
-        <span className="app-stamp app-stamp--sm">{stamp}</span>
+        {stamp ? <span className="app-stamp app-stamp--sm">{stamp}</span> : null}
       </div>
       <ol className="grid grid-cols-3 items-end gap-2 sm:gap-4">
         {order.map((entry, index) =>
@@ -112,6 +113,49 @@ export default function PodiumSteps({
         )}
       </ol>
     </section>
+  )
+}
+
+/**
+ * Titre de podium mis en évidence (pages Joueurs et Ligue, demande du 2026-10-18) : coupe et critère en or de jeu,
+ * « Podium » en blanc, plus grand que l'intitulé par défaut. À passer dans `title`.
+ */
+export function PodiumTitle({ label }: { label: string }) {
+  return (
+    <span className="inline-flex items-center gap-2 text-[12px] tracking-[0.1em] sm:text-[14px]">
+      <Trophy className="h-4 w-4 shrink-0 text-[var(--game-gold)] sm:h-[18px] sm:w-[18px]" aria-hidden="true" />
+      <span className="text-white">Podium</span>
+      <span className="text-[var(--game-gold)]">· {label}</span>
+    </span>
+  )
+}
+
+/** Contenu de la plaque de score (`emphasis`) : la valeur en Teko, puis l'unité en petites capitales (« 144 PTS »). */
+export function PodiumPlate({ value, unit }: { value: ReactNode; unit: string }) {
+  return (
+    <>
+      <b className="t-hero podium-plate__value">{value}</b> <span className="podium-plate__unit">{unit}</span>
+    </>
+  )
+}
+
+/**
+ * Ligne sous la plaque : « 59 kills · 1 Top 1 », « 52 parties · 10 Top 1 ». Chiffres en blanc, Top 1 en or s'il y en a ;
+ * sur mobile (colonnes de ~110 px), l'un sous l'autre plutôt que coupés.
+ */
+export function PodiumStats({ count, label, wins }: { count: ReactNode; label: string; wins: number }) {
+  return (
+    <span className="flex flex-col items-center sm:flex-row sm:gap-1.5">
+      <span className="whitespace-nowrap">
+        <b className="text-white">{count}</b> {label}
+      </span>
+      <span className="max-sm:hidden" aria-hidden="true">
+        ·
+      </span>{' '}
+      <span className="whitespace-nowrap">
+        <b className={wins > 0 ? 'text-[var(--game-gold)]' : 'text-white'}>{wins}</b> Top 1
+      </span>
+    </span>
   )
 }
 

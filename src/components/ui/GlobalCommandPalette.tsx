@@ -14,7 +14,8 @@ import {
   Map,
   Swords,
   Trophy,
-  Target
+  Target,
+  Medal
 } from 'lucide-react'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -68,6 +69,9 @@ export function GlobalCommandPalette() {
           </Command.Item>
           <Command.Item onSelect={() => runCommand(() => router.push('/clans-leaderboard'))}>
             <Trophy className="mr-2 h-4 w-4" /> Ligue
+          </Command.Item>
+          <Command.Item onSelect={() => runCommand(() => router.push('/players'))}>
+            <Medal className="mr-2 h-4 w-4" /> Joueurs
           </Command.Item>
           <Command.Item onSelect={() => runCommand(() => router.push('/clans/comparator'))}>
             <Target className="mr-2 h-4 w-4" /> Comparateur

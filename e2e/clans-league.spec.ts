@@ -19,23 +19,14 @@ async function expectNoHorizontalScroll(page: Page) {
   expect(overflow).toBeLessThanOrEqual(1)
 }
 
-/** Segments à partir de 1 024 px (six critères), sinon le bouton qui passe au suivant. */
+/** Critère : liste déroulante « Classer par » du bandeau, à toutes les largeurs (2026-10-18). */
 async function chooseCriterion(page: Page, label: string) {
-  const segments = toolbar(page).getByRole('group', { name: 'Critère' })
-  if (await segments.isVisible()) {
-    await segments.getByRole('button', { name: label, exact: true }).click()
-    return
-  }
-  const cycle = toolbar(page).getByRole('button', { name: /^Critère :/ })
-  for (let step = 0; step < 6 && !((await cycle.getAttribute('aria-label')) ?? '').startsWith(`Critère : ${label}`); step += 1) await cycle.click()
+  await toolbar(page).getByRole('button', { name: /^Classer par :/ }).click()
+  await page.getByRole('menuitem', { name: label, exact: true }).click()
 }
 
 /** Menu à partir de 640 px, segmented au repos sur mobile. */
-async function chooseMatchType(page: Page, testInfo: TestInfo, label: string, short: string) {
-  if (isMobile(testInfo)) {
-    await toolbar(page).getByRole('group', { name: 'Type de partie' }).getByRole('button', { name: short }).click()
-    return
-  }
+async function chooseMatchType(page: Page, label: string) {
   await toolbar(page).getByRole('button', { name: /^Type de partie :/ }).click()
   await page.getByRole('menuitemradio', { name: new RegExp(`^${label}`) }).click()
 }
@@ -48,13 +39,20 @@ test.describe('Ligue Inter-Clans (visiteur)', () => {
     await expect(page.getByTestId('podium-1')).toBeVisible()
   })
 
-  test('podium en marches 2-1-3 avec couronne, qui suit le critère', async ({ page }) => {
+  test('podium en marches 2-1-3 avec couronne, au gabarit de la page Joueurs, qui suit le critère', async ({ page }) => {
     await expect(page.getByTestId('podium-1')).toContainText('Clan Alpha')
     await expect(page.getByTestId('podium-1').getByLabel('Premier')).toBeVisible()
-    await expect(page.getByText('WINNER WINNER CHICKEN DINNER')).toBeVisible()
+    // Titre en évidence, sans tampon ; plaque de score (valeur, unité), parties et Top 1.
+    await expect(page.getByRole('region', { name: 'Podium · Power score' })).toContainText('Podium· Power score')
+    await expect(page.getByText('Winner winner chicken dinner')).toHaveCount(0)
+    await expect(page.getByTestId('podium-1').locator('.podium-plate')).toContainText('pts')
+    await expect(page.getByTestId('podium-1')).toContainText('parties')
+    await expect(page.getByTestId('podium-1')).toContainText('Top 1')
+    await expect(toolbar(page).getByRole('button', { name: 'Classer par : Power' })).toBeVisible()
     await chooseCriterion(page, 'Knocks')
     await expect(page.getByRole('region', { name: 'Podium · Knocks moyens' })).toBeVisible()
     await expect(page.getByTestId('podium-1')).toContainText('Clan Echo')
+    await expect(page.getByTestId('podium-1').locator('.podium-plate')).toContainText('knocks')
   })
 
   test('fil de la ligue (3 lignes sur mobile, 5 sur ordinateur) et titres de la période', async ({ page }, testInfo) => {
@@ -99,9 +97,9 @@ test.describe('Ligue Inter-Clans (visiteur)', () => {
     await expect(page.getByTestId('league-freshness')).toContainText('2 en qualification')
   })
 
-  test('type de partie : Ranked recharge le classement (matchType=competitive), Normal par défaut', async ({ api, page }, testInfo) => {
+  test('type de partie : Ranked recharge le classement (matchType=competitive), Normal par défaut', async ({ api, page }) => {
     expect(api.paramValues('/api/clans-leaderboard', 'matchType')).toContain('official')
-    await chooseMatchType(page, testInfo, 'Ranked', 'Ranked')
+    await chooseMatchType(page, 'Ranked')
     await expect.poll(() => api.paramValues('/api/clans-leaderboard', 'matchType')).toContain('competitive')
     await expect(page.getByTestId('podium-1')).toContainText('Ranked Alpha')
     await expect(page.getByTestId('league-freshness')).toContainText('Ranked · 4 clans classés')
@@ -130,8 +128,10 @@ test.describe('Ligue Inter-Clans (visiteur)', () => {
     await dock(page)
     await expect(toolbar(page)).toHaveAttribute('data-docked', 'true')
     await expect(periodFilter(page)).toBeVisible()
-    if (isMobile(testInfo)) await expect(toolbar(page).getByRole('group', { name: 'Type de partie' })).toHaveCount(0)
+    // Docké sur téléphone : la période et le critère seuls ; le type de partie et « Mon clan » reviennent au repos.
+    if (isMobile(testInfo)) await expect(toolbar(page).getByRole('button', { name: /^Type de partie :/ })).toHaveCount(0)
     else await expect(toolbar(page).getByRole('button', { name: /^Type de partie :/ })).toBeVisible()
+    await expect(toolbar(page).getByRole('button', { name: /^Classer par :/ })).toBeVisible()
     expect((await toolbar(page).boundingBox())!.height).toBeLessThan(80)
     await expectNoHorizontalScroll(page)
   })

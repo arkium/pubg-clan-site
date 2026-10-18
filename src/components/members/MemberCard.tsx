@@ -15,6 +15,7 @@ import {
   type RosterMember,
 } from '@/lib/member-roster'
 import { weaponWhiteIconUrl } from '@/lib/pubg-assets'
+import RosterRoleBadge from '@/components/ui/RosterRoleBadge'
 
 const decimal = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
 const percent = new Intl.NumberFormat('fr-FR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
@@ -95,12 +96,8 @@ export default function MemberCard({ member, now }: { member: RosterMember; now:
         <span className="relative flex min-w-0 flex-col gap-1">
           <b className="t-card-title truncate">{member.displayName}</b>
           <span className="flex min-w-0 items-center gap-1.5">
-            {role ? (
-              // Pastille pleine à la couleur du rôle, encre sombre : lisible dans les deux thèmes (§10, jamais en texte coloré sur fond clair).
-              <span className="shrink-0 rounded-[5px] px-1.5 py-px text-[11px] font-black uppercase tracking-[0.08em] text-slate-950" style={{ backgroundColor: role.color }}>
-                {role.label}
-              </span>
-            ) : null}
+            {/* Pastille pleine à la couleur du rôle, encre sombre : lisible dans les deux thèmes (§10). */}
+            {member.role ? <RosterRoleBadge role={member.role.id} /> : null}
             <span className={`truncate text-xs ${tonight ? 't-pos font-semibold' : 'text-gray-500'}`}>
               {lastSeenLabel(member.lastMatchAt, now)}
             </span>

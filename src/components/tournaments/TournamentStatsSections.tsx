@@ -37,7 +37,7 @@ import { useEffect, useRef, useState, useSyncExternalStore, type CSSProperties, 
 
 import ArmoryWeaponImage from '@/components/weapons/ArmoryWeaponImage'
 import { SquadLabel } from '@/components/tournaments/TournamentDetailSections'
-import PodiumSteps, { ClanLogo } from '@/components/ui/PodiumSteps'
+import PodiumSteps, { ClanLogo, PodiumPlate, PodiumStats } from '@/components/ui/PodiumSteps'
 import RankCell from '@/components/ui/RankCell'
 import ShowMoreToggle from '@/components/ui/ShowMoreToggle'
 import SortableTh from '@/components/ui/SortableTh'
@@ -120,26 +120,9 @@ export function TournamentPodium({
           ),
           caption: team ? standing.clanTags.map((clanTag) => `[${clanTag}]`).join(' + ') || null : tag || null,
           // Points sur la plaque de score du podium (habillage esport, demande du 2026-10-11).
-          value: (
-            <>
-              <b className="t-hero podium-plate__value">{formatTournamentPoints(standing.totalPoints)}</b>{' '}
-              <span className="podium-plate__unit">pts</span>
-            </>
-          ),
+          value: <PodiumPlate value={formatTournamentPoints(standing.totalPoints)} unit="pts" />,
           // Kills et Top 1 en blanc ; sur mobile (colonnes de ~110 px), l'un sous l'autre plutôt que coupés.
-          detail: (
-            <span className="flex flex-col items-center sm:flex-row sm:gap-1.5">
-              <span className="whitespace-nowrap">
-                <b className="text-white">{standing.totalKills}</b> kills
-              </span>
-              <span className="max-sm:hidden" aria-hidden="true">
-                ·
-              </span>{' '}
-              <span className="whitespace-nowrap">
-                <b className={standing.wins > 0 ? 'text-[var(--game-gold)]' : 'text-white'}>{standing.wins}</b> Top 1
-              </span>
-            </span>
-          ),
+          detail: <PodiumStats count={standing.totalKills} label="kills" wins={standing.wins} />,
         }
       })}
     />

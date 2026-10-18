@@ -3,6 +3,7 @@ import {
   LayoutDashboard,
   Users,
   User,
+  Medal,
   BarChart2,
   Trophy,
   Swords,
@@ -65,8 +66,9 @@ export default function NavIcon({ label, className = 'h-4 w-4 shrink-0' }: Props
       case 'Heatmap kills': return <Map className={className} />
       case 'Cartographie tactique': return <Map className={className} />
       case 'Drop zones': return <CircleDot className={className} />
-      case 'Membres':
-      case 'Joueurs': return <Users className={className} />
+      case 'Membres': return <Users className={className} />
+      // Classement et comparateur des joueurs (menu principal) : distinct de « Les clans ».
+      case 'Joueurs': return <Medal className={className} />
       case 'Matchs': return <History className={className} />
       case 'Stats':
       case 'Style de jeu du clan': return <BarChart2 className={className} />

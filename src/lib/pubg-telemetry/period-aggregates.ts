@@ -14,7 +14,7 @@ type SynergyMatchType = Exclude<ClanMatchTypeFilter, 'competitive'>
 const CLAN_SYNERGY_MATCH_TYPES: SynergyMatchType[] = ['official', 'casual', 'custom', 'all']
 const CLAN_SYNERGY_TEAM_MODES: ClanTeamModeFilter[] = ['duo', 'trio', 'squad', 'all']
 
-type StatsPeriod = 'week' | 'month' | 'all'
+export type StatsPeriod = 'week' | 'month' | 'all'
 
 type TelemetryPeriodAggregateSummary = {
   period: StatsPeriod
@@ -174,7 +174,8 @@ function getISOWeek(date: Date): number {
   )
 }
 
-function getPeriodKey(period: StatsPeriod, referenceDate: Date): string {
+/** Clé de période des agrégats écrits ici (`week-YYYY-WW`, `month-YYYY-MM`, `all-time`) : la lire, c'est la même clé. */
+export function getPeriodKey(period: StatsPeriod, referenceDate: Date): string {
   if (period === 'all') {
     return 'all-time'
   }

@@ -185,9 +185,12 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Filtre de période (Semaine / Mois / Tous… ; 30 j / 90 j glissants : `ROLLING_PERIODS`) | `PeriodFilter` + `usePagePeriod` | `src/components/ui/PeriodFilter.tsx`, `src/hooks/usePagePeriod.ts`, `src/lib/period.ts` |
 | Ancres de section (seconde ligne du bandeau) | `SectionAnchorNav` | `src/components/ui/SectionAnchorNav.tsx` |
 | Rang dans un classement (médailles SVG 1 à 3) | `RankCell` | `src/components/ui/RankCell.tsx` |
+| Évolution d'un rang ▲N / ▼N / = / « nouv. » (période précédente) | `RankMovement` | `src/components/ui/RankMovement.tsx` |
+| Badge du rôle dominant d'un joueur (Fragger / Medic / Ghost, pastille pleine) | `RosterRoleBadge` + `dominantRole` | `src/components/ui/RosterRoleBadge.tsx`, `src/lib/member-roster.ts` |
 | Tri d'un tableau par ses en-têtes (+ rappel docké) | `SortableTh`, `SortReminder` + `useTableSort` | `src/components/ui/SortableTh.tsx`, `src/hooks/useTableSort.ts` |
 | Top 3 d'un classement | `PodiumCards` | `src/components/ui/PodiumCards.tsx` |
-| Podium en marches 2-1-3 (ligue, tournois) | `PodiumSteps`, `ClanLogo` | `src/components/ui/PodiumSteps.tsx` |
+| Podium en marches 2-1-3 (ligue, tournois, joueurs) ; titre en évidence, plaque de score, ligne « parties · Top 1 » | `PodiumSteps`, `ClanLogo`, `PodiumTitle`, `PodiumPlate`, `PodiumStats` | `src/components/ui/PodiumSteps.tsx` |
+| Tag de clan en jaune gras (`tone="photo"` : or de jeu sur fond sombre) | `ClanTag` | `src/components/ui/ClanTag.tsx` |
 | Pagination numérotée (au lieu d'un défilement horizontal) | `Pagination` + `@/lib/pagination` | `src/components/ui/Pagination.tsx` |
 | Rangée de puces / cartes paginée par chevrons sur mobile (au lieu d'un défilement horizontal) | `ChevronPager` | `src/components/ui/ChevronPager.tsx` |
 | Bande « Distinctions » | `DistinctionStrip` + `computeDistinctions` | `src/components/ui/DistinctionStrip.tsx`, `src/lib/distinctions.ts` |
@@ -329,6 +332,11 @@ Session is **cookie-based** with server-side validation:
 **Accueil `/`:** vitrine publique plein écran, sans shell, pour tous (un connecté y trouve « Mon espace » ; entrée
 « Accueil » du menu latéral), alimentée par la route publique `GET /api/home/showcase` (cache mémoire 5 min). Elle ne doit jamais exposer le
 pseudo ni le compte d'un joueur extérieur au site — voir [accueil.md](docs/features/accueil.md).
+
+**Joueurs `/players`:** classement inter-clans des joueurs (parties officielles **de clan**, mode lu dans le `gameMode`
+PUBG, cache 5 min) et comparateur — [joueurs.md](docs/features/joueurs.md). Ses scores Fragger / Medic / Ghost / Tireur à
+distance sont des **centiles entre tous les clans** : ne pas les confondre avec le style de jeu d'un joueur, relatif au
+meilleur de son clan (`MemberTelemetryStats`).
 
 **Guard Routes:**
 - `src/proxy.ts` (edge middleware) redirects based on `setupState`:

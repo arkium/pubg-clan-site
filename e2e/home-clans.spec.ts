@@ -3,7 +3,7 @@ import { HUB_CLANS, homeShowcaseWithClans } from './support/home-clans'
 import { mockHomeShowcase } from './support/pages'
 
 /**
- * Hub des clans — fin de la vitrine, après « Lecture de zone » (docs/features/accueil.md, maquette « Accueil - Bandeau
+ * Hub des clans — fin de la vitrine, après la ligne « Lecture de zone · Joueurs » (docs/features/accueil.md, maquette « Accueil - Bandeau
  * clans » 1a). Deux bandes qui défilent en sens opposés, pause au survol, figées si l'appareil limite les animations ;
  * tous les clans suivis, chiffres de la Ligue de la semaine ; aucun défilement horizontal de la page.
  */
@@ -16,11 +16,11 @@ async function openHome(page: import('@playwright/test').Page, api: import('./su
   await expect(page.getByTestId('home-dinner')).toBeVisible()
 }
 
-test('le hub des clans ferme la vitrine, juste après « Lecture de zone »', async ({ page, api }) => {
+test('le hub des clans ferme la vitrine, juste après la ligne « Lecture de zone · Joueurs »', async ({ page, api }) => {
   await openHome(page, api, 'reduce')
   const hub = page.getByTestId('home-clans-hub')
   await expect(hub).toBeVisible()
-  await expect(page.locator('section[aria-labelledby="home-zone-reading-title"] + section[data-testid="home-clans-hub"]')).toHaveCount(1)
+  await expect(page.locator('[data-testid="home-zone-players"] + section[data-testid="home-clans-hub"]')).toHaveCount(1)
   // Dernière section de la zone principale, juste avant le pied de page (<main> autour de la vitrine, 2026-10-11).
   await expect(page.locator('main > [data-testid="home-clans-hub"]:last-child')).toHaveCount(1)
   await expect(page.locator('main + footer.home-footer')).toHaveCount(1)

@@ -16,6 +16,8 @@ import {
   DEBRIEF_MATCH_ID,
 } from './data'
 import { mockMemberProfile } from './members'
+import { playersComparisonResponse, playersRankingResponse } from './players'
+import { parsePlayersMode } from '@/lib/players-ranking'
 import { parseLeagueMatchType } from '@/lib/clan-league'
 import { playstyleRows } from './stats'
 import type { LeaderboardPeriod } from '@/types/leaderboard'
@@ -56,6 +58,15 @@ export function mockMemberItems(api: ApiMock) {
 
 export function mockClanWeapons(api: ApiMock) {
   api.on('GET', `/api/clans/${CLAN_ID}/telemetry/weapons`, (url) => ({ body: clanWeapons(periodOf(url)) }))
+}
+
+/** Page Joueurs : classement (période, mode) et comparateur (éléments, période, mode). */
+export function mockPlayers(api: ApiMock) {
+  api
+    .on('GET', '/api/players/ranking', (url) => ({ body: playersRankingResponse(periodOf(url), parsePlayersMode(url.searchParams.get('mode'))) }))
+    .on('GET', '/api/players/compare', (url) => ({
+      body: playersComparisonResponse(url.searchParams.get('ids'), periodOf(url), parsePlayersMode(url.searchParams.get('mode'))),
+    }))
 }
 
 export function mockClansLeaderboard(api: ApiMock) {

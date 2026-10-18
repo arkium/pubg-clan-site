@@ -294,7 +294,11 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
   styles de jeu, inscription), 42 → 280 mots, et surtout **34 liens vers les vues d'ensemble des clans** : les cartes
   de l'annuaire s'ouvrent par un bouton, la page n'offrait aucun lien explorable vers les clans. La logique de
   `GET /api/clans` est partagée (`listClansWithQuickStats`) : mêmes totaux que le bandeau.
-- Reste : `/mortier` (guide sur sa propre adresse), `/carte-des-ressources`, l'accueil (vitrine) et les pages de clan.
+- `/mortier/guide` — **fait le 2026-10-18** : le guide a sa propre adresse, indexée et dans le sitemap (« Guide du
+  mortier PUBG à la grille », H1 « Guide du mortier », 4 sections, 364 mots), au lieu de `/mortier?tab=guide` dont la
+  canonique était `/mortier`. Onglet lu dans le chemin, changement par `replaceState` : la série en cours est gardée.
+  L'ancien `?tab=guide` redirige.
+- Reste : `/carte-des-ressources`, l'accueil (vitrine) et les pages de clan.
 
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).

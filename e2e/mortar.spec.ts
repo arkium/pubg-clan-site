@@ -72,10 +72,11 @@ const isDesktopNav = (testInfo: TestInfo) => testInfo.project.name === 'chromium
 test.describe('page et onglets', () => {
   test('bandeau, onglets dans l’URL, guide ouvert directement sans série demandée', async ({ api, page }) => {
     const mortar = mockMortar(api)
-    await page.goto('/mortier?tab=guide')
+    await page.goto('/mortier/guide')
     await page.waitForLoadState('networkidle')
 
-    await expect(page.getByRole('heading', { level: 1, name: 'Mortier' })).toBeVisible()
+    // Le guide a sa propre adresse (2026-10-18) : son titre dit ce qu'il est.
+    await expect(page.getByRole('heading', { level: 1, name: 'Guide du mortier' })).toBeVisible()
     await expect(page.getByText('Mesure à la grille, règle la distance, tire. 10 cibles par série.')).toBeVisible()
     await expect(page.getByRole('tab', { name: 'Guide' })).toHaveAttribute('aria-selected', 'true')
     await expect(page.getByTestId('mortar-guide-card')).toHaveCount(4)
@@ -84,13 +85,14 @@ test.describe('page et onglets', () => {
 
     await page.getByRole('tab', { name: 'Entraînement' }).click()
     await expect(page).toHaveURL(/\/mortier$/)
+    await expect(page.getByRole('heading', { level: 1, name: 'Mortier' })).toBeVisible()
     await expect(page.getByTestId('mortar-map')).toBeVisible()
     await expect.poll(() => mortar.starts.length).toBe(1)
 
     // Retour au guide : l'URL le garde, un rechargement aussi ; la série en cours (un tir fait) n'est pas relancée.
     await shoot(page, mortarTargets('medium')[0].distance)
     await page.getByRole('tab', { name: 'Guide' }).click()
-    await expect(page).toHaveURL(/\?tab=guide$/)
+    await expect(page).toHaveURL(/\/mortier\/guide$/)
     await expect(page.getByTestId('mortar-game')).toBeHidden()
     await page.getByRole('tab', { name: 'Entraînement' }).click()
     await expect(page.getByTestId('mortar-result')).toBeVisible()
@@ -98,9 +100,17 @@ test.describe('page et onglets', () => {
     expect(mortar.starts).toHaveLength(1)
     await page.getByRole('tab', { name: 'Entraînement' }).press('ArrowRight')
     await expect(page.getByRole('tab', { name: 'Guide' })).toBeFocused()
-    await expect(page).toHaveURL(/\?tab=guide$/)
+    await expect(page).toHaveURL(/\/mortier\/guide$/)
     await page.reload()
     await expect(page.getByRole('tab', { name: 'Guide' })).toHaveAttribute('aria-selected', 'true')
+  })
+
+  test('l’ancien onglet `?tab=guide` mène au guide, sur son adresse et sans paramètre', async ({ api, page }) => {
+    mockMortar(api)
+    await page.goto('/mortier?tab=guide')
+    await expect(page).toHaveURL(/\/mortier\/guide$/)
+    await expect(page.getByRole('tab', { name: 'Guide' })).toHaveAttribute('aria-selected', 'true')
+    await expect(page.getByTestId('mortar-guide-card')).toHaveCount(4)
   })
 
   test('lien « Mortier » juste sous « Tournois », actif sur /mortier', async ({ api, page }, testInfo) => {
@@ -322,7 +332,7 @@ test.describe('classement du clan', () => {
 test.describe('guide', () => {
   test('fiches, table de la grille (361 surligné, hors portée grisé), « S’entraîner → » règle la difficulté', async ({ api, page }) => {
     const mortar = mockMortar(api)
-    await page.goto('/mortier?tab=guide')
+    await page.goto('/mortier/guide')
     await page.waitForLoadState('networkidle')
 
     const cards = page.getByTestId('mortar-guide-card')

@@ -32,6 +32,8 @@ const nextConfig: NextConfig = {
       { source: '/clans/:clanId/stats/items', destination: '/clans/:clanId/stats#sec-items', permanent: false },
       // Quatre profils (docs/TODO/administration.md §5.3, lot 2) : plus de profil Admin, son accueil mène à celui du clan.
       { source: '/settings/admin', destination: '/settings/owner', permanent: false },
+      // Guide du mortier sur sa propre adresse (2026-10-18, référencement) : l'ancien onglet `?tab=guide` y mène.
+      { source: '/mortier', has: [{ type: 'query', key: 'tab', value: 'guide' }], destination: '/mortier/guide', permanent: false },
       // Ancienne redirection côté navigateur vers la page des membres, sans lien depuis le 2026-10-07.
       { source: '/members/manage', destination: '/members', permanent: false },
       // Plateforme réorganisée (docs/TODO/administration.md, lot 3a) : la requête (`?tab=`, `?opponentsQ=`…) suit.

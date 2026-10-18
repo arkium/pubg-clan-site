@@ -30,7 +30,7 @@ caractères, `sitemap` si elle doit être annoncée). Une page de clan du menu l
 | Pages | Indexation | Titre |
 |---|---|---|
 | `/` (vitrine) | oui | « chickendinner.fr — stats, classements et Top 1 des clans PUBG » |
-| `/clans`, `/clans-leaderboard`, `/clans/comparator`, `/tournaments`, `/mortier`, `/carte-des-ressources`, `/join` | oui | propre à chaque page |
+| `/clans`, `/clans-leaderboard`, `/clans/comparator`, `/tournaments`, `/mortier`, `/mortier/guide` (depuis le 2026-10-18), `/carte-des-ressources`, `/lecture-de-zone`, `/join` | oui | propre à chaque page |
 | Pages du **menu latéral d'un clan suivi** (vue d'ensemble, classement, membres, matchs, stats, carrière, armurerie, heatmap, cartographie, fin de zone, drop zones, awards, challenges) | oui si le clan est actif, non archivé, hors clan système | « Nom [TAG] — Classement · chickendinner.fr » |
 | Autres pages d'un clan (réglages, télémétrie, demandes, débriefs, soirées) | non | « Nom [TAG] » |
 | `/tournaments/[id]` | oui si le tournoi est `active` ou `finished` | « Titre — tournoi PUBG » |

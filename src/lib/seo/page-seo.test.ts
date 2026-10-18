@@ -21,6 +21,7 @@ describe('pageSeo', () => {
   it('donne aux pages publiques leur titre et les indexe', () => {
     expect(pageSeo('/clans-leaderboard')).toMatchObject({ title: 'Ligue des clans PUBG — classement Power score', index: true })
     expect(pageSeo('/mortier/')).toMatchObject({ title: 'Entraînement au mortier PUBG', index: true })
+    expect(pageSeo('/mortier/guide')).toMatchObject({ title: 'Guide du mortier PUBG à la grille', index: true })
     expect(pageSeo('/mentions-legales')).toMatchObject({ title: 'Mentions légales et CGU', index: true })
   })
 
@@ -113,7 +114,7 @@ describe('sitemapEntries', () => {
 
   it('liste l’accueil, les pages publiques et les pages légales, sans les pages hors index ni le formulaire', () => {
     expect(urls[0]).toBe('https://chickendinner.fr/')
-    for (const path of ['/clans', '/clans-leaderboard', '/clans/comparator', '/tournaments', '/mortier', '/carte-des-ressources', '/lecture-de-zone', '/join', '/mentions-legales', '/confidentialite', '/a-propos']) {
+    for (const path of ['/clans', '/clans-leaderboard', '/clans/comparator', '/tournaments', '/mortier', '/mortier/guide', '/carte-des-ressources', '/lecture-de-zone', '/join', '/mentions-legales', '/confidentialite', '/a-propos']) {
       expect(urls, path).toContain(`https://chickendinner.fr${path}`)
     }
     for (const path of ['/login', '/account', '/members', '/clans/mutations', '/confidentialite/demande']) {

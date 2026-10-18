@@ -78,6 +78,13 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
     index: true,
     sitemap: { priority: 0.7, changeFrequency: 'weekly' },
   },
+  '/mortier/guide': {
+    title: 'Guide du mortier PUBG à la grille',
+    description:
+      'Régler le mortier de PUBG : mesurer la distance à la grille de la carte, corriger le tir et jouer en équipe, avec la table des distances.',
+    index: true,
+    sitemap: { priority: 0.6, changeFrequency: 'monthly' },
+  },
   '/carte-des-ressources': {
     title: 'Carte des ressources PUBG — véhicules, essence, garages',
     description:

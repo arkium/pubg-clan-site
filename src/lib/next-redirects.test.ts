@@ -18,7 +18,16 @@ describe('next.config.ts — redirections', () => {
 
   it('aucune source n’est encore une page (elle serait masquée par la redirection)', async () => {
     const rules = await nextConfig.redirects!()
-    expect(rules.filter((rule) => hasAppPage(rule.source)).map((rule) => rule.source)).toEqual([])
+    // Une règle conditionnée par la requête (`has`) ne masque la page que pour cette requête : `/mortier?tab=guide`.
+    expect(rules.filter((rule) => !rule.has && hasAppPage(rule.source)).map((rule) => rule.source)).toEqual([])
+  })
+
+  it('l’ancien onglet du guide du mortier mène à sa propre adresse, la page d’entraînement reste servie', async () => {
+    const rules = await nextConfig.redirects!()
+    const guide = rules.find((rule) => rule.source === '/mortier')
+    expect(guide).toMatchObject({ destination: '/mortier/guide', has: [{ type: 'query', key: 'tab', value: 'guide' }] })
+    expect(hasAppPage('/mortier')).toBe(true)
+    expect(hasAppPage('/mortier/guide')).toBe(true)
   })
 
   it('les anciennes pages de tournoi par clan mènent aux pages globales, identifiant compris', async () => {

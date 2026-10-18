@@ -87,9 +87,15 @@ entraînement.
 
 ## 4. Page
 
-`src/app/mortier/page.tsx` et `src/components/mortar/` — selon la charte UI (`docs/ui/index.html`).
+`src/app/mortier/page.tsx` (entraînement) et `src/app/mortier/guide/page.tsx` (guide) rendent le même composant,
+`src/components/mortar/MortarPage.tsx`, qui lit l'onglet dans le chemin ; composants dans `src/components/mortar/` —
+selon la charte UI (`docs/ui/index.html`).
 
-- **Bandeau** photo, titre Teko, onglets Entraînement / Guide (`?tab=guide`).
+- **Bandeau** photo, titre Teko (« Mortier », ou « Guide du mortier » sur le guide), onglets Entraînement / Guide.
+- **Guide sur sa propre adresse** (2026-10-18, référencement — docs/TODO/geo-seo-propositions.md, lot 2) :
+  `/mortier/guide`, indexé et dans le sitemap sous « Guide du mortier PUBG à la grille ». Changer d'onglet réécrit
+  l'adresse par `replaceState`, sans nouveau montage : la série en cours n'est pas perdue. L'ancien `?tab=guide`
+  redirige vers `/mortier/guide` (`next.config.ts`), qui retire le paramètre.
 - **Entraînement.** Avant le tir : difficulté, tolérance, progression de la série (pastilles au but / raté / en
   cours), chronomètre, carte avec grille, « Toi » et « Cible » (dénivelé en Difficile), réglage en chiffre héros,
   curseur, ±25, « Tirer ». Après le tir : ligne et distance réelle, impact, verdict (« Trop court de 18 m »,

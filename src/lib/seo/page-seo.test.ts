@@ -5,7 +5,10 @@ import {
   AI_TRAINING_BOTS,
   buildPageMetadata,
   CLAN_PAGES,
+  DEFAULT_DESCRIPTION,
   DEFAULT_TITLE,
+  MAX_DESCRIPTION_LENGTH,
+  MAX_TITLE_LENGTH,
   homeJsonLd,
   pageSeo,
   robotsRules,
@@ -19,7 +22,7 @@ const CLAN = { id: 7, name: 'D32', tag: 'SMK', indexable: true }
 
 describe('pageSeo', () => {
   it('donne aux pages publiques leur titre et les indexe', () => {
-    expect(pageSeo('/clans-leaderboard')).toMatchObject({ title: 'Ligue des clans PUBG — classement Power score', index: true })
+    expect(pageSeo('/clans-leaderboard')).toMatchObject({ title: 'Ligue des clans PUBG — Power score', index: true })
     expect(pageSeo('/mortier/')).toMatchObject({ title: 'Entraînement au mortier PUBG', index: true })
     expect(pageSeo('/mortier/guide')).toMatchObject({ title: 'Guide du mortier PUBG à la grille', index: true })
     expect(pageSeo('/mentions-legales')).toMatchObject({ title: 'Mentions légales et CGU', index: true })
@@ -209,11 +212,20 @@ describe('homeJsonLd', () => {
 })
 
 describe('STATIC_PAGES', () => {
-  it('a un titre et une description pour chaque page indexée', () => {
+  it('a un titre et une description pour chaque page indexée, aux longueurs que Google affiche sans couper', () => {
     for (const [path, page] of Object.entries(STATIC_PAGES).filter(([, entry]) => entry.index)) {
       expect(page.title.length, path).toBeGreaterThan(3)
+      expect(`${page.title} · chickendinner.fr`.length, `${path} : titre complet`).toBeLessThanOrEqual(MAX_TITLE_LENGTH)
       expect(page.description.length, path).toBeGreaterThan(60)
-      expect(page.description.length, path).toBeLessThanOrEqual(170)
+      expect(page.description.length, path).toBeLessThanOrEqual(MAX_DESCRIPTION_LENGTH)
     }
+    expect(DEFAULT_TITLE.length).toBeLessThanOrEqual(MAX_TITLE_LENGTH)
+    expect(DEFAULT_DESCRIPTION.length).toBeLessThanOrEqual(MAX_DESCRIPTION_LENGTH)
+  })
+
+  it('titre d’une page de clan au nom long : sans le suffixe, plutôt que coupé', () => {
+    const clan = { id: 9, name: 'Les Grands Anciens Du Plateau', tag: 'GADP', indexable: true }
+    const metadata = buildPageMetadata('/clans/9/stats/positions', pageSeo('/clans/9/stats/positions', { clan }), {})
+    expect(metadata.title).toEqual({ absolute: 'Les Grands Anciens Du Plateau [GADP] — Cartographie tactique' })
   })
 })

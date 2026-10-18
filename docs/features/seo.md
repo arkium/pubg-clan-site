@@ -23,8 +23,11 @@ le proxy. Une page serveur peut toujours exporter les siennes, qui l'emportent.
 **Liste blanche.** Seules les pages déclarées sont indexées : l'accueil, `STATIC_PAGES`, `CLAN_PAGES` et les tournois.
 Toute autre adresse (page oubliée, 404) reçoit `noindex` sans canonique.
 
-**Ajouter une page publique** : une entrée dans `STATIC_PAGES` (titre ≤ 60 caractères utiles, description de 60 à 170
-caractères, `sitemap` si elle doit être annoncée). Une page de clan du menu latéral : une entrée dans `CLAN_PAGES`.
+**Ajouter une page publique** : une entrée dans `STATIC_PAGES` (titre **complet, suffixe « · chickendinner.fr »
+compris, ≤ 60 caractères** — `MAX_TITLE_LENGTH` ; description de 60 à 160 caractères — `MAX_DESCRIPTION_LENGTH` ;
+`sitemap` si elle doit être annoncée ; un nom court dans `STATIC_CRUMBS` pour le fil d'Ariane), contrôlé par
+`page-seo.test.ts`. Un titre calculé trop long (page d'un clan au nom long) perd son suffixe plutôt que d'être coupé
+par Google (règle du 2026-10-18). Une page de clan du menu latéral : une entrée dans `CLAN_PAGES`.
 
 ## 2. Ce qui est indexé (décisions du 2026-10-05)
 

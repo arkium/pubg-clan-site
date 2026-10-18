@@ -352,7 +352,12 @@ meilleur de son clan (`MemberTelemetryStats`).
   - `completed` → check session cookie → proceed
 - Pages légales (`LEGAL_PATHS`, `src/lib/legal/legal-info.ts`) ouvertes sans session — [pages-legales.md](docs/features/pages-legales.md).
 - Chaque laissez-passer de page passe par `passThrough()`, qui pose l'en-tête `x-pathname` : **ne jamais revenir à un
-  `NextResponse.next()` nu** pour une page, sinon elle perd son titre, sa description et son indexation.
+  `NextResponse.next()` nu** pour une page, sinon elle perd son titre, sa description et son indexation — et sa CSP.
+- **CSP** (2026-10-18, `src/lib/security/csp.ts`) : `passThrough()` pose une CSP à nonce, en observation
+  (`Report-Only`) ; Next ajoute le nonce à ses propres scripts. Tout script ajouté à la main (tiers, `<Script>`) doit
+  recevoir ce nonce, sinon il sera bloqué le jour où la CSP passe en mode bloquant. Un écart ne s'affiche pas dans la
+  console de Playwright : l'écouter par l'événement `securitypolicyviolation`. En-têtes de sécurité :
+  `SECURITY_HEADERS` de `next.config.ts` (HSTS **sans** `includeSubDomains` tant que le wildcard n'est pas posé).
 
 **Administration (depuis le 2026-10-07, [administration.md](docs/TODO/administration.md)) :** quatre profils — visiteur,
 membre, Owner, SuperUser. Toute route d'administration passe par `src/lib/auth/admin-guards.ts` :

@@ -31,11 +31,11 @@ async function chooseMatchType(page: Page, label: string) {
   await page.getByRole('menuitemradio', { name: new RegExp(`^${label}`) }).click()
 }
 
-test.describe('Ligue Inter-Clans (visiteur)', () => {
+test.describe('Ligue des clans (visiteur)', () => {
   test.beforeEach(async ({ api, page }) => {
     mockClansLeaderboard(api)
     await page.goto('/clans-leaderboard')
-    await expect(page.getByRole('heading', { level: 1, name: 'Ligue Inter-Clans' })).toBeVisible()
+    await expect(page.getByRole('heading', { level: 1, name: 'Ligue des clans' })).toBeVisible()
     await expect(page.getByTestId('podium-1')).toBeVisible()
   })
 
@@ -137,7 +137,7 @@ test.describe('Ligue Inter-Clans (visiteur)', () => {
   })
 })
 
-test.describe('Ligue Inter-Clans (membre connecté)', () => {
+test.describe('Ligue des clans (membre connecté)', () => {
   test.beforeEach(async ({ api, page }) => {
     mockClansLeaderboard(api)
     api

@@ -199,7 +199,7 @@ export default function ClansLeaderboardPage({ findings }: { findings?: React.Re
           <div className="absolute inset-x-0 bottom-0 z-10 flex flex-col gap-1.5 px-3.5 py-3 sm:px-6 sm:py-5">
             <div className="flex items-center gap-2">
               <Trophy className="h-5 w-5 text-[var(--theme-ui-accent)] sm:h-6 sm:w-6" aria-hidden="true" />
-              <h1 className="t-banner-title text-white drop-shadow-md">Ligue Inter-Clans</h1>
+              <h1 className="t-banner-title text-white drop-shadow-md">Ligue des clans</h1>
             </div>
             <p className="text-[13px] text-white/80 drop-shadow-md">Les clans suivis, classés entre eux sur leurs parties — Normal, Ranked, Casual ou tournois.</p>
           </div>

@@ -8,6 +8,8 @@ import {
   subdomainRedirectLocation,
 } from '@/lib/clan-subdomain-host'
 import { LEGAL_PATHS } from '@/lib/legal/legal-info'
+import { buildCsp, createNonce, CSP_HEADER } from '@/lib/security/csp'
+import { wwwRedirectLocation } from '@/lib/seo/canonical-host'
 import { PATHNAME_HEADER } from '@/lib/seo/page-seo'
 
 const FIRST_RUN_ALLOWED_PATHS = new Set(['/'])
@@ -45,11 +47,17 @@ async function getSetupState(origin: string): Promise<'first_run' | 'pending_act
 /**
  * Laisse passer en transmettant le chemin au rendu serveur : le layout racine en tire le titre, la description et
  * l'indexation de la page (docs/features/seo.md). Un en-tête du même nom envoyé par le navigateur est écrasé.
+ * Pose aussi la CSP de la page (`src/lib/security/csp.ts`), avec un nonce neuf : sur la requête, où Next le lit pour
+ * l'ajouter à ses scripts, et sur la réponse.
  */
 function passThrough(request: NextRequest) {
   const headers = new Headers(request.headers)
   headers.set(PATHNAME_HEADER, request.nextUrl.pathname)
-  return NextResponse.next({ request: { headers } })
+  const csp = buildCsp({ nonce: createNonce(), dev: process.env.NODE_ENV === 'development' })
+  headers.set(CSP_HEADER, csp)
+  const response = NextResponse.next({ request: { headers } })
+  response.headers.set(CSP_HEADER, csp)
+  return response
 }
 
 // Table `sous-domaine → clan`, gardée en mémoire par le process web (docs/TODO/chickendinnerfr.md §4.C).
@@ -73,6 +81,17 @@ async function clanSubdomainRedirect(request: NextRequest): Promise<string | nul
 
 export async function proxy(request: NextRequest) {
   const { pathname, origin } = request.nextUrl
+
+  // `www.` : une seule adresse pour le site, celle sans `www` (redirection permanente, avant les sous-domaines de clan).
+  const apexLocation = wwwRedirectLocation({
+    host: request.headers.get('host'),
+    pathname,
+    search: request.nextUrl.search,
+    forwardedProto: request.headers.get('x-forwarded-proto'),
+  })
+  if (apexLocation) {
+    return NextResponse.redirect(apexLocation, 301)
+  }
 
   // Un sous-domaine de clan n'affiche jamais de page : il redirige, avant toute autre logique.
   const subdomainLocation = await clanSubdomainRedirect(request)

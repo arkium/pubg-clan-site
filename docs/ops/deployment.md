@@ -348,6 +348,27 @@ L'application web écoute par défaut sur `127.0.0.1:3000`. En amont, Nginx gèr
 > }
 > ```
 
+### En-têtes de sécurité, CSP et `www` (2026-10-18)
+
+Posés par l'application, donc versionnés et testés — rien à ajouter dans Nginx pour eux :
+
+- **`next.config.ts` → `SECURITY_HEADERS`**, sur toutes les réponses : `Strict-Transport-Security: max-age=31536000`,
+  `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN`, `Permissions-Policy` ; plus
+  `poweredByHeader: false` (plus de `X-Powered-By: Next.js`). **HSTS sans `includeSubDomains`** tant que le certificat
+  wildcard des sous-domaines de clan n'est pas posé : un navigateur qui l'aurait vu refuserait d'ouvrir un sous-domaine
+  sans certificat valide. Une fois `https://<clan>.chickendinner.fr` valide, ajouter `; includeSubDomains`.
+- **CSP** : posée par le proxy (`src/proxy.ts`, `src/lib/security/csp.ts`) avec un nonce par requête, **en mode
+  observation** (`Content-Security-Policy-Report-Only`) : rien n'est bloqué. Aucun écart relevé sur 28 pages du build
+  de production le 2026-10-18 (relevé par l'événement `securitypolicyviolation`, la console de Playwright ne montre
+  pas ces signalements). Après une à deux semaines sans écart dans la console des navigateurs en production, passer
+  `CSP_HEADER` à `Content-Security-Policy` et ajouter `upgrade-insecure-requests`.
+- **`www.chickendinner.fr`** → `chickendinner.fr`, en 301, par le proxy (chemin et requête conservés). Les adresses
+  hors proxy (`/api/`, `/_next/`, `robots.txt`, `sitemap.xml`) restent servies sur `www` : pour les rediriger aussi,
+  un bloc Nginx `server_name www.chickendinner.fr; return 301 https://chickendinner.fr$request_uri;`.
+- **Nginx** : `server_tokens off;` dans le bloc `http` de `/etc/nginx/nginx.conf` (fait le 2026-10-18 ; vaut pour
+  tous les sites du serveur) — `Server: nginx`, sans la version (`nginx/1.24.0 (Ubuntu)` auparavant). Contrôle :
+  `curl -sI https://chickendinner.fr/ | grep -i '^server'`.
+
 ### Sous-domaines de clan (`<clan>.chickendinner.fr`)
 
 Spec : [docs/TODO/chickendinnerfr.md](../TODO/chickendinnerfr.md). Chaque clan actif a un sous-domaine

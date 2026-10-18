@@ -534,7 +534,7 @@ export const NAV_REGISTRY: NavItemDef[] = [
     label: 'Réglages de la ligue',
     hrefTemplate: '/settings/league',
     defaultRole: 'superuser',
-    description: 'Barème de placement, coefficients, pondération et seuils du Power score de la Ligue Inter-Clans.',
+    description: 'Barème de placement, coefficients, pondération et seuils du Power score de la Ligue des clans.',
   },
   {
     navKey: 'superuser.database',

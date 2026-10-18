@@ -184,6 +184,19 @@ Playwright avec réponses figées) : le site est en production.
 
 ### Lot 0 — serveur et métadonnées (quelques heures, effet immédiat)
 
+**Réalisé le 2026-10-18** (bilan ; le détail de chaque point suit) :
+
+| Point | Fait | Écart au plan |
+|---|---|---|
+| 0.1 En-têtes | `SECURITY_HEADERS` dans `next.config.ts` (+ `usb=()`, `payment=()`), `poweredByHeader: false` ; `server_tokens off;` posé dans Nginx le 2026-10-18 (`Server: nginx`, sans version) | — |
+| 0.2 CSP | Proxy, nonce par requête, **observation** (`Report-Only`) ; aucun écart sur 28 pages du build | Passage en mode bloquant après une à deux semaines sans écart en production |
+| 0.3 `www` | 301 par le proxy, chemin et requête gardés | Dans l'application plutôt que Nginx (versionné, testé) ; `/api`, `/_next`, `robots.txt`, `sitemap.xml` restent servis sur `www` |
+| 0.4 Titres | Les cinq titres proposés ; suffixe retiré d'un titre calculé trop long ; test sur toutes les pages indexées | — |
+| 0.5 Descriptions | Accueil (160), mentions légales, confidentialité ; test ≤ 160 | — |
+| 0.6 Texte alternatif | Rien à changer | Images du guide du mortier : fonds de carte sous des schémas déjà légendés, `alt=""` correct |
+| 0.7 Nom et ton | H1, page de réglages et menu : « Ligue des clans » | `/join` **non passé au tutoiement** : `/login`, `/activate` et l'API d'inscription vouvoient aussi, convertir `/join` seul déplacerait l'incohérence. Sa description passe au vouvoiement, comme la page. Registre de l'espace compte : à décider |
+| 0.8 Faux zéros | `/clans`, `/tournaments` (lot 1) | — |
+
 **0.1 En-têtes de sécurité** (score Sécurité, constats HSTS ×10 et CSP ×10)
 
 À poser dans `next.config.ts` → `headers()`, plutôt que dans nginx : c'est versionné et testable.

@@ -14,10 +14,14 @@ import type { Metadata, MetadataRoute } from 'next'
 export const PATHNAME_HEADER = 'x-pathname'
 
 export const SITE_NAME = 'chickendinner.fr'
-export const DEFAULT_TITLE = 'chickendinner.fr — stats, classements et Top 1 des clans PUBG'
+/** Longueurs visées (docs/features/seo.md §1) : un titre complet, suffixe compris, n'est pas tronqué par Google. */
+export const MAX_TITLE_LENGTH = 60
+export const MAX_DESCRIPTION_LENGTH = 160
+
+export const DEFAULT_TITLE = 'chickendinner.fr — stats et classements des clans PUBG'
 export const DEFAULT_DESCRIPTION =
-  'Le QG des clans PUBG francophones : chaque partie importée, chaque kill compté, chaque Top 1 fêté. Classement des ' +
-  'clans, comparateur, tournois, débriefs de parties, entraînement au mortier et carte des ressources.'
+  'Le QG des clans PUBG francophones : parties importées automatiquement, Ligue des clans, comparateur, tournois, ' +
+  'mortier, carte des ressources et lecture de zone.'
 
 // Image de partage (ratio ≈ 1,91:1 des aperçus Discord, Facebook, X).
 export const SHARE_IMAGE = {
@@ -51,7 +55,7 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
     sitemap: { priority: 0.8, changeFrequency: 'daily' },
   },
   '/clans-leaderboard': {
-    title: 'Ligue des clans PUBG — classement Power score',
+    title: 'Ligue des clans PUBG — Power score',
     description:
       'Le classement des clans PUBG francophones au Power score (placement, dégâts, kills, knocks), sur la semaine, le mois ou depuis le début, par type de partie.',
     index: true,
@@ -86,35 +90,38 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
     sitemap: { priority: 0.6, changeFrequency: 'monthly' },
   },
   '/carte-des-ressources': {
-    title: 'Carte des ressources PUBG — véhicules, essence, garages',
+    title: 'Carte des véhicules et ressources PUBG',
     description:
       'Où trouver un véhicule sur chaque carte PUBG : emplacements observés dans les vraies parties, stations-service, garages, pontons et salles secrètes.',
     index: true,
     sitemap: { priority: 0.7, changeFrequency: 'weekly' },
   },
   '/lecture-de-zone': {
-    title: 'Lecture de zone PUBG — avion, cercles et zone finale',
+    title: 'Lecture de zone PUBG — avion et cercles',
     description:
       'Ce que la ligne de vol du C-130 dit vraiment des cercles PUBG, mesuré sur des milliers de parties, et un entraînement pour deviner la zone finale.',
     index: true,
     sitemap: { priority: 0.7, changeFrequency: 'weekly' },
   },
   '/join': {
-    title: 'Inscrire son clan PUBG ou relier son compte',
+    title: 'Inscrire son clan PUBG, relier son compte',
+    // Vouvoiement, comme la page et tout l'espace compte (/login, /activate) — le reste du site tutoie.
     description:
-      'Donne ton pseudo PUBG : on retrouve ton compte et ton clan. Relie ton compte à ton clan s’il est déjà suivi, ou inscris-le. Le site ne recrute pas de joueurs.',
+      'Donnez votre pseudo PUBG : on retrouve votre compte et votre clan. Demandez l’accès à votre clan s’il est déjà suivi, ou inscrivez-le. Le site ne recrute pas.',
     index: true,
     sitemap: { priority: 0.6, changeFrequency: 'monthly' },
   },
   '/mentions-legales': {
     title: 'Mentions légales et CGU',
-    description: 'Éditeur, hébergement, affiliation KRAFTON, origine des données et conditions d’utilisation de chickendinner.fr.',
+    description:
+      'Éditeur, hébergeur, affiliation KRAFTON, origine des données (API officielle PUBG) et conditions d’utilisation de chickendinner.fr, site communautaire gratuit.',
     index: true,
     sitemap: LEGAL_SITEMAP,
   },
   '/confidentialite': {
     title: 'Confidentialité',
-    description: 'Ce que chickendinner.fr sait de toi, ce qu’il ne collecte pas, les cookies et comment retirer tes données.',
+    description:
+      'Ce que chickendinner.fr sait de toi, ce qu’il ne collecte pas, durée de conservation, cookies, et comment masquer ton profil ou retirer tes données.',
     index: true,
     sitemap: LEGAL_SITEMAP,
   },
@@ -279,7 +286,10 @@ export function buildPageMetadata(
   seo: PageSeo,
   env: Record<string, string | undefined> = process.env
 ): Metadata {
-  const title = seo.title ? `${seo.title} · ${SITE_NAME}` : DEFAULT_TITLE
+  // Suffixe « · chickendinner.fr » seulement s'il tient dans la longueur visée (nom de clan long, par exemple) : le nom
+  // du site s'affiche de toute façon à part dans Google, grâce au `WebSite` de l'accueil.
+  const suffixed = seo.title ? `${seo.title} · ${SITE_NAME}` : null
+  const title = !seo.title ? DEFAULT_TITLE : suffixed!.length <= MAX_TITLE_LENGTH ? suffixed! : seo.title
   const path = pathname.length > 1 ? pathname.replace(/\/+$/, '') : pathname
   const verification = env.GOOGLE_SITE_VERIFICATION?.trim()
   return {

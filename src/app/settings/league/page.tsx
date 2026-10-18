@@ -228,7 +228,7 @@ function LeagueSettingsContent() {
         {savedChanges ? (
           <p className="app-panel-muted t-pos flex items-start gap-2 px-3.5 py-3 text-[13px]" role="status" data-testid="league-settings-saved">
             <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
-            Réglages enregistrés : la Ligue Inter-Clans est recalculée avec ces valeurs ({savedChanges.length} modification{savedChanges.length > 1 ? 's' : ''}).
+            Réglages enregistrés : la Ligue des clans est recalculée avec ces valeurs ({savedChanges.length} modification{savedChanges.length > 1 ? 's' : ''}).
           </p>
         ) : null}
         {generalError ? <p className="app-panel p-4 text-sm text-[var(--theme-ui-negative)]">{generalError}</p> : null}
@@ -267,7 +267,7 @@ export default function LeagueSettingsPage() {
         <NavigationTrail
           currentLabel="Réglages de la ligue"
           currentHref="/settings/league"
-          fallbackParent={{ href: '/clans-leaderboard', label: 'Ligue Inter-Clans', altHref: '/clans' }}
+          fallbackParent={{ href: '/clans-leaderboard', label: 'Ligue des clans', altHref: '/clans' }}
         />
         <header
           className="app-on-photo bg-hero-fallback relative min-h-[10rem] overflow-hidden rounded-[14px] bg-cover bg-no-repeat sm:min-h-[13rem]"

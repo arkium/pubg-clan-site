@@ -1,7 +1,23 @@
 import type { NextConfig } from "next";
 
+/**
+ * En-têtes de sécurité de toutes les réponses (docs/TODO/geo-seo-propositions.md, lot 0.1 ; docs/ops/deployment.md).
+ * HSTS **sans** `includeSubDomains` ni `preload` : les sous-domaines de clan n'ont pas encore de certificat valide
+ * (wildcard à poser), et un navigateur qui a vu `includeSubDomains` refuserait de les ouvrir en HTTP.
+ * La CSP est posée par le proxy (`src/proxy.ts`), qui seul peut générer un nonce par requête.
+ */
+export const SECURITY_HEADERS = [
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000' },
+  { key: 'X-Content-Type-Options', value: 'nosniff' },
+  { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
+  { key: 'X-Frame-Options', value: 'SAMEORIGIN' },
+  { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), payment=(), usb=()' },
+]
+
 const nextConfig: NextConfig = {
   output: 'standalone',
+  // Ne pas annoncer le framework (`X-Powered-By: Next.js`).
+  poweredByHeader: false,
   serverExternalPackages: ['prisma', '@prisma/client'],
   turbopack: {},
   webpack: (config, { dev }) => {
@@ -11,7 +27,10 @@ const nextConfig: NextConfig = {
   // Réponses de l'API : ouvertes aux robots (le rendu des pages par Google en a besoin, voir `robotsRules` dans
   // src/lib/seo/page-seo.ts), mais jamais indexées.
   async headers() {
-    return [{ source: '/api/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] }]
+    return [
+      { source: '/:path*', headers: SECURITY_HEADERS },
+      { source: '/api/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] },
+    ]
   },
   // Ancienne page « Catégories armes », fondue dans l'armurerie du clan (docs/features/weapons.md §7). Vraie redirection
   // HTTP, avant tout rendu ; la requête (`period`, `cat`) est transmise telle quelle, sans `cat` on ouvre la première.

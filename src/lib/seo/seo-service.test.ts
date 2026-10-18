@@ -97,4 +97,26 @@ describe('proxy — chemin transmis au layout racine', () => {
     )
     expect(response.headers.get('x-middleware-request-x-pathname')).toBe('/clans/7/leaderboard')
   })
+
+  it('pose la CSP de la page avec un nonce neuf, sur la requête (lue par Next) et sur la réponse', async () => {
+    const { proxy } = await import('../../proxy')
+    const first = await proxy(new NextRequest('https://chickendinner.fr/clans'))
+    const second = await proxy(new NextRequest('https://chickendinner.fr/clans'))
+    const csp = first.headers.get('content-security-policy-report-only')
+    expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/)
+    expect(first.headers.get('x-middleware-request-content-security-policy-report-only')).toBe(csp)
+    expect(second.headers.get('content-security-policy-report-only')).not.toBe(csp)
+  })
+
+  it('renvoie www. vers le domaine sans www, chemin et requête gardés, avant toute autre logique', async () => {
+    const { proxy } = await import('../../proxy')
+    const response = await proxy(
+      new NextRequest('https://www.chickendinner.fr/clans/7/leaderboard?period=month', {
+        headers: { host: 'www.chickendinner.fr', 'x-forwarded-proto': 'https' },
+      })
+    )
+    expect(response.status).toBe(301)
+    expect(response.headers.get('location')).toBe('https://chickendinner.fr/clans/7/leaderboard?period=month')
+    expect(fetch).not.toHaveBeenCalled()
+  })
 })

@@ -49,7 +49,7 @@ const PLAYER_SOURCES = ALL_SOURCES.filter((file) => !OUT_OF_SCOPE.some((prefix) 
 /** Pages à filtres de page (inventaire du §6) : toutes portent un `DockingToolbar`. */
 const TOOLBAR_PAGES = [
   // Clan
-  'src/app/clans/[clanId]/overview/page.tsx',
+  'src/components/clan-overview/ClanOverviewPage.tsx',
   'src/app/clans/[clanId]/leaderboard/page.tsx',
   'src/app/clans/[clanId]/matches/page.tsx',
   'src/app/clans/[clanId]/matches/session/[date]/page.tsx',

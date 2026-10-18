@@ -546,7 +546,7 @@ La page `/clans/[clanId]/settings/cron` (réservée Owner) agrège cette observa
 | `src/app/api/clans/[clanId]/members/route.ts` | Gestion des membres |
 | `src/app/api/clans/[clanId]/sync-matches/route.ts` | Déclenchement sync matchs |
 | `src/app/api/clans/[clanId]/cron-control/route.ts` | Pilotage cron |
-| `src/app/clans/[clanId]/overview/page.tsx` | Page overview clan (vitrine) |
+| `src/app/clans/[clanId]/overview/page.tsx` | Page serveur : rend `src/components/clan-overview/ClanOverviewPage.tsx` (vitrine, client) et le bloc « En bref » (`ClanOverviewFindings` : chiffres du clan, lien vers chacune de ses pages, aucun pseudo — 2026-10-18) |
 | `src/components/clan-overview/ClanOverviewSections.tsx` | Vitrine, briefing, modes, duo, synergies, « Explorer le clan » |
 | `src/lib/clan-showcase.ts`, `src/lib/clan-showcase-service.ts` | Données de la vitrine |
 | `src/lib/clans-leaderboard.ts` | Rang en Ligue des clans (partagé), via `clan-league-service.ts` — voir [ligue-clans.md](ligue-clans.md) |

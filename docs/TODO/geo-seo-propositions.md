@@ -306,7 +306,13 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
   dernière vitrine connue de moins d'une heure) — compteurs, Top 1 et kill feed dans le HTML, sans « Chargement… »,
   premier octet ~0,1 s ; jamais d'attente d'une lecture à froid. Boussole du héros en CSS : « N 15 30 NE… » sort du
   texte de la page (constat « pollution » de l'audit).
-- Reste : les pages de clan (vue d'ensemble d'abord).
+- `/clans/[id]/overview` — **fait le 2026-10-18** : bloc serveur « En bref » en fin de page (membres, parties, top 1,
+  kills, activité sur 7 jours, rang en Ligue du mois, style de jeu — aucun pseudo) et **un lien vers chacune des 12
+  autres pages du clan**, sorties du sitemap : 67 → 160 mots. Vérifié au passage : un premier visiteur (ou un robot)
+  arrivant par un lien direct reste bien sur la page du clan — le commentaire d'`e2e/support/api.ts` qui annonce un
+  renvoi vers `/clans` est dépassé.
+- Reste au lot 2 : les 12 autres pages de clan (même modèle si elles reviennent au sitemap). Le lot 2 est fait pour
+  toutes les pages publiques ; suite logique : lot 3 (données structurées), puis lot 4.
 
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).

@@ -36,9 +36,12 @@ const EMPTY_QUICK_STATS = (): ClanQuickStats => ({
  * `includeInactive` (SuperUser) ajoute les clans en attente de validation et archivés (docs/TODO/clan-archive.md).
  * Des statistiques absentes sont calculées à la volée et enregistrées.
  */
-export async function listClansWithQuickStats(options: { includeInactive?: boolean } = {}): Promise<ClanListItem[]> {
+export async function listClansWithQuickStats(options: { includeInactive?: boolean; ids?: number[] } = {}): Promise<ClanListItem[]> {
   const clans = await prisma.clan.findMany({
-    where: options.includeInactive ? undefined : { isActive: true },
+    where: {
+      ...(options.includeInactive ? {} : { isActive: true }),
+      ...(options.ids ? { id: { in: options.ids } } : {}),
+    },
     orderBy: { name: 'asc' },
     include: {
       _count: { select: { members: { where: { isActive: true } } } },

@@ -395,6 +395,15 @@ par les membres de ce clan »). Voir [auth.md](auth.md) §7.
 - « Parties » = parties **ensemble** (`SquadMatch`, au moins deux membres suivis) ; « dernière partie » =
   `Clan.lastMatchAt`, solo compris. Un clan qui ne joue qu'en solo affiche donc « 0 partie ensemble · dernière partie ce soir ».
 
+**Rendu serveur (2026-10-18)** : `src/app/clans/page.tsx` est une page serveur qui rend l'annuaire interactif
+(`src/components/clans/ClansDirectoryPage.tsx`) et lui passe, en fin de page, le bloc **« En bref »**
+(`ClanDirectoryFindings` dans un `Suspense`, textes de `src/lib/clan-directory-findings.ts`) : totaux du bandeau,
+trois clans les plus actifs sur 7 jours, styles de jeu, **un lien vers la vue d'ensemble de chaque clan suivi** (les
+cartes s'ouvrent par un bouton : sans ce bloc, un robot ne trouvait aucun lien vers les clans) et l'inscription
+(docs/TODO/geo-seo-propositions.md, lot 2). La logique de `GET /api/clans` est passée dans
+`listClansWithQuickStats` (`src/lib/clan-list-service.ts`), partagée par la route et le bloc : une seule définition
+des totaux. Mode visiteur seulement.
+
 **Données** : `GET /api/clans` (inchangée : liste, image, `quickStats`) et `GET /api/clans/directory`
 (`src/lib/clan-directory-service.ts`, logique pure dans `src/lib/clan-directory.ts`) : par clan, parties et top 1 sur 7
 jours glissants, joueurs de la soirée, dernière partie, rang en Ligue ; joueurs de la soirée tous clans confondus ; clan

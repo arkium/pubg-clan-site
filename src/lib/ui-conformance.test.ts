@@ -79,7 +79,7 @@ const TOOLBAR_PAGES = [
   'src/app/members/[id]/nemesis/page.tsx',
   'src/app/members/[id]/notifications/page.tsx',
   // Global
-  'src/app/clans/page.tsx',
+  'src/components/clans/ClansDirectoryPage.tsx',
   'src/app/clans/comparator/page.tsx',
   'src/components/clan-league/LeaguePage.tsx',
   'src/components/tournaments/TournamentsPage.tsx',
@@ -114,7 +114,7 @@ const MOBILE_DOCKING_WITHOUT_PERIOD: Record<string, string> = {
   'src/app/members/[id]/stats/page.tsx': 'carrière PUBG sans période : mode (Tous / Squad / Duo / Solo) et synchro, sur une ligne',
   // Écart constaté le 2026-09-27 par ce contrôle, pas une décision : sticky.md §2 dit « rien de docké sur mobile »
   // pour /clans, la refonte de l'annuaire (2026-09-26) docke recherche et tri. À trancher, puis retirer d'ici.
-  'src/app/clans/page.tsx': 'écart à trancher (recherche et tri de l’annuaire)',
+  'src/components/clans/ClansDirectoryPage.tsx': 'écart à trancher (recherche et tri de l’annuaire)',
 }
 
 /**

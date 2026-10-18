@@ -290,6 +290,11 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
   « Comment ça marche ? » toujours dans le HTML (replié par `hidden`).
 - `/tournaments/[id]` — **fait le 2026-10-18** : résumé serveur à la place du chargement (H1, dates, organisateur,
   affluence, vainqueur, podium), 38 → 161 mots. Pseudos jamais écrits : podium nommé en inter-clans seulement.
+- `/clans` — **fait le 2026-10-18** : bloc serveur « En bref » en fin de page (totaux, trois plus actifs sur 7 jours,
+  styles de jeu, inscription), 42 → 280 mots, et surtout **34 liens vers les vues d'ensemble des clans** : les cartes
+  de l'annuaire s'ouvrent par un bouton, la page n'offrait aucun lien explorable vers les clans. La logique de
+  `GET /api/clans` est partagée (`listClansWithQuickStats`) : mêmes totaux que le bandeau.
+- Reste : `/mortier` (guide sur sa propre adresse), `/carte-des-ressources`, l'accueil (vitrine) et les pages de clan.
 
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).

@@ -43,10 +43,22 @@ Tous les titres finissent par « · chickendinner.fr ». Une page indexée a une
 
 ## 3. Sitemap et robots.txt
 
-- `/sitemap.xml` : accueil, pages publiques, les 13 pages du menu de chaque clan suivi (datées de sa dernière partie),
-  tournois lancés. Environ 390 adresses au 2026-10-05 (29 clans). Base indisponible : seules les pages fixes.
-- `/robots.txt` : tout est permis sauf `/api/`, `/account`, `/settings`, `/login`, `/activate`, `/reset-password`, et
-  il annonce le sitemap. Les pages joueur **ne sont pas** bloquées ici : Google doit pouvoir y lire leur `noindex`.
+- `/sitemap.xml` : accueil, pages publiques, **la vue d'ensemble** de chaque clan suivi (datée de sa dernière partie),
+  tournois lancés — 47 adresses au 2026-10-18 (34 clans). Les 12 autres pages du menu d'un clan restent indexables
+  mais ne sont plus annoncées (`sitemap` de `CLAN_PAGES`) : avec 442 adresses dont 97 % de pages de clan, Google
+  avait reporté l'exploration de 438 d'entre elles (« Détectée, actuellement non indexée »). Elles reviendront dans le
+  sitemap avec un contenu rendu côté serveur. Base indisponible : seules les pages fixes.
+- `/robots.txt` : tout est permis sauf `/api/internal/`, `/api/cron/`, `/account`, `/settings`, `/login`, `/activate`,
+  `/reset-password`, et il annonce le sitemap. Les pages joueur **ne sont pas** bloquées ici : Google doit pouvoir y
+  lire leur `noindex`.
+- **Ne jamais interdire `/api/` en entier.** Le rendu de Google respecte robots.txt pour chaque `fetch` : sans
+  `/api/auth/mode`, le shell redirige vers /login et la page rendue chez Google est blanche (simulation du
+  2026-10-18, [geo-seo-propositions.md](../TODO/geo-seo-propositions.md) §0). Les réponses de l'API portent à la place
+  `X-Robots-Tag: noindex` (`headers()` de `next.config.ts`).
+- **Robots d'IA** (décision du 2026-10-18) : ceux qui collectent pour l'entraînement (`AI_TRAINING_BOTS` : GPTBot,
+  ClaudeBot, CCBot, Google-Extended, Applebot-Extended, Meta-ExternalAgent, Bytespider) sont refusés ; ceux des
+  moteurs de recherche et de réponse (OAI-SearchBot, ChatGPT-User, Claude-SearchBot, PerplexityBot…) suivent la règle
+  générale. Refuser Google-Extended ne touche ni la recherche Google ni ses AI Overviews.
 - Ces deux adresses sont exclues du proxy (`matcher`) : jamais de redirection vers /login.
 
 **Adresse publique** : `NEXT_PUBLIC_APP_URL` (sinon `https://chickendinner.fr`). En production, elle doit valoir
@@ -78,7 +90,8 @@ ailleurs :
 ## 6. Tests
 
 - `src/lib/seo/page-seo.test.ts` : règles par page, métadonnées (canonique, robots, vérification), sitemap sans
-  doublon, robots.txt, données structurées.
+  doublon (vue d'ensemble seule pour les clans), robots.txt (API du shell et des pages publiques jamais bloquées,
+  robots d'entraînement refusés), `X-Robots-Tag` de l'API, données structurées.
 - `src/lib/seo/seo-service.test.ts` : clan suivi / archivé / en attente / système, tournoi lancé ou brouillon, base en
   panne, filtres du sitemap, en-tête `x-pathname` posé par le proxy (et non falsifiable).
 - `e2e/legal.spec.ts` (titres d'onglet), `e2e/not-found.spec.ts` (404).

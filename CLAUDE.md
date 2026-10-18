@@ -373,6 +373,8 @@ pour les statistiques que tout le clan consulte. Une entrée de menu personnelle
 (`generateMetadata` → `src/lib/seo/page-seo.ts`), pas des pages (presque toutes client). Nouvelle page publique → une
 entrée dans `STATIC_PAGES` ; page du menu d'un clan → `CLAN_PAGES`. Pages joueur toujours en `noindex`.
 `/sitemap.xml` et `/robots.txt` : `src/app/sitemap.ts`, `src/app/robots.ts` — [seo.md](docs/features/seo.md).
+**Ne jamais interdire `/api/` dans robots.txt** : le rendu de Google respecte robots.txt pour chaque `fetch`, et une
+page dont le shell ne joint pas `/api/auth/mode` redirige vers /login — elle est blanche chez Google (2026-10-18).
 
 ## Workers & CLI Scripts
 

@@ -46,7 +46,9 @@ demandes d'indexation pour les adresses clés (quota de quelques-unes par jour).
 *Afficher la page testée*. La capture doit montrer « Vérification de la session… », et *Plus d'infos → Ressources de
 la page* doit lister les `/api/…` comme **« Bloquée par le fichier robots.txt »**.
 
-**Corriger — lot 0.0, à faire avant tout le reste :**
+**Corriger — lot 0.0, à faire avant tout le reste.** Points 1 à 3 **réalisés le 2026-10-18** (`robotsRules` et
+`sitemap` de `CLAN_PAGES` dans `page-seo.ts`, `headers()` de `next.config.ts`, tests dans `page-seo.test.ts`),
+vérifiés sur le serveur de dev ; **en attente de déploiement**, puis point 4.
 
 1. `robotsRules` (`src/lib/seo/page-seo.ts`) : remplacer `Disallow: /api/` par **`/api/internal/` et `/api/cron/`
    seulement**, les deux préfixes qu'aucune page n'appelle. Le shell d'une page publique appelle `/api/auth/mode`,
@@ -326,7 +328,8 @@ balisage est facultatif. `Dataset` pour la lecture de zone : possible plus tard 
    les moteurs génératifs citeront pour répondre à « comment chickendinner calcule… ».
 3. **Bing Webmaster Tools** + **IndexNow** (§4 J) : soumettre le sitemap, puis notifier IndexNow à la création d'un
    tournoi ou d'un clan. Vérifier aussi que les étapes Search Console de `seo.md` §4 sont faites.
-4. **`robots.txt` et robots d'IA.** Décision du 2026-10-18 : **robots de recherche oui, robots d'entraînement non.**
+4. **`robots.txt` et robots d'IA** — **réalisé le 2026-10-18** avec le lot 0.0 (`AI_TRAINING_BOTS`). Décision du
+   2026-10-18 : **robots de recherche oui, robots d'entraînement non.**
    Il suffit de nommer les robots d'entraînement avec `Disallow: /`. Tous les autres, robots de recherche compris,
    suivent le groupe `*` (un robot nommé dans un groupe ignore le groupe `*`, d'où l'intérêt de ne nommer que ceux
    qu'on refuse).

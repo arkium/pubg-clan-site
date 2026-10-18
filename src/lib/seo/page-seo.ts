@@ -133,12 +133,19 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
   '/clans/mutations': { title: 'Mouvements de clan', description: DEFAULT_DESCRIPTION, index: false },
 }
 
-/** Pages du menu latéral d'un clan (accès « Tous »), indexées pour chaque clan suivi. */
-export const CLAN_PAGES: Array<{ path: string; label: string; describe: (clan: string) => string }> = [
+/**
+ * Pages du menu latéral d'un clan (accès « Tous »), indexées pour chaque clan suivi. `sitemap` : annoncée dans
+ * /sitemap.xml. Seule la vue d'ensemble l'est (2026-10-18) : un domaine neuf qui annonce 13 gabarits par clan voit
+ * Google en reporter l'exploration (« Détectée, actuellement non indexée »). Les autres pages restent indexables et
+ * atteintes par les liens ; elles rejoindront le sitemap avec un contenu rendu côté serveur
+ * (docs/TODO/geo-seo-propositions.md §0).
+ */
+export const CLAN_PAGES: Array<{ path: string; label: string; describe: (clan: string) => string; sitemap?: boolean }> = [
   {
     path: '/overview',
     label: 'clan PUBG',
     describe: (clan) => `Le clan PUBG ${clan} en un coup d’œil : briefing de la semaine, palmarès, Top 1 et joueurs en forme.`,
+    sitemap: true,
   },
   {
     path: '/leaderboard',
@@ -290,7 +297,7 @@ export function buildPageMetadata(
   }
 }
 
-/** Contenu de /sitemap.xml : accueil, pages publiques, pages du menu de chaque clan suivi, tournois lancés. */
+/** Contenu de /sitemap.xml : accueil, pages publiques, vue d'ensemble de chaque clan suivi, tournois lancés. */
 export function sitemapEntries(
   base: URL,
   clans: Array<{ id: number; lastMatchAt: Date | null }>,
@@ -303,7 +310,7 @@ export function sitemapEntries(
       .filter(([, page]) => page.index && page.sitemap)
       .map(([path, page]) => ({ url: url(path), changeFrequency: page.sitemap!.changeFrequency, priority: page.sitemap!.priority })),
     ...clans.flatMap((clan) =>
-      CLAN_PAGES.map((page) => ({
+      CLAN_PAGES.filter((page) => page.sitemap).map((page) => ({
         url: url(`/clans/${clan.id}${page.path}`),
         ...(clan.lastMatchAt ? { lastModified: clan.lastMatchAt } : {}),
         changeFrequency: 'daily' as const,
@@ -344,14 +351,39 @@ export function homeJsonLd(base: URL) {
   return JSON.stringify(data).replace(/</g, '\\u003c')
 }
 
-/** Contenu de /robots.txt. Les pages joueur ne sont pas bloquées ici : Google doit pouvoir y lire leur `noindex`. */
+/**
+ * Adresses fermées aux robots. **Jamais `/api/` en entier** : le rendu de Google respecte robots.txt pour chaque
+ * `fetch`, et le shell d'une page publique appelle `/api/auth/*`, `/api/setup/status` et `/api/settings/*` — sans
+ * `/api/auth/mode`, il redirige vers /login et la page rendue chez Google est blanche (constaté le 2026-10-18,
+ * docs/TODO/geo-seo-propositions.md §0). Seuls les préfixes qu'aucun navigateur n'appelle sont fermés ; les réponses
+ * de l'API portent `X-Robots-Tag: noindex` (`next.config.ts`). Les pages joueur restent ouvertes : Google doit pouvoir
+ * y lire leur `noindex`.
+ */
+const ROBOTS_DISALLOW = ['/api/internal/', '/api/cron/', '/account', '/settings', '/login', '/activate', '/reset-password']
+
+/**
+ * Robots qui collectent des pages pour entraîner des modèles : refusés (décision du 2026-10-18). Ceux des moteurs de
+ * recherche et de réponse (Googlebot, Bingbot, OAI-SearchBot, ChatGPT-User, Claude-SearchBot, Claude-User,
+ * PerplexityBot…) suivent la règle générale. Refuser `Google-Extended` ne touche ni la recherche Google ni ses AI
+ * Overviews, qui passent par Googlebot.
+ */
+export const AI_TRAINING_BOTS = [
+  'GPTBot',
+  'ClaudeBot',
+  'CCBot',
+  'Google-Extended',
+  'Applebot-Extended',
+  'Meta-ExternalAgent',
+  'Bytespider',
+]
+
+/** Contenu de /robots.txt. */
 export function robotsRules(base: URL): MetadataRoute.Robots {
   return {
-    rules: {
-      userAgent: '*',
-      allow: '/',
-      disallow: ['/api/', '/account', '/settings', '/login', '/activate', '/reset-password'],
-    },
+    rules: [
+      { userAgent: '*', allow: '/', disallow: ROBOTS_DISALLOW },
+      { userAgent: AI_TRAINING_BOTS, disallow: '/' },
+    ],
     sitemap: new URL('/sitemap.xml', base).toString(),
   }
 }

@@ -8,6 +8,11 @@ const nextConfig: NextConfig = {
     if (dev) config.cache = { type: 'memory' }
     return config
   },
+  // Réponses de l'API : ouvertes aux robots (le rendu des pages par Google en a besoin, voir `robotsRules` dans
+  // src/lib/seo/page-seo.ts), mais jamais indexées.
+  async headers() {
+    return [{ source: '/api/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] }]
+  },
   // Ancienne page « Catégories armes », fondue dans l'armurerie du clan (docs/features/weapons.md §7). Vraie redirection
   // HTTP, avant tout rendu ; la requête (`period`, `cat`) est transmise telle quelle, sans `cat` on ouvre la première.
   async redirects() {

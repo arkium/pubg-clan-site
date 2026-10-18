@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
+import nextConfig from '../../../next.config'
 import {
+  AI_TRAINING_BOTS,
   buildPageMetadata,
   CLAN_PAGES,
   DEFAULT_TITLE,
@@ -119,14 +121,21 @@ describe('sitemapEntries', () => {
     }
   })
 
-  it('met les pages du menu de chaque clan suivi, datées de sa dernière partie', () => {
-    expect(urls.filter((url) => url.startsWith('https://chickendinner.fr/clans/7/'))).toHaveLength(CLAN_PAGES.length)
+  it('n’annonce que la vue d’ensemble de chaque clan suivi, datée de sa dernière partie', () => {
+    expect(urls.filter((url) => url.startsWith('https://chickendinner.fr/clans/7/'))).toEqual(['https://chickendinner.fr/clans/7/overview'])
     expect(entries.find((entry) => entry.url === 'https://chickendinner.fr/clans/7/overview')).toMatchObject({
       lastModified: new Date('2026-10-04T21:00:00Z'),
       priority: 0.7,
     })
-    expect(entries.find((entry) => entry.url === 'https://chickendinner.fr/clans/9/leaderboard')?.lastModified).toBeUndefined()
+    expect(entries.find((entry) => entry.url === 'https://chickendinner.fr/clans/9/overview')?.lastModified).toBeUndefined()
     expect(urls).toContain('https://chickendinner.fr/tournaments/ckt1')
+  })
+
+  it('garde indexables les pages de clan absentes du sitemap', () => {
+    expect(urls).not.toContain('https://chickendinner.fr/clans/7/leaderboard')
+    for (const page of CLAN_PAGES) {
+      expect(pageSeo(`/clans/7${page.path}`, { clan: CLAN }).index, page.path).toBe(true)
+    }
   })
 
   it('n’a aucune adresse en double', () => {
@@ -135,13 +144,56 @@ describe('sitemapEntries', () => {
 })
 
 describe('robotsRules', () => {
-  it('écarte l’API et les écrans privés, et annonce le sitemap', () => {
-    const robots = robotsRules(new URL('https://chickendinner.fr'))
+  type Group = { userAgent: string | string[]; allow?: string | string[]; disallow?: string | string[] }
+  const robots = robotsRules(new URL('https://chickendinner.fr'))
+  const groups = robots.rules as Group[]
+  const list = (value: string | string[] | undefined) => (value === undefined ? [] : Array.isArray(value) ? value : [value])
+  const general = groups.find((group) => group.userAgent === '*')!
+  const blockedForAll = (path: string) => list(general.disallow).some((prefix) => path.startsWith(prefix))
+
+  it('écarte les écrans privés et l’API interne, et annonce le sitemap', () => {
     expect(robots.sitemap).toBe('https://chickendinner.fr/sitemap.xml')
-    expect(robots.rules).toMatchObject({ userAgent: '*', allow: '/' })
-    expect((robots.rules as { disallow: string[] }).disallow).toEqual(expect.arrayContaining(['/api/', '/account', '/settings']))
+    expect(general.allow).toBe('/')
+    for (const path of ['/account', '/settings/cron', '/login', '/api/internal/clan-subdomains', '/api/cron/opponent-stats']) {
+      expect(blockedForAll(path), path).toBe(true)
+    }
     // Les pages joueur restent accessibles au robot, pour qu'il y lise le noindex.
-    expect((robots.rules as { disallow: string[] }).disallow).not.toContain('/members')
+    expect(blockedForAll('/members/12/dashboard')).toBe(false)
+  })
+
+  it('laisse le rendu de Google appeler l’API des pages publiques (sinon le shell redirige vers /login)', () => {
+    const shellAndPageApis = [
+      '/api/auth/mode',
+      '/api/auth/session',
+      '/api/setup/status',
+      '/api/settings/nav-permissions',
+      '/api/settings/login-welcome',
+      '/api/clans',
+      '/api/clans/directory',
+      '/api/clans-leaderboard?period=week',
+      '/api/tournaments',
+      '/api/zone-reading?mode=squad',
+      '/api/home/showcase',
+    ]
+    expect(shellAndPageApis.filter(blockedForAll)).toEqual([])
+  })
+
+  it('refuse les robots d’entraînement, laisse les robots de recherche et de réponse à la règle générale', () => {
+    const training = groups.find((group) => group !== general)!
+    expect(list(training.userAgent)).toEqual(AI_TRAINING_BOTS)
+    expect(training.disallow).toBe('/')
+    const named = groups.flatMap((group) => list(group.userAgent)).map((agent) => agent.toLowerCase())
+    for (const searchBot of ['Googlebot', 'Bingbot', 'OAI-SearchBot', 'ChatGPT-User', 'Claude-SearchBot', 'Claude-User', 'PerplexityBot']) {
+      expect(named, searchBot).not.toContain(searchBot.toLowerCase())
+    }
+  })
+})
+
+describe('next.config.ts — en-têtes', () => {
+  it('marque toutes les réponses de l’API noindex, et aucune page', async () => {
+    const rules = await nextConfig.headers!()
+    const noindex = rules.filter((rule) => rule.headers.some((header) => header.key === 'X-Robots-Tag'))
+    expect(noindex).toEqual([{ source: '/api/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] }])
   })
 })
 

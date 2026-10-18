@@ -131,7 +131,7 @@ Migration `20261005090000_add_resource_map` — sept tables, aucune modification
   `DropPressureStat` (atterrissages du clan, 90 jours), même droit que la page « Zones de drop ».
 - Agrégat : `src/lib/resources/resource-vehicle-spots.ts`, cron `resource_vehicle_spots`,
   `scripts/compute-resource-vehicle-spots.ts` (`--dry-run`).
-- Page : `src/app/carte-des-ressources/page.tsx`, `src/components/resources/` (vue SuperUser :
+- Page : `src/app/carte-des-ressources/page.tsx` (serveur : bloc « En bref », `ResourceFindings`) qui rend `src/components/resources/ResourceMapPage.tsx`, `src/components/resources/` (vue SuperUser :
   `src/components/resources/admin/`).
 
 ## 9. Calcul nocturne et déploiement

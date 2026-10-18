@@ -228,9 +228,10 @@ des clans, comparateur, tournois, mortier, carte des ressources et lecture de zo
 environ 150 (propositions à 159 et 148 disponibles). Les descriptions de clan restent sous 160 avec un nom long : à
 tester.
 
-**0.6 Texte alternatif.** Carte de `/carte-des-ressources` : `alt` construit d'après la carte affichée (« Carte
-d'Erangel : véhicules observés et points utiles »). Images du guide du mortier : décrire ce qu'elles montrent. Fonds
-de l'accueil et de `/join` : garder `alt=""`, ils sont décoratifs.
+**0.6 Texte alternatif.** Images du guide du mortier : décrire ce qu'elles montrent. Fonds de l'accueil et de
+`/join` : garder `alt=""`, ils sont décoratifs. *Corrigé le 2026-10-18* : la carte de `/carte-des-ressources` garde
+aussi `alt=""` — elle est dans une région déjà nommée « Carte Erangel » (`aria-label`, `ResourceMapCanvas`) ; un `alt`
+ferait lire deux fois la même chose. Le constat de l'audit sur cette image ne tient donc pas.
 
 **0.7 Un seul nom, un seul ton** (§4 E). H1 de la Ligue : « Ligue des clans » (« Inter-Clans » peut rester en
 sous-titre). Passer `/join` au tutoiement. Écrire partout « Power score » et « PUBG: BATTLEGROUNDS » à la première
@@ -298,7 +299,10 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
   mortier PUBG à la grille », H1 « Guide du mortier », 4 sections, 364 mots), au lieu de `/mortier?tab=guide` dont la
   canonique était `/mortier`. Onglet lu dans le chemin, changement par `replaceState` : la série en cours est gardée.
   L'ancien `?tab=guide` redirige.
-- Reste : `/carte-des-ressources`, l'accueil (vitrine) et les pages de clan.
+- `/carte-des-ressources` — **fait le 2026-10-18** : bloc serveur « En bref » sous la carte, une phrase par carte
+  (parties analysées, emplacements par famille, le plus fréquent, points des joueurs) et la méthode avec ses seuils.
+  59 → 397 mots.
+- Reste : l'accueil (vitrine) et les pages de clan.
 
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).

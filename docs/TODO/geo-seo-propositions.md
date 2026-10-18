@@ -281,6 +281,10 @@ L'accueil, `/join` et les pages d'authentification gardent leur rendu plein écr
   diffusé dans un `Suspense`. 99 → 367 mots dans le HTML, H2 « En bref : ce que disent 11 274 parties sur Erangel »,
   quatre constats chiffrés et datés, méthode, parties par carte. Écart au principe : pas d'`initialData`, la réponse
   de l'API pèse 240 Ko (une entrée par partie pour tourner l'axe) et aurait alourdi d'autant le HTML.
+- `/clans-leaderboard` — **fait le 2026-10-18** : bloc serveur « En bref » (`LeagueFindings`) en bas de page. 85 → 264
+  mots, H2, podium de la semaine lié aux clans, clans classés / en qualification / sans partie, formule du Power score
+  avec les réglages en vigueur. Même choix d'un bloc serveur plutôt que d'un `initialData`, pour un seul modèle sur
+  toutes les pages.
 
 Le composant client actuel ne change presque pas. Le filtre de période rechargé côté client garde son comportement
 (résultats précédents estompés).

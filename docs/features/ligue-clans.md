@@ -89,7 +89,14 @@ tous les types, le classement du mois est presque vide hors Normal : les seuils 
   **Sans partie** (replié). Sans clan classé : un message, et les deux blocs restent.
 - **Explication du Power score** repliable : formule, barème, pondération (score moyen de la ligue de la période) et
   seuil de la période, lus dans la réponse (`scoring`).
+- **« En bref »** (depuis le 2026-10-18), en bas de page : podium de la semaine en parties normales (liens vers la vue
+  d'ensemble de chaque clan), nombre de clans classés, en qualification et sans partie, formule du Power score avec
+  les réglages en vigueur. Rendu **par le serveur** (`LeagueFindings`, textes de `src/lib/clan-league-findings.ts`,
+  même `getClanLeague` et même cache que l'API) pour que ces faits soient dans le HTML lu par les robots
+  (docs/TODO/geo-seo-propositions.md, lot 2). Il ne suit pas les filtres : il décrit toujours la vue par défaut.
 
+`src/app/clans-leaderboard/page.tsx` est une page serveur qui rend la page interactive
+(`src/components/clan-league/LeaguePage.tsx`, composant client) en lui passant ce bloc dans un `Suspense`.
 Composants : `src/components/clan-league/LeagueSections.tsx`. Logique pure : `src/lib/clan-league.ts`. Les flèches ▲▼ / « nouv. »
 sont depuis le 2026-10-12 la brique partagée `RankMovement` (`src/components/ui/RankMovement.tsx`), reprise par le
 classement des joueurs ([joueurs.md](joueurs.md)).

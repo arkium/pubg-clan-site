@@ -81,7 +81,7 @@ const TOOLBAR_PAGES = [
   // Global
   'src/app/clans/page.tsx',
   'src/app/clans/comparator/page.tsx',
-  'src/app/clans-leaderboard/page.tsx',
+  'src/components/clan-league/LeaguePage.tsx',
   'src/app/tournaments/page.tsx',
   'src/app/tournaments/[tournamentId]/page.tsx',
   'src/app/tournaments/[tournamentId]/matches/[matchId]/page.tsx',
@@ -127,7 +127,7 @@ const MOBILE_DOCKED_EXTRA_CONTROLS: Record<string, string> = {
   'src/app/members/[id]/drop-zones/page.tsx': 'carte ‹ › et périmètre, sur une ligne',
   'src/app/clans/[clanId]/stats/positions/page.tsx': 'carte ‹ › et joueur, sur une ligne (même bandeau que les zones de drop)',
   'src/app/clans/[clanId]/stats/zone-closures/page.tsx': 'carte ‹ › et joueur, sur une ligne (même bandeau que les zones de drop, 04/10/2026)',
-  'src/app/clans-leaderboard/page.tsx': 'critère (liste déroulante, 18/10/2026), sur une ligne avec la période',
+  'src/components/clan-league/LeaguePage.tsx': 'critère (liste déroulante, 18/10/2026), sur une ligne avec la période',
   'src/app/members/[id]/nemesis/page.tsx': 'pastille d’arme, sur une ligne avec la période',
   'src/app/members/[id]/weapons/page.tsx': 'onglet Site / PUBG et pastille de catégorie, sur une ligne avec la période (ou la synchro)',
   'src/app/members/[id]/matches/page.tsx': 'pastille de mode, sur une ligne avec la période',

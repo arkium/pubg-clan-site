@@ -26,8 +26,14 @@ async function expectNoHorizontalScroll(page: Page) {
 async function colorAndToken(locator: Locator, token: string) {
   return locator.evaluate((element, name) => {
     const normalize = (value: string) => value.replace(/rgba?\(|\)/g, '').replace(/,/g, ' ').replace(/\s+/g, ' ').trim()
-    const style = getComputedStyle(element)
-    return { color: normalize(style.color), token: normalize(style.getPropertyValue(name)) }
+    // La valeur brute d'une variable dépend du build : le CSS minifié de production écrit `#fb923c` là où la source dit
+    // `rgb(251 146 60)`. Un élément témoin la fait résoudre en couleur calculée, comparable à `style.color`.
+    const probe = document.createElement('span')
+    probe.style.color = `var(${name})`
+    element.appendChild(probe)
+    const token = getComputedStyle(probe).color
+    probe.remove()
+    return { color: normalize(getComputedStyle(element).color), token: normalize(token) }
   }, token)
 }
 

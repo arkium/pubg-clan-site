@@ -77,6 +77,16 @@ npm run test:e2e:update      # régénère les captures de référence après un
 Le serveur de développement compile chaque page à sa première visite : un test peut échouer une fois juste après une
 modification du code (fichier JavaScript servi pendant la recompilation). Relancer avant d'enquêter.
 
+**Suite complète : sur le build de production.** Sous une suite de plus d'une demi-heure, le serveur de dev s'est
+arrêté deux fois le 2026-10-18 (erreur fatale de V8 dans le compilateur à la demande de Next, `handle-externals.js`) :
+des centaines de tests tombent alors en `ERR_CONNECTION_REFUSED`. Pour une suite complète, viser le build :
+
+```bash
+npm run build
+node --env-file=.env .next/standalone/server.js   # PORT=3001 dans l'environnement ; crons coupés par .env
+E2E_PORT=3001 npx playwright test                 # même suite, sur le serveur de production local
+```
+
 ## Captures de référence
 
 Stockées dans `e2e/visual.spec.ts-snapshots/`, suffixées par profil et par système (`-win32`). Le rendu des polices

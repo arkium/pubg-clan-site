@@ -9,7 +9,9 @@ import { defineConfig, devices } from '@playwright/test'
  *
  * Les tests sont dans `e2e/`, que Vitest ne collecte pas (`src/lib/**` seulement), et inversement.
  */
-const PORT = 3000
+// `E2E_PORT` : viser un autre serveur déjà lancé, par exemple le build de production (`node .next/standalone/server.js`
+// sur 3001) — plus stable que le serveur de dev pour une suite complète (docs/ops/tests-e2e.md).
+const PORT = Number(process.env.E2E_PORT) || 3000
 
 export default defineConfig({
   testDir: './e2e',

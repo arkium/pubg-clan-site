@@ -6,6 +6,10 @@ import { precomputeClanMatchesStats } from '@/lib/matches-cache-service'
 import { computeClanComparatorStats } from '@/lib/clan-comparator-service'
 import { updateClanQuickStats } from '@/lib/clan-stats-cache'
 import { getUngroupedAutoArchive } from '@/lib/clan-lifecycle/config'
+import { dailyDigestAlert, lifecycleFailedAlert } from '@/lib/admin-alerts/messages'
+import { sendAdminAlert } from '@/lib/admin-alerts/send'
+import { actionableInboxItems } from '@/lib/admin-inbox/build'
+import { getAdminInbox } from '@/lib/admin-inbox/service'
 import { notifyLifecyclePass } from '@/lib/clan-lifecycle/discord-notifier'
 import { archiveMembers, listArchiveCandidates } from '@/lib/clan-lifecycle/ungrouped-archive'
 import { closeStaleLifecycleRuns, runMembershipSyncPass } from '@/lib/clan-lifecycle/membership-sync'
@@ -88,6 +92,7 @@ const globalForCron = globalThis as typeof globalThis & {
   geoPurgeCountCronTask?: ScheduledTask
   resourceVehicleSpotsCronTask?: ScheduledTask
   resourceVehicleSpotsInProgress?: boolean
+  adminDailyDigestCronTask?: ScheduledTask
 }
 
 function isCronWorkerEnabled() {
@@ -714,11 +719,19 @@ async function runClanLifecycleMembershipSync() {
 
   if (summary.status === 'failed') {
     console.error('[Cron] Clan lifecycle membership sync failed:', summary.message)
+    // Alerte au salon d'administration (événement `lifecycle_incident`) : un échec silencieux laisserait la ligue
+    // sans détection d'appartenance jusqu'à ce que quelqu'un ouvre l'onglet Santé.
+    const result = await sendAdminAlert('lifecycle_incident', lifecycleFailedAlert(summary))
+    if (!result.sent && result.reason === 'failed') {
+      console.warn('[Cron] Clan lifecycle failure alert not sent:', result.error)
+    }
     return
   }
 
   if (summary.circuitBreakerTripped) {
     console.warn(`[Cron] Clan lifecycle membership sync ABORTED — ${detail} | ${summary.message}`)
+    // Le message rouge « passage abandonné » de `notifyLifecyclePass` n'était jamais envoyé : le `return` passait avant.
+    await notifyLifecyclePassSafely(summary)
     return
   }
 
@@ -749,8 +762,14 @@ async function runClanLifecycleMembershipSync() {
     console.warn('[Cron] Ungrouped purge failed:', error)
   }
 
-  // Hors du chemin critique : la notification ne doit jamais faire echouer un
-  // passage dont les mouvements sont deja ecrits.
+  await notifyLifecyclePassSafely(summary)
+}
+
+/**
+ * Hors du chemin critique : la notification ne doit jamais faire echouer un
+ * passage dont les mouvements sont deja ecrits.
+ */
+async function notifyLifecyclePassSafely(summary: Awaited<ReturnType<typeof runMembershipSyncPass>>) {
   try {
     const notified = await notifyLifecyclePass(summary, summary.movements)
     if (!notified.sent && notified.reason === 'failed') {
@@ -1175,6 +1194,30 @@ async function runResourceVehicleSpots() {
   }
 }
 
+/**
+ * Veille du matin du SuperUser : la boîte « À traiter » de l'accueil Plateforme (`src/lib/admin-inbox/`), envoyée au
+ * salon Discord d'administration (événement `daily_digest`) **seulement** si une décision ou un incident attend — les
+ * lignes « à relire » seules ne réveillent personne. Couvre ce qui n'a pas d'alerte immédiate : tâches en échec,
+ * worker arrêté, parties qui expirent, configuration. Tâche globale, sans ligne `CronExecution` ; trace dans le journal.
+ */
+async function runAdminDailyDigest() {
+  try {
+    const inbox = await getAdminInbox()
+    const actionable = actionableInboxItems(inbox)
+    if (actionable.length === 0) {
+      console.info(`[Cron] Veille du matin — rien à traiter (${inbox.items.length} ligne(s) à relire)`)
+      return
+    }
+
+    const result = await sendAdminAlert('daily_digest', dailyDigestAlert(inbox))
+    console.info(
+      `[Cron] Veille du matin — ${actionable.length} sujet(s) : ${result.sent ? 'envoyée' : `non envoyée (${result.reason})`}`
+    )
+  } catch (error) {
+    console.error('[Cron] Veille du matin échouée', error)
+  }
+}
+
 async function resolveEncounteredPlayerClans() {
   if (globalForCron.encounteredPlayerResolutionInProgress) {
     console.warn('[Cron] Encountered player clan resolution skipped — previous run still in progress')
@@ -1333,6 +1376,7 @@ export type CronScheduleKey =
   | 'db_maintenance'
   | 'telemetry_geo_purge_count'
   | 'resource_vehicle_spots'
+  | 'admin_daily_digest'
 
 type CronScheduleGlobalKey =
   | 'clanLifecycleMembershipSyncCronTask'
@@ -1346,6 +1390,7 @@ type CronScheduleGlobalKey =
   | 'dbMaintenanceCronTask'
   | 'geoPurgeCountCronTask'
   | 'resourceVehicleSpotsCronTask'
+  | 'adminDailyDigestCronTask'
 
 type CronScheduleDefinition = {
   key: CronScheduleKey
@@ -1441,6 +1486,14 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '30 6 * * *',
     globalKey: 'resourceVehicleSpotsCronTask',
     run: runResourceVehicleSpots,
+  },
+  {
+    // 09:00 : après tous les travaux de la nuit (01:15 à 06:30), pour en relever les échecs ; quelques lectures, ~1 s.
+    key: 'admin_daily_digest',
+    envVar: 'ADMIN_DAILY_DIGEST_CRON',
+    defaultExpression: '0 9 * * *',
+    globalKey: 'adminDailyDigestCronTask',
+    run: runAdminDailyDigest,
   },
 ]
 

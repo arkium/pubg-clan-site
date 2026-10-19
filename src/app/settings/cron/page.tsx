@@ -143,7 +143,7 @@ const MANUAL_ACTIONS_CONFIG: ManualActionConfig[] = [
     cronKey: 'daily_sync',
     cronLabel: 'Sync quotidien clans',
     description:
-      "Interroge l'API PUBG pour découvrir et importer les nouveaux matchs du clan, et les mettre en file d'attente télémétrie.",
+      "Interroge l'API PUBG pour découvrir et importer les nouveaux matchs du clan. Ne met pas la télémétrie en file : c'est le bouton « Mettre en file » de la mise en route du clan, ou Données › Rattrapages.",
   },
   {
     action: 'sync_stats',
@@ -187,6 +187,7 @@ const SCHEDULE_LABELS: Record<string, string> = {
   clan_lifecycle_membership_sync: 'Appartenance de clan (cycle de vie)',
   db_maintenance: 'Maintenance de la base',
   resource_vehicle_spots: 'Véhicules observés (carte des ressources)',
+  admin_daily_digest: 'Veille du matin (Discord d’administration)',
 }
 
 const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
@@ -216,6 +217,8 @@ const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
     'Clôture des exécutions restées « en cours » plus de 6 h après l\'arrêt de leur processus. Ne supprime aucune donnée : ni jobs échoués, ni captures de télémétrie.',
   resource_vehicle_spots:
     'Recalcule, carte par carte, les emplacements où des véhicules sont trouvés en début de partie (montées des 90 derniers jours) pour la carte des ressources. Remplace les emplacements de chaque carte ; tâche globale, sans ligne dans l\'historique par clan.',
+  admin_daily_digest:
+    'Envoie au salon Discord d\'administration la boîte « À traiter » de l\'accueil Plateforme, seulement si une décision ou un incident attend (tâches en échec, worker arrêté, parties qui expirent…). Se coupe dans Cycle de vie des clans › Paramètres ; tâche globale, sans ligne dans l\'historique par clan.',
 }
 
 function formatDate(value: string | null | undefined) {

@@ -70,7 +70,8 @@ function asRecord(value: unknown): Record<string, unknown> {
     : {}
 }
 
-function normalizeMention(value: unknown): DiscordMention {
+/** Aussi utilisée pour la mention du salon d'administration (`src/lib/admin-alerts/`). */
+export function normalizeMention(value: unknown): DiscordMention {
   const raw = asRecord(value)
   const type = raw.type
   const roleId = typeof raw.roleId === 'string' ? raw.roleId.replace(/\D/g, '').slice(0, 20) : ''

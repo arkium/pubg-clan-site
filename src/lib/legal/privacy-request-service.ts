@@ -1,3 +1,5 @@
+import { privacyRequestAlert } from '@/lib/admin-alerts/messages'
+import { fireAdminAlert } from '@/lib/admin-alerts/send'
 import { sendEmail } from '@/lib/email-service'
 import { CONTACT_EMAIL } from '@/lib/legal/legal-info'
 import {
@@ -31,6 +33,11 @@ export async function submitPrivacyRequest(input: PrivacyRequestInput) {
     ...privacyRequestNotification(stored),
     data: { privacyRequestId: row.id, kind: row.kind, pubgName: row.pubgName, email: row.email, reason: row.reason },
   })
+
+  // Salon Discord d'administration : le type et l'échéance seulement, le détail reste sur le site.
+  fireAdminAlert('privacy_request', () =>
+    privacyRequestAlert({ id: row.id, kind: stored.kind, deadline: privacyRequestDeadline(row.createdAt) })
+  )
 
   try {
     await sendEmail({ to: CONTACT_EMAIL, ...privacyRequestEmail(stored) })

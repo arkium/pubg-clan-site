@@ -4,7 +4,7 @@ import type { LucideIcon } from 'lucide-react'
 import { Info, LayoutGrid } from 'lucide-react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { useEffect } from 'react'
+import { useEffect, type ReactNode } from 'react'
 
 import AdminPageBanner from '@/components/settings/AdminPageBanner'
 import SettingsHubCard from '@/components/settings/SettingsHubCard'
@@ -46,6 +46,7 @@ export default function SettingsHub({
   globalGroup,
   globalFirst = false,
   themes,
+  lead,
   emptyMessage,
 }: {
   section: NavSection
@@ -59,6 +60,8 @@ export default function SettingsHub({
   globalFirst?: boolean
   /** Présent : les cartes globales sont réparties par thème, dans cet ordre, au lieu d'une seule grille. */
   themes?: HubThemes
+  /** Bloc posé sous le bandeau, avant les cartes : la boîte « À traiter » de l'accueil Plateforme. */
+  lead?: ReactNode
   emptyMessage: string
 }) {
   const router = useRouter()
@@ -133,6 +136,8 @@ export default function SettingsHub({
         hideTrail
         pills={toolCount > 0 ? [<><span className="t-num">{toolCount}</span> outils</>, 'Réservé au SuperUser'] : ['Réservé au SuperUser']}
       />
+
+      {lead}
 
       {globalFirst ? [globalBlock, clanBlock] : [clanBlock, globalBlock]}
 

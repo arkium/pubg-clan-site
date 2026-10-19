@@ -7,6 +7,8 @@
  */
 import type { Prisma } from '@prisma/client'
 
+import { resourceQueueAlert } from '@/lib/admin-alerts/messages'
+import { fireAdminAlert } from '@/lib/admin-alerts/send'
 import type { AuthSessionContext } from '@/lib/auth-session'
 import { locationForPoint } from '@/lib/drop-zones-view'
 import { getMapLocations } from '@/lib/map-location-service'
@@ -489,6 +491,9 @@ export async function proposeResourcePoint(viewer: ResourceViewer, body: Record<
   const point = await prisma.resourcePoint.create({
     data: { mapName: map.key, kind, x, y, status: 'pending', comment, createdByUserId: user.userId, createdAt: now },
   })
+  fireAdminAlert('resource_queue', async () =>
+    resourceQueueAlert({ submission: 'proposal', mapKey: map.key, pointKind: kind, queueSize: await countQueue() })
+  )
   const { view, viewerCount } = await singlePointView(point, user)
   return { point: view, validatedCount: viewerCount }
 }
@@ -569,6 +574,12 @@ export async function reportResourcePoint(viewer: ResourceViewer, pointId: strin
   if (existing) throw new ResourceError('already_reported', 409, 'Tu as déjà un signalement en attente sur ce point.')
 
   await prisma.resourceReport.create({ data: { pointId, kind, proposedX, proposedY, proposedKind, comment, status: 'pending', userId: user.userId, createdAt: now } })
+  const pointKind = parseResourcePointKind(point.kind)
+  if (pointKind) {
+    fireAdminAlert('resource_queue', async () =>
+      resourceQueueAlert({ submission: 'report', mapKey: map.key, pointKind, reportKind: kind, queueSize: await countQueue() })
+    )
+  }
   const counts = await countValidatedContributions([user.userId])
   return { ok: true, validatedCount: counts.get(user.userId) ?? 0 }
 }

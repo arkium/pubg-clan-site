@@ -1,13 +1,13 @@
 'use client'
 
-import { Settings, ShieldCheck } from 'lucide-react'
+import { Rocket, Settings, ShieldCheck } from 'lucide-react'
 import Link from 'next/link'
 import { useParams } from 'next/navigation'
 
 import ClanFollowDangerZone from '@/components/clan/ClanFollowDangerZone'
 import ClanSubdomainSettings from '@/components/clan/ClanSubdomainSettings'
 import ClanSettingsBanner, { BANNER_GLASS_BUTTON } from '@/components/clan-settings/ClanSettingsBanner'
-import { ErrorState } from '@/components/ui/CharteKit'
+import { Callout, ErrorState } from '@/components/ui/CharteKit'
 
 /**
  * Fiche d'un clan côté Plateforme (docs/TODO/administration.md, lot 3b), selon la charte UI (docs/ui/index.html) :
@@ -54,6 +54,12 @@ export default function PlatformClanPage() {
           </Link>
         }
       />
+      <Callout tone="sky" icon={Rocket} title="Mise en route" testId="clan-onboarding-link">
+        De la validation à la ligue : où en est le clan et ce qui reste à faire.{' '}
+        <Link href={`/settings/clans/${clanId}/mise-en-route`} className="app-link font-semibold">
+          Voir la checklist
+        </Link>
+      </Callout>
       <ClanSubdomainSettings clanId={clanId} />
       <ClanFollowDangerZone clanId={clanId} />
     </div>

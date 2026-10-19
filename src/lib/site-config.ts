@@ -82,6 +82,7 @@ export const SCHEDULE_VARIABLES: Record<string, string> = {
   DB_MAINTENANCE_CRON: '15 1 * * *',
   TELEMETRY_GEO_PURGE_COUNT_CRON: '0 6 * * *',
   RESOURCE_VEHICLE_SPOTS_CRON: '30 6 * * *',
+  ADMIN_DAILY_DIGEST_CRON: '0 9 * * *',
 }
 
 const GENERATE_SECRET = 'Générer une valeur (`openssl rand -base64 32`), la poser dans le .env, puis redémarrer les services.'

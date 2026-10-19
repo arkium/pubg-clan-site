@@ -29,6 +29,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Accueil](features/accueil.md) | Vitrine publique de `/` (visiteurs sans session) : compteurs, kill feed, 3 derniers Top 1, appel à rejoindre ; route publique `GET /api/home/showcase` et son cache |
 | [Auth](features/auth.md) | Connexion, activation par invitation, reset mot de passe, bootstrap Owner, switch de membre, SuperUser, flux /join |
 | [Clans](features/clans.md) | Structure clan, hiérarchie rôles + matrice permissions, flux /join et membres pending, sync PUBG, overview, crons |
+| [Inscrire un nouveau clan](features/inscription-clan.md) | Parcours complet d'une nouvelle équipe, de la demande `/join` à la télémétrie : qui agit, où cliquer, ce que font les crons, checklist du SuperUser, limites |
 | [Cycle de vie du clan d'un joueur](features/cycle-de-vie-clan.md) | Détection quotidienne des changements d'appartenance, clan technique `Ungrouped`, promotion et rétrogradation, archivage, journal des mutations, garde-fous d'exécution, propagation vers le miroir adversaire (§11) |
 | [Débriefing tactique](features/debriefing.md) | Page d'un match (vue clan et tournoi) : en-tête, bande des équipes, onglets Chronologie / Replay / Escouade / Duels portés par `?tab=`, jetons de thème, données ajoutées au payload |
 | [Leaderboard](features/leaderboard.md) | Calcul classement interne, périodes, periodKey, progression, badges Top performers |
@@ -67,7 +68,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Défis](features/challenges.md) | Modèles Challenge/Participant/Reward, 5 types, cycle de vie, routes API |
 | [Rapports](features/reports.md) | Modèles Report/ReportSection, 7 types de sections, pipeline de génération, export HTML/PDF/JSON |
 | [Notifications](features/notifications.md) | 5 types, préférences, 3 canaux (in-app/email/push), NotificationBell, routes API |
-| [Notifications Discord](features/discord-notifications.md) | Webhooks par clan : alerte Top 1 automatique et diffusion manuelle des manches de tournoi, dédoublonnage, résilience réseau |
+| [Notifications Discord](features/discord-notifications.md) | Webhooks par clan : alerte Top 1 automatique et diffusion manuelle des manches de tournoi, dédoublonnage, résilience réseau ; salon d'administration du SuperUser (demandes de clan, adhésions sans Owner, incidents du cycle de vie, demandes de confidentialité, carte des ressources) |
 
 ---
 
@@ -108,7 +109,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Déploiement production](ops/deployment.md) | Variables d'env, build, 4 processus à démarrer, units systemd, migration DB, rollback, healthchecks |
 | [Cron](ops/cron.md) | Jobs planifiés (dont `clan_lifecycle_membership_sync` et `db_maintenance`), actions manuelles, tables CronExecution et ClanLifecycleRun, pages de pilotage, variables d'env |
 | [Performance de la base](ops/database-performance.md) | État mesuré de MariaDB (mémoire, requêtes lentes, index), script `db-health`, sélection en deux paliers du cron de résolution, recommandations en attente |
-| [Paramètres admin](ops/settings.md) | 7 pages /settings/* — PUBG API, email, welcome, labels cartes/armes/phases, cycle de vie des clans (catégories armes supprimées le 2026-09-27) |
+| [Paramètres admin](ops/settings.md) | Pages /settings/* — accueil Plateforme et boîte « À traiter », mise en route d'un clan, configuration, PUBG API, email, welcome, labels cartes/armes/phases, cycle de vie des clans (catégories armes supprimées le 2026-09-27) |
 | [Permissions navigation](ops/nav-permissions.md) | Table NavItem en DB, CRUD depuis l'UI, rôles, ordre drag & drop inter-sections, page owner/superuser |
 | [Bootstrap SuperUser](ops/superuser-bootstrap.md) | Procédure CLI pour accorder/révoquer le statut SuperUser, prérequis, matrice des droits |
 

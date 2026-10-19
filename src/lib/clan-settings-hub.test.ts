@@ -70,13 +70,14 @@ describe('accueil « Paramètres du clan »', () => {
     expect(tiles.map((tile) => tile.href)).not.toContain('/clans/7/settings/tournaments')
   })
 
-  it('SuperUser : les deux sections, Données et sous-domaine marqués SuperUser', async () => {
+  it('SuperUser : les deux sections, Données, mise en route et sous-domaine marqués SuperUser', async () => {
     mocks.session = { userId: 1, activeMemberId: null, isSuperUser: true }
     const { tiles, headings } = await render()
 
     expect(headings).toEqual(['clan-settings-owner', 'clan-settings-superuser'])
     expect(tiles.filter((tile) => tile.superUser).map((tile) => tile.href)).toEqual([
       '/clans/7/settings/data',
+      '/settings/clans/7/mise-en-route',
       '/settings/clans/7',
     ])
   })

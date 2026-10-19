@@ -173,6 +173,33 @@ export async function getClanTelemetryBacklog(clanId: number): Promise<ClanBackl
   return row ? toClanBacklogStat(row, clan, queued.byClan.get(clanId)?.size ?? 0) : null
 }
 
+/**
+ * Parties de clan jouées il y a 7 à 14 jours et toujours sans analyse : mêmes conditions que `urgentBacklog` de
+ * `queryBacklogRows`, comptées **une fois par partie** (le bilan par clan compte deux fois une partie de deux clans).
+ * Pour la boîte « À traiter » (`src/lib/admin-inbox/`) : ~0,6 s au lieu des ~9 s du bilan complet (mesuré le 2026-10-19),
+ * qui parcourt toutes les paires membre-partie de la base.
+ */
+export async function countUrgentTelemetryBacklog(): Promise<number> {
+  const rows = await prisma.$queryRaw<Array<{ urgent: bigint | number }>>(Prisma.sql`
+    SELECT COUNT(*) AS urgent
+    FROM SquadMatch sm
+    LEFT JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
+    WHERE sm.createdAt >= DATE_SUB(NOW(), INTERVAL 14 DAY)
+      AND sm.createdAt < DATE_SUB(NOW(), INTERVAL 7 DAY)
+      AND sm.matchType != 'airoyale'
+      AND (
+        t.id IS NULL
+        OR (t.status != 'success' AND (t.errorCode IS NULL OR t.errorCode != 'TELEMETRY_DATA_EXPIRED'))
+      )
+      AND EXISTS (
+        SELECT 1 FROM SquadMember sdm
+        INNER JOIN ClanMember cm ON cm.id = sdm.memberId
+        WHERE sdm.squadMatchId = sm.id AND cm.clanId IS NOT NULL
+      )
+  `)
+  return Number(rows[0]?.urgent ?? 0)
+}
+
 export async function getTelemetryBacklogSummary(): Promise<GlobalBacklogSummary> {
   // 1. Récupérer les jobs actuellement en file ou en cours
   const queued = await getQueuedMatchIds()

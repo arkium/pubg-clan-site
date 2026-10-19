@@ -264,6 +264,18 @@ async function createPendingClanForDetection(
     )
   }
 
+  // Salon Discord d'administration (événement `clan_discovered`) : personne n'a demandé ce clan, rien d'autre ne
+  // préviendrait qu'il attend une décision. `sendAdminAlert` ne lève pas.
+  const { sendAdminAlert } = await import('@/lib/admin-alerts/send')
+  const { clanDiscoveredAlert } = await import('@/lib/admin-alerts/messages')
+  const alert = await sendAdminAlert(
+    'clan_discovered',
+    clanDiscoveredAlert({ clanId: created.id, clanName: created.name, clanTag: created.tag, waitingPlayers: request.members.length })
+  )
+  if (!alert.sent && alert.reason === 'failed') {
+    console.warn('[ClanLifecycle] Alerte Discord de clan découvert non envoyée', alert.error)
+  }
+
   return true
 }
 

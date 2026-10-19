@@ -26,6 +26,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h — ne supprime rien |
 | `telemetry_geo_purge_count` | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Compte ce que la purge de géolocalisation retirerait, tous seuils confondus — lecture seule |
 | `resource_vehicle_spots` | `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Recalcule les emplacements des véhicules observés de la carte des ressources (90 derniers jours) |
+| `admin_daily_digest` | `ADMIN_DAILY_DIGEST_CRON` | `0 9 * * *` | Veille du matin : envoie la boîte « À traiter » au salon Discord d'administration, seulement si une décision ou un incident attend |
 
 La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune à tous les schedules.
 
@@ -205,13 +206,27 @@ n'est touché).
 
 ---
 
+### `admin_daily_digest` — Veille du matin du SuperUser
+
+À 09:00, après tous les travaux de la nuit (01:15 à 06:30), pour en relever les échecs. Calcule la boîte « À traiter »
+de l'accueil Plateforme (`src/lib/admin-inbox/`, ~1 s de lectures) et l'envoie au salon Discord d'administration
+(événement `daily_digest` de `src/lib/admin-alerts/`, avec mention) **seulement** si une ligne attend une décision ou
+signale un incident : clans en attente, mises en route inachevées, demandes sans Owner, confidentialité, carte des
+ressources, cycle de vie en échec ou à l'arrêt, worker de télémétrie arrêté, parties qui expirent, tâches en échec
+(24 h), erreurs de configuration. Les lignes « à relire » seules (mouvements, parking) ne réveillent personne.
+
+Se coupe sans redémarrage par l'interrupteur « Veille du matin » de Cycle de vie des clans › Paramètres. Tâche
+globale : pas de ligne `CronExecution`, une ligne de journal (`[Cron] Veille du matin — …`).
+
+---
+
 ## Actions manuelles (page ops cron SuperUser)
 
 La page `/settings/cron` (SuperUser uniquement) expose des boutons pour déclencher manuellement les actions sur le clan actif via `POST /api/clans/[clanId]/cron-control`.
 
 | Action | Bouton | Ce qu'elle fait |
 |---|---|---|
-| `sync_matches` | Sync matchs | Import matchs PUBG + détection squads. Déclenche automatiquement `sync_stats` si de nouveaux matchs sont importés. |
+| `sync_matches` | Sync matchs | Import matchs PUBG + détection squads. Déclenche automatiquement `sync_stats` si de nouveaux matchs sont importés. **Ne met pas la télémétrie en file** (contrairement au cron `daily_sync`) : bouton « Mettre en file » de la mise en route du clan, ou Données › Rattrapages. Aussi déclenchée par la page de mise en route (`/settings/clans/[clanId]/mise-en-route`). |
 | `sync_stats` | Recalcul stats | Recalcul des agrégats stats du clan sans appel API PUBG. |
 | `sync_telemetry_aggregates` | Recalcul agrégats télémétrie | Recalcul des périodes d'agrégats télémétrie (positions, armes, synergies). |
 | `sync_lifetime_stats` | Sync stats lifetime | Rafraîchit les stats lifetime PUBG pour tous les membres du clan. |
@@ -374,6 +389,7 @@ Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indé
 | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges |
 | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Comptage du volume purgeable des tracés GPS |
 | `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Emplacements des véhicules observés (carte des ressources) |
+| `ADMIN_DAILY_DIGEST_CRON` | `0 9 * * *` | Veille du matin du SuperUser (Discord d'administration) |
 
 ### Télémétrie sync (cron + workers)
 

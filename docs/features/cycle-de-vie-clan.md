@@ -212,7 +212,9 @@ Tous dans `AppConfig`, éditables depuis l'onglet « Paramètres » de `/setting
 | `clan_lifecycle_mode` | `observe` (journalise sans appliquer) ou `apply` | **`observe`** |
 | `clan_lifecycle_confirmations_required` | Passages quotidiens concordants avant d'agir | `3` |
 | `clan_lifecycle_max_moves_ratio` | Coupe-circuit, en % de l'effectif | `10` |
-| `clan_lifecycle_discord_webhook_url` | Salon d'administration, **global** | vide |
+| `clan_lifecycle_discord_webhook_url` | Salon d'administration, **global** — reçoit toutes les alertes d'administration ([discord-notifications.md](discord-notifications.md)) | vide |
+| `clan_lifecycle_discord_mention` | Mention des alertes à traiter, JSON `{ type, roleId }` | `none` |
+| `admin_alert_events` | Interrupteurs des alertes, JSON `{ "<événement>": boolean }` ; un événement absent garde son défaut | tout activé |
 | `ungrouped_archive_after_days` | Seuil d'inactivité du parking | `90` |
 | `ungrouped_auto_archive` | Archive sans validation | `false` |
 | `ungrouped_auto_promote` | Promotion automatique (cas A) | `true` |

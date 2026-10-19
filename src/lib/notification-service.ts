@@ -246,11 +246,12 @@ export async function notifyChallengeStarted(challengeId: string, clanId: number
   )
 }
 
+/** Prévient les Owners actifs du clan ; renvoie leur nombre (0 : personne pour répondre, `/api/join` alerte le SuperUser). */
 export async function notifyJoinRequest(
   clanId: number,
   pendingMemberName: string,
   pendingMemberId: number
-) {
+): Promise<number> {
   const managingMembers = await prisma.clanMember.findMany({
     where: {
       clanId,
@@ -278,6 +279,8 @@ export async function notifyJoinRequest(
       })
     )
   )
+
+  return managingMembers.length
 }
 
 export async function notifyClanCreationRequest(

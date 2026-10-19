@@ -1,20 +1,34 @@
 'use client'
 
-import { Bot, Gauge, MessageSquare, Save, ShieldCheck } from 'lucide-react'
+import { Bot, Gauge, MessageSquare, Save, Send, ShieldCheck } from 'lucide-react'
 import { useId, useState } from 'react'
 
-import { ButtonSpinner, LifecycleCard, Switch, type LifecycleSettings, type Notify } from '@/components/clan-lifecycle/LifecycleShared'
+import { ButtonSpinner, ChoiceMenu, LifecycleCard, Switch, Tag, type LifecycleSettings, type Notify } from '@/components/clan-lifecycle/LifecycleShared'
 import SegmentedControl from '@/components/ui/SegmentedControl'
+import { ADMIN_ALERT_EVENTS, ADMIN_ALERT_GROUPS, type AdminAlertEvents } from '@/lib/admin-alerts/catalog'
+import type { DiscordMention, DiscordMentionType } from '@/lib/discord/discord-config'
 
 /**
  * Onglet « Paramètres » (docs/features/cycle-de-vie-clan.md §8), selon la charte : cartes `app-panel`, champs
  * `app-input` à intitulé au-dessus et aide en méta, interrupteurs de la charte, mode en tuiles. Chaque réglage
  * s'enregistre seul, comme avant (un `PATCH` par changement, mêmes corps).
+ *
+ * La carte du salon Discord d'administration porte aussi, depuis le 2026-10-19, la mention et les alertes envoyées
+ * (src/lib/admin-alerts/, docs/features/discord-notifications.md « Salon d'administration »).
  */
 
-type Patch = Partial<Pick<LifecycleSettings, 'mode' | 'confirmationsRequired' | 'maxMovesRatioPercent' | 'archiveAfterDays' | 'autoArchive' | 'autoPromote'>> & {
+type Patch = Partial<Pick<LifecycleSettings, 'mode' | 'confirmationsRequired' | 'maxMovesRatioPercent' | 'archiveAfterDays' | 'autoArchive' | 'autoPromote' | 'mention'>> & {
   webhookUrl?: string
+  /** Seulement les interrupteurs changés : la route fusionne avec ceux en vigueur. */
+  alertEvents?: Partial<AdminAlertEvents>
 }
+
+const MENTION_OPTIONS: { value: DiscordMentionType; label: string }[] = [
+  { value: 'none', label: 'Aucune' },
+  { value: 'here', label: '@here' },
+  { value: 'everyone', label: '@everyone' },
+  { value: 'role', label: 'Un rôle' },
+]
 
 /** Champ entier borné + « Appliquer » : erreur au jeton négatif sous le champ, mêmes bornes que la route. */
 function NumberSetting({
@@ -82,6 +96,7 @@ function NumberSetting({
 function SwitchSetting({
   label,
   hint,
+  badge,
   checked,
   disabled,
   testId,
@@ -89,6 +104,8 @@ function SwitchSetting({
 }: {
   label: string
   hint: string
+  /** Pastille après l'intitulé (« À traiter · mention » pour une alerte d'administration). */
+  badge?: string
   checked: boolean
   disabled: boolean
   testId: string
@@ -98,8 +115,11 @@ function SwitchSetting({
   return (
     <div className="flex items-start justify-between gap-4 border-t border-gray-200 pt-3 first:border-t-0 first:pt-0">
       <div className="flex min-w-0 flex-col gap-0.5">
-        <span id={`${id}-label`} className="text-[13px] font-semibold text-gray-900">
-          {label}
+        <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
+          <span id={`${id}-label`} className="text-[13px] font-semibold text-gray-900">
+            {label}
+          </span>
+          {badge ? <Tag tone="warn">{badge}</Tag> : null}
         </span>
         <span id={`${id}-hint`} className="t-meta">
           {hint}
@@ -120,6 +140,7 @@ export function SettingsSection({ settings, onSaved, onToast }: { settings: Life
   const [draft, setDraft] = useState(settings)
   const [webhookInput, setWebhookInput] = useState('')
   const [saving, setSaving] = useState(false)
+  const [testing, setTesting] = useState(false)
 
   // Valeurs en vigueur relues après un enregistrement : le brouillon s'y réaligne, sans remonter la section (une
   // saisie en cours, l'adresse du webhook par exemple, n'est pas effacée par le rechargement d'un autre réglage).
@@ -152,8 +173,27 @@ export function SettingsSection({ settings, onSaved, onToast }: { settings: Life
   }
 
   function apply(patch: Patch) {
-    setDraft((current) => ({ ...current, ...patch }))
+    setDraft((current) => ({
+      ...current,
+      ...patch,
+      alertEvents: { ...current.alertEvents, ...patch.alertEvents },
+      mention: patch.mention ?? current.mention,
+    }))
     void save(patch)
+  }
+
+  async function sendTest() {
+    setTesting(true)
+    try {
+      const res = await fetch('/api/settings/clan-lifecycle/webhook-test', { method: 'POST' })
+      const payload = await res.json()
+      if (!res.ok) throw new Error(payload?.error ?? 'Échec de l’envoi')
+      onToast(payload.message ?? 'Message de test envoyé.', 'success')
+    } catch (err) {
+      onToast(err instanceof Error ? err.message : 'Erreur inconnue', 'error')
+    } finally {
+      setTesting(false)
+    }
   }
 
   return (
@@ -240,47 +280,165 @@ export function SettingsSection({ settings, onSaved, onToast }: { settings: Life
         </div>
       </LifecycleCard>
 
-      <LifecycleCard
-        id="lifecycle-webhook-title"
-        icon={MessageSquare}
-        title="Salon Discord d’administration"
-        meta="Webhook global, distinct de celui de chaque clan."
-      >
-        <p className="t-body text-gray-700">
-          Reçoit chaque mouvement automatique. Laisser vide coupe les notifications — ce n’est pas une erreur.
-        </p>
-        <p className="t-meta break-all font-mono" data-testid="lifecycle-webhook-current">
-          Actuel : {settings.webhookUrl ?? 'non configuré'}
-        </p>
-        {/* `noValidate` : une adresse invalide part au serveur, qui renvoie son message (comportement d'avant). */}
-        <form
-          noValidate
-          className="flex flex-col gap-1"
-          onSubmit={(event) => {
-            event.preventDefault()
-            void save({ webhookUrl: webhookInput })
-          }}
+      {/* Pleine largeur : adresse et mention à gauche, alertes envoyées à droite. */}
+      <div className="lg:col-span-2">
+        <LifecycleCard
+          id="lifecycle-webhook-title"
+          icon={MessageSquare}
+          title="Salon Discord d’administration"
+          meta="Webhook global, distinct de celui de chaque clan : toutes les alertes de la plateforme y arrivent."
+          testId="lifecycle-admin-alerts"
         >
-          <label htmlFor={webhookId} className="text-[13px] font-semibold text-gray-700">
-            Nouvelle adresse du webhook
+          <div className="grid gap-5 lg:grid-cols-2">
+            <div className="flex min-w-0 flex-col gap-4">
+              <p className="t-body text-gray-700">
+                Demandes à traiter, incidents et comptes rendus partent dans ce salon. Laisse l’adresse vide pour tout
+                couper — ce n’est pas une erreur.
+              </p>
+              <p className="t-meta break-all font-mono" data-testid="lifecycle-webhook-current">
+                Actuel : {settings.webhookUrl ?? 'non configuré'}
+              </p>
+              {/* `noValidate` : une adresse invalide part au serveur, qui renvoie son message (comportement d'avant). */}
+              <form
+                noValidate
+                className="flex flex-col gap-1"
+                onSubmit={(event) => {
+                  event.preventDefault()
+                  void save({ webhookUrl: webhookInput })
+                }}
+              >
+                <label htmlFor={webhookId} className="text-[13px] font-semibold text-gray-700">
+                  Nouvelle adresse du webhook
+                </label>
+                <div className="flex flex-col gap-2 sm:flex-row">
+                  <input
+                    id={webhookId}
+                    type="url"
+                    value={webhookInput}
+                    onChange={(event) => setWebhookInput(event.target.value)}
+                    placeholder="https://discord.com/api/webhooks/..."
+                    className="app-input sm:flex-1"
+                    data-testid="lifecycle-webhook-input"
+                  />
+                  <button type="submit" disabled={saving} className="app-btn app-btn--sm app-btn--primary shrink-0 gap-1.5">
+                    {saving ? <ButtonSpinner /> : <Save className="h-3.5 w-3.5" aria-hidden="true" />}
+                    Enregistrer
+                  </button>
+                </div>
+              </form>
+
+              <MentionSetting
+                key={`${draft.mention.type}-${draft.mention.roleId}`}
+                mention={draft.mention}
+                disabled={saving}
+                onCommit={(mention) => apply({ mention })}
+              />
+
+              <div className="flex flex-col gap-1">
+                <div>
+                  <button
+                    type="button"
+                    onClick={() => void sendTest()}
+                    disabled={testing || !settings.webhookUrl}
+                    className="app-btn app-btn--sm app-btn--secondary gap-1.5"
+                    data-testid="lifecycle-webhook-test"
+                  >
+                    {testing ? <ButtonSpinner /> : <Send className="h-3.5 w-3.5" aria-hidden="true" />}
+                    Envoyer un test
+                  </button>
+                </div>
+                <span className="t-meta">
+                  {settings.webhookUrl
+                    ? 'Un message de contrôle, avec la mention, liste ce que le salon recevra.'
+                    : 'Enregistre d’abord l’adresse du webhook.'}
+                </span>
+              </div>
+            </div>
+
+            <div className="flex min-w-0 flex-col gap-4" data-testid="lifecycle-alert-events">
+              {ADMIN_ALERT_GROUPS.map((group) => (
+                <fieldset key={group.key} className="min-w-0">
+                  <legend className="t-label mb-2">{group.label}</legend>
+                  {/* Enveloppe propre : le filet `first:` des lignes ne doit pas compter la légende. */}
+                  <div className="flex flex-col gap-3">
+                    {ADMIN_ALERT_EVENTS.filter((definition) => definition.group === group.key).map((definition) => (
+                      <SwitchSetting
+                        key={definition.key}
+                        label={definition.label}
+                        hint={definition.hint}
+                        badge={definition.toAct ? 'À traiter · mention' : undefined}
+                        checked={draft.alertEvents[definition.key]}
+                        disabled={saving}
+                        testId={`lifecycle-alert-${definition.key}`}
+                        onChange={(checked) => apply({ alertEvents: { [definition.key]: checked } })}
+                      />
+                    ))}
+                  </div>
+                </fieldset>
+              ))}
+            </div>
+          </div>
+        </LifecycleCard>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Mention des alertes à traiter : appliquée dès le choix, sauf « Un rôle », qui attend son identifiant (clic droit sur
+ * le rôle dans Discord → Copier l'identifiant, mode développeur activé).
+ */
+function MentionSetting({ mention, disabled, onCommit }: { mention: DiscordMention; disabled: boolean; onCommit: (mention: DiscordMention) => void }) {
+  const roleInputId = useId()
+  const [type, setType] = useState<DiscordMentionType>(mention.type)
+  const [roleId, setRoleId] = useState(mention.roleId)
+  const roleValid = /^\d{5,20}$/.test(roleId)
+
+  return (
+    <div className="flex min-w-0 flex-col gap-1">
+      <span className="text-[13px] font-semibold text-gray-700">Mention des alertes à traiter</span>
+      <ChoiceMenu
+        label="Mention des alertes à traiter"
+        value={type}
+        options={MENTION_OPTIONS}
+        testId="lifecycle-alert-mention"
+        onChange={(next) => {
+          setType(next)
+          if (next !== 'role') onCommit({ type: next, roleId: '' })
+        }}
+      />
+      {type === 'role' ? (
+        <div className="mt-1 flex flex-col gap-1">
+          <label htmlFor={roleInputId} className="text-[13px] font-semibold text-gray-700">
+            Identifiant du rôle Discord
           </label>
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="flex gap-2">
             <input
-              id={webhookId}
-              type="url"
-              value={webhookInput}
-              onChange={(event) => setWebhookInput(event.target.value)}
-              placeholder="https://discord.com/api/webhooks/..."
-              className="app-input sm:flex-1"
-              data-testid="lifecycle-webhook-input"
+              id={roleInputId}
+              type="text"
+              inputMode="numeric"
+              maxLength={20}
+              value={roleId}
+              disabled={disabled}
+              onChange={(event) => setRoleId(event.target.value.replace(/\D/g, ''))}
+              placeholder="123456789012345678"
+              className="app-input t-num min-w-0 flex-1 font-mono"
+              data-testid="lifecycle-alert-mention-role"
             />
-            <button type="submit" disabled={saving} className="app-btn app-btn--sm app-btn--primary shrink-0 gap-1.5">
-              {saving ? <ButtonSpinner /> : <Save className="h-3.5 w-3.5" aria-hidden="true" />}
-              Enregistrer
+            <button
+              type="button"
+              disabled={disabled || !roleValid || (mention.type === 'role' && mention.roleId === roleId)}
+              onClick={() => onCommit({ type: 'role', roleId })}
+              className="app-btn app-btn--sm app-btn--secondary shrink-0"
+            >
+              Appliquer
             </button>
           </div>
-        </form>
-      </LifecycleCard>
+        </div>
+      ) : null}
+      <span className="t-meta">
+        Portée seulement par ce qui attend ta décision ; un compte rendu ne réveille personne.
+      </span>
     </div>
   )
 }

@@ -2,6 +2,7 @@
 
 import { Star } from 'lucide-react'
 
+import AdminInbox from '@/components/settings/AdminInbox'
 import SettingsHub, { type HubThemes } from '@/components/settings/SettingsHub'
 
 /** Thèmes de l'accueil Plateforme (docs/TODO/administration.md §5.2) : Clans, Joueurs, Données, Référentiels, Site. */
@@ -51,6 +52,7 @@ export default function PlatformHub() {
       globalGroup={{ title: 'Toute la plateforme' }}
       globalFirst
       themes={PLATFORM_THEMES}
+      lead={<AdminInbox />}
       emptyMessage="Aucun outil de la plateforme n’est actuellement visible."
     />
   )

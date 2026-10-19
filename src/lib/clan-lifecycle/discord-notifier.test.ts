@@ -11,16 +11,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const mocks = vi.hoisted(() => ({
   sendWebhook: vi.fn(),
   getWebhookUrl: vi.fn(),
+  getEvents: vi.fn(),
+  getMention: vi.fn(),
 }))
 
 vi.mock('@/lib/discord/discord-client', () => ({
   sendDiscordWebhook: mocks.sendWebhook,
 }))
 
+// Le compte rendu passe par le salon d'administration (src/lib/admin-alerts/send.ts) : mêmes réglages.
 vi.mock('@/lib/clan-lifecycle/config', () => ({
   getClanLifecycleDiscordWebhookUrl: mocks.getWebhookUrl,
+  getAdminAlertEvents: mocks.getEvents,
+  getAdminAlertMention: mocks.getMention,
 }))
 
+import { DEFAULT_ADMIN_ALERT_EVENTS } from '@/lib/admin-alerts/catalog'
 import { notifyLifecyclePass } from '@/lib/clan-lifecycle/discord-notifier'
 import type { MembershipSyncSummary, PlannedMovement } from '@/lib/clan-lifecycle/membership-sync'
 
@@ -65,6 +71,8 @@ function movement(overrides: Partial<PlannedMovement> = {}): PlannedMovement {
 beforeEach(() => {
   vi.clearAllMocks()
   mocks.getWebhookUrl.mockResolvedValue('https://discord.com/api/webhooks/xxx')
+  mocks.getEvents.mockResolvedValue({ ...DEFAULT_ADMIN_ALERT_EVENTS })
+  mocks.getMention.mockResolvedValue({ type: 'role', roleId: '42' })
   mocks.sendWebhook.mockResolvedValue({ ok: true, status: 204 })
 })
 
@@ -76,6 +84,33 @@ describe('Webhook non configuré', () => {
 
     expect(result).toEqual({ sent: false, reason: 'no_webhook' })
     expect(mocks.sendWebhook).not.toHaveBeenCalled()
+  })
+})
+
+describe('Interrupteurs du salon d’administration', () => {
+  it('se tait quand le compte rendu est coupé', async () => {
+    mocks.getEvents.mockResolvedValue({ ...DEFAULT_ADMIN_ALERT_EVENTS, lifecycle_report: false })
+
+    const result = await notifyLifecyclePass(summary(), [movement()])
+
+    expect(result).toEqual({ sent: false, reason: 'disabled' })
+    expect(mocks.sendWebhook).not.toHaveBeenCalled()
+  })
+
+  it('envoie le coupe-circuit même compte rendu coupé : c’est un incident, avec la mention', async () => {
+    mocks.getEvents.mockResolvedValue({ ...DEFAULT_ADMIN_ALERT_EVENTS, lifecycle_report: false })
+
+    const result = await notifyLifecyclePass(summary({ circuitBreakerTripped: true, movementsApplied: 0 }), [])
+
+    expect(result).toMatchObject({ sent: true })
+    expect(mocks.sendWebhook.mock.calls[0][1].content).toBe('<@&42>')
+  })
+
+  it('ne mentionne personne pour un simple compte rendu', async () => {
+    await notifyLifecyclePass(summary(), [movement()])
+
+    expect(mocks.sendWebhook.mock.calls[0][1].content).toBeUndefined()
+    expect(mocks.sendWebhook.mock.calls[0][1].username).toBe('Cycle de vie des clans')
   })
 })
 

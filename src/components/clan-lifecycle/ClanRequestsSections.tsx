@@ -54,7 +54,12 @@ export function PendingClansSection({ onChanged, onToast }: { onChanged: () => v
       })
       const payload = await res.json()
       if (!res.ok) throw new Error(payload?.error ?? 'Échec')
-      onToast(payload.message, 'success')
+      // Validé : la suite (matchs, télémétrie, joueurs) se suit sur la page de mise en route du clan.
+      onToast(
+        payload.message,
+        'success',
+        decision === 'approve' ? { label: 'Mise en route du clan →', href: `/settings/clans/${clanId}/mise-en-route` } : undefined
+      )
       setToken((current) => current + 1)
       onChanged()
     } catch (err) {

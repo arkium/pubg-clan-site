@@ -44,6 +44,9 @@ src/
   lib/                        # Logique métier
     pubg-telemetry/           # Pipeline télémétrie complet
     discord/                  # Webhooks Discord (alertes Top 1, résultats de tournoi)
+    admin-alerts/             # Alertes du SuperUser dans le salon Discord d'administration
+    admin-inbox/              # Boîte « À traiter » de l'accueil Plateforme (et veille Discord du matin)
+    clan-onboarding/          # Checklist de mise en route d'un clan (/settings/clans/[clanId]/mise-en-route)
     pubg.ts                   # Client API PUBG
     cron-jobs.ts              # Orchestration cron
     clan-service.ts           # Sync clan PUBG
@@ -377,6 +380,12 @@ Toute écriture (POST, PUT, PATCH, DELETE) d'une route d'administration est expo
 `withAdminActionLog('<gabarit de la route>', handler)` (`src/lib/admin-action-log.ts`, journal des actions, Q10) —
 `src/lib/admin-action-log-routes.test.ts` échoue sinon. Une route qui vérifie la session elle-même note son acteur par
 `rememberSessionActor` (`src/lib/auth/admin-actor.ts`).
+**Alerte au SuperUser** (depuis le 2026-10-19) : salon Discord d'administration, par `sendAdminAlert` / `fireAdminAlert`
+(`src/lib/admin-alerts/`) — un nouvel événement = une entrée de `catalog.ts` (interrupteur et mention viennent seuls),
+jamais un `sendDiscordWebhook` direct ; ni adresse e-mail ni donnée d'une demande de confidentialité dans le message
+([discord-notifications.md](docs/features/discord-notifications.md), « Salon d'administration »). Une nouvelle file du
+SuperUser = une ligne dans `src/lib/admin-inbox/build.ts` (boîte « À traiter » et veille du matin) ; jamais le bilan
+complet de télémétrie (~9 s) dans une lecture de page.
 
 **Données personnelles d'un membre** (notifications, préférences — depuis le 2026-10-10) : `requireOwnMember`
 (`src/lib/auth/own-member-guard.ts`), le compte lié au membre ou le SuperUser. Jamais `requireSameClanAsMember`, faite
@@ -444,6 +453,7 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h ; only deletion: admin action log rows > 12 months)
 0 6 * * *  →  Geo-purge count (volume purgeable des tracés GPS, tous seuils, lecture seule — ~247 s)
 30 6 * * *  →  Resource map vehicle spots (véhicules observés de la Carte des ressources, 90 derniers jours — docs/features/carte-ressources.md)
+0 9 * * *  →  Admin daily digest (boîte « À traiter » vers le Discord d'administration, seulement si une action attend)
 ```
 
 **Observability:** `/clans/[clanId]/settings/cron` dashboard shows last run time & errors.

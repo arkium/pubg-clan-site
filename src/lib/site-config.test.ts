@@ -89,7 +89,7 @@ describe('buildSiteConfiguration — le .env de production du 2026-10-10', () =>
 
   it('reconnaît le reste comme en ordre (SMTP chiffré, horaires, verrous absolus, adresses publiques)', () => {
     expect(item(config, 'smtp')).toMatchObject({ status: 'ok', value: expect.stringContaining('ssl0.ovh.net:465, chiffré (TLS)') })
-    expect(item(config, 'cron_schedules')).toMatchObject({ status: 'ok', value: '11 horaires valides' })
+    expect(item(config, 'cron_schedules')).toMatchObject({ status: 'ok', value: '12 horaires valides' })
     expect(item(config, 'telemetry_resync_worker_lock_file').status).toBe('ok')
     expect(item(config, 'public_url').status).toBe('ok')
     expect(item(config, 'app_url').status).toBe('ok')

@@ -1,7 +1,11 @@
 'use client'
 
 import { AlertTriangle, CheckCircle2, ChevronDown, X, type LucideIcon } from 'lucide-react'
+import Link from 'next/link'
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+
+import type { AdminAlertEvents } from '@/lib/admin-alerts/catalog'
+import type { DiscordMention } from '@/lib/discord/discord-config'
 
 /**
  * Briques communes de la page SuperUser « Cycle de vie des clans » (/settings/clans/lifecycle,
@@ -13,7 +17,9 @@ import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from 
 // ── Types partagés ──────────────────────────────────────────────────────────────────────────────
 
 export type ToastTone = 'success' | 'error'
-export type Notify = (text: string, tone: ToastTone) => void
+/** Lien d'un toast vers l'étape suivante (« Mise en route » après la validation d'un clan). */
+export type ToastLink = { label: string; href: string }
+export type Notify = (text: string, tone: ToastTone, link?: ToastLink) => void
 
 export type LifecycleSettings = {
   mode: 'observe' | 'apply'
@@ -23,6 +29,9 @@ export type LifecycleSettings = {
   autoArchive: boolean
   autoPromote: boolean
   webhookUrl: string | null
+  /** Salon d'administration (src/lib/admin-alerts/) : mention des alertes à traiter, événements envoyés. */
+  mention: DiscordMention
+  alertEvents: AdminAlertEvents
 }
 
 export type LifecycleCounters = {
@@ -495,7 +504,7 @@ export function ConfirmDialog({
 
 // ── Toasts ──────────────────────────────────────────────────────────────────────────────────────
 
-export type Toast = { id: number; text: string; tone: ToastTone }
+export type Toast = { id: number; text: string; tone: ToastTone; link?: ToastLink }
 
 /**
  * Toasts de la charte (§5f) : en bas à droite (bas centré sur mobile), 3 empilés au plus, contour positif ou négatif
@@ -517,7 +526,14 @@ export function ToastStack({ toasts, onDismiss }: { toasts: Toast[]; onDismiss: 
             data-tone={toast.tone}
           >
             <Icon className="h-4 w-4 shrink-0" style={{ color }} aria-hidden="true" />
-            <span className="min-w-0 flex-1">{toast.text}</span>
+            <span className="flex min-w-0 flex-1 flex-col gap-1">
+              {toast.text}
+              {toast.link ? (
+                <Link href={toast.link.href} className="app-link self-start font-semibold">
+                  {toast.link.label}
+                </Link>
+              ) : null}
+            </span>
             <button
               type="button"
               onClick={() => onDismiss(toast.id)}

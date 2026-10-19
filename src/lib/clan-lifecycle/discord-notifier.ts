@@ -1,5 +1,5 @@
-import { sendDiscordWebhook, type DiscordEmbedField } from '@/lib/discord/discord-client'
-import { getClanLifecycleDiscordWebhookUrl } from '@/lib/clan-lifecycle/config'
+import { sendAdminAlert } from '@/lib/admin-alerts/send'
+import type { DiscordEmbedField } from '@/lib/discord/discord-client'
 import { PLAYER_CLAN_CHANGE_SOURCES } from '@/lib/player-clan-change'
 import type { MembershipSyncSummary, PlannedMovement } from '@/lib/clan-lifecycle/membership-sync'
 
@@ -8,10 +8,12 @@ import type { MembershipSyncSummary, PlannedMovement } from '@/lib/clan-lifecycl
  *
  * Le webhook est **global** (`AppConfig.clan_lifecycle_discord_webhook_url`), pas par
  * clan : une mutation concerne toute la ligue, et le salon d'administration n'est pas
- * celui des annonces d'un clan.
+ * celui des annonces d'un clan. Depuis le 2026-10-19, ce salon reçoit aussi les autres
+ * alertes d'administration (`src/lib/admin-alerts/`) : le compte rendu est l'événement
+ * `lifecycle_report`, le coupe-circuit `lifecycle_incident` (avec mention).
  *
  * Aucune notification n'est un cas normal, pas une erreur : tant que le webhook n'est
- * pas renseigné, la fonction ne fait rien et le dit clairement à l'appelant.
+ * pas renseigné, ou l'événement coupé, la fonction ne fait rien et le dit à l'appelant.
  */
 
 const COLOR_APPLIED = 0xf59e0b // ambre — un mouvement a eu lieu
@@ -20,7 +22,7 @@ const COLOR_ABORTED = 0xdc2626 // rouge — coupe-circuit
 
 export type LifecycleNotifyResult =
   | { sent: true; status: number }
-  | { sent: false; reason: 'no_webhook' | 'nothing_to_report' | 'failed'; error?: string }
+  | { sent: false; reason: 'no_webhook' | 'disabled' | 'nothing_to_report' | 'failed'; error?: string }
 
 function describeMovement(movement: PlannedMovement) {
   const from = movement.previousClanTag ? `[${movement.previousClanTag}]` : 'aucun clan'
@@ -38,11 +40,6 @@ export async function notifyLifecyclePass(
   // Rien d'intéressant à dire : un passage sans écart n'a pas à réveiller le salon.
   if (movements.length === 0 && !summary.circuitBreakerTripped) {
     return { sent: false, reason: 'nothing_to_report' }
-  }
-
-  const webhookUrl = await getClanLifecycleDiscordWebhookUrl()
-  if (!webhookUrl) {
-    return { sent: false, reason: 'no_webhook' }
   }
 
   const applied = summary.movementsApplied > 0
@@ -92,21 +89,16 @@ export async function notifyLifecyclePass(
     .filter(Boolean)
     .join('\n')
 
-  const result = await sendDiscordWebhook(webhookUrl, {
-    username: 'Cycle de vie des clans',
-    embeds: [
-      {
-        title,
-        description: description.length > 0 ? description : undefined,
-        color,
-        timestamp: new Date().toISOString(),
-        fields,
-        footer: { text: summary.runId ? `Passage ${summary.runId}` : 'Passage manuel' },
-      },
-    ],
-  })
-
-  return result.ok
-    ? { sent: true, status: result.status }
-    : { sent: false, reason: 'failed', error: result.error }
+  return sendAdminAlert(
+    summary.circuitBreakerTripped ? 'lifecycle_incident' : 'lifecycle_report',
+    {
+      title,
+      description: description.length > 0 ? description : undefined,
+      color,
+      timestamp: new Date().toISOString(),
+      fields,
+      footer: { text: summary.runId ? `Passage ${summary.runId}` : 'Passage manuel' },
+    },
+    { username: 'Cycle de vie des clans' }
+  )
 }

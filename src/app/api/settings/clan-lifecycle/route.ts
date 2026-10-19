@@ -1,10 +1,13 @@
 import { z } from 'zod'
 
 import { withAdminActionLog } from '@/lib/admin-action-log'
+import { pickAdminAlertEventsPatch } from '@/lib/admin-alerts/catalog'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
   getClanLifecycleSettings,
   resetClanLifecycleConfigCache,
+  setAdminAlertEvents,
+  setAdminAlertMention,
   setClanLifecycleDiscordWebhookUrl,
   setClanLifecycleMode,
   setConfirmationsRequired,
@@ -35,6 +38,15 @@ const SettingsPatchSchema = z.object({
   autoArchive: z.boolean().optional(),
   autoPromote: z.boolean().optional(),
   webhookUrl: z.string().optional(),
+  // Salon d'administration (src/lib/admin-alerts/) : mention des alertes à traiter, et événements envoyés.
+  mention: z
+    .object({
+      type: z.enum(['none', 'here', 'everyone', 'role']),
+      roleId: z.string().max(20).regex(/^\d*$/, 'Identifiant de rôle : des chiffres seulement').default(''),
+    })
+    .refine((mention) => mention.type !== 'role' || mention.roleId.length > 0, 'Indique l’identifiant du rôle à mentionner')
+    .optional(),
+  alertEvents: z.record(z.string(), z.boolean()).optional(),
 })
 
 /** Le webhook ne sort jamais en clair : la page n'a besoin que de savoir s'il existe. */
@@ -105,6 +117,12 @@ async function handlePatch(request: Request) {
     const body = await request.json()
     const input = SettingsPatchSchema.parse(body)
 
+    // Vérifié avant toute écriture : un corps refusé ne laisse aucun réglage à moitié appliqué.
+    const alertEventsPatch = input.alertEvents === undefined ? null : pickAdminAlertEventsPatch(input.alertEvents)
+    if (alertEventsPatch && Object.keys(alertEventsPatch).length === 0) {
+      return Response.json({ error: 'Alerte inconnue' }, { status: 400 })
+    }
+
     if (input.mode !== undefined) {
       await setClanLifecycleMode(input.mode)
       // Trace explicite : c'est la decision qui engage le plus.
@@ -129,6 +147,12 @@ async function handlePatch(request: Request) {
     }
     if (input.webhookUrl !== undefined) {
       await setClanLifecycleDiscordWebhookUrl(input.webhookUrl)
+    }
+    if (input.mention !== undefined) {
+      await setAdminAlertMention(input.mention)
+    }
+    if (alertEventsPatch) {
+      await setAdminAlertEvents(alertEventsPatch)
     }
 
     resetClanLifecycleConfigCache()

@@ -118,6 +118,8 @@ vi.mock('@/lib/clan-lifecycle/config', () => ({
   setUngroupedAutoPromote: vi.fn(),
 }))
 vi.mock('@/lib/clan-lifecycle/ungrouped-archive', () => ({ listArchiveCandidates: mocks.listArchiveCandidates }))
+// Alertes Discord d'administration de /join : hors sujet ici, couvertes par admin-alerts/admin-alert-routes.test.ts.
+vi.mock('@/lib/admin-alerts/send', () => ({ fireAdminAlert: vi.fn() }))
 
 import { GET as getClanFollow, PATCH as patchClanFollow } from '@/app/api/settings/clans/[id]/route'
 import { POST as trackClanRoute } from '@/app/api/settings/clans/route'

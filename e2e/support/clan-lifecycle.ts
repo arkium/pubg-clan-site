@@ -190,6 +190,8 @@ const RUNS = [
 
 export type LifecycleCalls = {
   settingsPatches: Array<Record<string, unknown>>
+  /** Clics « Envoyer un test » du salon d'administration, avec leur issue (liste : l'objet rendu est une copie). */
+  webhookTests: Array<'sent' | 'no_webhook'>
   mutationActions: Array<{ action: string; changeId: string }>
   decisions: Array<{ clanId: number; decision: 'approve' | 'reject'; body: unknown }>
   reactivations: Array<{ clanId: number; body: unknown }>
@@ -208,7 +210,7 @@ export type LifecycleControl = { failPending: boolean }
 export function mockClanLifecycle(api: ApiMock, options: LifecycleMockOptions = {}): LifecycleCalls & { control: LifecycleControl } {
   const superUser = options.superUser ?? true
   const control: LifecycleControl = { failPending: options.failPending ?? false }
-  const calls: LifecycleCalls = { settingsPatches: [], mutationActions: [], decisions: [], reactivations: [], archives: [] }
+  const calls: LifecycleCalls = { settingsPatches: [], webhookTests: [], mutationActions: [], decisions: [], reactivations: [], archives: [] }
   const forbidden = { status: 403, body: { error: 'Forbidden' } }
 
   let settings = {
@@ -219,6 +221,18 @@ export function mockClanLifecycle(api: ApiMock, options: LifecycleMockOptions = 
     autoArchive: false,
     autoPromote: true,
     webhookUrl: 'https://discord.com/api/webhooks/123456789/••••' as string | null,
+    // Salon d'administration (src/lib/admin-alerts/catalog.ts) : valeurs par défaut du catalogue.
+    mention: { type: 'none', roleId: '' } as { type: string; roleId: string },
+    alertEvents: {
+      clan_request: true,
+      clan_discovered: true,
+      orphan_join_request: true,
+      lifecycle_report: true,
+      lifecycle_incident: true,
+      privacy_request: true,
+      daily_digest: true,
+      resource_queue: true,
+    } as Record<string, boolean>,
   }
   const mutations = initialMutations()
   let pending = [...PENDING]
@@ -246,10 +260,18 @@ export function mockClanLifecycle(api: ApiMock, options: LifecycleMockOptions = 
     .on('PATCH', '/api/settings/clan-lifecycle', (_url, request) => {
       const body = request.postDataJSON() as Record<string, unknown>
       calls.settingsPatches.push(body)
-      const { webhookUrl, ...rest } = body
+      const { webhookUrl, alertEvents, ...rest } = body
       settings = { ...settings, ...rest }
+      // Comme la route : les interrupteurs reçus se fusionnent avec ceux en vigueur.
+      if (alertEvents && typeof alertEvents === 'object') settings.alertEvents = { ...settings.alertEvents, ...(alertEvents as Record<string, boolean>) }
       if (typeof webhookUrl === 'string') settings.webhookUrl = webhookUrl ? 'https://discord.com/api/webhooks/987654321/••••' : null
       return { body: { success: true, settings } }
+    })
+    .on('POST', '/api/settings/clan-lifecycle/webhook-test', () => {
+      calls.webhookTests.push(settings.webhookUrl ? 'sent' : 'no_webhook')
+      return settings.webhookUrl
+        ? { body: { success: true, message: 'Message de test envoyé dans le salon d’administration.' } }
+        : { status: 400, body: { error: 'Aucun webhook enregistré : renseigne l’adresse du salon d’abord.' } }
     })
     .on('GET', '/api/settings/clan-lifecycle/mutations', (url) => {
       if (!superUser) return forbidden

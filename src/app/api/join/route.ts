@@ -1,5 +1,7 @@
 import { z } from 'zod'
 
+import { clanRequestAlert, orphanJoinRequestAlert } from '@/lib/admin-alerts/messages'
+import { fireAdminAlert } from '@/lib/admin-alerts/send'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { reopenRejectedClan } from '@/lib/clan-archive'
@@ -288,15 +290,33 @@ export async function POST(request: Request) {
         await linkMemberToAccount(clanMember.id, session.userId, !session.activeMemberId)
       }
 
-      // Notify Owner/Admin of the clan (fire-and-forget — non bloquant)
-      notifyJoinRequest(clan.id, pubgPlayerName, clanMember.id).catch((err) =>
-        console.error('[join] Failed to send join request notification:', err)
-      )
+      // Notify Owner/Admin of the clan (fire-and-forget — non bloquant). Sans Owner actif (clan découvert par le cycle
+      // de vie, clan encore en attente), personne d'autre que le SuperUser ne peut répondre : alerte Discord.
+      const targetClan = clan
+      notifyJoinRequest(clan.id, pubgPlayerName, clanMember.id)
+        .then((notifiedOwners) => {
+          if (notifiedOwners > 0 || reopenedRejectedClan) return
+          fireAdminAlert('orphan_join_request', () =>
+            orphanJoinRequestAlert({ clanId: targetClan.id, clanName: targetClan.name, clanTag: targetClan.tag, playerName: pubgPlayerName })
+          )
+        })
+        .catch((err) => console.error('[join] Failed to send join request notification:', err))
 
       // Le clan rouvert revient dans la file du SuperUser : il doit le savoir.
       if (reopenedRejectedClan) {
         notifyClanCreationRequest(clan.id, clan.name, clan.tag, pubgPlayerName).catch((err) =>
           console.error('[join] Failed to notify superusers of a reopened clan:', err)
+        )
+        fireAdminAlert('clan_request', () =>
+          clanRequestAlert({
+            clanId: targetClan.id,
+            clanName: targetClan.name,
+            clanTag: targetClan.tag,
+            platformShard,
+            playerName: pubgPlayerName,
+            reopened: true,
+            hasPubgClan: Boolean(targetClan.pubgClanId),
+          })
         )
       }
 
@@ -400,6 +420,18 @@ export async function POST(request: Request) {
       // Notify SuperUsers of the new clan pending approval (fire-and-forget)
       notifyClanCreationRequest(newClan.id, newClan.name, newClan.tag, pubgPlayerName).catch((err) =>
         console.error('[join] Failed to notify superusers:', err)
+      )
+      // La notification ci-dessus reste dans le site ; Discord fait sonner le téléphone (salon d'administration).
+      fireAdminAlert('clan_request', () =>
+        clanRequestAlert({
+          clanId: newClan.id,
+          clanName: newClan.name,
+          clanTag: newClan.tag,
+          platformShard,
+          playerName: pubgPlayerName,
+          reopened: false,
+          hasPubgClan: Boolean(pubgClanId),
+        })
       )
 
       response = {

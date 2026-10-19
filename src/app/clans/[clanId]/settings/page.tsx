@@ -4,6 +4,7 @@ import {
   Globe,
   MessageSquare,
   Monitor,
+  Rocket,
   Settings,
   Trophy,
   Users,
@@ -98,6 +99,13 @@ function superUserTiles(clanId: number): HubTile[] {
       title: 'Données et télémétrie',
       description: 'Santé des données, soirées et outils de télémétrie du clan.',
       icon: Database,
+      ...violet,
+    },
+    {
+      href: `/settings/clans/${clanId}/mise-en-route`,
+      title: 'Mise en route',
+      description: 'De la validation à la ligue : où en est le clan, et ce qui reste à faire.',
+      icon: Rocket,
       ...violet,
     },
     {

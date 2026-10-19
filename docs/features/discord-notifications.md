@@ -241,21 +241,61 @@ Toutes exigent `manage_settings` sur le clan.
 
 ---
 
-## Webhook d'administration — global, pas par clan
+## Salon d'administration — global, pas par clan
 
-Tout ce qui précède décrit des webhooks **par clan** (`ClanConfig`). Le cycle de vie des clans en utilise un autre, **global**, stocké dans `AppConfig.clan_lifecycle_discord_webhook_url` : une mutation d'appartenance concerne toute la ligue, pas un clan en particulier, et le salon d'administration n'est pas celui des annonces.
+Tout ce qui précède décrit des webhooks **par clan** (`ClanConfig`). Le SuperUser a son propre salon, **global**,
+stocké dans `AppConfig.clan_lifecycle_discord_webhook_url` : né pour les mutations d'appartenance du cycle de vie, il
+reçoit depuis le 2026-10-19 **toutes les alertes d'administration**. C'est le seul canal qui prévient le SuperUser hors
+du site, y compris un SuperUser sans membre lié (les notifications internes visent un `ClanMember`).
 
-| | Webhooks par clan | Webhook d'administration |
+| | Webhooks par clan | Salon d'administration |
 |---|---|---|
-| Stockage | `ClanConfig` | `AppConfig` |
-| Configuré depuis | Paramètres du clan | `/settings/clans/lifecycle`, onglet « Paramètres » |
-| Contenu | Top 1, résultats de tournoi | Mouvements de clan détectés automatiquement |
+| Stockage | `ClanConfig` | `AppConfig` (adresse, mention, interrupteurs) |
+| Configuré depuis | Paramètres du clan | `/settings/clans/lifecycle?tab=settings`, carte « Salon Discord d'administration » |
+| Contenu | Top 1, résultats de tournoi | Demandes à traiter, incidents, comptes rendus (ci-dessous) |
 
-La validation de l'URL est **partagée** (`isValidDiscordWebhookUrl`, `normalizeWebhookUrl`) : pas de seconde règle qui pourrait diverger.
+### Alertes
 
-Un webhook vide est un cas normal, pas une erreur : aucune notification ne part et la page l'affiche comme « non configuré ».
+Catalogue : `src/lib/admin-alerts/catalog.ts` (une entrée par événement, lu aussi par la page). Chaque événement a son
+interrupteur ; tous sont activés par défaut. Ceux qui attendent une décision portent la **mention** réglée (aucune,
+`@here`, `@everyone` ou un rôle) ; un compte rendu n'en porte jamais.
 
-Voir [Cycle de vie du clan](cycle-de-vie-clan.md).
+| Événement | Déclencheur | Mention | Lien |
+|---|---|---|---|
+| `clan_request` | `/join` inscrit un clan, ou redemande un clan refusé | oui | Clans en attente |
+| `clan_discovered` | Le cycle de vie crée un clan inconnu (cas B) | oui | Clans en attente |
+| `orphan_join_request` | Demande d'adhésion à un clan sans Owner actif (clan en attente, clan découvert) | oui | Demandes d'adhésion du clan |
+| `lifecycle_report` | Passage quotidien avec mouvements (le compte rendu historique) | non | — |
+| `lifecycle_incident` | Coupe-circuit ou passage en échec — **jamais envoyé avant le 2026-10-19** : le cron sortait avant la notification | oui | Santé |
+| `privacy_request` | Formulaire « Retirer mes données » | oui | Demandes de confidentialité |
+| `daily_digest` | Veille du matin, 09:00 (cron `admin_daily_digest`) : la boîte « À traiter » de l'accueil Plateforme, envoyée seulement si une décision ou un incident attend | oui | Accueil Plateforme |
+| `resource_queue` | Proposition ou signalement sur la Carte des ressources | non | File de validation |
+
+**Données personnelles.** Discord est un service tiers : n'y partent ni adresse e-mail, ni le pseudo ou le motif d'une
+demande « Retirer mes données » (type et échéance seulement). Contrôlé par `admin-alerts.test.ts`.
+
+### Envoi
+
+- `sendAdminAlert(event, embed)` (`src/lib/admin-alerts/send.ts`) lit l'interrupteur, l'adresse et la mention, puis
+  poste. **Ne lève jamais** : renvoie `disabled`, `no_webhook` ou `failed`. Toute nouvelle alerte du SuperUser passe
+  par elle, jamais par un `sendDiscordWebhook` direct.
+- `fireAdminAlert(event, () => embed)` : variante « tire et oublie » des routes, qui n'attend pas Discord pour répondre.
+- Contenu : fonctions pures de `src/lib/admin-alerts/messages.ts` ; liens absolus par `NEXT_PUBLIC_APP_URL` (sans elle,
+  pas de lien).
+- « Envoyer un test » : `POST /api/settings/clan-lifecycle/webhook-test`, message de contrôle **avec** la mention, qui
+  liste les alertes activées.
+
+La validation de l'URL est **partagée** (`isValidDiscordWebhookUrl`, `normalizeWebhookUrl`), la mention aussi
+(`normalizeMention`, `renderDiscordMention`) : pas de seconde règle qui pourrait diverger.
+
+Un webhook vide est un cas normal, pas une erreur : aucune alerte ne part et la page l'affiche comme « non configuré ».
+
+**Sans déclencheur unique** — crons en échec, worker de télémétrie arrêté, parties proches de l'expiration, erreurs de
+configuration, échéance proche d'une demande de confidentialité, mise en route d'un clan inachevée : couverts par la
+veille du matin (`daily_digest`), qui reprend la boîte « À traiter » (`src/lib/admin-inbox/`). Pas couverts : quota
+PUBG, SMTP en panne (visibles dans leurs pages).
+
+Voir [Cycle de vie du clan](cycle-de-vie-clan.md) et [Inscrire un nouveau clan](inscription-clan.md).
 
 ## Limites connues
 
@@ -269,7 +309,9 @@ Voir [Cycle de vie du clan](cycle-de-vie-clan.md).
 
 ## Tests
 
-`npx vitest run src/lib/discord` — 82 tests répartis sur 7 fichiers.
+`npx vitest run src/lib/discord` — 82 tests répartis sur 7 fichiers. Salon d'administration :
+`npx vitest run src/lib/admin-alerts src/lib/clan-lifecycle/discord-notifier.test.ts` (catalogue, envoi, contenu,
+contrats des routes de réglage, de test et de `/join`).
 
 Les tests de route vivent dans `src/lib/` et non à côté des routes : `vitest.config.ts` ne collecte que `src/lib/**/*.test.ts`, un fichier posé ailleurs ne serait jamais exécuté.
 

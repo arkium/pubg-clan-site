@@ -1,3 +1,5 @@
+import { normalizeAdminAlertEvents, type AdminAlertEvents } from '@/lib/admin-alerts/catalog'
+import { normalizeMention, type DiscordMention } from '@/lib/discord/discord-config'
 import { prisma } from '@/lib/prisma'
 import type { LifecycleMode } from '@/lib/clan-lifecycle/safety'
 
@@ -12,7 +14,10 @@ export const CLAN_LIFECYCLE_CONFIG_KEYS = {
   maxMovesRatio: 'clan_lifecycle_max_moves_ratio',
   confirmationsRequired: 'clan_lifecycle_confirmations_required',
   discordWebhookUrl: 'clan_lifecycle_discord_webhook_url',
+  /** Mention des alertes à traiter du salon d'administration, JSON `{ type, roleId }` (`src/lib/admin-alerts/`). */
   discordMention: 'clan_lifecycle_discord_mention',
+  /** Interrupteurs des alertes du salon d'administration, JSON `{ "<événement>": boolean }`. */
+  adminAlertEvents: 'admin_alert_events',
   ungroupedArchiveAfterDays: 'ungrouped_archive_after_days',
   ungroupedAutoArchive: 'ungrouped_auto_archive',
   ungroupedAutoPromote: 'ungrouped_auto_promote',
@@ -139,6 +144,25 @@ export async function getClanLifecycleDiscordWebhookUrl() {
   return trimmed.length > 0 ? trimmed : null
 }
 
+function parseJson(raw: string | null): unknown {
+  if (!raw) return null
+  try {
+    return JSON.parse(raw)
+  } catch {
+    return null
+  }
+}
+
+/** Mention portée par les alertes à traiter du salon d'administration ; `none` par défaut. */
+export async function getAdminAlertMention(): Promise<DiscordMention> {
+  return normalizeMention(parseJson(await readKey(CLAN_LIFECYCLE_CONFIG_KEYS.discordMention)))
+}
+
+/** Événements envoyés au salon d'administration ; un événement jamais réglé garde sa valeur par défaut. */
+export async function getAdminAlertEvents(): Promise<AdminAlertEvents> {
+  return normalizeAdminAlertEvents(parseJson(await readKey(CLAN_LIFECYCLE_CONFIG_KEYS.adminAlertEvents)))
+}
+
 /**
  * Ecritures — utilisees par l'onglet « Parametres » du chantier 5 et par les scripts
  * de mise en service. Chaque setter borne sa valeur comme le getter correspondant,
@@ -198,18 +222,43 @@ export async function setClanLifecycleDiscordWebhookUrl(rawUrl: string) {
   return normalized
 }
 
+/** Une mention de rôle sans identifiant retombe à « aucune », comme pour les webhooks de clan. */
+export async function setAdminAlertMention(mention: DiscordMention) {
+  const normalized = normalizeMention(mention)
+  await writeKey(CLAN_LIFECYCLE_CONFIG_KEYS.discordMention, JSON.stringify(normalized))
+  return normalized
+}
+
+/** Fusionne les interrupteurs reçus avec ceux en vigueur : un `PATCH` ne touche que ce qu'il nomme. */
+export async function setAdminAlertEvents(patch: Partial<AdminAlertEvents>) {
+  const next = { ...(await getAdminAlertEvents()), ...patch }
+  await writeKey(CLAN_LIFECYCLE_CONFIG_KEYS.adminAlertEvents, JSON.stringify(next))
+  return next
+}
+
 /** Lit tous les réglages en une fois, pour l'onglet « Paramètres ». */
 export async function getClanLifecycleSettings() {
-  const [mode, maxMovesRatioPercent, confirmationsRequired, archiveAfterDays, autoArchive, autoPromote, webhookUrl] =
-    await Promise.all([
-      getClanLifecycleMode(),
-      getMaxMovesRatioPercent(),
-      getConfirmationsRequired(),
-      getUngroupedArchiveAfterDays(),
-      getUngroupedAutoArchive(),
-      getUngroupedAutoPromote(),
-      getClanLifecycleDiscordWebhookUrl(),
-    ])
+  const [
+    mode,
+    maxMovesRatioPercent,
+    confirmationsRequired,
+    archiveAfterDays,
+    autoArchive,
+    autoPromote,
+    webhookUrl,
+    mention,
+    alertEvents,
+  ] = await Promise.all([
+    getClanLifecycleMode(),
+    getMaxMovesRatioPercent(),
+    getConfirmationsRequired(),
+    getUngroupedArchiveAfterDays(),
+    getUngroupedAutoArchive(),
+    getUngroupedAutoPromote(),
+    getClanLifecycleDiscordWebhookUrl(),
+    getAdminAlertMention(),
+    getAdminAlertEvents(),
+  ])
 
   return {
     mode,
@@ -219,5 +268,7 @@ export async function getClanLifecycleSettings() {
     autoArchive,
     autoPromote,
     webhookUrl,
+    mention,
+    alertEvents,
   }
 }

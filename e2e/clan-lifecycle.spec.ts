@@ -138,6 +138,11 @@ test('clans en attente : valider, refuser après confirmation en modale', async 
 
   await clans.first().getByRole('button', { name: 'Valider' }).click()
   await expect(page.getByTestId('lifecycle-toasts')).toContainText('Clan [SMK] Smoke Squad validé.')
+  // La suite se fait sur la page de mise en route du clan : le toast y mène.
+  await expect(page.getByTestId('lifecycle-toasts').getByRole('link', { name: 'Mise en route du clan →' })).toHaveAttribute(
+    'href',
+    '/settings/clans/41/mise-en-route'
+  )
   expect(calls.decisions).toEqual([{ clanId: 41, decision: 'approve', body: {} }])
   await expect(clans).toHaveCount(1)
 
@@ -230,6 +235,40 @@ test('paramètres : un PATCH par réglage, bornes vérifiées avant envoi', asyn
   await expect(settings.getByTestId('lifecycle-webhook-current')).toContainText('987654321')
   expect(calls.settingsPatches.at(-1)).toEqual({ webhookUrl: 'https://discord.com/api/webhooks/987654321/secret' })
   expect(calls.settingsPatches).toHaveLength(4)
+})
+
+test('salon d’administration : alertes, mention d’un rôle, message de test', async ({ api, page }) => {
+  const calls = mockClanLifecycle(api)
+  await openLifecycle(page, '?tab=settings')
+  const card = page.getByTestId('lifecycle-admin-alerts')
+  const events = card.getByTestId('lifecycle-alert-events')
+
+  // Tout est activé par défaut ; les alertes à traiter portent la pastille de mention (6 sur 8).
+  await expect(events.getByTestId('lifecycle-alert-clan_request')).toHaveAttribute('aria-checked', 'true')
+  await expect(events.getByText('À traiter · mention')).toHaveCount(6)
+
+  // Un interrupteur = un PATCH qui ne nomme que lui.
+  await events.getByTestId('lifecycle-alert-resource_queue').click()
+  await expect(events.getByTestId('lifecycle-alert-resource_queue')).toHaveAttribute('aria-checked', 'false')
+  expect(calls.settingsPatches.at(-1)).toEqual({ alertEvents: { resource_queue: false } })
+
+  // « Un rôle » attend son identifiant avant tout envoi.
+  await card.getByTestId('lifecycle-alert-mention').click()
+  await card.getByRole('menuitemradio', { name: 'Un rôle' }).click()
+  expect(calls.settingsPatches).toHaveLength(1)
+  const apply = card.getByRole('button', { name: 'Appliquer' })
+  await expect(apply).toBeDisabled()
+  await card.getByTestId('lifecycle-alert-mention-role').fill('12a3456789012')
+  await expect(card.getByTestId('lifecycle-alert-mention-role')).toHaveValue('123456789012')
+  await apply.click()
+  await expect(page.getByTestId('lifecycle-toasts')).toContainText('Réglage enregistré.')
+  expect(calls.settingsPatches.at(-1)).toEqual({ mention: { type: 'role', roleId: '123456789012' } })
+  await expect(card.getByTestId('lifecycle-alert-mention')).toContainText('Un rôle')
+  await expect(card.getByTestId('lifecycle-alert-mention-role')).toHaveValue('123456789012')
+
+  await card.getByTestId('lifecycle-webhook-test').click()
+  await expect(page.getByTestId('lifecycle-toasts')).toContainText('Message de test envoyé')
+  expect(calls.webhookTests).toEqual(['sent'])
 })
 
 test('santé : dernier passage, coût du parking, derniers passages', async ({ api, page }) => {

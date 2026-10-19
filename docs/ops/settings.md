@@ -15,6 +15,46 @@ Chaque page utilise la structure standard :
 
 ---
 
+## `/settings` — Accueil Plateforme et boîte « À traiter » (2026-10-19)
+
+Sous le bandeau, la boîte **« À traiter »** rassemble les files et incidents de tout le site, du plus urgent au simple
+« à relire », chaque ligne menant à sa page : clans en attente (urgent au-delà de 7 jours), clans en cours de mise en
+route (créés depuis moins de 30 jours, une étape obligatoire à faire), demandes d'adhésion sans Owner, demandes de
+confidentialité (urgent à moins de 7 jours de l'échéance), carte des ressources, cycle de vie en échec ou à l'arrêt
+(production seulement), worker de télémétrie arrêté, parties qui expirent sans analyse, tâches planifiées en échec
+(24 h), erreurs de configuration, mouvements à relire, joueurs du parking archivables. Une source illisible est dite
+(« Non lu cette fois »), jamais comptée à zéro.
+
+- **Code** : `src/lib/admin-inbox/build.ts` (pur : lignes, tons, seuils), `service.ts` (lectures, une source à la
+  fois), `src/components/settings/AdminInbox.tsx` ; route `GET /api/settings/inbox` (`requirePlatformAdmin`).
+- **Coût** : ~1,5 s de lectures, mesuré le 2026-10-19 sur la production. Le bilan complet de télémétrie
+  (`getTelemetryBacklogSummary`, ~9 s) n'est **pas** utilisé : `countUrgentTelemetryBacklog` ne compte que les parties
+  de 7 à 14 jours.
+- **Veille du matin** : la même boîte part à 09:00 sur le salon Discord d'administration si une ligne attend une
+  action (cron `admin_daily_digest`, [cron.md](cron.md)).
+- **Tests** : `src/lib/admin-inbox/*.test.ts`, `e2e/platform-hub.spec.ts`.
+
+---
+
+## `/settings/clans/[clanId]/mise-en-route` — Mise en route d'un clan (2026-10-19)
+
+Checklist SuperUser en sept étapes — validation, compte de l'Owner (facultatif), deux joueurs suivis, parties
+importées, télémétrie, statistiques, ligue — avec l'état de chacune (fait, à faire, en cours, bloqué) et l'endroit où
+agir. Deux actions directes : **Synchroniser les matchs** (`POST /api/clans/[id]/cron-control`, `sync_matches`) et
+**Mettre en file** la télémétrie (`POST /api/clans/[id]/telemetry/recoveries`, `enqueue_urgent` puis `enqueue_backlog` : le backlog prend les parties les plus récentes et laisserait de côté celles qui expirent). On y arrive par la
+boîte « À traiter », par le toast de validation d'un clan (« Mise en route du clan → »), par la fiche Plateforme du clan
+et par la tuile SuperUser des Paramètres du clan. Parcours complet : [inscription-clan.md](../features/inscription-clan.md).
+
+- **Code** : `src/lib/clan-onboarding/build.ts` (pur), `service.ts` (~50 ms par clan : les parties en escouade sont
+  comptées en SQL depuis les membres, le filtre de relation Prisma coûtait ~1,2 s par comptage) ; route
+  `GET /api/settings/clans/[id]/onboarding` ; page et `src/components/clan-onboarding/ClanOnboardingChecklist.tsx`.
+- **Compte de l'Owner facultatif** : affiché, jamais remonté dans la boîte « À traiter » — le site marche sans, et en
+  pratique le SuperUser administre seul (sans ce choix, presque tous les clans récents resteraient « à suivre »).
+- **Tests** : `src/lib/clan-onboarding/clan-onboarding.test.ts`, `src/lib/admin-inbox/admin-inbox-routes.test.ts`,
+  `e2e/clan-onboarding.spec.ts`.
+
+---
+
 ## `/settings/configuration` — Configuration du site (2026-10-10)
 
 Page SuperUser (thème « Site » de l'accueil Plateforme, entrée `superuser.site-config` — ligne `NavItem` posée par
@@ -51,7 +91,7 @@ Page unique regroupant toute la thématique de l'appartenance de clan, en cinq o
 | **Mutations** | Journal des `PlayerClanChange`, **tous statuts** — y compris les écarts en cours de confirmation. Actions « Annuler » (modifie les données) et « Marquer comme vu » (sort de la file de relecture, ne modifie rien) |
 | **Clans en attente** | Clans en `isActive: false` : demandes `/join` **et** clans découverts automatiquement. Valider ou refuser |
 | **Ungrouped** | Effectif du clan technique trié du plus inactif, date d'éligibilité à l'archivage, archivage en masse |
-| **Paramètres** | Les 8 clés `AppConfig` de la thématique |
+| **Paramètres** | Les 9 clés `AppConfig` de la thématique, dont le salon Discord d'administration (adresse, mention, alertes envoyées, message de test) |
 | **Santé** | Dernier passage du cron, dix derniers runs, coût quotidien du parking en appels PUBG |
 
 ### Réglages exposés
@@ -61,7 +101,9 @@ Page unique regroupant toute la thématique de l'appartenance de clan, en cinq o
 | `clan_lifecycle_mode` | `observe` ou `apply` | `observe` |
 | `clan_lifecycle_confirmations_required` | Passages concordants avant d'agir | `3` |
 | `clan_lifecycle_max_moves_ratio` | Coupe-circuit, en % de l'effectif | `10` |
-| `clan_lifecycle_discord_webhook_url` | Salon d'administration (global, pas par clan) | vide |
+| `clan_lifecycle_discord_webhook_url` | Salon d'administration (global, pas par clan) : toutes les alertes d'administration | vide |
+| `clan_lifecycle_discord_mention` | Mention des alertes à traiter (`none`, `here`, `everyone`, `role`) | `none` |
+| `admin_alert_events` | Alertes envoyées au salon, une par événement ([discord-notifications.md](../features/discord-notifications.md)) | tout activé |
 | `ungrouped_archive_after_days` | Seuil d'inactivité du parking | `90` |
 | `ungrouped_auto_archive` | Archive sans validation | `false` |
 | `ungrouped_auto_promote` | Promotion automatique depuis le parking | `true` |

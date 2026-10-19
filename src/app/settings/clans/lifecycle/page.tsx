@@ -17,7 +17,7 @@ import {
   tabId,
   type LifecycleTab,
 } from '@/components/clan-lifecycle/LifecycleHeader'
-import { ErrorState, ToastStack, type LifecycleOverview, type Toast, type ToastTone } from '@/components/clan-lifecycle/LifecycleShared'
+import { ErrorState, ToastStack, type LifecycleOverview, type Toast, type ToastLink, type ToastTone } from '@/components/clan-lifecycle/LifecycleShared'
 import { MutationsSection } from '@/components/clan-lifecycle/MutationsSection'
 import { ParkingSection } from '@/components/clan-lifecycle/ParkingSection'
 import { SettingsSection } from '@/components/clan-lifecycle/SettingsSection'
@@ -38,6 +38,8 @@ import ToolbarGroup from '@/components/ui/ToolbarGroup'
  */
 
 const TOAST_MS = 5000
+/** Un toast qui mène à l'étape suivante reste le temps de cliquer. */
+const TOAST_WITH_LINK_MS = 15000
 const MAX_TOASTS = 3
 
 function ClanLifecycleContent() {
@@ -93,11 +95,11 @@ function ClanLifecycleContent() {
   const dismissToast = useCallback((id: number) => setToasts((current) => current.filter((toast) => toast.id !== id)), [])
 
   const showToast = useCallback(
-    (text: string, tone: ToastTone) => {
+    (text: string, tone: ToastTone, link?: ToastLink) => {
       toastSeq.current += 1
       const id = toastSeq.current
-      setToasts((current) => [...current, { id, text, tone }].slice(-MAX_TOASTS))
-      window.setTimeout(() => dismissToast(id), TOAST_MS)
+      setToasts((current) => [...current, { id, text, tone, link }].slice(-MAX_TOASTS))
+      window.setTimeout(() => dismissToast(id), link ? TOAST_WITH_LINK_MS : TOAST_MS)
     },
     [dismissToast]
   )

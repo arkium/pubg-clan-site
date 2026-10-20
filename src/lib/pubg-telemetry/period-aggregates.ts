@@ -72,6 +72,10 @@ type SquadMatchTelemetryRow = {
   squadMatch: {
     matchType: string
     members: Array<{
+      /** Distances de l'API PUBG, en mètres : la source des moyennes à pied / en véhicule. */
+      walkDistance?: number
+      swimDistance?: number
+      rideDistance?: number
       member: {
         id: number
         clanId: number | null
@@ -479,6 +483,9 @@ async function recalculateTelemetryPeriodForClan(
       matchType: true,
       members: {
         select: {
+          walkDistance: true,
+          swimDistance: true,
+          rideDistance: true,
           member: {
             select: {
               id: true,
@@ -580,6 +587,7 @@ async function recalculateTelemetryPeriodForClan(
   for (const snapshot of snapshots) {
     const memberKeyToId = new Map<string, number>()
     const clanMemberIdsForMatch: number[] = []
+    const apiDistancesByMemberId = new Map<number, { onFoot: number; vehicle: number }>()
 
     for (const squadMember of snapshot.squadMatch.members) {
       if (squadMember.member.clanId !== clanId) {
@@ -587,6 +595,12 @@ async function recalculateTelemetryPeriodForClan(
       }
 
       clanMemberIdsForMatch.push(squadMember.member.id)
+      // Mètres exacts de l'API, nage comprise dans « à pied » ; les distances de la télémétrie sont en centimètres
+      // et comptaient l'avion (docs/TODO/inventaire-2026-10-20.md).
+      apiDistancesByMemberId.set(squadMember.member.id, {
+        onFoot: asFiniteNumber(squadMember.walkDistance) + asFiniteNumber(squadMember.swimDistance),
+        vehicle: asFiniteNumber(squadMember.rideDistance),
+      })
 
       const normalizedPlayerName = normalizeKey(squadMember.member.pubgPlayerName)
       if (normalizedPlayerName) {
@@ -620,8 +634,9 @@ async function recalculateTelemetryPeriodForClan(
       aggregate.totalRecalls += row.recalls
       aggregate.totalKnockouts += row.knockouts
       aggregate.totalDamageTaken += row.damageTaken
-      aggregate.totalOnFootDistanceMeters += row.onFootDistanceMeters
-      aggregate.totalVehicleDistanceMeters += row.vehicleDistanceMeters
+      const apiDistances = apiDistancesByMemberId.get(memberId)
+      aggregate.totalOnFootDistanceMeters += apiDistances?.onFoot ?? 0
+      aggregate.totalVehicleDistanceMeters += apiDistances?.vehicle ?? 0
       aggregate.totalBlueZoneHits += row.blueZoneHits
       aggregate.totalCircleDelaySeconds += row.circleDelaySeconds
       aggregate.totalCircleDelayPercent += row.circleDelayPercent

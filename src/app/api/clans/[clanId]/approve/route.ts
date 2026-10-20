@@ -7,6 +7,8 @@ import { assignClanSubdomainSafely } from '@/lib/clan-subdomain-service'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
 import { createNotificationForMember } from '@/lib/notification-service'
+import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
+import { fireIndexNow } from '@/lib/seo/indexnow'
 
 function parsePositiveInt(value: string) {
   const parsed = Number(value)
@@ -52,7 +54,7 @@ async function handlePost(
     if (clan.archivedAt) {
       return Response.json(
         {
-          error: "Ce clan n'est plus suivi : réactivez-le depuis l'onglet « Clans archivés » du cycle de vie.",
+          error: "Ce clan n'est plus suivi : réactive-le depuis l'onglet « Clans archivés » du cycle de vie.",
           code: 'clan_archived',
         },
         { status: 409 }
@@ -67,6 +69,8 @@ async function handlePost(
 
     // Adresse <sous-domaine>.chickendinner.fr attribuée à l'entrée dans la ligue (sans bloquer la validation).
     await assignClanSubdomainSafely(parsedClanId, 'validation')
+    // Nouvelle page publique du clan (src/lib/seo/indexnow.ts, coupé sans INDEXNOW_KEY).
+    fireIndexNow([`/clans/${parsedClanId}/overview`, '/clans'])
 
     // Chantier 2 : le clan vient d'entrer dans la ligue, les mouvements que le cron
     // avait laisses en attente peuvent maintenant s'appliquer. Hors transaction de
@@ -93,12 +97,14 @@ async function handlePost(
         },
       })
 
+      await ensurePlayerLinkForMember(ownerMember.id)
+
       // Notifier le créateur du clan
       await createNotificationForMember({
         memberId: ownerMember.id,
         type: 'join_request',
-        title: 'Votre clan a été validé !',
-        message: `Félicitations ! Votre clan "${clan.name}" [${clan.tag}] a été validé par le SuperUser et est désormais actif dans la ligue.`,
+        title: 'Ton clan a été validé !',
+        message: `Félicitations ! Ton clan "${clan.name}" [${clan.tag}] a été validé par le SuperUser et est désormais actif dans la Ligue des clans.`,
         data: {
           clanId: clan.id,
           clanName: clan.name,

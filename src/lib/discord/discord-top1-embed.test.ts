@@ -6,12 +6,14 @@ import {
   type Top1EmbedInput,
 } from '@/lib/discord/discord-top1-embed'
 
+const MATCH_ID = 'cmatch0000000000000000001'
+
 function makeInput(overrides: Partial<Top1EmbedInput> = {}): Top1EmbedInput {
   return {
     clanId: 7,
     clanName: 'Les Poulets',
     clanTag: 'PLT',
-    squadMatchId: 'squad-match-1',
+    squadMatchId: MATCH_ID,
     mapKey: 'Baltic_Main',
     mapLabel: 'Erangel',
     gameModeLabel: 'Squad FPP',
@@ -71,8 +73,47 @@ describe('buildTop1WebhookPayload', () => {
     const payload = buildTop1WebhookPayload(makeInput())
     const [embed] = payload.embeds
 
-    expect(embed.url).toBe('https://clan.example.com/clans/7/telemetry/matches/squad-match-1/debrief')
+    // Lien court : le site le résout vers le débriefing du clan (docs/TODO/url-masking.md).
+    expect(embed.url).toBe(`https://clan.example.com/m/${MATCH_ID}`)
     expect(embed.thumbnail?.url).toBe('https://clan.example.com/maps/pubg/Baltic_Main.webp')
+  })
+
+  it('passe par le sous-domaine du clan quand CLAN_SUBDOMAIN_ROOT est configurée', () => {
+    const withRoot = buildTop1WebhookPayload(makeInput({ clanSubdomain: 'plt', subdomainRoot: 'chickendinner.fr' }))
+    const withoutRoot = buildTop1WebhookPayload(makeInput({ clanSubdomain: 'plt', subdomainRoot: null }))
+
+    expect(withRoot.embeds[0].url).toBe(`https://plt.chickendinner.fr/m/${MATCH_ID}`)
+    expect(withoutRoot.embeds[0].url).toBe(`https://clan.example.com/m/${MATCH_ID}`)
+  })
+
+  it('fait des noms de l’escouade des liens courts vers le tableau de bord de chaque joueur', () => {
+    const members = makeInput().members.map((member, index) => ({ ...member, memberId: 11 + index }))
+    const field = buildTop1WebhookPayload(makeInput({ members })).embeds[0].fields![0]
+
+    expect(field.value).toContain('🎖️ [**Alpha**](https://clan.example.com/j/11) — 7 kills')
+    expect(field.value).toContain('🎖️ [**Bravo**](https://clan.example.com/j/12) — 4 kills')
+  })
+
+  it('au-delà de 1 024 caractères, les derniers noms perdent leur lien avant qu’un joueur soit retiré', () => {
+    const members = Array.from({ length: 12 }, (_, index) => ({
+      memberId: 100 + index,
+      displayName: `Joueur_au_pseudo_long_${index}`,
+      kills: 3,
+      damage: 250,
+      assists: 0,
+      revives: 0,
+      timeSurvived: 900,
+    }))
+    const field = buildTop1WebhookPayload(makeInput({ members })).embeds[0].fields![0]
+    const lines = field.value.split('\n')
+
+    expect(field.value.length).toBeLessThanOrEqual(1024)
+    expect(lines).toHaveLength(12)
+    expect(field.value).not.toContain('autre(s)')
+    expect(lines[0]).toContain('[**Joueur_au_pseudo_long_0**](https://clan.example.com/j/100)')
+    expect(lines[11]).toContain('🎖️ **Joueur_au_pseudo_long_11** —')
+    // Aucun lien coupé : chaque libellé ouvert est fermé par son adresse.
+    expect(field.value.split('[**').length).toBe(field.value.split('**](').length)
   })
 
   it('omet lien et vignette quand aucune URL de site n est configuree', () => {

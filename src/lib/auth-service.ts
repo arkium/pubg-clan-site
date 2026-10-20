@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { PREDEFINED_ROLES, initializeDefaultRoles } from '@/lib/role-service'
 import { setSetupState } from '@/lib/setup-service'
 import { sendEmail } from '@/lib/email-service'
+import { getAccountLinkBaseUrl } from '@/lib/public-base-url'
 import { siteName } from '@/lib/site-name'
 import {
   generateToken,
@@ -16,15 +17,6 @@ const PASSWORD_RESET_TTL_MS = 1000 * 60 * 30
 
 function isTechnicalInviteEmail(email: string) {
   return email.trim().toLowerCase().endsWith('@local.invalid')
-}
-
-function getPublicBaseUrl() {
-  const configuredUrl = process.env.APP_URL ?? process.env.NEXT_PUBLIC_APP_URL
-  if (configuredUrl) {
-    return configuredUrl.replace(/\/$/, '')
-  }
-
-  return 'http://localhost:3000'
 }
 
 async function ensureMemberBelongsToClan(memberId: number, clanId: number) {
@@ -224,7 +216,7 @@ export async function createMemberInvite(params: {
     },
   })
 
-  const activationUrl = `${getPublicBaseUrl()}/activate?token=${encodeURIComponent(token)}`
+  const activationUrl = `${getAccountLinkBaseUrl()}/activate?token=${encodeURIComponent(token)}`
 
   const delivery = await (async () => {
     if (!shouldSendEmail) {
@@ -245,10 +237,10 @@ export async function createMemberInvite(params: {
         text: [
           `Bonjour ${invite.member.displayName},`,
           '',
-          `Vous avez été invité à activer votre compte ${siteName()} pour le clan ${invite.clan.name} [${invite.clan.tag}].`,
+          `Tu as été invité à activer ton compte ${siteName()} pour le clan ${invite.clan.name} [${invite.clan.tag}].`,
           `Lien d'activation (valable 48 h) : ${activationUrl}`,
           '',
-          'Si vous n\'êtes pas concerné, ignorez cet e-mail.',
+          'Si tu n\'es pas concerné, ignore cet e-mail.',
         ].join('\n'),
       })
     } catch (error) {
@@ -597,19 +589,19 @@ export async function requestPasswordReset(emailInput: string) {
     },
   })
 
-  const resetUrl = `${getPublicBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`
+  const resetUrl = `${getAccountLinkBaseUrl()}/reset-password?token=${encodeURIComponent(token)}`
 
   try {
     await sendEmail({
       to: user.email,
-      subject: `Réinitialisation de votre mot de passe — ${siteName()}`,
+      subject: `Réinitialisation de ton mot de passe — ${siteName()}`,
       text: [
         `Bonjour ${user.displayName?.trim() || 'joueur'},`,
         '',
-        'Vous avez demandé la réinitialisation de votre mot de passe.',
+        'Tu as demandé la réinitialisation de ton mot de passe.',
         `Lien de réinitialisation (valide 30 minutes): ${resetUrl}`,
         '',
-        "Si vous n'êtes pas à l'origine de cette demande, ignorez cet email.",
+        "Si tu n'es pas à l'origine de cette demande, ignore cet e-mail.",
       ].join('\n'),
     })
   } catch (error) {

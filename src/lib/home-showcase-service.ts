@@ -44,10 +44,36 @@ export const STALE_SHOWCASE_MAX_MS = 60 * 60_000
 
 let cache: { at: number; value: Promise<HomeShowcasePayload> } | null = null
 let lastResolved: { at: number; value: HomeShowcasePayload } | null = null
+let refreshing: Promise<HomeShowcasePayload> | null = null
 
 export function resetHomeShowcaseCache() {
   cache = null
   lastResolved = null
+  refreshing = null
+}
+
+/**
+ * Préchauffage par le cron (docs/TODO/geo-seo-propositions.md, 5.2), via `POST /api/internal/home-showcase/warm` : le
+ * cache vit dans le process web, le cron ne peut donc le remplir qu'en l'appelant. Recalcule la vitrine et ne remplace
+ * le cache qu'une fois la nouvelle prête : tant que le cron passe plus souvent que `CACHE_TTL_MS`, aucun visiteur ne
+ * tombe sur une lecture à froid (~2 s), même après un redémarrage. Un échec garde l'ancienne vitrine.
+ */
+export function refreshHomeShowcase(now: number = Date.now()): Promise<HomeShowcasePayload> {
+  if (refreshing) return refreshing
+  const pending = loadHomeShowcase(new Date(now))
+  refreshing = pending
+  pending
+    .then(
+      (payload) => {
+        cache = { at: now, value: pending }
+        lastResolved = { at: now, value: payload }
+      },
+      () => undefined
+    )
+    .finally(() => {
+      if (refreshing === pending) refreshing = null
+    })
+  return pending
 }
 
 export function getHomeShowcase(now: number = Date.now()): Promise<HomeShowcasePayload> {

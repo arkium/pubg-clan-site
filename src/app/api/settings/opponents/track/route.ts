@@ -8,6 +8,15 @@ import {
   recordPlayerClanChange,
 } from '@/lib/player-clan-change'
 import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
+import { classifyMember, type MemberClassification } from '@/lib/players-directory'
+
+function reactivationNotice(status: MemberClassification['status'], playerName: string, clanText: string) {
+  if (status === 'pending') {
+    return `${playerName} a une demande d’adhésion en attente${clanText} : le suivre l’active sans attendre la décision de l’Owner.`
+  }
+  if (status === 'archived') return `${playerName} a été archivé avec le parking des inactifs${clanText}.`
+  return `${playerName} n’est plus suivi${clanText}.`
+}
 
 async function handlePost(req: NextRequest) {
   try {
@@ -17,6 +26,7 @@ async function handlePost(req: NextRequest) {
     const body = await req.json()
     let { playerId, targetClanId } = body
     const confirmMove = body?.confirmMove === true
+    const confirmReactivation = body?.confirmReactivation === true
 
     if (!playerId) {
       return Response.json({ error: 'playerId is required' }, { status: 400 })
@@ -75,7 +85,32 @@ async function handlePost(req: NextRequest) {
             message:
               `${player.pubgPlayerName} est déjà membre actif de ` +
               `${currentClan?.tag ? `[${currentClan.tag}] ` : ''}${currentClan?.name ?? 'un autre clan suivi'}. ` +
-              'Confirmez le transfert pour le déplacer.',
+              'Confirme le transfert pour le déplacer.',
+            currentClan,
+          },
+          { status: 409 }
+        )
+      }
+
+      // Même garde-fou pour un membre qui n'est pas actif : demande /join en attente (la suivre l'active sans la
+      // décision de l'Owner), parking archivé, départ, refus. L'annuaire demandait confirmation côté interface,
+      // l'écran Clans non (docs/TODO/players.md §10, décision du 2026-10-20).
+      const reactivates = !(existingMember.isActive && existingMember.joinStatus === 'active')
+      if (reactivates && !confirmReactivation) {
+        const { status } = classifyMember({ ...existingMember, clan: null })
+        const currentClan =
+          existingMember.clanId != null
+            ? await prisma.clan.findUnique({
+                where: { id: existingMember.clanId },
+                select: { id: true, tag: true, name: true },
+              })
+            : null
+        const clanText = currentClan ? ` dans ${currentClan.tag ? `[${currentClan.tag}] ` : ''}${currentClan.name}` : ''
+        return Response.json(
+          {
+            error: 'member_needs_reactivation',
+            message: `${reactivationNotice(status, player.pubgPlayerName, clanText)} Confirme pour le réactiver.`,
+            trackingStatus: status,
             currentClan,
           },
           { status: 409 }

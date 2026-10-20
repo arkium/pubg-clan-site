@@ -143,8 +143,14 @@ describe('textes de la notification et de l’e-mail', () => {
 })
 
 describe('liens légaux', () => {
-  it('ouvre au public les pages du footer et le formulaire, que seule la page Confidentialité lie', () => {
+  it('ouvre au public les pages du footer, le formulaire et la méthodologie, liés depuis leur page mère', () => {
     expect(LEGAL_LINKS.map((link) => link.label)).toEqual(['Mentions légales', 'Confidentialité', 'À propos'])
-    expect(LEGAL_PATHS).toEqual(['/mentions-legales', '/confidentialite', '/a-propos', '/confidentialite/demande'])
+    expect(LEGAL_PATHS).toEqual([
+      '/mentions-legales',
+      '/confidentialite',
+      '/a-propos',
+      '/confidentialite/demande',
+      '/a-propos/methodologie',
+    ])
   })
 })

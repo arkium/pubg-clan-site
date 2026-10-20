@@ -173,7 +173,7 @@ export default function Leaderboard({
       <section className="app-table-shell hidden overflow-hidden md:block" aria-label="Classement">
         <div className="flex items-baseline justify-between gap-3 px-4 py-3.5">
           <h2 className="t-card-title">Classement</h2>
-          <span className="t-meta">Cliquez sur un en-tête pour trier</span>
+          <span className="t-meta">Clique sur un en-tête pour trier</span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full table-auto text-[13px]">

@@ -24,8 +24,9 @@ export function playstyleRows(): ClanPlaystyleRow[] {
     avgCircleDelaySeconds: 14,
     avgCircleDelayPercent: 9,
     avgSafeZonePresencePercent: 84,
-    avgOnFootDistanceMeters: 21_000,
-    avgVehicleDistanceMeters: 13_000,
+    // Mètres par partie (distances de l'API PUBG depuis le 2026-10-20).
+    avgOnFootDistanceMeters: 2_100,
+    avgVehicleDistanceMeters: 1_300,
     avgDamageTaken: 318,
     avgHealAmount: 212,
     avgHealsUsed: 3.1,

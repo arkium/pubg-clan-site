@@ -33,8 +33,16 @@ const integer = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
 export const formatDecimal = (value: number) => oneDecimal.format(value)
 export const formatInteger = (value: number) => integer.format(Math.round(value))
 export const formatPercent = (value: number) => `${integer.format(Math.round(value))} %`
-/** Les distances et vitesses de télémétrie sont stockées ×10 (unités du moteur) : ramenées en km et km/h. */
-export const telemetryKilometers = (value: number) => Math.max(0, value) / 10 / 1000
+/** Distance en km, « — » quand elle n'est pas connue. */
+export const formatKilometers = (value: number | null) => (value === null ? '—' : `${oneDecimal.format(value)} km`)
+/**
+ * Distances moyennes par partie, en mètres : celles de l'API PUBG depuis le 2026-10-20. Les lignes calculées avant
+ * venaient de la télémétrie, en centimètres et avion compris (≈ 86 km « à pied » affichés par partie) : au-delà de ce
+ * plafond, une ligne n'a pas encore été recalculée et reste hors de la moyenne plutôt que d'en fausser l'affichage.
+ */
+export const MAX_PLAUSIBLE_METERS_PER_MATCH = 50_000
+export const telemetryKilometers = (meters: number) => Math.max(0, meters) / 1000
+/** Vitesse de la télémétrie, stockée ×10. */
 export const telemetryKph = (value: number) => Math.max(0, value) / 10
 
 const average = (rows: ClanPlaystyleRow[], pick: (row: ClanPlaystyleRow) => number) =>
@@ -72,10 +80,14 @@ export function playstyleRoles(rows: ClanPlaystyleRow[]) {
 // ── Profil de jeu : trois thèmes ────────────────────────────────────────────────────────────────────
 
 export function playstyleThemes(rows: ClanPlaystyleRow[]) {
-  const foot = telemetryKilometers(average(rows, (row) => row.avgOnFootDistanceMeters))
-  const vehicle = telemetryKilometers(average(rows, (row) => row.avgVehicleDistanceMeters))
-  const distance = foot + vehicle
-  const footShare = distance > 0 ? (foot / distance) * 100 : 0
+  const measured = rows.filter(
+    (row) => row.avgOnFootDistanceMeters + row.avgVehicleDistanceMeters <= MAX_PLAUSIBLE_METERS_PER_MATCH
+  )
+  // Aucune ligne recalculée : « — » plutôt qu'une distance fausse.
+  const foot = measured.length > 0 ? telemetryKilometers(average(measured, (row) => row.avgOnFootDistanceMeters)) : null
+  const vehicle = measured.length > 0 ? telemetryKilometers(average(measured, (row) => row.avgVehicleDistanceMeters)) : null
+  const distance = foot !== null && vehicle !== null ? foot + vehicle : null
+  const footShare = distance && foot !== null ? (foot / distance) * 100 : 0
   const safe = Math.min(100, average(rows, (row) => row.avgSafeZonePresencePercent))
   const outside = Math.min(100 - safe, Math.max(0, average(rows, (row) => row.avgCircleDelayPercent)))
   // Le retard sur le cercle n'est mesuré que sur les matchs récents : sans aucune mesure, « – » plutôt que 0 s.
@@ -88,7 +100,7 @@ export function playstyleThemes(rows: ClanPlaystyleRow[]) {
       foot,
       vehicle,
       footShare,
-      vehicleShare: distance > 0 ? 100 - footShare : 0,
+      vehicleShare: distance ? 100 - footShare : 0,
       maxSpeed: telemetryKph(average(rows, (row) => row.maxVehicleSpeedKph)),
     },
     circle: {

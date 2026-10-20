@@ -30,7 +30,7 @@ describe('summarizeTournamentSync', () => {
     expect(summary.tone).toBe('waiting')
     expect(summary.message).toContain('Aucune manche trouvée pour l’instant.')
     expect(summary.message).toContain('PUBG publie une partie quelques minutes après sa fin')
-    expect(summary.message).toContain('recliquez')
+    expect(summary.message).toContain('reclique')
     expect(summary.message).toContain('sans risque')
     expect(summary.message).toContain('10 oct. 21:00 → 11 oct. 01:00')
     // Sans filtre, pas de phrase sur les filtres.
@@ -50,7 +50,7 @@ describe('summarizeTournamentSync', () => {
     const summary = summarizeTournamentSync({ newRounds: 0, eligibleMatches: 4 }, TOURNAMENT, DURING)
     expect(summary.tone).toBe('waiting')
     expect(summary.message).toContain('Aucune nouvelle manche — 4 manches déjà au classement.')
-    expect(summary.message).toContain('recliquez')
+    expect(summary.message).toContain('reclique')
   })
 
   it('avant le début : le tournoi n’a pas commencé', () => {
@@ -81,7 +81,7 @@ describe('summarizeTournamentSync', () => {
 
 describe('tournamentSyncFailureMessage', () => {
   it('réseau coupé : recharger avant de recliquer', () => {
-    expect(tournamentSyncFailureMessage(null, null)).toContain('Rechargez la page dans une minute')
+    expect(tournamentSyncFailureMessage(null, null)).toContain('Recharge la page dans une minute')
   })
 
   it('délai du proxy dépassé (réponse non JSON) : la synchronisation continue peut-être', () => {
@@ -89,7 +89,7 @@ describe('tournamentSyncFailureMessage', () => {
   })
 
   it('session expirée', () => {
-    expect(tournamentSyncFailureMessage(401, { error: 'Unauthorized' })).toContain('reconnectez-vous')
+    expect(tournamentSyncFailureMessage(401, { error: 'Unauthorized' })).toContain('reconnecte-toi')
   })
 
   it('refus de la garde : réservé à l’Owner', () => {
@@ -104,7 +104,7 @@ describe('tournamentSyncFailureMessage', () => {
   it('échec PUBG : la raison, puis réessayer sans risque', () => {
     const message = tournamentSyncFailureMessage(502, { error: 'La récupération PUBG a échoué : clan 1: Too Many Requests' })
     expect(message).toContain('La récupération PUBG a échoué')
-    expect(message).toContain('Réessayez dans une minute')
+    expect(message).toContain('Réessaie dans une minute')
     expect(message).toContain('sans risque')
   })
 })

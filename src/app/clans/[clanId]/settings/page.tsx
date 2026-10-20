@@ -201,7 +201,7 @@ export default async function ClanSettingsHub({ params }: { params: Promise<{ cl
       {!session ? (
         <p className="app-panel-muted t-body px-3.5 py-3 text-gray-700">
           <Link href={`/login?redirect=${encodeURIComponent(`/clans/${clanId}/settings`)}`} className="app-link font-semibold">
-            Connectez-vous
+            Connecte-toi
           </Link>{' '}
           pour accéder aux paramètres du clan.
         </p>
@@ -219,7 +219,7 @@ export default async function ClanSettingsHub({ params }: { params: Promise<{ cl
               </div>
             ) : (
               <p className="app-panel-muted t-body px-3.5 py-3 text-gray-700">
-                Aucun outil du clan n’est actuellement ouvert à votre profil.
+                Aucun outil du clan n’est actuellement ouvert à ton profil.
               </p>
             )}
           </section>

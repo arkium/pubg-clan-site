@@ -512,36 +512,20 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
     killEvents.flatMap((ke) => [{ memberKey: ke.killerAccountId }, { memberKey: ke.victimAccountId }])
   )
 
-  // Cascade de résolution : joueur croisé par un clan < identité globale < membre d'un clan suivi.
-  // Le filtre sur les comptes réellement présents évite de charger tout l'historique
-  // d'EncounteredPlayer du clan (plusieurs dizaines de milliers de lignes) à chaque appel.
-  const [encounteredPlayers, globalPlayers] = await Promise.all([
+  // Cascade de résolution : identité globale < membre d'un clan suivi, sur les seuls comptes du lobby. `Player`
+  // contient tous les joueurs croisés, avec leur clan le plus récent : la copie par clan d'EncounteredPlayer n'apportait
+  // rien de plus (fin d'EncounteredPlayer, docs/TODO/inventaire-2026-10-20.md §2.A).
+  const globalPlayers =
     lobbyAccountIds.length > 0
-      ? prisma.encounteredPlayer.findMany({
-          where: { pubgAccountId: { in: lobbyAccountIds } },
-          select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
-        })
-      : Promise.resolve([]),
-    lobbyAccountIds.length > 0
-      ? prisma.player.findMany({
+      ? await prisma.player.findMany({
           where: { pubgAccountId: { in: lobbyAccountIds } },
           select: { pubgAccountId: true, pubgPlayerName: true, opponentClan: { select: { tag: true } } },
         })
-      : Promise.resolve([]),
-  ])
-
-  for (const p of encounteredPlayers) {
-    if (p.pubgAccountId) {
-      memberIdentityMap[p.pubgAccountId] = { name: p.pubgPlayerName, clanTag: p.pubgClanTag ?? undefined }
-    }
-  }
+      : []
 
   for (const p of globalPlayers) {
     if (p.pubgAccountId) {
-      memberIdentityMap[p.pubgAccountId] = {
-        name: p.pubgPlayerName,
-        clanTag: p.opponentClan?.tag ?? memberIdentityMap[p.pubgAccountId]?.clanTag,
-      }
+      memberIdentityMap[p.pubgAccountId] = { name: p.pubgPlayerName, clanTag: p.opponentClan?.tag ?? undefined }
     }
   }
 

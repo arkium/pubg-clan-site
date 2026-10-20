@@ -424,7 +424,7 @@ export function TopSpotsList({ explorer, showKing }: { explorer: DropZonesExplor
       ) : (
         <p className="border-t border-gray-200 px-4 py-3 text-sm text-gray-500">Aucun saut dans une ville sur cette carte.</p>
       )}
-      <span className="border-t border-gray-200 px-4 pb-3 pt-2 text-[11px] text-gray-500">Touchez un spot pour zoomer dessus.</span>
+      <span className="border-t border-gray-200 px-4 pb-3 pt-2 text-[11px] text-gray-500">Touche un spot pour zoomer dessus.</span>
     </section>
   )
 }

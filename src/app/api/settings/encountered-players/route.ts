@@ -9,6 +9,7 @@ import {
   deriveEncounteredPlayerStatus,
   type EncounteredPlayerResolutionStatus,
 } from '@/lib/encountered-player-status'
+import { buildNameFilter } from '@/lib/players-directory'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
 
@@ -80,14 +81,10 @@ export async function GET(request: Request) {
   if (clanId !== null) {
     andClauses.push({ clanId })
   }
-  if (q) {
-    const isContains = q.startsWith('*') || q.startsWith('%')
-    const cleanQ = isContains ? q.replace(/^[*%]+/, '').trim() : q
-    if (cleanQ) {
-      andClauses.push({
-        pubgPlayerName: isContains ? { contains: cleanQ } : { startsWith: cleanQ },
-      })
-    }
+  // Même filtre que l'annuaire : `_` et `%` échappés, `*` ou `%` en tête pour une sous-chaîne.
+  const nameFilter = buildNameFilter(q)
+  if (nameFilter) {
+    andClauses.push({ pubgPlayerName: nameFilter })
   }
 
   const where: Prisma.EncounteredPlayerWhereInput =
@@ -110,8 +107,9 @@ export async function GET(request: Request) {
     orderBy = [{ clanResolvedAt: sortOrder }, { resolveAttempts: sortOrder }, { encounterCount: 'desc' }]
   }
 
-  // Si recherche active (q) : agrégation immédiate et déduplication par joueur
-  if (q) {
+  // Si recherche active : agrégation immédiate et déduplication par joueur. Un `*` seul ne filtre rien : il
+  // passe par la navigation paginée, sinon cette branche sans `take` chargerait toute la table.
+  if (nameFilter) {
     const rawMatches = await prisma.encounteredPlayer.findMany({
       where,
       include: { clan: { select: { id: true, name: true, tag: true } } },

@@ -52,7 +52,6 @@ async function discoverUnnamedAccounts(): Promise<KillFeedCandidate[]> {
       LEFT JOIN Player p ON p.pubgAccountId = opp.accountId AND p.platformShard = c.platformShard
       LEFT JOIN KillFeedAccountLookup l ON l.pubgAccountId = opp.accountId AND l.platformShard = c.platformShard
      WHERE p.id IS NULL
-       AND NOT EXISTS (SELECT 1 FROM EncounteredPlayer ep WHERE ep.pubgAccountId = opp.accountId AND ep.platformShard = c.platformShard)
        AND (l.pubgAccountId IS NULL OR (l.notFound = false AND l.attempts < ${KILL_FEED_MAX_ATTEMPTS}))
      LIMIT ${DISCOVERY_LIMIT}`
 }
@@ -61,15 +60,15 @@ async function discoverUnnamedAccounts(): Promise<KillFeedCandidate[]> {
 async function settledKeys(candidates: KillFeedCandidate[]) {
   if (candidates.length === 0) return new Set<string>()
   const where = { OR: candidates.map(({ pubgAccountId, platformShard }) => ({ pubgAccountId, platformShard })) }
-  const [players, encountered, lookups] = await Promise.all([
+  // Tout joueur croisé a sa ligne Player : EncounteredPlayer n'est plus consulté (fin d'EncounteredPlayer).
+  const [players, lookups] = await Promise.all([
     prisma.player.findMany({ where, select: { pubgAccountId: true, platformShard: true } }),
-    prisma.encounteredPlayer.findMany({ where, select: { pubgAccountId: true, platformShard: true } }),
     prisma.killFeedAccountLookup.findMany({
       where: { AND: [where, { OR: [{ notFound: true }, { attempts: { gte: KILL_FEED_MAX_ATTEMPTS } }] }] },
       select: { pubgAccountId: true, platformShard: true },
     }),
   ])
-  return new Set([...players, ...encountered, ...lookups].map(keyOf))
+  return new Set([...players, ...lookups].map(keyOf))
 }
 
 /**

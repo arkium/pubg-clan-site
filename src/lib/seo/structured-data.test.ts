@@ -77,6 +77,19 @@ describe('pageJsonLd', () => {
     expect(json).not.toContain('athlete')
   })
 
+  it('À propos décrit l’éditeur ; la méthodologie est un article daté, signé d’Arkium', () => {
+    const about = parse(pageJsonLd('/a-propos', pageSeo('/a-propos'), {}, BASE))!['@graph']
+    expect(about.find((node) => node['@type'] === 'AboutPage')).toMatchObject({
+      url: 'https://chickendinner.fr/a-propos',
+      about: { '@type': 'Organization', name: 'Arkium', contactPoint: { email: 'contact@chickendinner.fr' } },
+    })
+
+    const methodology = parse(pageJsonLd('/a-propos/methodologie', pageSeo('/a-propos/methodologie'), {}, BASE))!['@graph']
+    expect(methodology.map((node) => node['@type'])).toEqual(['BreadcrumbList', 'Article'])
+    expect(methodology[0].itemListElement.map((item: { name: string }) => item.name)).toEqual(['Accueil', 'À propos', 'Méthodologie'])
+    expect(methodology[1]).toMatchObject({ dateModified: '2026-10-20', author: { name: 'Arkium' }, publisher: { name: 'Arkium' } })
+  })
+
   it('rien pour l’accueil (il a les siennes) ni pour une page hors index', () => {
     expect(pageJsonLd('/', pageSeo('/'), {}, BASE)).toBeNull()
     expect(pageJsonLd('/members/3/dashboard', pageSeo('/members/3/dashboard'), {}, BASE)).toBeNull()

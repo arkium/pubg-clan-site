@@ -40,10 +40,12 @@ vi.mock('@/lib/map-label-service', () => ({
 }))
 
 import { GET } from '@/app/api/home/showcase/route'
+import { POST as warmShowcase } from '@/app/api/internal/home-showcase/warm/route'
 import {
   CACHE_TTL_MS,
   getHomeShowcase,
   getHomeShowcaseIfReady,
+  refreshHomeShowcase,
   resetHomeShowcaseCache,
   STALE_SHOWCASE_MAX_MS,
 } from '@/lib/home-showcase-service'
@@ -257,6 +259,46 @@ describe('home-showcase-service — cache', () => {
     mocks.clanCount.mockRejectedValueOnce(new Error('db down'))
     await expect(getHomeShowcase(now)).rejects.toThrow('db down')
     await expect(getHomeShowcase(now + 1_000)).resolves.toMatchObject({ stats: { clans: 29 } })
+  })
+})
+
+describe('préchauffage par le cron (geo-seo-propositions.md, 5.2)', () => {
+  it('route interne : refusée sans le secret du cron, sans lecture en base', async () => {
+    vi.stubEnv('CRON_BOOTSTRAP_SECRET', 'secret-du-cron-de-test')
+    try {
+      const refused = await warmShowcase(new Request('http://127.0.0.1:3000/api/internal/home-showcase/warm', { method: 'POST' }))
+      expect(refused.status).toBe(403)
+      expect(mocks.squadMatchFindMany).not.toHaveBeenCalled()
+
+      const accepted = await warmShowcase(
+        new Request('http://127.0.0.1:3000/api/internal/home-showcase/warm', {
+          method: 'POST',
+          headers: { 'x-cron-bootstrap-secret': 'secret-du-cron-de-test' },
+        })
+      )
+      expect(accepted.status).toBe(200)
+      expect(mocks.squadMatchFindMany).toHaveBeenCalledTimes(1)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+  })
+
+  it('remplace le cache une fois la vitrine prête : le visiteur suivant n’attend aucune lecture', async () => {
+    const now = Date.UTC(2026, 8, 26, 20)
+    await getHomeShowcase(now)
+    // Le cron passe avant l'expiration ; le visiteur arrive après l'ancienne échéance mais avant la nouvelle.
+    await refreshHomeShowcase(now + CACHE_TTL_MS - 60_000)
+    await getHomeShowcase(now + CACHE_TTL_MS + 30_000)
+    expect(mocks.squadMatchFindMany).toHaveBeenCalledTimes(2)
+  })
+
+  it('un préchauffage en échec garde l’ancienne vitrine', async () => {
+    const now = Date.UTC(2026, 8, 26, 20)
+    await getHomeShowcase(now)
+    mocks.clanCount.mockRejectedValueOnce(new Error('db down'))
+    await expect(refreshHomeShowcase(now + 60_000)).rejects.toThrow('db down')
+    await expect(getHomeShowcase(now + 120_000)).resolves.toMatchObject({ stats: { clans: 29 } })
+    expect(mocks.squadMatchFindMany).toHaveBeenCalledTimes(2)
   })
 })
 

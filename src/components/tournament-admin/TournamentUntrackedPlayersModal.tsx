@@ -24,7 +24,7 @@ function progressLabel(player: UntrackedPlayer) {
   const steps = ['recherche du joueur sur PUBG']
   if (!player.siteClan && player.pubgClan) steps.push('inscription de son clan sur le site')
   steps.push('rattachement aux manches et recalcul du classement')
-  return `Ajout en cours : ${steps.join(', ')}. Cela peut prendre jusqu’à une minute : attendez le message final.`
+  return `Ajout en cours : ${steps.join(', ')}. Cela peut prendre jusqu’à une minute : attends le message final.`
 }
 
 function destinationLabel(player: UntrackedPlayer) {

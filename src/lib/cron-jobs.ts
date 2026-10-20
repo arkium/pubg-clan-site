@@ -93,6 +93,8 @@ const globalForCron = globalThis as typeof globalThis & {
   resourceVehicleSpotsCronTask?: ScheduledTask
   resourceVehicleSpotsInProgress?: boolean
   adminDailyDigestCronTask?: ScheduledTask
+  homeShowcaseWarmCronTask?: ScheduledTask
+  homeShowcaseWarmSecretWarned?: boolean
 }
 
 function isCronWorkerEnabled() {
@@ -1195,6 +1197,35 @@ async function runResourceVehicleSpots() {
 }
 
 /**
+ * Préchauffage de la vitrine de l'accueil (docs/TODO/geo-seo-propositions.md, 5.2) : son cache vit dans le process web,
+ * que le cron appelle par `INTERNAL_APP_URL` (`POST /api/internal/home-showcase/warm`, secret `CRON_BOOTSTRAP_SECRET`).
+ * Toutes les 4 minutes, sous la durée du cache (5 min) : aucun visiteur ni robot ne tombe sur une lecture à froid (~2 s),
+ * même après un redémarrage du web. Tâche globale : pas de ligne `CronExecution`, trace dans le journal en cas d'échec.
+ */
+async function runHomeShowcaseWarm() {
+  const headers = getInternalCronAuthHeaders()
+  if (!headers['x-cron-bootstrap-secret']) {
+    if (!globalForCron.homeShowcaseWarmSecretWarned) {
+      globalForCron.homeShowcaseWarmSecretWarned = true
+      console.warn('[Cron] Préchauffage de la vitrine ignoré — CRON_BOOTSTRAP_SECRET absent')
+    }
+    return
+  }
+
+  try {
+    const response = await fetch(`${getInternalApiBaseUrl()}/api/internal/home-showcase/warm`, {
+      method: 'POST',
+      headers,
+      cache: 'no-store',
+      signal: AbortSignal.timeout(60_000),
+    })
+    if (!response.ok) console.error(`[Cron] Préchauffage de la vitrine échoué — HTTP ${response.status}`)
+  } catch (error) {
+    console.error('[Cron] Préchauffage de la vitrine échoué', error instanceof Error ? error.message : error)
+  }
+}
+
+/**
  * Veille du matin du SuperUser : la boîte « À traiter » de l'accueil Plateforme (`src/lib/admin-inbox/`), envoyée au
  * salon Discord d'administration (événement `daily_digest`) **seulement** si une décision ou un incident attend — les
  * lignes « à relire » seules ne réveillent personne. Couvre ce qui n'a pas d'alerte immédiate : tâches en échec,
@@ -1377,6 +1408,7 @@ export type CronScheduleKey =
   | 'telemetry_geo_purge_count'
   | 'resource_vehicle_spots'
   | 'admin_daily_digest'
+  | 'home_showcase_warm'
 
 type CronScheduleGlobalKey =
   | 'clanLifecycleMembershipSyncCronTask'
@@ -1391,6 +1423,7 @@ type CronScheduleGlobalKey =
   | 'geoPurgeCountCronTask'
   | 'resourceVehicleSpotsCronTask'
   | 'adminDailyDigestCronTask'
+  | 'homeShowcaseWarmCronTask'
 
 type CronScheduleDefinition = {
   key: CronScheduleKey
@@ -1494,6 +1527,14 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     defaultExpression: '0 9 * * *',
     globalKey: 'adminDailyDigestCronTask',
     run: runAdminDailyDigest,
+  },
+  {
+    // Toutes les 4 minutes, sous la durée du cache de la vitrine (5 min) : un appel HTTP au web, ~2 s de lectures.
+    key: 'home_showcase_warm',
+    envVar: 'HOME_SHOWCASE_WARM_CRON',
+    defaultExpression: '*/4 * * * *',
+    globalKey: 'homeShowcaseWarmCronTask',
+    run: runHomeShowcaseWarm,
   },
 ]
 

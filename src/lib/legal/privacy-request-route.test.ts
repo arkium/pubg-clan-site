@@ -149,9 +149,9 @@ describe('proxy — pages légales', () => {
     else process.env.DISABLE_AUTH_PERMISSIONS = previousAuthDisabled
   })
 
-  it('ouvre les quatre pages sans session, même hors mode visiteur', async () => {
+  it('ouvre les pages légales et la méthodologie sans session, même hors mode visiteur', async () => {
     const { proxy } = await import('../../proxy')
-    for (const path of ['/mentions-legales', '/confidentialite', '/confidentialite/demande', '/a-propos']) {
+    for (const path of ['/mentions-legales', '/confidentialite', '/confidentialite/demande', '/a-propos', '/a-propos/methodologie']) {
       const response = await proxy(new NextRequest(`https://chickendinner.fr${path}`))
       expect(response.headers.get('location'), path).toBeNull()
     }

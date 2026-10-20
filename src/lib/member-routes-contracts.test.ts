@@ -266,7 +266,7 @@ describe('GET /api/members/[id]/nemesis', () => {
     mocks.killEventFindMany
       .mockResolvedValueOnce([event('acc.rival', 'acc.me', beryl), event('acc.rival', 'acc.me', beryl), event('acc.ghost', 'acc.me', 'WeapRPD_C')])
       .mockResolvedValueOnce([event('acc.me', 'acc.rival', beryl), event('acc.me', 'ai.12', beryl)])
-    mocks.encounteredFindMany.mockResolvedValue([{ pubgAccountId: 'acc.rival', pubgPlayerName: 'Rival', pubgClanTag: 'RVL' }])
+    mocks.playerFindMany.mockResolvedValue([{ pubgAccountId: 'acc.rival', pubgPlayerName: 'Rival', opponentClan: { tag: 'RVL' } }])
 
     const response = await getNemesis(new Request('http://localhost/api/members/7/nemesis'), memberParams())
     expect(mocks.killEventFindMany.mock.calls[0][0].take).toBeUndefined()
@@ -278,14 +278,12 @@ describe('GET /api/members/[id]/nemesis', () => {
     expect(data.weaponLabels).toMatchObject({ [beryl]: 'Beryl M762', WeapRPD_C: 'WeapRPD_C' })
   })
 
-  it('un adversaire inconnu du clan est nommé par l’identité globale (Player) ou un autre clan, jamais par son identifiant', async () => {
+  it('nomme les adversaires par l’identité globale (Player), une requête bornée aux comptes des duels, jamais par leur identifiant', async () => {
     const event = (killer: string) => ({ killerAccountId: killer, killerRawKey: null, victimAccountId: 'acc.me', victimRawKey: null, weaponName: null, matchDate: new Date('2026-09-20T20:00:00Z') })
     mocks.killEventFindMany.mockResolvedValueOnce([event('acc.ghost'), event('acc.other'), event('acc.raw')]).mockResolvedValueOnce([])
-    mocks.encounteredFindMany
-      .mockResolvedValueOnce([])
-      .mockResolvedValueOnce([{ pubgAccountId: 'acc.other', pubgPlayerName: 'Croisé ailleurs', pubgClanTag: 'OTH' }])
     mocks.playerFindMany.mockResolvedValue([
       { pubgAccountId: 'acc.ghost', pubgPlayerName: 'Fantôme', opponentClan: { tag: 'GHO' } },
+      { pubgAccountId: 'acc.other', pubgPlayerName: 'Croisé ailleurs', opponentClan: null },
       { pubgAccountId: 'acc.raw', pubgPlayerName: 'acc.raw', opponentClan: null },
     ])
 
@@ -293,9 +291,12 @@ describe('GET /api/members/[id]/nemesis', () => {
     const { data } = await response.json()
     const byKey = Object.fromEntries(data.topKillers.map((row: { key: string }) => [row.key, row]))
     expect(byKey['acc.ghost']).toMatchObject({ name: 'Fantôme', clanTag: 'GHO', resolved: true })
-    expect(byKey['acc.other']).toMatchObject({ name: 'Croisé ailleurs', clanTag: 'OTH', resolved: true })
+    expect(byKey['acc.other']).toMatchObject({ name: 'Croisé ailleurs', clanTag: null, resolved: true })
     expect(byKey['acc.raw']).toMatchObject({ resolved: false })
+    expect(mocks.playerFindMany).toHaveBeenCalledTimes(1)
     expect(mocks.playerFindMany.mock.calls[0][0].where.pubgAccountId.in.sort()).toEqual(['acc.ghost', 'acc.other', 'acc.raw'])
+    // Plus de chargement de toutes les lignes EncounteredPlayer du clan (fin d'EncounteredPlayer).
+    expect(mocks.encounteredFindMany).not.toHaveBeenCalled()
   })
 
   it('joueurs des clans suivis : repère sur les lignes, carte des derniers duels (autres clans seulement)', async () => {
@@ -303,7 +304,7 @@ describe('GET /api/members/[id]/nemesis', () => {
     mocks.killEventFindMany
       .mockResolvedValueOnce([event('acc.rival', 'acc.me', 21), event('acc.mate', 'acc.me', 22), event('acc.ext', 'acc.me', 23)])
       .mockResolvedValueOnce([event('acc.me', 'acc.rival', 20)])
-    mocks.encounteredFindMany.mockResolvedValue([{ pubgAccountId: 'acc.rival', pubgPlayerName: 'Rival', pubgClanTag: 'RVL' }])
+    mocks.playerFindMany.mockResolvedValue([{ pubgAccountId: 'acc.rival', pubgPlayerName: 'Rival', opponentClan: { tag: 'RVL' } }])
     mocks.memberFindMany.mockResolvedValue([
       { id: 41, displayName: 'Rival (fiche)', pubgAccountId: 'acc.rival', clan: { id: 5, tag: 'RVL', name: 'Les Rivaux' } },
       { id: 42, displayName: 'Coéquipier', pubgAccountId: 'acc.mate', clan: { id: 3, tag: 'DEMO', name: 'Clan Démo' } },

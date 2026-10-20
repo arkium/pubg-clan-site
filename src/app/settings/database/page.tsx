@@ -470,7 +470,7 @@ export default function DatabaseStatsPage() {
     if (matchesToPurge === null) {
       setPurgeError(
         purgeStatusError ||
-          'Aucun comptage n’a encore été publié pour ce seuil. Lancez un recomptage et attendez son résultat.'
+          'Aucun comptage n’a encore été publié pour ce seuil. Lance un recomptage et attends son résultat.'
       )
       return
     }

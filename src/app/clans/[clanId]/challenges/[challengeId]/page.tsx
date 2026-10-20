@@ -259,7 +259,7 @@ export default function ChallengePage() {
       ) : null}
 
       {joined ? (
-        <p className="mb-6 text-sm font-medium text-green-600">✓ Vous êtes inscrit à ce challenge !</p>
+        <p className="mb-6 text-sm font-medium text-green-600">✓ Tu es inscrit à ce challenge !</p>
       ) : null}
 
       {/* Leaderboard */}

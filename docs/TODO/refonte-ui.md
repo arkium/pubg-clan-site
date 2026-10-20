@@ -227,9 +227,9 @@ Contrôles statiques ajoutés à `src/lib/ui-conformance.test.ts` (Vitest), écr
 **Pas de contrôle « aucun `dark:` »** (décision du §3).
 
 Playwright : test de la page de référence (phase 1) et captures des 4 profils, clair et sombre. Commandes :
-`npm run test:telemetry` (Vitest, tout `src/lib` — attention, `drop-pressure-match-type.test.ts`,
-`matches-cache-match-type.test.ts` et `tracked-isolation.test.ts` écrivent dans la base de `DATABASE_URL` : les exclure
-avec `--exclude` quand elle pointe la production),
+`npm run test:telemetry` (Vitest, tout `src/lib` — `drop-pressure-match-type.test.ts`,
+`matches-cache-match-type.test.ts` et `tracked-isolation.test.ts` écrivent dans la base de `DATABASE_URL` : ignorés par
+défaut depuis le 2026-10-20, `VITEST_DB_WRITES=1` pour les lancer contre une base de test),
 `npm run test:e2e`, `npm run test:e2e:update`.
 
 ---

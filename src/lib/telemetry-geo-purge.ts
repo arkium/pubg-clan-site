@@ -275,7 +275,7 @@ export async function readGeoPurgeRunForDisplay(now: Date = new Date()): Promise
       ...state,
       status: 'failed',
       error:
-        'Purge interrompue : le processus qui l’exécutait s’est arrêté. Relancez-la, elle reprendra où elle en est.',
+        'Purge interrompue : le processus qui l’exécutait s’est arrêté. Relance-la, elle reprendra où elle en est.',
       finishedAt: state.updatedAt,
     }
   }

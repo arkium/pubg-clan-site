@@ -14,7 +14,7 @@ export async function POST(request: Request) {
     const setupState = await getSetupState()
     if (setupState === 'pending_activation') {
       return Response.json(
-        { error: "Initialisation en attente: activez d'abord le compte Owner." },
+        { error: "Initialisation en attente : active d'abord le compte Owner." },
         { status: 403 }
       )
     }

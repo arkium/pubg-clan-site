@@ -102,7 +102,7 @@ async function handlePost(req: NextRequest) {
       action,
       started: true,
       run: result.state,
-      message: `Compactage de ${table} lancé sur le serveur. Vous pouvez quitter cette page.`,
+      message: `Compactage de ${table} lancé sur le serveur. Tu peux quitter cette page.`,
     })
   } catch (error: unknown) {
     console.error('Erreur lors de l’optimisation de la table:', error)

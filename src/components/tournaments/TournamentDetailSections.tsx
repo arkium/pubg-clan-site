@@ -100,7 +100,7 @@ export function TournamentEmptyStandings({ upcoming, canManage }: { upcoming: bo
         {upcoming
           ? 'Le tournoi n’a pas commencé : le classement apparaîtra après la première manche.'
           : 'Aucune manche comptabilisée pour l’instant.'}
-        {canManage ? ' Lancez une synchronisation PUBG, ou vérifiez les filtres de format et de carte du tournoi.' : ''}
+        {canManage ? ' Lance une synchronisation PUBG, ou vérifie les filtres de format et de carte du tournoi.' : ''}
       </p>
     </div>
   )

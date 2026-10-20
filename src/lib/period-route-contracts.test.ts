@@ -24,10 +24,11 @@ vi.mock('@/lib/prisma', () => {
     if (method.startsWith('find')) return null
     return {}
   }
-  const record = (model: string, method: string) => async (args: unknown) => {
-    state.calls.push({ model, method, args })
+  const record = (model: string, method: string) => async (args: unknown, ...values: unknown[]) => {
+    // SQL brut (`$queryRaw` en gabarit) : les valeurs suivent le tableau de chaînes, on les garde pour les contrôles.
+    state.calls.push({ model, method, args: method === 'raw' ? { strings: args, values } : args })
     const override = state.overrides.get(`${model}.${method}`)
-    return override ? override(args) : emptyResult(method)
+    return override ? override(args) : method === 'raw' ? [] : emptyResult(method)
   }
   const prisma = new Proxy(
     {},
@@ -111,10 +112,16 @@ describe('/api/members/[id]/matches — matchs du joueur et bloc matchs du table
 
 describe('/api/clans/[clanId]/encountered-players — adversaires rencontrés', () => {
   it('« Semaine » part du lundi 00:00', async () => {
-    await encounteredPlayersRoute(new Request('http://localhost/api/clans/7/encountered-players?period=week'), {
+    const response = await encounteredPlayersRoute(new Request('http://localhost/api/clans/7/encountered-players?period=week'), {
       params: Promise.resolve({ clanId: '7' }),
     })
-    expect(recordedGte('encounteredPlayer', 'findMany')).toEqual([MONDAY])
+    expect(response.status).toBe(200)
+    // Lecture en SQL (ClanEncounter ⋈ Player) : la borne de la période est une valeur de la requête.
+    const rawDates = state.calls
+      .filter((call) => call.model === '$queryRaw')
+      .flatMap((call) => JSON.stringify((call.args as { values: unknown[] }).values).match(/"\d{4}-\d{2}-\d{2}T[^"]+"/g) ?? [])
+    expect(rawDates.length).toBeGreaterThan(0)
+    expect(new Set(rawDates)).toEqual(new Set([JSON.stringify(MONDAY)]))
   })
 })
 

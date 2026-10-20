@@ -9,6 +9,7 @@ import {
   type TournamentUpdateInput,
 } from '@/lib/tournament-service'
 import { requireNavPermission } from '@/middleware/auth-permission'
+import { fireIndexNow } from '@/lib/seo/indexnow'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -98,6 +99,10 @@ async function handlePatch(
     const payload = parseTournamentPayload(body)
 
     const tournament = await updateTournament(parsedClanId, tournamentId, payload)
+    // Lancé ou terminé à l'instant : la page change pour les moteurs (src/lib/seo/indexnow.ts, coupé sans INDEXNOW_KEY).
+    if (payload.status === 'active' || payload.status === 'finished') {
+      fireIndexNow([`/tournaments/${tournament.id}`, '/tournaments'])
+    }
     return Response.json({ tournament })
   } catch (error) {
     console.error('Error updating tournament:', error)

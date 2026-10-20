@@ -50,7 +50,7 @@ function filtersSentence(target: TournamentSyncTarget) {
 }
 
 export const TOURNAMENT_SYNC_PROGRESS_MESSAGE =
-  'Recherche de vos dernières parties sur PUBG… Cela prend quelques secondes.'
+  'Recherche de tes dernières parties sur PUBG… Cela prend quelques secondes.'
 
 export function summarizeTournamentSync(
   payload: TournamentSyncPayload | null,
@@ -89,7 +89,7 @@ export function summarizeTournamentSync(
       tone: 'waiting',
       message:
         `Aucune nouvelle manche — ${rounds(total)} déjà au classement. Si une manche vient de se terminer, PUBG ne l’a ` +
-        `pas encore publiée : attendez deux ou trois minutes, puis recliquez (${RETRY_IS_SAFE}).` +
+        `pas encore publiée : attends deux ou trois minutes, puis reclique (${RETRY_IS_SAFE}).` +
         unreadableSentence,
     }
   }
@@ -97,8 +97,8 @@ export function summarizeTournamentSync(
   return {
     tone: 'waiting',
     message:
-      'Aucune manche trouvée pour l’instant. PUBG publie une partie quelques minutes après sa fin : attendez deux ou ' +
-      `trois minutes, puis recliquez (${RETRY_IS_SAFE}). Seules comptent les parties personnalisées que vous avez ` +
+      'Aucune manche trouvée pour l’instant. PUBG publie une partie quelques minutes après sa fin : attends deux ou ' +
+      `trois minutes, puis reclique (${RETRY_IS_SAFE}). Seules comptent les parties personnalisées que tu as ` +
       `jouées pendant le tournoi (${formatTournamentPeriod(target.startDate, target.endDate)}).` +
       filtersSentence(target) +
       unreadableSentence,
@@ -111,15 +111,15 @@ export function summarizeTournamentSync(
  */
 export function tournamentSyncFailureMessage(status: number | null, payload: TournamentSyncPayload | null): string {
   if (status === null) {
-    return 'La connexion a été coupée pendant la synchronisation. Rechargez la page dans une minute : si la manche manque encore, recliquez.'
+    return 'La connexion a été coupée pendant la synchronisation. Recharge la page dans une minute : si la manche manque encore, reclique.'
   }
-  if (status === 401) return 'Votre session a expiré : reconnectez-vous, puis recliquez.'
+  if (status === 401) return 'Ta session a expiré : reconnecte-toi, puis reclique.'
   if (!payload) {
-    return 'La synchronisation a dépassé le délai d’attente, mais elle continue peut-être sur le serveur. Rechargez la page dans une minute avant de recliquer.'
+    return 'La synchronisation a dépassé le délai d’attente, mais elle continue peut-être sur le serveur. Recharge la page dans une minute avant de recliquer.'
   }
   if (status === 403 && (!payload.error || payload.error === 'Forbidden')) {
-    return 'Vous n’avez pas le droit de synchroniser ce tournoi : réservé à l’Owner du clan organisateur.'
+    return 'Tu n’as pas le droit de synchroniser ce tournoi : réservé à l’Owner du clan organisateur.'
   }
   const reason = payload.error ?? 'La synchronisation a échoué.'
-  return status >= 500 ? `${reason} Réessayez dans une minute : ${RETRY_IS_SAFE}.` : reason
+  return status >= 500 ? `${reason} Réessaie dans une minute : ${RETRY_IS_SAFE}.` : reason
 }

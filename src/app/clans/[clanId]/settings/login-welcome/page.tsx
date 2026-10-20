@@ -22,7 +22,7 @@ const DEFAULT_SETTINGS: WelcomeSettings = {
   badge: 'Bienvenue au clan',
   title: 'Connexion escouade',
   message:
-    'Connectez-vous pour retrouver vos statistiques, votre progression et les outils de coordination du clan.',
+    'Connecte-toi pour retrouver tes statistiques, ta progression et les outils de coordination du clan.',
   imageUrl: null,
 }
 
@@ -134,14 +134,14 @@ export default function ClanLoginWelcomeSettingsPage() {
 
       if (!response.ok) {
         if (response.status === 413) {
-          throw new Error("Le fichier dépasse la taille maximale acceptée par le serveur web (Erreur 413). Veuillez réduire la taille de l'image (max 5 Mo).")
+          throw new Error("Le fichier dépasse la taille maximale acceptée par le serveur web (Erreur 413). Réduis la taille de l'image (max 5 Mo).")
         }
         throw new Error(payload?.error ?? "Échec de l'upload de l'image")
       }
 
       if (payload?.imageUrl) {
         setSettings((current) => ({ ...current, imageUrl: payload.imageUrl }))
-        setSuccess("Image téléchargée avec succès ! N'oubliez pas de cliquer sur « Enregistrer » ci-dessous pour valider la modification.")
+        setSuccess("Image téléchargée avec succès ! N'oublie pas de cliquer sur « Enregistrer » ci-dessous pour valider la modification.")
       }
     } catch (uploadError) {
       setError(uploadError instanceof Error ? uploadError.message : "Échec de l'upload")
@@ -351,7 +351,7 @@ export default function ClanLoginWelcomeSettingsPage() {
               <p className="t-banner-title m-0 text-white">{settings.title || 'Connexion escouade'}</p>
               <p className="m-0 max-w-md text-[13px] text-white/80">
                 {settings.message ||
-                  'Connectez-vous pour retrouver vos statistiques, votre progression et les outils de coordination du clan.'}
+                  'Connecte-toi pour retrouver tes statistiques, ta progression et les outils de coordination du clan.'}
               </p>
             </div>
           </div>

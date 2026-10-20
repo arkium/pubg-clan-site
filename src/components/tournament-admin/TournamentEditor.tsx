@@ -379,7 +379,7 @@ export function TournamentEditor({
             htmlFor="tournament-end-time"
             error={errors.endTime}
             errorId="tournament-end-time-error"
-            hint="Après minuit (3 h du matin) : choisissez le jour suivant comme fin."
+            hint="Après minuit (3 h du matin) : choisis le jour suivant comme fin."
           >
             <input
               id="tournament-end-time"
@@ -422,8 +422,8 @@ export function TournamentEditor({
             <MenuField id="tournament-map" label="Carte" options={TOURNAMENT_MAP_OPTIONS} value={form.mapName} onChange={(mapName) => set({ mapName })} />
           </div>
           <p className="t-meta">
-            Les parties personnalisées utilisent des modes dédiés (« Squad (partie perso) »). Laissez « Tous les modes » si vous
-            n’êtes pas sûr : un filtre trop strict ne retiendrait aucune manche.
+            Les parties personnalisées utilisent des modes dédiés (« Squad (partie perso) »). Laisse « Tous les modes » si tu
+            n’es pas sûr : un filtre trop strict ne retiendrait aucune manche.
           </p>
         </div>
       </FormCard>

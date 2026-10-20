@@ -1,5 +1,7 @@
 import type { Metadata, MetadataRoute } from 'next'
 
+import { CONTACT_EMAIL, PUBLISHER_NAME, PUBLISHER_URL } from '@/lib/legal/legal-info'
+
 /**
  * Référencement (docs/features/seo.md) : titre, description, indexation et adresse canonique de chaque page, calculés à
  * un seul endroit à partir du chemin demandé, plus le contenu du sitemap. Module pur — le proxy (edge) en importe
@@ -14,6 +16,18 @@ import type { Metadata, MetadataRoute } from 'next'
 export const PATHNAME_HEADER = 'x-pathname'
 
 export const SITE_NAME = 'chickendinner.fr'
+
+/**
+ * L'éditeur (schema.org `Organization`), avec son point de contact (docs/TODO/geo-seo-propositions.md, 4.1). Le logo
+ * attend un fichier d'Arkium : aucun visuel du dépôt ne convient (marques PUBG / KRAFTON, image de partage non carrée).
+ */
+export const PUBLISHER_ORGANIZATION = {
+  '@type': 'Organization',
+  name: PUBLISHER_NAME,
+  url: PUBLISHER_URL,
+  contactPoint: { '@type': 'ContactPoint', email: CONTACT_EMAIL, contactType: 'customer support', availableLanguage: 'fr' },
+} as const
+
 /** Longueurs visées (docs/features/seo.md §1) : un titre complet, suffixe compris, n'est pas tronqué par Google. */
 export const MAX_TITLE_LENGTH = 60
 export const MAX_DESCRIPTION_LENGTH = 160
@@ -122,6 +136,13 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
     title: 'Confidentialité',
     description:
       'Ce que chickendinner.fr sait de toi, ce qu’il ne collecte pas, durée de conservation, cookies, et comment masquer ton profil ou retirer tes données.',
+    index: true,
+    sitemap: LEGAL_SITEMAP,
+  },
+  '/a-propos/methodologie': {
+    title: 'Méthodologie des stats et du Power score',
+    description:
+      'Comment chickendinner.fr calcule le Power score de la Ligue des clans, les rôles Fragger, Medic et Ghost, les distinctions, les soirées et les périodes.',
     index: true,
     sitemap: LEGAL_SITEMAP,
   },
@@ -362,7 +383,7 @@ export function homeJsonLd(base: URL) {
         inLanguage: 'fr-FR',
         publisher: { '@id': `${url}#publisher` },
       },
-      { '@type': 'Organization', '@id': `${url}#publisher`, name: 'Arkium', url: 'https://arkium.eu' },
+      { ...PUBLISHER_ORGANIZATION, '@id': `${url}#publisher` },
     ],
   }
   return JSON.stringify(data).replace(/</g, '\\u003c')

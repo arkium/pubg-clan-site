@@ -9,6 +9,7 @@ import {
   playstyleRoles,
   playstyleThemes,
   synergyGroups,
+  formatKilometers,
   telemetryKilometers,
   type ClanPlaystyleRow,
   type CooperationPair,
@@ -26,8 +27,8 @@ function row(memberId: number, displayName: string, overrides: Partial<ClanPlays
     avgCircleDelaySeconds: 0,
     avgCircleDelayPercent: 0,
     avgSafeZonePresencePercent: 80,
-    avgOnFootDistanceMeters: 21_000,
-    avgVehicleDistanceMeters: 9_000,
+    avgOnFootDistanceMeters: 2_100,
+    avgVehicleDistanceMeters: 900,
     avgDamageTaken: 300,
     avgHealAmount: 150,
     avgHealsUsed: 3,
@@ -54,13 +55,23 @@ describe('style de jeu — profil', () => {
     expect(medic.top.map((entry) => entry.displayName)).toEqual(['Charlie'])
   })
 
-  it('thèmes : distances et vitesse ramenées de l’échelle ×10 de la télémétrie', () => {
-    expect(telemetryKilometers(21_000)).toBeCloseTo(2.1)
+  it('thèmes : distances de l’API en mètres ramenées en km, vitesse de l’échelle ×10 de la télémétrie', () => {
+    expect(telemetryKilometers(2_100)).toBeCloseTo(2.1)
     const { mobility, survival } = playstyleThemes([row(1, 'Alpha')])
     expect(mobility.distance).toBeCloseTo(3)
     expect(mobility.footShare).toBeCloseTo(70)
     expect(mobility.maxSpeed).toBeCloseTo(110)
     expect(survival.coverage).toBe(50)
+  })
+
+  it('distances : une ligne pas encore recalculée (centimètres de la télémétrie) est écartée, « — » sans aucune autre', () => {
+    const stale = row(2, 'Bravo', { avgOnFootDistanceMeters: 864_898, avgVehicleDistanceMeters: 1_035_597 })
+
+    expect(playstyleThemes([row(1, 'Alpha'), stale]).mobility.distance).toBeCloseTo(3)
+    const onlyStale = playstyleThemes([stale]).mobility
+    expect(onlyStale).toMatchObject({ distance: null, foot: null, vehicle: null, footShare: 0, vehicleShare: 0 })
+    expect(formatKilometers(onlyStale.foot)).toBe('—')
+    expect(formatKilometers(2.14)).toBe('2,1 km')
   })
 
   it('retard sur le cercle : « non mesuré » plutôt que 0 s', () => {

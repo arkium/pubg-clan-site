@@ -262,7 +262,7 @@ export default function ClanOverviewPage({ findings }: { findings?: React.ReactN
         {loading && <CardSkeleton />}
         {error && (
           <div className="app-panel p-6 text-sm text-[var(--theme-ui-negative)]">
-            {error === 'Unauthorized' ? 'Vous n’avez pas la permission de voir cette page.' : error}
+            {error === 'Unauthorized' ? 'Tu n’as pas la permission de voir cette page.' : error}
           </div>
         )}
 
@@ -278,7 +278,7 @@ export default function ClanOverviewPage({ findings }: { findings?: React.ReactN
               showcase={showcase}
             />
             {!pubg && (
-              <p className="t-body text-gray-500">Aucune donnée PUBG pour ce clan : lancez une synchronisation depuis les paramètres.</p>
+              <p className="t-body text-gray-500">Aucune donnée PUBG pour ce clan : lance une synchronisation depuis les paramètres.</p>
             )}
             <ClanBriefing clanId={clanId} showcase={showcase} />
           </>

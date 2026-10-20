@@ -13,6 +13,7 @@ import {
   syncTrackedClanStats,
 } from '@/lib/clan-service'
 import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
+import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
 import { z } from 'zod'
 
 /**
@@ -67,7 +68,7 @@ async function handlePost(request: Request) {
 
     if (!pubgPlayer) {
       return Response.json(
-        { error: 'Joueur introuvable sur les serveurs PUBG. Vérifiez l’orthographe exacte et la plateforme choisie.' },
+        { error: 'Joueur introuvable sur les serveurs PUBG. Vérifie l’orthographe exacte et la plateforme choisie.' },
         { status: 404 }
       )
     }
@@ -81,7 +82,7 @@ async function handlePost(request: Request) {
     if (!session.isSuperUser && detectedClan && detectedClan.clan?.id !== validated.clanId) {
       return Response.json(
         {
-          error: `Ce joueur appartient au clan PUBG « ${detectedClan.pubgClan.name} » : vous ne pouvez ajouter des joueurs qu’à votre propre clan.`,
+          error: `Ce joueur appartient au clan PUBG « ${detectedClan.pubgClan.name} » : tu ne peux ajouter des joueurs qu’à ton propre clan.`,
         },
         { status: 403 }
       )
@@ -196,6 +197,7 @@ async function handlePost(request: Request) {
           },
         })
 
+    await ensurePlayerLinkForMember(member.id)
     await initializeDefaultRoles(resolvedClanId)
     await assignDefaultMemberRole(member.id, resolvedClanId)
 
@@ -223,7 +225,7 @@ async function handlePost(request: Request) {
 
     console.error('Error adding member:', error)
     return Response.json(
-      { error: 'Impossible d’ajouter le joueur. Veuillez réessayer ultérieurement.' },
+      { error: 'Impossible d’ajouter le joueur. Réessaie un peu plus tard.' },
       { status: 500 }
     )
   }

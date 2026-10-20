@@ -63,6 +63,10 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
         id: 'squad-1',
         members: [
           {
+            // Distances de l'API PUBG, en mètres : la source des moyennes (la nage compte « à pied »).
+            walkDistance: 1150,
+            swimDistance: 50,
+            rideDistance: 3400,
             member: {
               id: 101,
               clanId: 7,
@@ -71,6 +75,9 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
             },
           },
           {
+            walkDistance: 1800,
+            swimDistance: 0,
+            rideDistance: 900,
             member: {
               id: 102,
               clanId: 7,
@@ -90,8 +97,9 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
         revives: 1,
         knockouts: 1,
         damageTaken: 80,
-        onFootDistanceMeters: 1200,
-        vehicleDistanceMeters: 3400,
+        // Centimètres de la télémétrie, avion compris : ignorés par les moyennes.
+        onFootDistanceMeters: 864_898,
+        vehicleDistanceMeters: 1_035_597,
         blueZoneHits: 1,
         circleDelaySeconds: 18,
         circleDelayPercent: 40,
@@ -124,8 +132,8 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
         revives: 1,
         knockouts: 0,
         damageTaken: 120,
-        onFootDistanceMeters: 1800,
-        vehicleDistanceMeters: 900,
+        onFootDistanceMeters: 999_999,
+        vehicleDistanceMeters: 999_999,
         blueZoneHits: 0,
         circleDelaySeconds: 6,
         circleDelayPercent: 15,

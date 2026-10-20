@@ -1,6 +1,8 @@
 import { prisma } from '@/lib/prisma'
 import { gameModeDisplayName } from '@/lib/game-mode-label-service'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
+import { readSubdomainRoot } from '@/lib/clan-subdomain-host'
+import { getPublicSiteBaseUrl } from '@/lib/public-base-url'
 import { teamModeFromMemberCount } from '@/lib/team-mode'
 
 import { sendDiscordWebhook, type DiscordSendResult } from '@/lib/discord/discord-client'
@@ -24,10 +26,6 @@ const MATCH_TYPE_LABELS: Record<string, string> = {
 export type DiscordNotifyResult =
   | { sent: true }
   | { sent: false; reason: string }
-
-export function getSiteBaseUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? '').trim().replace(/\/+$/, '')
-}
 
 function isUniqueConstraintError(error: unknown) {
   return (error as { code?: string } | null)?.code === 'P2002'
@@ -75,13 +73,13 @@ async function loadTop1Context(clanId: number, squadMatchId: string) {
             assists: true,
             revives: true,
             timeSurvived: true,
-            member: { select: { displayName: true } },
+            member: { select: { id: true, displayName: true } },
           },
           orderBy: { kills: 'desc' },
         },
       },
     }),
-    prisma.clan.findUnique({ where: { id: clanId }, select: { name: true, tag: true } }),
+    prisma.clan.findUnique({ where: { id: clanId }, select: { name: true, tag: true, subdomain: true } }),
   ])
 
   return { squadMatch, clan }
@@ -136,6 +134,7 @@ export async function notifyTop1IfEligible(
       matchTypeLabel: MATCH_TYPE_LABELS[squadMatch.matchType] ?? squadMatch.matchType,
       playedAt: squadMatch.createdAt,
       members: squadMatch.members.map((member) => ({
+        memberId: member.member.id,
         displayName: member.member.displayName,
         kills: member.kills,
         damage: member.damage,
@@ -144,7 +143,9 @@ export async function notifyTop1IfEligible(
         timeSurvived: member.timeSurvived,
       })),
       mention: renderDiscordMention(top1.mention),
-      siteUrl: getSiteBaseUrl(),
+      siteUrl: getPublicSiteBaseUrl(),
+      clanSubdomain: clan.subdomain,
+      subdomainRoot: readSubdomainRoot(),
     })
 
     const result = await sendDiscordWebhook(top1.webhookUrl, payload)
@@ -188,7 +189,7 @@ export async function sendDiscordTop1TestMessage(
       { displayName: 'Joueur2', kills: 4, damage: 410, assists: 1, revives: 1, timeSurvived: 1834 },
     ],
     mention: renderDiscordMention(top1.mention),
-    siteUrl: getSiteBaseUrl(),
+    siteUrl: getPublicSiteBaseUrl(),
   })
 
   return sendDiscordWebhook(webhookUrl, payload)

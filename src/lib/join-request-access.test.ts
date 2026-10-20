@@ -226,7 +226,7 @@ describe('Acceptation d’une demande d’accès par l’Owner', () => {
 
     expect(res.status).toBe(200)
     expect(data.emailSent).toBe(false)
-    expect(data.message).toContain("renvoyez l'invitation depuis la liste des membres")
+    expect(data.message).toContain("renvoie l'invitation depuis la liste des membres")
   })
 
   it('demandeur qui a déjà un compte : aucune invitation', async () => {

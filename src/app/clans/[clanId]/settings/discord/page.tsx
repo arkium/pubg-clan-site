@@ -281,7 +281,7 @@ export default function ClanDiscordSettingsPage() {
 
       setFeedback({
         tone: 'success',
-        message: 'Message de test publié sur Discord — vérifiez le canal du webhook.',
+        message: 'Message de test publié sur Discord — vérifie le canal du webhook.',
       })
     } catch (testError) {
       setFeedback({
@@ -296,7 +296,7 @@ export default function ClanDiscordSettingsPage() {
 
   const [clanTag, clanName] = useMemo(() => {
     const match = clanLabel?.match(/^\[([^\]]*)\]\s*(.*)$/)
-    return [match?.[1] ?? 'TAG', match?.[2] ?? 'Votre clan']
+    return [match?.[1] ?? 'TAG', match?.[2] ?? 'Ton clan']
   }, [clanLabel])
 
   const top1Preview = useMemo(
@@ -410,8 +410,8 @@ export default function ClanDiscordSettingsPage() {
         title="Notifications Discord"
         subtitle={
           clanLabel
-            ? `Les résultats de ${clanLabel} publiés automatiquement dans vos canaux Discord.`
-            : 'Les résultats du clan publiés automatiquement dans vos canaux Discord.'
+            ? `Les résultats de ${clanLabel} publiés automatiquement dans tes canaux Discord.`
+            : 'Les résultats du clan publiés automatiquement dans tes canaux Discord.'
         }
         icon={MessageSquare}
         image="/discord-chicken-dinner.jpg"
@@ -528,7 +528,7 @@ export default function ClanDiscordSettingsPage() {
               <SwitchRow
                 id="tournament-enabled"
                 label="Activer les annonces de tournoi"
-                hint="Débloque le bouton « Diffuser sur Discord » sur vos tournois."
+                hint="Débloque le bouton « Diffuser sur Discord » sur tes tournois."
                 checked={tournament.enabled}
                 onChange={(enabled) => updateTournament({ enabled })}
               />

@@ -571,7 +571,7 @@ export default function MembersRolesPanel() {
     const shouldSendEmail = options?.sendEmail !== false
 
     if (shouldSendEmail && !normalizedEmail) {
-      showInviteToast('Veuillez renseigner une adresse email valide.', 'error')
+      showInviteToast('Renseigne une adresse e-mail valide.', 'error')
       return
     }
 
@@ -908,7 +908,7 @@ export default function MembersRolesPanel() {
                 disabled={isMemberBusy || isOwner}
                 title={
                   isOwner
-                    ? 'Un Owner ne peut pas être transféré : changez d’abord son rôle.'
+                    ? 'Un Owner ne peut pas être transféré : change d’abord son rôle.'
                     : 'Transférer ce joueur vers un autre clan compatible'
                 }
                 className="app-btn app-btn--xs app-btn--secondary gap-1"
@@ -925,7 +925,7 @@ export default function MembersRolesPanel() {
                 disabled={isMemberBusy || isOwner}
                 title={
                   isOwner
-                    ? 'Un Owner ne peut pas sortir du clan : changez d’abord son rôle.'
+                    ? 'Un Owner ne peut pas sortir du clan : change d’abord son rôle.'
                     : `Sortir ce joueur du clan sans arrêter son suivi — il rejoint [${systemClanForMember.tag}] ${systemClanForMember.name}`
                 }
                 className="app-btn app-btn--xs app-btn--secondary gap-1"
@@ -942,7 +942,7 @@ export default function MembersRolesPanel() {
                 disabled={isMemberBusy || isOwner}
                 title={
                   isOwner
-                    ? 'Un Owner ne peut pas être retiré : changez d’abord son rôle.'
+                    ? 'Un Owner ne peut pas être retiré : change d’abord son rôle.'
                     : 'Arrêter le suivi de ce joueur : la synchronisation PUBG s’arrête'
                 }
                 className="app-btn app-btn--xs app-btn--danger gap-1"
@@ -994,7 +994,7 @@ export default function MembersRolesPanel() {
           <Callout tone="warn" icon={Mail} title="Invitations par e-mail désactivées">
             {isSuperUser ? (
               <>
-                Réussissez d’abord un envoi de test dans{' '}
+                Réussis d’abord un envoi de test dans{' '}
                 <Link href="/settings/email-delivery" className="app-link font-semibold">
                   l’e-mail d’envoi
                 </Link>

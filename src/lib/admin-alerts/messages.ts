@@ -2,6 +2,7 @@ import { ADMIN_ALERT_EVENTS, type AdminAlertEvents } from '@/lib/admin-alerts/ca
 import type { AdminInbox, AdminInboxTone } from '@/lib/admin-inbox/build'
 import type { DiscordEmbed } from '@/lib/discord/discord-client'
 import { PRIVACY_REQUEST_KIND_LABELS, type PrivacyRequestKind } from '@/lib/legal/privacy-request'
+import { getPublicSiteBaseUrl } from '@/lib/public-base-url'
 import {
   RESOURCE_POINT_KIND_LABELS,
   RESOURCE_REPORT_KIND_LABELS,
@@ -22,13 +23,9 @@ const COLOR_INCIDENT = 0xdc2626 // rouge : quelque chose n'a pas tourné
 const COLOR_PRIVACY = 0x0ea5e9 // bleu : demande à délai légal
 const COLOR_INFO = 0x64748b // ardoise : pour information
 
-/** Même règle que `getSiteBaseUrl` (`discord-service.ts`) ; vide, les messages partent sans lien. */
-function siteBaseUrl() {
-  return (process.env.NEXT_PUBLIC_APP_URL ?? process.env.APP_URL ?? '').trim().replace(/\/+$/, '')
-}
-
+/** Adresse publique du site ; vide, les messages partent sans lien. */
 function linkTo(path: string) {
-  const base = siteBaseUrl()
+  const base = getPublicSiteBaseUrl()
   return base ? `${base}${path}` : undefined
 }
 

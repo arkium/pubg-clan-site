@@ -5,7 +5,9 @@ import { prisma } from './prisma'
 // SquadMatch par matchType (voir bandeau de filtres sur /clans/[clanId]/overview) :
 // 'official' et 'custom' sont des correspondances exactes, 'casual' regroupe
 // aussi 'airoyale' (cf. MatchHistory.tsx), et 'all' ignore le type.
-describe('Match type filtering (ClanMatchesCache)', () => {
+// Écrit dans la base de DATABASE_URL, la production sur un poste de dev : ignoré sauf VITEST_DB_WRITES=1
+// (CLAUDE.md, piège n° 9). À lancer contre une base de test.
+describe.runIf(process.env.VITEST_DB_WRITES === '1')('Match type filtering (ClanMatchesCache)', () => {
   it('partitions official/casual/custom/all correctly, including airoyale->casual grouping', async () => {
     const clan = await prisma.clan.create({
       data: { name: 'MatchType Test Clan', tag: 'MTYP', isActive: true },

@@ -1,4 +1,14 @@
-import { CLAN_PAGES, SHARE_IMAGE, SITE_NAME, STATIC_PAGES, type ClanRef, type PageSeo, type TournamentRef } from '@/lib/seo/page-seo'
+import { METHODOLOGY_PATH, METHODOLOGY_UPDATED_AT } from '@/lib/legal/legal-info'
+import {
+  CLAN_PAGES,
+  PUBLISHER_ORGANIZATION,
+  SHARE_IMAGE,
+  SITE_NAME,
+  STATIC_PAGES,
+  type ClanRef,
+  type PageSeo,
+  type TournamentRef,
+} from '@/lib/seo/page-seo'
 
 /**
  * Données structurées schema.org (docs/features/seo.md §6 ; docs/TODO/geo-seo-propositions.md, lot 3). Règle de
@@ -12,7 +22,8 @@ import { CLAN_PAGES, SHARE_IMAGE, SITE_NAME, STATIC_PAGES, type ClanRef, type Pa
  * Jamais de pseudo de joueur (pages joueur hors index, seo.md §2). Module pur.
  */
 
-export const PUBLISHER = { '@type': 'Organization', name: 'Arkium', url: 'https://arkium.eu' } as const
+/** L'éditeur, Arkium (décision du 2026-10-18) : une seule définition, celle de l'accueil (`homeJsonLd`). */
+export const PUBLISHER = PUBLISHER_ORGANIZATION
 export const PUBG_SPORT = 'PUBG: BATTLEGROUNDS'
 
 type JsonLdNode = Record<string, unknown>
@@ -48,6 +59,7 @@ export const STATIC_CRUMBS: Record<string, { name: string; parent?: string }> = 
   '/confidentialite': { name: 'Confidentialité' },
   '/confidentialite/demande': { name: 'Retirer mes données', parent: '/confidentialite' },
   '/a-propos': { name: 'À propos' },
+  '/a-propos/methodologie': { name: 'Méthodologie', parent: '/a-propos' },
 }
 
 const CLAN_PATH = /^\/clans\/(\d+)(\/.*)?$/
@@ -126,6 +138,25 @@ export function pageJsonLd(
       inLanguage: 'fr-FR',
       isAccessibleForFree: true,
       offers: { '@type': 'Offer', price: '0', priceCurrency: 'EUR' },
+      publisher: PUBLISHER,
+    })
+  }
+
+  // À propos : la page décrit l'éditeur (lot 4.1).
+  if (path === '/a-propos') {
+    nodes.push({ '@type': 'AboutPage', name: STATIC_PAGES[path].title, url: absolute(base, path), inLanguage: 'fr-FR', about: PUBLISHER })
+  }
+
+  // Méthodologie : un article daté, signé de l'éditeur (lot 3, décision §8).
+  if (path === METHODOLOGY_PATH) {
+    nodes.push({
+      '@type': 'Article',
+      headline: STATIC_PAGES[path].title,
+      description: STATIC_PAGES[path].description,
+      url: absolute(base, path),
+      inLanguage: 'fr-FR',
+      dateModified: METHODOLOGY_UPDATED_AT,
+      author: PUBLISHER,
       publisher: PUBLISHER,
     })
   }

@@ -71,7 +71,7 @@ export default function ClanSyncPanel({
       ) : null}
 
       {!pubgClanId ? (
-        <p className="t-meta m-0">Le clan n’a pas encore d’identifiant de clan PUBG : synchronisez-le d’abord.</p>
+        <p className="t-meta m-0">Le clan n’a pas encore d’identifiant de clan PUBG : synchronise-le d’abord.</p>
       ) : null}
 
       {diffLoading ? (

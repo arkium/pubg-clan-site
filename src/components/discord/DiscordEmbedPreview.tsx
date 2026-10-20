@@ -4,10 +4,18 @@ import { Fragment, type ReactNode } from 'react'
 
 import type { DiscordWebhookPayload } from '@/lib/discord/discord-client'
 
-const INLINE_PATTERN = /\*\*(.+?)\*\*|\[([^\]]+)\]\(([^)]+)\)/g
+// Lien masqué d'abord : son libellé peut être en gras (`[**Nom**](url)`, src/lib/discord/embed-lines.ts) et contenir
+// des crochets échappés.
+const INLINE_PATTERN = /\[((?:\\.|[^\]\\])+)\]\(([^)]+)\)|\*\*(.+?)\*\*/g
 
 function isSafeHref(url: string) {
   return /^https?:\/\//i.test(url)
+}
+
+function LinkLabel({ label }: { label: string }) {
+  const text = label.replace(/\\(.)/g, '$1')
+  const bold = text.match(/^\*\*(.+)\*\*$/)
+  return bold ? <strong className="font-semibold">{bold[1]}</strong> : <>{text}</>
 }
 
 /**
@@ -26,7 +34,7 @@ function renderInlineMarkdown(text: string): ReactNode[] {
       nodes.push(text.slice(lastIndex, match.index))
     }
 
-    const [, bold, linkLabel, linkUrl] = match
+    const [, linkLabel, linkUrl, bold] = match
 
     if (bold !== undefined) {
       nodes.push(
@@ -44,10 +52,12 @@ function renderInlineMarkdown(text: string): ReactNode[] {
             rel="noreferrer"
             className="app-link"
           >
-            {linkLabel}
+            <LinkLabel label={linkLabel} />
           </a>
         ) : (
-          <span key={`a-${match.index}`}>{linkLabel}</span>
+          <span key={`a-${match.index}`}>
+            <LinkLabel label={linkLabel} />
+          </span>
         )
       )
     }

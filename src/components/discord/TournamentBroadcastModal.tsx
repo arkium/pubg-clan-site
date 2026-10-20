@@ -325,7 +325,7 @@ export default function TournamentBroadcastModal({
             // État vide de la charte : bordure tiretée, rayon 14.
             <div className="rounded-[14px] border border-dashed border-gray-200 px-4 py-6 text-center">
               <p className="t-body text-gray-700">
-                Aucune manche comptabilisée pour l&apos;instant. Lancez d&apos;abord une synchronisation du tournoi.
+                Aucune manche comptabilisée pour l&apos;instant. Lance d&apos;abord une synchronisation du tournoi.
               </p>
             </div>
           ) : (

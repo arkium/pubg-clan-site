@@ -55,6 +55,7 @@ vi.mock('@/lib/discord/discord-client', () => ({ sendDiscordWebhook: mocks.sendW
 vi.mock('@/lib/admin-alerts/send', () => ({ ADMIN_ALERT_USERNAME: 'Administration', fireAdminAlert: mocks.fireAdminAlert }))
 vi.mock('@/lib/pubg', () => ({ searchPlayerByName: mocks.searchPlayerByName, fetchPlayerClan: mocks.fetchPlayerClan }))
 vi.mock('@/lib/role-service', () => ({ initializeDefaultRoles: vi.fn(async () => undefined) }))
+vi.mock('@/lib/member-player-link', () => ({ ensurePlayerLinkForMember: vi.fn(async () => undefined) }))
 vi.mock('@/lib/clan-archive', () => ({ reopenRejectedClan: vi.fn(async () => true) }))
 vi.mock('@/lib/notification-service', () => ({
   notifyJoinRequest: mocks.notifyJoinRequest,

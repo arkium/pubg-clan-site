@@ -27,6 +27,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `telemetry_geo_purge_count` | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Compte ce que la purge de géolocalisation retirerait, tous seuils confondus — lecture seule |
 | `resource_vehicle_spots` | `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Recalcule les emplacements des véhicules observés de la carte des ressources (90 derniers jours) |
 | `admin_daily_digest` | `ADMIN_DAILY_DIGEST_CRON` | `0 9 * * *` | Veille du matin : envoie la boîte « À traiter » au salon Discord d'administration, seulement si une décision ou un incident attend |
+| `home_showcase_warm` | `HOME_SHOWCASE_WARM_CRON` | `*/4 * * * *` | Recalcule la vitrine de l'accueil dans le serveur web avant l'expiration de son cache (5 min) |
 
 La timezone des crons est configurée via `CLAN_MATCH_SYNC_TIMEZONE` (défaut : `UTC`), commune à tous les schedules.
 
@@ -218,6 +219,16 @@ ressources, cycle de vie en échec ou à l'arrêt, worker de télémétrie arrê
 Se coupe sans redémarrage par l'interrupteur « Veille du matin » de Cycle de vie des clans › Paramètres. Tâche
 globale : pas de ligne `CronExecution`, une ligne de journal (`[Cron] Veille du matin — …`).
 
+### `home_showcase_warm` — Préchauffage de la vitrine de l'accueil (2026-10-20)
+
+Toutes les 4 minutes, sous la durée du cache de la vitrine (5 min, `CACHE_TTL_MS` de
+`src/lib/home-showcase-service.ts`) : aucun visiteur ni robot ne tombe sur une lecture à froid (~2 s), même après un
+redémarrage du web (docs/TODO/geo-seo-propositions.md, 5.2). Le cache vit dans le **process web** : le cron l'appelle par
+`INTERNAL_APP_URL` (`POST /api/internal/home-showcase/warm`, en-tête `x-cron-bootstrap-secret`), un appel direct ne
+remplirait que sa propre mémoire. La vitrine n'est remplacée qu'une fois la nouvelle prête ; un échec garde l'ancienne.
+Sans `CRON_BOOTSTRAP_SECRET`, le job s'arrête avec un seul avertissement. Tâche globale : pas de ligne `CronExecution`,
+une ligne de journal en cas d'échec.
+
 ---
 
 ## Actions manuelles (page ops cron SuperUser)
@@ -390,6 +401,7 @@ Ces workers tournent en boucle infinie (poll toutes les 2–3 s). Ils sont indé
 | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Comptage du volume purgeable des tracés GPS |
 | `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Emplacements des véhicules observés (carte des ressources) |
 | `ADMIN_DAILY_DIGEST_CRON` | `0 9 * * *` | Veille du matin du SuperUser (Discord d'administration) |
+| `HOME_SHOWCASE_WARM_CRON` | `*/4 * * * *` | Préchauffage de la vitrine de l'accueil (appel du web, `CRON_BOOTSTRAP_SECRET` requis) |
 
 ### Télémétrie sync (cron + workers)
 

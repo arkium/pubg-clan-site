@@ -342,7 +342,7 @@ export default function EmailDeliverySettingsPage() {
       </SectionCard>
 
       <form onSubmit={handleRunTest}>
-        <SectionCard id="email-test-title" icon={Send} title="E-mail de test" meta="Sans adresse saisie, le test part vers l’adresse de votre compte.">
+        <SectionCard id="email-test-title" icon={Send} title="E-mail de test" meta="Sans adresse saisie, le test part vers l’adresse de ton compte.">
           <label className="flex flex-col gap-1 sm:max-w-md">
             <span className="t-label">Adresse de test</span>
             <span className="relative">

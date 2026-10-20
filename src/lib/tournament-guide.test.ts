@@ -61,7 +61,7 @@ describe('fiches du guide', () => {
 
   it('dit quoi faire quand la synchronisation annonce 0 manche, et que recliquer est sans risque', () => {
     const sync = TOURNAMENT_GUIDE_CARDS.find((card) => card.id === 'sync')
-    expect(sync?.bullets?.some((bullet) => bullet.includes('0 manche') && bullet.includes('recliquez'))).toBe(true)
+    expect(sync?.bullets?.some((bullet) => bullet.includes('0 manche') && bullet.includes('reclique'))).toBe(true)
     expect(sync?.bullets?.some((bullet) => bullet.includes('sans risque'))).toBe(true)
   })
 

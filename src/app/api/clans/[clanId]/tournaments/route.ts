@@ -10,6 +10,7 @@ import {
 } from '@/lib/tournament-service'
 import { TournamentInputError } from '@/lib/tournament-schedule'
 import { requireNavPermission } from '@/middleware/auth-permission'
+import { fireIndexNow } from '@/lib/seo/indexnow'
 
 function parseClanId(value: string) {
   const parsed = Number(value)
@@ -118,6 +119,10 @@ async function handlePost(request: NextRequest, { params }: { params: Promise<{ 
     }
 
     const tournament = await createTournament(parsedClanId, payload)
+    // Page publique dès qu'il est lancé ou terminé (src/lib/seo/indexnow.ts, coupé sans INDEXNOW_KEY).
+    if (tournament.status === 'active' || tournament.status === 'finished') {
+      fireIndexNow([`/tournaments/${tournament.id}`, '/tournaments'])
+    }
     return Response.json({ tournament }, { status: 201 })
   } catch (error) {
     console.error('Error creating tournament:', error)

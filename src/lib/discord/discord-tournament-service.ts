@@ -21,7 +21,7 @@ import {
 import { sendDiscordWebhook, type DiscordWebhookPayload } from '@/lib/discord/discord-client'
 import { isValidDiscordWebhookUrl, renderDiscordMention } from '@/lib/discord/discord-config'
 import { getDiscordSettings } from '@/lib/discord/discord-config-service'
-import { getSiteBaseUrl } from '@/lib/discord/discord-service'
+import { getPublicSiteBaseUrl } from '@/lib/public-base-url'
 import {
   buildTournamentRoundWebhookPayload,
   buildTournamentSquadStandingsWebhookPayload,
@@ -74,6 +74,7 @@ function findMvp(
   })
 
   return {
+    memberId: best.member.id,
     displayName: best.member.displayName,
     clanLabel: labels.get(best.member.clanId as number) ?? 'Clan inconnu',
     kills: best.kills,
@@ -116,7 +117,7 @@ export async function prepareTournamentRoundBroadcast(
 
   if (!isValidDiscordWebhookUrl(webhookUrl)) {
     throw new DiscordTournamentError(
-      'Aucun webhook Discord valide pour les tournois : renseignez-le dans les paramètres Discord du clan ou sur ce tournoi.'
+      'Aucun webhook Discord valide pour les tournois : renseigne-le dans les paramètres Discord du clan ou sur ce tournoi.'
     )
   }
 
@@ -225,7 +226,7 @@ export async function prepareTournamentRoundBroadcast(
     ),
     standings,
     mention: renderDiscordMention(tournamentSettings.mention),
-    siteUrl: getSiteBaseUrl(),
+    siteUrl: getPublicSiteBaseUrl(),
   })
 
   return {
@@ -296,7 +297,7 @@ export async function prepareTournamentSquadStandingsBroadcast(
   )
   if (!isValidDiscordWebhookUrl(webhookUrl)) {
     throw new DiscordTournamentError(
-      'Aucun webhook Discord valide pour les tournois : renseignez-le dans les paramètres Discord du clan ou sur ce tournoi.'
+      'Aucun webhook Discord valide pour les tournois : renseigne-le dans les paramètres Discord du clan ou sur ce tournoi.'
     )
   }
 
@@ -351,7 +352,7 @@ export async function prepareTournamentSquadStandingsBroadcast(
     })),
     playedAt: new Date(matches[matches.length - 1].createdAt),
     mention: renderDiscordMention(tournamentSettings.mention),
-    siteUrl: getSiteBaseUrl(),
+    siteUrl: getPublicSiteBaseUrl(),
   })
 
   return {
@@ -459,7 +460,7 @@ export async function sendDiscordTournamentTestMessage(clanId: number, webhookUr
         ]
       : null,
     mention: renderDiscordMention(tournamentSettings.mention),
-    siteUrl: getSiteBaseUrl(),
+    siteUrl: getPublicSiteBaseUrl(),
   })
 
   return sendDiscordWebhook(webhookUrl, payload)

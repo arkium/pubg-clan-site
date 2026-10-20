@@ -117,7 +117,7 @@ describe('sitemapEntries', () => {
 
   it('liste l’accueil, les pages publiques et les pages légales, sans les pages hors index ni le formulaire', () => {
     expect(urls[0]).toBe('https://chickendinner.fr/')
-    for (const path of ['/clans', '/clans-leaderboard', '/clans/comparator', '/tournaments', '/mortier', '/mortier/guide', '/carte-des-ressources', '/lecture-de-zone', '/join', '/mentions-legales', '/confidentialite', '/a-propos']) {
+    for (const path of ['/clans', '/clans-leaderboard', '/clans/comparator', '/tournaments', '/mortier', '/mortier/guide', '/carte-des-ressources', '/lecture-de-zone', '/join', '/mentions-legales', '/confidentialite', '/a-propos', '/a-propos/methodologie']) {
       expect(urls, path).toContain(`https://chickendinner.fr${path}`)
     }
     for (const path of ['/login', '/account', '/members', '/clans/mutations', '/confidentialite/demande']) {
@@ -207,7 +207,12 @@ describe('homeJsonLd', () => {
     expect(json).not.toContain('<')
     const data = JSON.parse(json)
     expect(data['@graph'][0]).toMatchObject({ '@type': 'WebSite', name: 'chickendinner.fr', url: 'https://chickendinner.fr/', inLanguage: 'fr-FR' })
-    expect(data['@graph'][1]).toMatchObject({ '@type': 'Organization', name: 'Arkium', url: 'https://arkium.eu' })
+    expect(data['@graph'][1]).toMatchObject({
+      '@type': 'Organization',
+      name: 'Arkium',
+      url: 'https://arkium.eu',
+      contactPoint: { '@type': 'ContactPoint', email: 'contact@chickendinner.fr', availableLanguage: 'fr' },
+    })
   })
 })
 

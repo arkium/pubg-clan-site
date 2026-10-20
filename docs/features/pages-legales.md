@@ -9,7 +9,8 @@ et le footer marque alors « Confidentialité » (`aria-current="true"`).
 | `/mentions-legales` | Éditeur, hébergement, marques et affiliation KRAFTON, origine des données, conditions d'utilisation |
 | `/confidentialite` | Données traitées (dont le journal des actions d'administration, ajouté le 07/10/2026 ; notifications, préférences et e-mails de notification, ajoutés le 10/10/2026), ce qui n'est pas collecté, finalité et conservation (journal : 12 mois), cookies et stockage, droits (dont l'arrêt des e-mails d'un clic) |
 | `/confidentialite/demande` | Formulaire « Retirer mes données » (masquer, purger, corriger, autre) |
-| `/a-propos` | Ce que le site ne fait pas, d'où viennent les données, affiliation et références |
+| `/a-propos` | Ce que le site ne fait pas, d'où viennent les données, affiliation et références ; depuis le 2026-10-20, chiffres vivants datés (ceux de la vitrine) et lien vers la méthodologie |
+| `/a-propos/methodologie` | Calcul du Power score (réglages en vigueur, lus en direct), rôles Fragger / Medic / Ghost (clan et entre clans), distinctions, soirées et périodes, limites des données — public sans session, au sitemap, `Article` daté (`METHODOLOGY_UPDATED_AT` de `legal-info.ts`, à changer à chaque modification du texte) |
 
 Maquette source : Claude Design, projet « Audit design avec améliorations », fichier « Pages legales - A faire ».
 Fond : [docs/TODO/CU.md](../TODO/CU.md) (analyse de conformité) et [CU_todo.md](../TODO/CU_todo.md). Décisions du

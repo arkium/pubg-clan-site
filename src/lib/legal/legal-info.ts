@@ -41,5 +41,10 @@ export const LEGAL_LINKS = [
 
 export const PRIVACY_REQUEST_PATH = '/confidentialite/demande'
 
+/** Méthodologie (docs/TODO/geo-seo-propositions.md, 4.2) : liée depuis « À propos », pas depuis le footer. */
+export const METHODOLOGY_PATH = '/a-propos/methodologie'
+/** Date de mise à jour de la méthodologie (`AAAA-MM-JJ`) : à changer à chaque modification du texte. */
+export const METHODOLOGY_UPDATED_AT = '2026-10-20'
+
 /** Chemins ouverts sans session, même hors mode visiteur (src/proxy.ts). */
-export const LEGAL_PATHS: readonly string[] = [...LEGAL_LINKS.map((link) => link.href), PRIVACY_REQUEST_PATH]
+export const LEGAL_PATHS: readonly string[] = [...LEGAL_LINKS.map((link) => link.href), PRIVACY_REQUEST_PATH, METHODOLOGY_PATH]

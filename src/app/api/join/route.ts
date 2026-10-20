@@ -10,6 +10,7 @@ import { searchPlayerByName, fetchPlayerClan } from '@/lib/pubg'
 import { initializeDefaultRoles } from '@/lib/role-service'
 import { notifyJoinRequest, notifyClanCreationRequest } from '@/lib/notification-service'
 import { JOIN_PENDING_PER_EMAIL_LIMIT } from '@/lib/join-request-access'
+import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
 
 // Exporte pour que le test importe le VRAI schema au lieu d'en recopier une
 // version qui divergerait en silence (voir « Tests de controle » du todo).
@@ -285,6 +286,9 @@ export async function POST(request: Request) {
         })
       }
 
+      // Identité globale Player, sans toucher au clan PUBG : la demande n'est pas encore décidée.
+      await ensurePlayerLinkForMember(clanMember.id)
+
       // Link this member to the user account (sans compte : le lien se fera à l'activation de l'invitation)
       if (session) {
         await linkMemberToAccount(clanMember.id, session.userId, !session.activeMemberId)
@@ -411,6 +415,9 @@ export async function POST(request: Request) {
           },
         })
       }
+
+      // Identité globale Player, sans toucher au clan PUBG : la demande n'est pas encore décidée.
+      await ensurePlayerLinkForMember(clanMember.id)
 
       // Link this member to the user account (sans compte : le lien se fera à l'activation de l'invitation)
       if (session) {

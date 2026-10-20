@@ -48,10 +48,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       return Response.json({ error: 'Member not found or not in a clan' }, { status: 404 })
     }
 
-    const [deaths, kills, encountered] = await Promise.all([
+    const [deaths, kills] = await Promise.all([
       prisma.killEvent.findMany({ where: { victimMemberId: memberId, ...dateFilter }, orderBy: { matchDate: 'desc' }, select: EVENT_SELECT }),
       prisma.killEvent.findMany({ where: { killerMemberId: memberId, ...dateFilter }, orderBy: { matchDate: 'desc' }, select: EVENT_SELECT }),
-      prisma.encounteredPlayer.findMany({ where: { clanId: member.clanId }, select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true } }),
     ])
 
     // Toutes les armes de la période (le menu les propose toutes, quel que soit le filtre appliqué).
@@ -59,43 +58,35 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       new Set([...deaths, ...kills].map((event) => event.weaponName).filter((name): name is string => isRealWeaponName(name)))
     ).sort((left, right) => resolveWeaponName(left).localeCompare(resolveWeaponName(right), 'fr-FR'))
 
-    const encounteredByAccount = new Map(encountered.map((entry) => [entry.pubgAccountId, entry]))
-    // Repli (2026-10-03) : un adversaire jamais croisé dans un lobby par CE clan peut être connu ailleurs — identité
-    // globale `Player` (nommée par un autre clan suivi, ou par le cron qui résout en priorité les comptes du kill feed),
-    // ou joueur croisé par un autre clan. Une seule requête par table, bornée aux comptes encore sans nom.
-    const unnamedAccountIds = Array.from(
+    // Nom et clan des adversaires : identité globale `Player`, une requête bornée aux comptes des kills et des morts.
+    // Elle contient tous les joueurs croisés, nommés par n'importe quel clan suivi ou par le cron qui résout en priorité
+    // les comptes du kill feed, avec leur clan le plus récent. Avant le 2026-10-20, la page chargeait toutes les lignes
+    // EncounteredPlayer du clan (jusqu'à 300 000) à chaque appel (fin d'EncounteredPlayer, inventaire-2026-10-20.md).
+    const opponentAccountIds = Array.from(
       new Set(
         [...deaths.map((event) => event.killerAccountId), ...kills.map((event) => event.victimAccountId)].filter(
-          (accountId): accountId is string => !!accountId && !isBotAccountId(accountId) && !encounteredByAccount.has(accountId)
+          (accountId): accountId is string => !!accountId && !isBotAccountId(accountId)
         )
       )
     )
-    const [globalPlayers, otherClansEncountered] = unnamedAccountIds.length
-      ? await Promise.all([
-          prisma.player.findMany({
-            where: { pubgAccountId: { in: unnamedAccountIds } },
-            select: { pubgAccountId: true, pubgPlayerName: true, opponentClan: { select: { tag: true } } },
-          }),
-          prisma.encounteredPlayer.findMany({
-            where: { pubgAccountId: { in: unnamedAccountIds } },
-            select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
-            distinct: ['pubgAccountId'],
-          }),
-        ])
-      : [[], []]
-    const knownElsewhere = new Map<string, { pubgPlayerName: string; pubgClanTag: string | null }>()
-    for (const entry of otherClansEncountered) knownElsewhere.set(entry.pubgAccountId, entry)
+    const globalPlayers = opponentAccountIds.length
+      ? await prisma.player.findMany({
+          where: { pubgAccountId: { in: opponentAccountIds } },
+          select: { pubgAccountId: true, pubgPlayerName: true, opponentClan: { select: { tag: true } } },
+        })
+      : []
+    const knownPlayers = new Map<string, { pubgPlayerName: string; pubgClanTag: string | null }>()
     for (const player of globalPlayers) {
       // Un `Player` créé sans nom garde son identifiant de compte : ce n'est pas un nom.
       if (player.pubgPlayerName && player.pubgPlayerName !== player.pubgAccountId) {
-        knownElsewhere.set(player.pubgAccountId, { pubgPlayerName: player.pubgPlayerName, pubgClanTag: player.opponentClan?.tag ?? null })
+        knownPlayers.set(player.pubgAccountId, { pubgPlayerName: player.pubgPlayerName, pubgClanTag: player.opponentClan?.tag ?? null })
       }
     }
 
     function resolveOpponent(accountId: string | null, rawKey: string | null): OpponentInfo {
       if (isBotAccountId(accountId)) return { key: accountId as string, name: 'Bot', clanTag: null, isBot: true, resolved: true }
       if (accountId) {
-        const info = encounteredByAccount.get(accountId) ?? knownElsewhere.get(accountId)
+        const info = knownPlayers.get(accountId)
         if (info) return { key: accountId, name: info.pubgPlayerName, clanTag: info.pubgClanTag, isBot: false, resolved: true }
         // Vu dans le kill feed mais jamais relevé dans un lobby (match rattrapé) : seul l'identifiant est connu.
         return { key: accountId, name: accountId, clanTag: null, isBot: false, resolved: false }

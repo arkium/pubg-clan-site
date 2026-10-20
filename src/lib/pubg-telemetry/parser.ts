@@ -25,6 +25,11 @@ type TelemetryMemberStats = {
   headshots: number
   damageDealt: number
   damageTaken: number
+  /**
+   * Distances parcourues, en **centimètres** (unités du moteur) malgré leur nom, à partir de l'atterrissage : l'avion
+   * et la chute ne comptent pas. Les pages de style de jeu lisent les distances de l'API PUBG (`SquadMember`, en
+   * mètres) ; seule la page d'audit d'un match affiche celles-ci.
+   */
   onFootDistanceMeters: number
   vehicleDistanceMeters: number
   revives: number
@@ -217,6 +222,13 @@ type MemberCircleTiming = {
 type MemberPositionTracking = {
   x: number
   y: number
+  /** Faux tant qu'aucune position n'est connue : (0, 0) n'est pas un point de départ. */
+  hasLocation: boolean
+  /** Atterrissage vu (`LogParachuteLanding`) : les distances ne comptent qu'ensuite. */
+  landed: boolean
+  /** Trajet d'avant l'atterrissage, rendu au joueur seulement s'il n'atterrit jamais (mode sans parachute). */
+  preLandingOnFoot: number
+  preLandingVehicle: number
   hasVehicleContext: boolean
   inVehicle: boolean
   lastSampleTimestampSeconds: number | null
@@ -725,6 +737,10 @@ function getOrCreateMemberPositionTracking(
   const created: MemberPositionTracking = {
     x: 0,
     y: 0,
+    hasLocation: false,
+    landed: false,
+    preLandingOnFoot: 0,
+    preLandingVehicle: 0,
     hasVehicleContext: false,
     inVehicle: false,
     lastSampleTimestampSeconds: null,
@@ -1546,6 +1562,11 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
   if (eventType === 'LogParachuteLanding') {
     if (actorKey) {
+      // Le trajet en avion et en chute est écarté : les distances repartent de l'atterrissage.
+      const tracking = getOrCreateMemberPositionTracking(accumulator.memberPositionTracking, actorKey)
+      tracking.landed = true
+      tracking.preLandingOnFoot = 0
+      tracking.preLandingVehicle = 0
       const location = getCharacterLocation(event)
       if (location) {
         accumulator.landingSamples.push({
@@ -1579,7 +1600,8 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
       if (location) {
         const previous = accumulator.memberPositionTracking.get(actorKey)
-        if (previous) {
+        // Première position connue : aucun trajet depuis (0, 0), qui n'est qu'une valeur d'initialisation.
+        if (previous?.hasLocation) {
           const dx = location.x - previous.x
           const dy = location.y - previous.y
           const distance = Math.sqrt(dx * dx + dy * dy)
@@ -1597,7 +1619,10 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
               accumulator.teamPlacements
             )
 
-            if (inVehicle) {
+            if (!tracking.landed) {
+              if (inVehicle) tracking.preLandingVehicle += distance
+              else tracking.preLandingOnFoot += distance
+            } else if (inVehicle) {
               member.vehicleDistanceMeters += distance
             } else {
               member.onFootDistanceMeters += distance
@@ -1607,6 +1632,7 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 
         tracking.x = location.x
         tracking.y = location.y
+        tracking.hasLocation = true
         tracking.hasVehicleContext = movementContext.hasVehicleContext
           ? true
           : previous?.hasVehicleContext ?? false
@@ -1746,6 +1772,14 @@ function applyTelemetryEvent(accumulator: TelemetryAccumulator, rawEvent: unknow
 }
 
 function finalizeTelemetrySnapshot(accumulator: TelemetryAccumulator): ParsedTelemetrySnapshot {
+  // Aucun atterrissage vu (mode sans parachute, journal tronqué) : tout le trajet compte.
+  for (const [memberKey, tracking] of accumulator.memberPositionTracking) {
+    const member = accumulator.memberStats.get(memberKey)
+    if (!member || tracking.landed) continue
+    member.onFootDistanceMeters += tracking.preLandingOnFoot
+    member.vehicleDistanceMeters += tracking.preLandingVehicle
+  }
+
   for (const member of accumulator.memberStats.values()) {
     if (typeof member.teamId !== 'number') {
       continue

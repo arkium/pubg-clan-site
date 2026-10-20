@@ -7,6 +7,7 @@ import {
   syncTrackedClanStats,
 } from '@/lib/clan-service'
 import { prisma } from '@/lib/prisma'
+import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
 import { searchPlayerByName } from '@/lib/pubg'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
 
@@ -116,6 +117,7 @@ export async function initializeFirstRun(params: {
     }
   })()
 
+  await ensurePlayerLinkForMember(member.id)
   await initializeDefaultRoles(resolvedClanId)
   await assignDefaultMemberRole(member.id, resolvedClanId)
 

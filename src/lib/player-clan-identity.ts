@@ -138,7 +138,7 @@ export async function syncOpponentIdentityForMemberId(memberId: number): Promise
 
     if (!member?.pubgAccountId) return
 
-    await syncOpponentIdentityForMember({
+    const result = await syncOpponentIdentityForMember({
       pubgAccountId: member.pubgAccountId,
       platformShard: member.platformShard,
       pubgPlayerName: member.pubgPlayerName,
@@ -146,6 +146,11 @@ export async function syncOpponentIdentityForMemberId(memberId: number): Promise
       // redevient inconnu et sera re-résolu par le cron des joueurs croisés.
       clan: member.isActive ? member.clan : null,
     })
+
+    // La ligne Player existe désormais : la fiche y est rattachée si elle ne l'était pas (src/lib/member-player-link.ts).
+    if (result) {
+      await prisma.clanMember.updateMany({ where: { id: memberId, playerId: null }, data: { playerId: result.playerId } })
+    }
   } catch (error) {
     console.warn(
       '[PlayerClanIdentity] Miroir adversaire non réaligné pour le membre',

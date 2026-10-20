@@ -6,6 +6,7 @@ import { getEmailDeliveryStatus } from '@/lib/email-delivery-config-service'
 import { SITE_DOMAIN } from '@/lib/legal/legal-info'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import { getPubgApiRateLimitRpm } from '@/lib/pubg-rate-limit-config-service'
+import { readIndexNowKey } from '@/lib/seo/indexnow'
 
 /**
  * Configuration du site (`/settings/configuration`, SuperUser) — tout ce que le `.env` règle, contrôlé et expliqué :
@@ -83,6 +84,7 @@ export const SCHEDULE_VARIABLES: Record<string, string> = {
   TELEMETRY_GEO_PURGE_COUNT_CRON: '0 6 * * *',
   RESOURCE_VEHICLE_SPOTS_CRON: '30 6 * * *',
   ADMIN_DAILY_DIGEST_CRON: '0 9 * * *',
+  HOME_SHOWCASE_WARM_CRON: '*/4 * * * *',
 }
 
 const GENERATE_SECRET = 'Générer une valeur (`openssl rand -base64 32`), la poser dans le .env, puis redémarrer les services.'
@@ -205,8 +207,29 @@ function identitySection(env: SiteConfigFacts['env'], production: boolean): Site
         value: googleVerification ? 'définie' : 'absente',
         effect: 'Balise de preuve de propriété pour Google Search Console (facultative).',
       },
+      indexNowItem(env),
     ],
   }
+}
+
+/** IndexNow (docs/features/seo.md §6 bis) : facultatif, coupé sans clé valide. */
+function indexNowItem(env: SiteConfigFacts['env']): SiteConfigItem {
+  const raw = trimmed(env.INDEXNOW_KEY)
+  const key = readIndexNowKey(env)
+  const effect = 'Prévient Bing quand un clan est validé ou un tournoi lancé ; clé servie à /indexnow.txt.'
+  if (!raw) return { key: 'indexnow', label: 'IndexNow (Bing)', variable: 'INDEXNOW_KEY', status: 'info', value: 'absente : coupé', effect }
+  if (!key) {
+    return {
+      key: 'indexnow',
+      label: 'IndexNow (Bing)',
+      variable: 'INDEXNOW_KEY',
+      status: 'error',
+      value: 'hors format',
+      effect,
+      fix: 'De 8 à 128 caractères a-z, A-Z, 0-9 ou tiret (par exemple `openssl rand -hex 16`).',
+    }
+  }
+  return { key: 'indexnow', label: 'IndexNow (Bing)', variable: 'INDEXNOW_KEY', status: 'ok', value: 'définie', effect }
 }
 
 function securitySection(env: SiteConfigFacts['env']): SiteConfigSection {

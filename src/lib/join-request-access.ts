@@ -68,12 +68,12 @@ export function invitationNotice(invitation: RequesterInvitation, email: ClanDec
     case 'invited':
       return email.sent
         ? `Lien de création du compte envoyé à ${invitation.email}.`
-        : `L'email n'a pas pu partir : renvoyez l'invitation depuis la liste des membres du clan.`
+        : `L'email n'a pas pu partir : renvoie l'invitation depuis la liste des membres du clan.`
     case 'failed':
-      return `L'invitation n'a pas pu être créée : envoyez-la depuis la liste des membres du clan.`
+      return `L'invitation n'a pas pu être créée : envoie-la depuis la liste des membres du clan.`
     case 'has_account':
       return email.sent ? 'Il a déjà un compte ; il est prévenu par email.' : 'Il a déjà un compte.'
     case 'no_contact':
-      return 'Aucune adresse de contact : invitez-le depuis la liste des membres du clan pour qu’il crée son compte.'
+      return 'Aucune adresse de contact : invite-le depuis la liste des membres du clan pour qu’il crée son compte.'
   }
 }

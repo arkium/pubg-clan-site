@@ -194,7 +194,7 @@ Playwright avec réponses figées) : le site est en production.
 | 0.4 Titres | Les cinq titres proposés ; suffixe retiré d'un titre calculé trop long ; test sur toutes les pages indexées | — |
 | 0.5 Descriptions | Accueil (160), mentions légales, confidentialité ; test ≤ 160 | — |
 | 0.6 Texte alternatif | Rien à changer | Images du guide du mortier : fonds de carte sous des schémas déjà légendés, `alt=""` correct |
-| 0.7 Nom et ton | H1, page de réglages et menu : « Ligue des clans ». **Tutoiement** sur `/join`, `/login`, `/activate`, les messages de `/api/join`, l'accueil par défaut de la connexion et l'erreur d'activation (décision du 2026-10-18) | Vouvoient encore, hors de ce périmètre : les e-mails de décision d'une demande (`clan-decision-email.ts`) et la notification « a demandé à rejoindre votre clan » (`notification-service.ts`) |
+| 0.7 Nom et ton | H1, page de réglages et menu : « Ligue des clans ». **Tutoiement** sur `/join`, `/login`, `/activate`, les messages de `/api/join`, l'accueil par défaut de la connexion et l'erreur d'activation (décision du 2026-10-18) | Vouvoyaient encore, hors de ce périmètre : les e-mails de décision d'une demande (`clan-decision-email.ts`) et la notification « a demandé à rejoindre votre clan » (`notification-service.ts`). **Passés au tutoiement le 2026-10-20**, avec les e-mails d'invitation et de mot de passe : tous les messages envoyés tutoient. L'interface a suivi le même jour ; `tutoiement.test.ts` contrôle tout `src/` |
 | 0.8 Faux zéros | `/clans`, `/tournaments` (lot 1) | — |
 
 **0.1 En-têtes de sécurité** (score Sécurité, constats HSTS ×10 et CSP ×10)
@@ -386,17 +386,27 @@ balisage est facultatif. `Dataset` pour la lecture de zone : possible plus tard 
 
 ### Lot 4 — autorité et présence hors du site (E-E-A-T, GEO)
 
+**Réalisé le 2026-10-20** (code, non déployé) : 4.1 sauf le logo, 4.2, 4.3 côté code, 4.7. Le logo d'Arkium attend un
+fichier (aucun visuel du dépôt ne convient : marques PUBG / KRAFTON, image de partage non carrée). IndexNow est
+**coupé** tant que `INDEXNOW_KEY` n'est pas posée ; l'import dans Bing Webmaster Tools reste à faire à la main.
+
 1. **Enrichir `/a-propos`** (220 mots aujourd'hui). Décision du 2026-10-18 : **l'éditeur reste Arkium**, sans
    personne nommée. L'E-E-A-T passe donc par la transparence (méthode, sources, chiffres, dates de mise à jour) et par
    l'entité `Organization` Arkium : description, logo, `contactPoint` (contact@chickendinner.fr). Contenu : depuis
    quand le site existe, pourquoi, chiffres
    vivants (33 clans suivis, 510 joueurs, 31 205 parties analysées au 2026-10-18 — `stats` de `/api/home/showcase`),
-   contact, date de mise à jour.
+   contact, date de mise à jour. — **Fait** : chiffres de la vitrine (mêmes définitions que l'accueil), datés dans un
+   `<time>`, rendus par le serveur (`src/components/legal/AboutFigures.tsx`, rien plutôt qu'un faux zéro) ;
+   `Organization` unique (`PUBLISHER_ORGANIZATION`, `page-seo.ts`) avec `contactPoint` ; `AboutPage` sur `/a-propos`.
 2. **Page « Méthodologie »** (ou une section de `/a-propos`) : Power score, styles Fragger / Medic / Ghost, lecture
    de zone, définition d'une soirée (de 06:00 à 06:00, heure de Paris), limites de l'API PUBG. C'est ce texte que
-   les moteurs génératifs citeront pour répondre à « comment chickendinner calcule… ».
+   les moteurs génératifs citeront pour répondre à « comment chickendinner calcule… ». — **Fait** :
+   [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx), liée depuis `/a-propos`, publique sans
+   session, au sitemap, `Article` daté signé d'Arkium. Les réglages du Power score y sont lus en direct.
 3. **Bing Webmaster Tools** + **IndexNow** (§4 J) : soumettre le sitemap, puis notifier IndexNow à la création d'un
-   tournoi ou d'un clan. Vérifier aussi que les étapes Search Console de `seo.md` §4 sont faites.
+   tournoi ou d'un clan. Vérifier aussi que les étapes Search Console de `seo.md` §4 sont faites. — **Code fait** :
+   `src/lib/seo/indexnow.ts`, à la validation d'un clan et quand un tournoi est lancé ou terminé ; clé servie à
+   `/indexnow.txt` (hors du proxy). Seulement avec `INDEXNOW_KEY` et sur le vrai domaine ; jamais bloquant.
 4. **`robots.txt` et robots d'IA** — **réalisé le 2026-10-18** avec le lot 0.0 (`AI_TRAINING_BOTS`). Décision du
    2026-10-18 : **robots de recherche oui, robots d'entraînement non.**
    Il suffit de nommer les robots d'entraînement avec `Disallow: /`. Tous les autres, robots de recherche compris,
@@ -417,7 +427,9 @@ balisage est facultatif. `Dataset` pour la lecture de zone : possible plus tard 
    des clans suivis, dans les annonces de tournoi, communautés PUBG francophones (Reddit, forums), chaînes Twitch des
    joueurs.
 7. **Phrases citables factuelles** plutôt que des slogans, par exemple : « chickendinner.fr suit 33 clans PUBG
-   francophones, soit 510 joueurs, et a analysé 31 205 parties » — rendue à partir des chiffres du moment.
+   francophones, soit 510 joueurs, et a analysé 31 205 parties » — rendue à partir des chiffres du moment. —
+   **Fait** sur `/a-propos` (`citableSiteSentence`, `src/lib/site-figures.ts`) : « parties d'escouade », le chiffre
+   comptant une analyse par escouade suivie et par partie.
 
 ### Lot 5 — performance (LCP 14,3 s annoncé)
 
@@ -425,7 +437,10 @@ balisage est facultatif. `Dataset` pour la lecture de zone : possible plus tard 
    identifier l'élément LCP. Hypothèses : sur l'accueil, blocs qui attendent `/api/home/showcase` (1,9 s à froid) et
    animations infinies (Ken Burns sur le fond, boussole, kill feed) qui occupent le processeur en mobile bridé ; sur
    les pages intérieures, le shell monté après l'hydratation (corrigé par le lot 1).
-2. Rendu serveur de la vitrine (lot 2) et préchauffage du cache de `showcase` (par le cron, par exemple).
+2. Rendu serveur de la vitrine (lot 2) et préchauffage du cache de `showcase` (par le cron, par exemple). —
+   **Préchauffage fait le 2026-10-20** : cron `home_showcase_warm` (toutes les 4 min) qui appelle le web
+   (`POST /api/internal/home-showcase/warm`, `CRON_BOOTSTRAP_SECRET`) — le cache vit dans le process web, un appel
+   direct depuis le cron ne remplirait que la mémoire du cron.
 3. **Compresser le JSON dans nginx** : les réponses de l'API ne sont pas compressées (`/api/zone-reading` : 240 Ko
    servis tels quels le 2026-10-18, alors que le HTML, le JS et le CSS le sont). Ajouter `application/json` à
    `gzip_types` du bloc HTTPS — gain probable de 80 à 90 % sur les grosses réponses.
@@ -459,7 +474,9 @@ curl -s https://chickendinner.fr/tournaments | grep -o '<h1[^>]*>.*</h1>'
 
 - **Ce que voit un robot sans JavaScript** : un script `scripts/seo-raw-html-audit.ts` (titre, description, H1,
   H2, mots visibles, images sans `alt`, présence de `<main>` et de JSON-LD pour chaque page du sitemap) rejouerait la
-  mesure du §2. Celui qui a servi à cette vérification est prêt à être versionné.
+  mesure du §2. — **Versionné le 2026-10-20** : `npx tsx scripts/seo-raw-html-audit.ts` (production, tout le sitemap),
+  `--base=http://localhost:3001`, `--path=/a-propos` (sous Git Bash : `MSYS_NO_PATHCONV=1`), `--json`. Extraction pure
+  et testée : `src/lib/seo/raw-html-audit.ts`.
 - Test des résultats enrichis (Google) pour le JSON-LD, PageSpeed Insights pour le lot 5.
 - Relancer le même outil d'audit sur les mêmes 10 pages, en ajoutant `/a-propos`, `/clans/comparator`, une page de
   clan et une page de tournoi.

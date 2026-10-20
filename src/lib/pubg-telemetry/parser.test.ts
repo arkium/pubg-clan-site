@@ -151,6 +151,40 @@ describe('parseTelemetrySnapshot', () => {
     expect(weapon?.kills).toBe(1)
   })
 
+  // Distances en centimètres, depuis l'atterrissage (todo.md : « distances memberStats en unités brutes »).
+  describe('distances parcourues', () => {
+    const position = (x: number, isInVehicle: boolean) => ({
+      _T: 'LogPlayerPosition',
+      character: { accountId: 'runner', name: 'Runner', teamId: 3, location: { x, y: 400_000 }, isInVehicle },
+    })
+    const runner = (events: unknown[]) =>
+      parseTelemetrySnapshot(events).memberStats.find((entry) => entry.memberKey === 'runner')
+
+    it('ne compte aucun trajet depuis (0, 0), simple valeur d’initialisation', () => {
+      const stats = runner([position(500_000, false), position(500_300, false)])
+
+      expect(stats?.onFootDistanceMeters).toBe(300)
+      expect(stats?.vehicleDistanceMeters).toBe(0)
+    })
+
+    it('écarte l’avion et la chute : les distances partent de l’atterrissage', () => {
+      const stats = runner([
+        position(100_000, true), // avion
+        position(400_000, true),
+        position(450_000, false), // chute libre et parachute
+        {
+          _T: 'LogParachuteLanding',
+          character: { accountId: 'runner', name: 'Runner', teamId: 3, location: { x: 450_000, y: 400_000 } },
+        },
+        position(450_500, false),
+        position(452_500, true),
+      ])
+
+      expect(stats?.onFootDistanceMeters).toBe(500)
+      expect(stats?.vehicleDistanceMeters).toBe(2_000)
+    })
+  })
+
   it('rejects non-array payloads', () => {
     expect(() => parseTelemetrySnapshot({})).toThrow(
       'Telemetry payload must be an array of events'

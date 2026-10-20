@@ -69,7 +69,7 @@ async function handlePost(request: Request, { params }: { params: Promise<{ clan
     }
     if (!player.name) {
       return Response.json(
-        { error: 'Pseudo inconnu du site : ajoutez ce joueur à la main depuis « Ajouter un joueur ».' },
+        { error: 'Pseudo inconnu du site : ajoute ce joueur à la main depuis « Ajouter un joueur ».' },
         { status: 422 }
       )
     }
@@ -80,7 +80,7 @@ async function handlePost(request: Request, { params }: { params: Promise<{ clan
     if (!session?.isSuperUser && player.siteClan?.id !== checked.clanId) {
       return Response.json(
         {
-          error: `${player.name} n’est pas un joueur de votre clan : seul le SuperUser peut l’ajouter, avec son clan PUBG.`,
+          error: `${player.name} n’est pas un joueur de ton clan : seul le SuperUser peut l’ajouter, avec son clan PUBG.`,
         },
         { status: 403 }
       )

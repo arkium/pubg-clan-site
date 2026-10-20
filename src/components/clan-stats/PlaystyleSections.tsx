@@ -18,6 +18,7 @@ import {
   type CooperationTopId,
   cooperationSummary,
   cooperationTop,
+  formatKilometers,
   playstyleRoles,
   playstyleThemes,
   synergyGroups,
@@ -175,7 +176,7 @@ export function PlaystyleThemeCards({ rows }: { rows: ClanPlaystyleRow[] }) {
     <div className="grid gap-3 md:grid-cols-3">
       <ThemeCard
         title="Mobilité"
-        subtitle={`${formatDecimal(mobility.distance)} km par match en moyenne`}
+        subtitle={mobility.distance === null ? 'Distances en cours de recalcul' : `${formatDecimal(mobility.distance)} km par match en moyenne`}
         icon={Car}
         color="var(--game-sky)"
         bar={[
@@ -183,8 +184,8 @@ export function PlaystyleThemeCards({ rows }: { rows: ClanPlaystyleRow[] }) {
           { value: mobility.vehicleShare, color: 'var(--game-violet)', label: `${formatPercent(mobility.vehicleShare)} en véhicule` },
         ]}
         rows={[
-          { label: 'À pied', value: `${formatDecimal(mobility.foot)} km` },
-          { label: 'En véhicule', value: `${formatDecimal(mobility.vehicle)} km` },
+          { label: 'À pied', value: formatKilometers(mobility.foot) },
+          { label: 'En véhicule', value: formatKilometers(mobility.vehicle) },
           { label: 'Vitesse max', value: `${formatDecimal(mobility.maxSpeed)} km/h` },
         ]}
       />

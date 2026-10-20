@@ -10,6 +10,7 @@ import {
   ChevronRight,
   Flame,
   Handshake,
+  History,
   Info,
   RefreshCcw,
   RotateCw,
@@ -93,6 +94,8 @@ type ClanDetail = {
 type OpponentPlayer = { playerId: string; pubgPlayerName: string; isFavorite: boolean; trackedMember: { clanTag: string | null } | null }
 type OpponentClanDetail = { players: OpponentPlayer[]; playersLimit: number }
 type TrackMember = (playerId: string, targetClanId?: number) => void
+/** Confirmation que la route `track` a demandée par un 409 (déplacement ou réactivation). */
+type TrackConfirmation = 'move' | 'reactivate'
 
 function formatDateTime(value: string | null) {
   if (!value) return '—'
@@ -177,8 +180,14 @@ function OpponentsExplorer() {
   // Arrêt de suivi d'un clan (docs/TODO/clan-archive.md) : clan dont la boîte est ouverte.
   const [archiveTarget, setArchiveTarget] = useState<{ id: number; name: string; tag: string } | null>(null)
   const [recalcConfirmOpen, setRecalcConfirmOpen] = useState(false)
-  // Joueur déjà membre actif d'un autre clan suivi (409) : le SuperUser confirme le déplacement dans la page.
-  const [moveConfirm, setMoveConfirm] = useState<{ playerId: string; targetClanId?: number; message: string } | null>(null)
+  // Joueur déjà membre actif d'un autre clan suivi, ou membre archivé, parti ou en attente (409) : le SuperUser
+  // confirme le déplacement ou la réactivation dans la page.
+  const [moveConfirm, setMoveConfirm] = useState<{
+    kind: TrackConfirmation
+    playerId: string
+    targetClanId?: number
+    message: string
+  } | null>(null)
   const [notifications, setNotifications] = useState<{ id: number; message: string; type: 'success' | 'error' }[]>([])
 
   function addNotification(message: string, type: 'success' | 'error' = 'success') {
@@ -390,12 +399,15 @@ function OpponentsExplorer() {
     }
   }
 
-  async function handleTrackMember(playerId: string, targetClanId?: number, confirmMove = false) {
+  async function handleTrackMember(playerId: string, targetClanId?: number, confirmed: TrackConfirmation | null = null) {
     try {
       setTrackPending((prev) => new Set(prev).add(playerId))
-      const bodyPayload: { playerId: string; targetClanId?: number; confirmMove?: boolean } = { playerId }
+      const bodyPayload: { playerId: string; targetClanId?: number; confirmMove?: boolean; confirmReactivation?: boolean } = {
+        playerId,
+      }
       if (targetClanId) bodyPayload.targetClanId = targetClanId
-      if (confirmMove) bodyPayload.confirmMove = true
+      if (confirmed === 'move') bodyPayload.confirmMove = true
+      if (confirmed === 'reactivate') bodyPayload.confirmReactivation = true
 
       const res = await fetch('/api/settings/opponents/track', {
         method: 'POST',
@@ -404,10 +416,14 @@ function OpponentsExplorer() {
       })
       const body = await res.json()
 
-      // 409 = le joueur est déjà membre actif d'un autre clan suivi. L'API refuse
-      // de le déplacer en silence : le SuperUser tranche explicitement.
-      if (res.status === 409 && body?.error === 'member_tracked_elsewhere' && !confirmMove) {
-        setMoveConfirm({ playerId, targetClanId, message: body.message })
+      // 409 = le joueur est déjà membre actif d'un autre clan suivi, ou son membre est archivé, parti ou en
+      // attente. L'API refuse de le déplacer ou de le réactiver en silence : le SuperUser tranche explicitement.
+      if (res.status === 409 && body?.error === 'member_tracked_elsewhere' && confirmed !== 'move') {
+        setMoveConfirm({ kind: 'move', playerId, targetClanId, message: body.message })
+        return
+      }
+      if (res.status === 409 && body?.error === 'member_needs_reactivation' && confirmed !== 'reactivate') {
+        setMoveConfirm({ kind: 'reactivate', playerId, targetClanId, message: body.message })
         return
       }
 
@@ -928,19 +944,19 @@ function OpponentsExplorer() {
 
       {moveConfirm ? (
         <ConfirmDialog
-          icon={UserPlus}
-          title="Déplacer ce joueur ?"
-          confirmLabel="Déplacer"
-          tone="danger"
+          icon={moveConfirm.kind === 'move' ? UserPlus : History}
+          title={moveConfirm.kind === 'move' ? 'Déplacer ce joueur ?' : 'Réactiver ce joueur ?'}
+          confirmLabel={moveConfirm.kind === 'move' ? 'Déplacer' : 'Réactiver'}
+          tone={moveConfirm.kind === 'move' ? 'danger' : 'primary'}
           busy={trackPending.has(moveConfirm.playerId)}
           onCancel={() => {
+            if (moveConfirm.kind === 'move') addNotification('Transfert annulé.', 'error')
             setMoveConfirm(null)
-            addNotification('Transfert annulé.', 'error')
           }}
           onConfirm={() => {
-            const { playerId, targetClanId } = moveConfirm
+            const { kind, playerId, targetClanId } = moveConfirm
             setMoveConfirm(null)
-            void handleTrackMember(playerId, targetClanId, true)
+            void handleTrackMember(playerId, targetClanId, kind)
           }}
         >
           {moveConfirm.message}
@@ -1152,7 +1168,7 @@ function OpponentDetailPanel({
       if (!response.ok) throw new Error(body?.error || 'Erreur lors de la création du clan')
       // Le clan existait déjà en attente de validation : rien n'est suivi tant qu'il n'est pas validé.
       if (body?.state === 'pending') {
-        setTrackClanError('Ce clan attend déjà sa validation : validez-le depuis le cycle de vie des clans.')
+        setTrackClanError('Ce clan attend déjà sa validation : valide-le depuis le cycle de vie des clans.')
         return
       }
       setTrackClanSuccess(true)

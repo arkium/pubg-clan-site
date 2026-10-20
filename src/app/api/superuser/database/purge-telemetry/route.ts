@@ -108,7 +108,7 @@ async function handlePost(req: NextRequest) {
       return Response.json(
         {
           error:
-            'Aucun comptage disponible pour ce seuil. Lancez un recomptage et attendez son résultat avant de purger.',
+            'Aucun comptage disponible pour ce seuil. Lance un recomptage et attends son résultat avant de purger.',
         },
         { status: 409 }
       )

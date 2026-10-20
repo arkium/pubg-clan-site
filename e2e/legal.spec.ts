@@ -14,6 +14,8 @@ const PAGES = [
   { path: '/confidentialite', link: 'Confidentialité', current: 'page', heading: 'Confidentialité' },
   { path: '/confidentialite/demande', link: 'Confidentialité', current: 'true', heading: 'Retirer mes données' },
   { path: '/a-propos', link: 'À propos', current: 'page', heading: 'À propos' },
+  // Méthodologie (docs/TODO/geo-seo-propositions.md, 4.2) : sous-page d'À propos, liée depuis elle.
+  { path: '/a-propos/methodologie', link: 'À propos', current: 'true', heading: 'Méthodologie', title: 'Méthodologie des stats et du Power score' },
   // Le titre de l'onglet vient de src/lib/seo/page-seo.ts (docs/features/seo.md).
 ]
 
@@ -32,7 +34,8 @@ for (const entry of PAGES) {
   test(`${entry.path} : publique, footer complet avec la page courante marquée, sans défilement horizontal`, async ({ page }) => {
     await page.goto(entry.path)
     await expect(page.getByRole('heading', { level: 1, name: entry.heading })).toBeVisible()
-    await expect(page).toHaveTitle(`${entry.path === '/mentions-legales' ? 'Mentions légales et CGU' : entry.heading} · chickendinner.fr`)
+    const title = 'title' in entry ? entry.title : entry.path === '/mentions-legales' ? 'Mentions légales et CGU' : entry.heading
+    await expect(page).toHaveTitle(`${title} · chickendinner.fr`)
 
     const legal = footer(page).getByRole('navigation', { name: 'Informations légales' })
     await expect(legal.getByRole('link')).toHaveCount(3)
@@ -48,6 +51,24 @@ test('footer : « © Arkium » mène à arkium.eu, le logo chickendinner.fr à l
   await page.goto('/a-propos')
   await expect(footer(page).getByRole('link', { name: /© \d{4} Arkium/ })).toHaveAttribute('href', 'https://arkium.eu')
   await expect(footer(page).getByRole('link', { name: 'chickendinner.fr, accueil' })).toHaveAttribute('href', '/')
+})
+
+test('À propos mène à la méthodologie, datée, avec les réglages en vigueur du Power score', async ({ page }) => {
+  await page.goto('/a-propos')
+  // Chiffres vivants : lus dans la base du serveur, donc vérifiés sur leur forme, jamais sur leur valeur.
+  const figures = page.getByTestId('about-figures')
+  if ((await figures.count()) > 0) {
+    await expect(figures).toContainText(/suit \d+ clans? PUBG francophones?, soit [\d\u202f ]+ joueurs?/)
+    await expect(figures.locator('time')).toHaveAttribute('datetime', /^\d{4}-\d{2}-\d{2}$/)
+  }
+
+  await page.getByRole('link', { name: 'méthodologie' }).click()
+  await expect(page).toHaveURL(/\/a-propos\/methodologie$/)
+  await expect(page.locator('main time').first()).toHaveAttribute('datetime', '2026-10-20')
+  const powerScore = page.locator('#power-score')
+  await expect(powerScore).toContainText('Score brut')
+  await expect(powerScore).toContainText(/score moyen de la ligue/)
+  await expect(page.locator('#soirees-periodes')).toContainText('heure de Paris')
 })
 
 test('le footer mène d’une page légale à l’autre', async ({ page }) => {

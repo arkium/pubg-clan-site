@@ -126,8 +126,8 @@ export default function ClanFollowDangerZone({ clanId }: { clanId: number }) {
         ) : (
           <div className="flex flex-wrap items-center justify-between gap-3">
             <p className="m-0">
-              <span className="t-num font-semibold text-gray-900">{summary.activeMembers}</span> membre(s) actif(s) : vous
-              choisirez leur sort à l’étape suivante.
+              <span className="t-num font-semibold text-gray-900">{summary.activeMembers}</span> membre(s) actif(s) : tu
+              choisiras leur sort à l’étape suivante.
             </p>
             <button type="button" onClick={() => setDialogOpen(true)} className="app-btn app-btn--md app-btn--danger-solid gap-1.5">
               <PowerOff className="h-4 w-4" aria-hidden="true" />

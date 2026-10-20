@@ -187,6 +187,7 @@ const SCHEDULE_LABELS: Record<string, string> = {
   clan_lifecycle_membership_sync: 'Appartenance de clan (cycle de vie)',
   db_maintenance: 'Maintenance de la base',
   resource_vehicle_spots: 'Véhicules observés (carte des ressources)',
+  home_showcase_warm: 'Préchauffage de la vitrine (accueil)',
   admin_daily_digest: 'Veille du matin (Discord d’administration)',
 }
 
@@ -219,6 +220,8 @@ const SCHEDULE_DESCRIPTIONS: Record<string, string> = {
     'Recalcule, carte par carte, les emplacements où des véhicules sont trouvés en début de partie (montées des 90 derniers jours) pour la carte des ressources. Remplace les emplacements de chaque carte ; tâche globale, sans ligne dans l\'historique par clan.',
   admin_daily_digest:
     'Envoie au salon Discord d\'administration la boîte « À traiter » de l\'accueil Plateforme, seulement si une décision ou un incident attend (tâches en échec, worker arrêté, parties qui expirent…). Se coupe dans Cycle de vie des clans › Paramètres ; tâche globale, sans ligne dans l\'historique par clan.',
+  home_showcase_warm:
+    'Recalcule la vitrine de l\'accueil dans le serveur web avant l\'expiration de son cache (5 min) : aucun visiteur ni robot n\'attend une lecture à froid, même après un redémarrage. Demande CRON_BOOTSTRAP_SECRET ; tâche globale, sans ligne dans l\'historique par clan.',
 }
 
 function formatDate(value: string | null | undefined) {
@@ -618,7 +621,7 @@ export default function CronSettingsPage() {
           ? `HTTP ${response.status}: ${rawText.slice(0, 180)}`
           : `HTTP ${response.status}: réponse invalide`
         setError(
-          result?.error ?? result?.message ?? `${fallback}. L'action a peut-être été lancée ; vérifiez l'historique.`
+          result?.error ?? result?.message ?? `${fallback}. L'action a peut-être été lancée ; vérifie l'historique.`
         )
         setRefreshing(true)
         await loadStatus(targetId)

@@ -102,6 +102,35 @@ describe('notifyTop1IfEligible', () => {
     expect(payload.embeds[0].title).toContain('CHICKEN DINNER')
   })
 
+  it('porte les liens courts : match par le sous-domaine du clan, noms vers le tableau de bord', async () => {
+    const LINKED_MATCH_ID = 'cmatch0000000000000000001'
+    arrange({
+      match: squadMatch({
+        id: LINKED_MATCH_ID,
+        members: [
+          { kills: 7, damage: 820, assists: 2, revives: 0, timeSurvived: 1834, member: { id: 11, displayName: 'Alpha' } },
+          { kills: 4, damage: 410, assists: 0, revives: 1, timeSurvived: 1834, member: { id: 12, displayName: 'Bravo' } },
+        ],
+      }),
+    })
+    vi.mocked(prisma.clan.findUnique).mockResolvedValue({ name: 'Les Poulets', tag: 'PLT', subdomain: 'plt' } as never)
+    vi.stubEnv('NEXT_PUBLIC_APP_URL', 'https://chickendinner.fr')
+    vi.stubEnv('CLAN_SUBDOMAIN_ROOT', 'chickendinner.fr')
+
+    try {
+      await notifyTop1IfEligible(CLAN_ID, LINKED_MATCH_ID)
+    } finally {
+      vi.unstubAllEnvs()
+    }
+
+    const [, payload] = vi.mocked(sendDiscordWebhook).mock.calls[0]
+    expect(payload.embeds[0].url).toBe(`https://plt.chickendinner.fr/m/${LINKED_MATCH_ID}`)
+    expect(payload.embeds[0].fields![0].value).toContain('[**Alpha**](https://chickendinner.fr/j/11)')
+    expect(prisma.clan.findUnique).toHaveBeenCalledWith(
+      expect.objectContaining({ select: expect.objectContaining({ subdomain: true }) })
+    )
+  })
+
   it('ignore un match qui n est pas un top 1', async () => {
     arrange({ match: squadMatch({ placement: 3 }) })
 

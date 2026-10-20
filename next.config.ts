@@ -32,6 +32,11 @@ const nextConfig: NextConfig = {
       { source: '/api/:path*', headers: [{ key: 'X-Robots-Tag', value: 'noindex' }] },
     ]
   },
+  // Fichier de clé IndexNow (src/lib/seo/indexnow.ts) servi par une route API : un dossier de route `src/app/indexnow.txt`
+  // fait planter `next build` en code natif (Next 16.2.6, constaté le 2026-10-20, Turbopack comme webpack).
+  async rewrites() {
+    return [{ source: '/indexnow.txt', destination: '/api/indexnow-key' }]
+  },
   // Ancienne page « Catégories armes », fondue dans l'armurerie du clan (docs/features/weapons.md §7). Vraie redirection
   // HTTP, avant tout rendu ; la requête (`period`, `cat`) est transmise telle quelle, sans `cat` on ouvre la première.
   async redirects() {

@@ -73,7 +73,7 @@ export default function ChallengeLeaderboard({ leaderboard, currentMemberId, met
                     </span>
                     <Link href={`/members/${entry.memberId}/dashboard`} className="font-semibold hover:underline">
                       {entry.displayName}
-                      {isMe ? <span className="ml-1 text-xs font-medium text-[var(--theme-ui-accent-text)]">(vous)</span> : null}
+                      {isMe ? <span className="ml-1 text-xs font-medium text-[var(--theme-ui-accent-text)]">(toi)</span> : null}
                     </Link>
                   </div>
                 </td>

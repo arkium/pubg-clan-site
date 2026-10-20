@@ -110,29 +110,20 @@ export async function listTournamentUntrackedPlayers(tournamentId: string): Prom
   )
   if (players.length === 0) return { roundCount: matches.length, roundsWithoutTelemetry, players: [] }
 
-  // Pseudo et clan PUBG : ce que le site sait déjà de ces adversaires.
+  // Pseudo et clan PUBG : ce que le site sait déjà de ces adversaires. `Player` contient tous les joueurs croisés,
+  // avec leur clan le plus récent (fin d'EncounteredPlayer, docs/TODO/inventaire-2026-10-20.md §2.A).
   const accountIds = players.map((player) => player.accountId)
-  const [known, encountered] = await Promise.all([
-    prisma.player.findMany({
-      where: { pubgAccountId: { in: accountIds } },
-      select: {
-        pubgAccountId: true,
-        pubgPlayerName: true,
-        platformShard: true,
-        opponentClan: { select: { pubgClanId: true, tag: true, name: true } },
-      },
-    }),
-    prisma.encounteredPlayer.findMany({
-      where: { pubgAccountId: { in: accountIds } },
-      select: { pubgAccountId: true, pubgPlayerName: true, platformShard: true, pubgClanId: true, pubgClanTag: true, pubgClanName: true },
-    }),
-  ])
+  const known = await prisma.player.findMany({
+    where: { pubgAccountId: { in: accountIds } },
+    select: {
+      pubgAccountId: true,
+      pubgPlayerName: true,
+      platformShard: true,
+      opponentClan: { select: { pubgClanId: true, tag: true, name: true } },
+    },
+  })
   const pubgClanIds = [
-    ...new Set(
-      [...known.map((entry) => entry.opponentClan?.pubgClanId), ...encountered.map((entry) => entry.pubgClanId)].filter(
-        (id): id is string => !!id
-      )
-    ),
+    ...new Set(known.map((entry) => entry.opponentClan?.pubgClanId).filter((id): id is string => !!id)),
   ]
   const siteClans = pubgClanIds.length
     ? await prisma.clan.findMany({
@@ -146,18 +137,13 @@ export async function listTournamentUntrackedPlayers(tournamentId: string): Prom
     roundsWithoutTelemetry,
     players: players.map((player) => {
       const fromPlayer = known.find((entry) => entry.pubgAccountId === player.accountId)
-      const fromEncounter = encountered.find((entry) => entry.pubgAccountId === player.accountId)
-      const pubgClanId = fromPlayer?.opponentClan?.pubgClanId ?? fromEncounter?.pubgClanId ?? null
+      const pubgClanId = fromPlayer?.opponentClan?.pubgClanId ?? null
       const siteClan = siteClans.find((clan) => clan.pubgClanId === pubgClanId)
       return {
         ...player,
-        name: fromPlayer?.pubgPlayerName ?? fromEncounter?.pubgPlayerName ?? null,
-        platformShard: fromPlayer?.platformShard ?? fromEncounter?.platformShard ?? 'steam',
-        pubgClan: fromPlayer?.opponentClan
-          ? { tag: fromPlayer.opponentClan.tag, name: fromPlayer.opponentClan.name }
-          : fromEncounter?.pubgClanTag || fromEncounter?.pubgClanName
-            ? { tag: fromEncounter.pubgClanTag, name: fromEncounter.pubgClanName }
-            : null,
+        name: fromPlayer?.pubgPlayerName ?? null,
+        platformShard: fromPlayer?.platformShard ?? 'steam',
+        pubgClan: fromPlayer?.opponentClan ? { tag: fromPlayer.opponentClan.tag, name: fromPlayer.opponentClan.name } : null,
         siteClan: siteClan ? { id: siteClan.id, tag: siteClan.tag, name: siteClan.name } : null,
       }
     }),

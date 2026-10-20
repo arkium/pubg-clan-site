@@ -9,13 +9,17 @@ import {
   type TournamentRoundEmbedInput,
 } from '@/lib/discord/discord-tournament-embed'
 
+// Identifiants au format cuid, seul accepté par les liens courts.
+const TOURNAMENT_ID = 'ctour00000000000000000001'
+const MATCH_ID = 'cmatch0000000000000000001'
+
 function makeInput(overrides: Partial<TournamentRoundEmbedInput> = {}): TournamentRoundEmbedInput {
   return {
-    tournamentId: 'tour-1',
+    tournamentId: TOURNAMENT_ID,
     tournamentTitle: 'Coupe inter-clans',
     roundNumber: 2,
     totalRounds: 3,
-    squadMatchId: 'match-1',
+    squadMatchId: MATCH_ID,
     telemetryClanId: 5,
     mapLabel: 'Miramar',
     gameModeLabel: 'Squad FPP',
@@ -192,6 +196,26 @@ describe('buildTournamentRoundWebhookPayload', () => {
     expect(mvpField?.value).toBe('**Alpha** ([ALP] Clan Alpha) — 6 kills · 942 dégâts')
   })
 
+  it('fait du nom du MVP un lien court vers son tableau de bord, quand le site est configuré', () => {
+    const mvp = { memberId: 42, displayName: 'Alpha', clanLabel: '[ALP] Clan Alpha', kills: 6, damage: 941.6 }
+    const linked = buildTournamentRoundWebhookPayload(makeInput({ mvp })).embeds[0]
+    const withoutSite = buildTournamentRoundWebhookPayload(makeInput({ mvp, siteUrl: '' })).embeds[0]
+
+    expect(linked.fields!.find((field) => field.name.includes('MVP'))?.value).toBe(
+      '[**Alpha**](https://clan.example.com/j/42) ([ALP] Clan Alpha) — 6 kills · 942 dégâts'
+    )
+    expect(withoutSite.fields!.find((field) => field.name.includes('MVP'))?.value).toBe(
+      '**Alpha** ([ALP] Clan Alpha) — 6 kills · 942 dégâts'
+    )
+  })
+
+  it('identifiants hors format (message de test, données anciennes) : pas de lien plutôt qu’un lien mort', () => {
+    const [embed] = buildTournamentRoundWebhookPayload(makeInput({ tournamentId: 'tour-1', squadMatchId: 'test' })).embeds
+
+    expect(embed.url).toBeUndefined()
+    expect(embed.description).not.toContain('Replay 2D')
+  })
+
   it('omet le MVP quand aucun joueur suivi n’est present', () => {
     const [embed] = buildTournamentRoundWebhookPayload(makeInput({ mvp: null })).embeds
 
@@ -215,8 +239,9 @@ describe('buildTournamentRoundWebhookPayload', () => {
     // Vue tournoi : le lien ne dépend plus d'un clan choisi arbitrairement.
     const withoutClan = buildTournamentRoundWebhookPayload(makeInput({ telemetryClanId: null })).embeds[0]
 
-    expect(withLink.description).toContain('(https://clan.example.com/tournaments/tour-1/matches/match-1)')
-    expect(withLink.url).toBe('https://clan.example.com/tournaments/tour-1')
+    // Liens courts (docs/TODO/url-masking.md) : la manche s'ouvre sur son Replay 2D, comme l'annonce le libellé.
+    expect(withLink.description).toContain(`[▶️ Replay 2D de la manche](https://clan.example.com/t/${TOURNAMENT_ID}/${MATCH_ID}?tab=replay)`)
+    expect(withLink.url).toBe(`https://clan.example.com/t/${TOURNAMENT_ID}`)
     expect(withoutSite.description).not.toContain('Replay 2D')
     expect(withoutSite.url).toBeUndefined()
     expect(withoutClan.description).toContain('Replay 2D')
@@ -262,7 +287,7 @@ describe('formatPoints / formatPlacement', () => {
 
 describe('buildTournamentSquadStandingsWebhookPayload', () => {
   const squadInput = {
-    tournamentId: 'tour-1',
+    tournamentId: TOURNAMENT_ID,
     tournamentTitle: 'Tournoi [FR] 10/10/26',
     totalRounds: 3,
     killPoints: 1,
@@ -279,13 +304,13 @@ describe('buildTournamentSquadStandingsWebhookPayload', () => {
   it('classe les escouades : joueurs regroupés par clan, points, kills, Top 1 et place à chaque manche', () => {
     const [embed] = buildTournamentSquadStandingsWebhookPayload(squadInput).embeds
     expect(embed.title).toBe('🏆 Tournoi : Tournoi [FR] 10/10/26 — Classement par squad')
-    expect(embed.url).toBe('https://chickendinner.fr/tournaments/tour-1')
+    expect(embed.url).toBe(`https://chickendinner.fr/t/${TOURNAMENT_ID}`)
     expect(embed.description).toContain('🥇 **[FUN] Tie-Poucrav, L0RD19**')
     expect(embed.description).toContain('**112 pts** · 59 kills · 2 Top 1 · manches : #1 · 9 · #1')
     expect(embed.description).toContain('🥈 **[LTF] P0mpoko + [OCD] Valino13, ZaPiT**')
     expect(embed.description).toContain('**93.5 pts** · 47 kills · 1 Top 1 · manches : 2 · – · #1')
     expect(embed.description).toContain('1 pt par kill, +5 pour un Top 1')
-    expect(embed.description).toContain('(https://chickendinner.fr/tournaments/tour-1)')
+    expect(embed.description).toContain(`[📊 Classement complet sur le site](https://chickendinner.fr/t/${TOURNAMENT_ID})`)
   })
 
   it('reste dans les limites Discord avec beaucoup d’escouades', () => {

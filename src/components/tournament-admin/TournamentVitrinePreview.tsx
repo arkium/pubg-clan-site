@@ -33,7 +33,7 @@ export function TournamentVitrinePreview({
   const titleProblem = form.title.trim() ? tournamentTitleProblem(form.title) : null
 
   if (!period) {
-    return <p className="t-meta m-0">Renseignez le début et la fin du tournoi pour voir son aperçu.</p>
+    return <p className="t-meta m-0">Renseigne le début et la fin du tournoi pour voir son aperçu.</p>
   }
 
   const tournament: HomeRankedTournament = {

@@ -10,7 +10,15 @@ import PlayerNameBadge from '@/components/ui/PlayerNameBadge'
 import RankCell from '@/components/ui/RankCell'
 import SortableTh from '@/components/ui/SortableTh'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
-import { formatDecimal, formatInteger, formatPercent, playstyleThemes, type ClanPlaystyleRow, type PlaystyleRoleId } from '@/lib/clan-playstyle'
+import {
+  formatDecimal,
+  formatInteger,
+  formatKilometers,
+  formatPercent,
+  playstyleThemes,
+  type ClanPlaystyleRow,
+  type PlaystyleRoleId,
+} from '@/lib/clan-playstyle'
 import { paginate } from '@/lib/pagination'
 import { cooperationTotals, roleDeltaLabel, type CooperationPartner, type PlayerRoleComparison } from '@/lib/player-playstyle'
 
@@ -166,7 +174,7 @@ export function PlayerThemeCards({ player, clanRows }: { player: ClanPlaystyleRo
     <div className="grid gap-3 md:grid-cols-3">
       <ThemeCard
         title="Mobilité"
-        subtitle={`${formatDecimal(mobility.distance)} km par match`}
+        subtitle={mobility.distance === null ? 'Distances en cours de recalcul' : `${formatDecimal(mobility.distance)} km par match`}
         icon={Car}
         color="var(--game-sky)"
         bar={[
@@ -174,8 +182,8 @@ export function PlayerThemeCards({ player, clanRows }: { player: ClanPlaystyleRo
           { value: mobility.vehicleShare, color: 'var(--game-violet)', label: `${formatPercent(mobility.vehicleShare)} en véhicule` },
         ]}
         rows={[
-          { label: 'À pied', player: `${formatDecimal(mobility.foot)} km`, clan: clan ? `${formatDecimal(clan.mobility.foot)} km` : null },
-          { label: 'En véhicule', player: `${formatDecimal(mobility.vehicle)} km`, clan: clan ? `${formatDecimal(clan.mobility.vehicle)} km` : null },
+          { label: 'À pied', player: formatKilometers(mobility.foot), clan: clan ? formatKilometers(clan.mobility.foot) : null },
+          { label: 'En véhicule', player: formatKilometers(mobility.vehicle), clan: clan ? formatKilometers(clan.mobility.vehicle) : null },
           { label: 'Vitesse max', player: `${formatDecimal(mobility.maxSpeed)} km/h`, clan: clan ? `${formatDecimal(clan.mobility.maxSpeed)} km/h` : null },
         ]}
       />

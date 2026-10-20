@@ -1127,7 +1127,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-6 shadow-2xl">
             <h2 className="text-lg font-bold text-slate-900">Confirmer la déconnexion</h2>
             <p className="mt-2 text-sm text-slate-600">
-              Voulez-vous vraiment déconnecter le joueur {playerName} ?
+              Veux-tu vraiment déconnecter le joueur {playerName} ?
             </p>
 
             <div className="mt-6 flex items-center justify-end gap-3">

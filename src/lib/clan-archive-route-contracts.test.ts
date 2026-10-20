@@ -96,6 +96,7 @@ vi.mock('@/lib/pubg', () => ({
 }))
 vi.mock('@/lib/stats-calculator', () => ({ recalculateStatsForClan: vi.fn(async () => undefined) }))
 vi.mock('@/lib/role-service', () => ({ initializeDefaultRoles: vi.fn(async () => undefined) }))
+vi.mock('@/lib/member-player-link', () => ({ ensurePlayerLinkForMember: vi.fn(async () => undefined) }))
 vi.mock('@/lib/notification-service', () => ({
   notifyJoinRequest: mocks.notifyJoinRequest,
   notifyClanCreationRequest: mocks.notifyClanCreationRequest,

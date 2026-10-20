@@ -139,9 +139,9 @@ Cas résiduel assumé : un crash du processus entre l'insertion et l'envoi laiss
 - Couleur `#F1C40F` (doré Chicken Dinner)
 - Titre `🍗 CHICKEN DINNER ! Top 1 pour [TAG] NomDuClan`, tronqué à 256 caractères
 - Description `🗺️ Carte — Mode`
-- Champ « Escouade » : une ligne par joueur avec kills, dégâts arrondis, assists et revives (assists et revives affichés seulement s'ils sont non nuls)
+- Champ « Escouade » : une ligne par joueur avec kills, dégâts arrondis, assists et revives (assists et revives affichés seulement s'ils sont non nuls). Depuis le 2026-10-20, chaque nom est un lien court vers le tableau de bord du joueur (`/j/{memberId}`) ; au-delà de 1 024 caractères, les derniers noms perdent leur lien avant qu'un joueur soit retiré, jamais un lien coupé (`src/lib/discord/embed-lines.ts`)
 - Champs « Kills totaux », « Dégâts cumulés », « Survie » en ligne
-- Vignette de la carte (`/maps/pubg/{mapName}.webp`) et lien vers le débriefing du match (`/clans/{clanId}/telemetry/matches/{squadMatchId}/debrief`, construit par `matchDebriefPath` de `src/lib/match-links.ts`)
+- Vignette de la carte (`/maps/pubg/{mapName}.webp`) et lien vers le débriefing du match. Depuis le 2026-10-20, **lien court** `/m/{squadMatchId}` (`src/lib/short-links.ts`, [url-masking.md](../TODO/url-masking.md)) : par le sous-domaine du clan (`https://{sous-domaine}.chickendinner.fr/m/…`) quand `CLAN_SUBDOMAIN_ROOT` est posée ; le site le redirige vers `/clans/{clanId}/telemetry/matches/{squadMatchId}/debrief`. Les liens longs déjà publiés restent valides
 - Pied de page : type de match et nombre de membres du clan
 
 La mention configurée part dans `content`, jamais dans l'embed — un embed ne notifie personne sur Discord.
@@ -189,7 +189,7 @@ Le MVP est le joueur des clans participants ayant infligé le plus de dégâts, 
 
 - Couleur `#5865F2`
 - Titre `🏆 Tournoi : {Titre} — Résultats Manche #{N}`
-- Description : carte, mode, et lien « ▶️ Replay 2D de la manche » vers le débriefing de manche `/tournaments/{tournamentId}/matches/{squadMatchId}` (depuis le 2026-09-16), ouvert à tout utilisateur connecté, avec le contexte du tournoi et la bande des escouades. Les messages plus anciens pointent vers `/tournaments/…/telemetry?clanId=`, redirigé vers cette page.
+- Description : carte, mode, et lien « ▶️ Replay 2D de la manche » vers le débriefing de manche `/tournaments/{tournamentId}/matches/{squadMatchId}` (depuis le 2026-09-16), ouvert à tout utilisateur connecté, avec le contexte du tournoi et la bande des escouades. Les messages plus anciens pointent vers `/tournaments/…/telemetry?clanId=`, redirigé vers cette page. Depuis le 2026-10-20, liens courts : `/t/{tournamentId}/{squadMatchId}?tab=replay` (ouvert sur l'onglet Replay 2D) et `/t/{tournamentId}` pour le titre et le classement par squad ; le nom du MVP est un lien `/j/{memberId}`.
 - Champ « Scores de la manche » : `🥇 **[TAG] Clan** : 1er (+10 pts) · 8 kills (+8 pts) = **18 pts**`, médailles pour le podium puis `#4`, `#5`…
 - Champ « ⭐ MVP de la manche »
 - Champ « Classement général provisoire » si l'option est active

@@ -19,9 +19,9 @@ export function getDatabaseErrorPresentation(error: unknown): DatabaseErrorPrese
       description:
         "L'application atteint le serveur, mais la connexion est refusée pour ces identifiants ou depuis cette machine.",
       checks: [
-        'Comparez la configuration locale avec le DATABASE_URL réellement chargé en production.',
-        "Vérifiez que le compte MySQL est autorisé depuis l'adresse IP de cette machine.",
-        "Contrôlez le mot de passe et l'encodage de ses caractères spéciaux dans l'URL.",
+        'Compare la configuration locale avec le DATABASE_URL réellement chargé en production.',
+        "Vérifie que le compte MySQL est autorisé depuis l'adresse IP de cette machine.",
+        "Contrôle le mot de passe et l'encodage de ses caractères spéciaux dans l'URL.",
       ],
     }
   }
@@ -38,9 +38,9 @@ export function getDatabaseErrorPresentation(error: unknown): DatabaseErrorPrese
       title: 'Base de données inaccessible',
       description: "L'application ne parvient pas à établir une connexion avec le serveur de données.",
       checks: [
-        'Vérifiez que le serveur de base de données est démarré.',
-        "Contrôlez l'hôte et le port renseignés dans DATABASE_URL.",
-        "Vérifiez le pare-feu et l'accès réseau depuis ce serveur.",
+        'Vérifie que le serveur de base de données est démarré.',
+        "Contrôle l'hôte et le port renseignés dans DATABASE_URL.",
+        "Vérifie le pare-feu et l'accès réseau depuis ce serveur.",
       ],
     }
   }
@@ -50,9 +50,9 @@ export function getDatabaseErrorPresentation(error: unknown): DatabaseErrorPrese
       title: 'Base de données introuvable',
       description: "Le serveur répond, mais la base configurée n'existe pas ou n'est pas accessible.",
       checks: [
-        'Vérifiez le nom de la base dans DATABASE_URL.',
-        "Créez la base si elle n'existe pas encore.",
-        'Confirmez que le compte dispose des droits nécessaires.',
+        'Vérifie le nom de la base dans DATABASE_URL.',
+        "Crée la base si elle n'existe pas encore.",
+        'Confirme que le compte dispose des droits nécessaires.',
       ],
     }
   }
@@ -61,9 +61,9 @@ export function getDatabaseErrorPresentation(error: unknown): DatabaseErrorPrese
     title: 'Connexion à la base impossible',
     description: "L'application ne peut pas initialiser sa connexion à la base de données.",
     checks: [
-      'Vérifiez le format complet de DATABASE_URL.',
-      'Contrôlez la configuration et les journaux du serveur de données.',
-      'Corrigez la configuration, puis réessayez.',
+      'Vérifie le format complet de DATABASE_URL.',
+      'Contrôle la configuration et les journaux du serveur de données.',
+      'Corrige la configuration, puis réessaie.',
     ],
   }
 }

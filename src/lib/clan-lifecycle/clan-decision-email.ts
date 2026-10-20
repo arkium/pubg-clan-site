@@ -49,23 +49,23 @@ async function deliver(contactEmail: string | null, subject: string, text: strin
 
 function accountParagraph(activationUrl: string | null | undefined, role: 'owner' | 'member') {
   if (!activationUrl) {
-    return `Connectez-vous avec votre compte pour retrouver ${role === 'owner' ? 'la gestion de votre clan' : 'votre espace'}.\n`
+    return `Connecte-toi avec ton compte pour retrouver ${role === 'owner' ? 'la gestion de ton clan' : 'ton espace'}.\n`
   }
   return (
-    `Pour créer votre compte${role === 'owner' ? ' d’Owner' : ''}, choisissez votre mot de passe avec ce lien ` +
+    `Pour créer ton compte${role === 'owner' ? ' d’Owner' : ''}, choisis ton mot de passe avec ce lien ` +
     `(valable ${INVITE_VALIDITY_LABEL}) :\n${activationUrl}\n\n` +
-    `Lien expiré ? ${role === 'owner' ? 'Écrivez à l’équipe du site' : 'Demandez à l’Owner du clan'} de vous renvoyer une invitation.\n`
+    `Lien expiré ? ${role === 'owner' ? 'Écris à l’équipe du site' : 'Demande à l’Owner du clan'} de te renvoyer une invitation.\n`
   )
 }
 
 export async function sendClanApprovedEmail(input: AccessInput): Promise<ClanDecisionEmailResult> {
   return deliver(
     input.contactEmail,
-    `Votre clan [${input.clanTag}] ${input.clanName} a été validé`,
+    `Ton clan [${input.clanTag}] ${input.clanName} a été validé`,
     `Bonjour ${input.playerName},\n\n` +
-      `Votre demande d'inscription du clan "${input.clanName}" [${input.clanTag}] a été validée.\n` +
+      `Ta demande d'inscription du clan "${input.clanName}" [${input.clanTag}] a été validée.\n` +
       `Le clan est désormais suivi : ses matchs, statistiques et télémétrie arrivent sur le site.\n\n` +
-      `Vous en êtes le propriétaire (Owner) et pouvez y ajouter vos membres.\n\n` +
+      `Tu en es le propriétaire (Owner) et peux y ajouter tes membres.\n\n` +
       accountParagraph(input.activationUrl, 'owner')
   )
 }
@@ -75,11 +75,11 @@ export async function sendClanRejectedEmail(
 ): Promise<ClanDecisionEmailResult> {
   return deliver(
     input.contactEmail,
-    `Votre demande de clan [${input.clanTag}] ${input.clanName} n'a pas été retenue`,
+    `Ta demande de clan [${input.clanTag}] ${input.clanName} n'a pas été retenue`,
     `Bonjour ${input.playerName},\n\n` +
-      `Votre demande d'inscription du clan "${input.clanName}" [${input.clanTag}] n'a pas été retenue.\n` +
+      `Ta demande d'inscription du clan "${input.clanName}" [${input.clanTag}] n'a pas été retenue.\n` +
       (input.reason ? `\nMotif : ${input.reason}\n` : '') +
-      `\nVous pouvez soumettre une nouvelle demande depuis la page d'inscription du site.\n`
+      `\nTu peux soumettre une nouvelle demande depuis la page d'inscription du site.\n`
   )
 }
 
@@ -87,9 +87,9 @@ export async function sendClanRejectedEmail(
 export async function sendMemberApprovedEmail(input: AccessInput): Promise<ClanDecisionEmailResult> {
   return deliver(
     input.contactEmail,
-    `Votre accès au clan [${input.clanTag}] ${input.clanName} est validé`,
+    `Ton accès au clan [${input.clanTag}] ${input.clanName} est validé`,
     `Bonjour ${input.playerName},\n\n` +
-      `L'Owner du clan "${input.clanName}" [${input.clanTag}] a accepté votre demande : vous en êtes membre sur le site.\n\n` +
+      `L'Owner du clan "${input.clanName}" [${input.clanTag}] a accepté ta demande : tu en es membre sur le site.\n\n` +
       accountParagraph(input.activationUrl, 'member')
   )
 }
@@ -98,9 +98,9 @@ export async function sendMemberApprovedEmail(input: AccessInput): Promise<ClanD
 export async function sendMemberRejectedEmail(input: ClanDecisionInput): Promise<ClanDecisionEmailResult> {
   return deliver(
     input.contactEmail,
-    `Votre demande pour le clan [${input.clanTag}] ${input.clanName} n'a pas été retenue`,
+    `Ta demande pour le clan [${input.clanTag}] ${input.clanName} n'a pas été retenue`,
     `Bonjour ${input.playerName},\n\n` +
-      `L'Owner du clan "${input.clanName}" [${input.clanTag}] n'a pas accepté votre demande d'accès.\n` +
-      `S'il s'agit d'une erreur, contactez-le directement en jeu ou sur le Discord du clan.\n`
+      `L'Owner du clan "${input.clanName}" [${input.clanTag}] n'a pas accepté ta demande d'accès.\n` +
+      `S'il s'agit d'une erreur, contacte-le directement en jeu ou sur le Discord du clan.\n`
   )
 }

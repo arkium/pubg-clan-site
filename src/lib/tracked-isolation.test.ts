@@ -4,7 +4,9 @@ import { prisma } from './prisma'
 
 // This test ensures that a ClanMember with joinStatus = 'tracked'
 // does not pollute clan aggregates (PlayerStats, ClanMatchesCache).
-describe('Watchlist Isolation (joinStatus: tracked)', () => {
+// Écrit dans la base de DATABASE_URL, la production sur un poste de dev : ignoré sauf VITEST_DB_WRITES=1
+// (CLAUDE.md, piège n° 9). À lancer contre une base de test.
+describe.runIf(process.env.VITEST_DB_WRITES === '1')('Watchlist Isolation (joinStatus: tracked)', () => {
   it('excludes tracked members from PlayerStats and the clan matches cache', async () => {
     const clan = await prisma.clan.create({
       data: { name: 'Test Isolation Clan', tag: 'ISOL', isActive: true },

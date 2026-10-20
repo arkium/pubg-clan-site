@@ -55,7 +55,7 @@ const UpdateDiscordSettingsSchema = z
     path: ['top1', 'webhookUrl'],
   })
   .refine(({ top1 }) => !top1.enabled || top1.webhookUrl.length > 0, {
-    message: 'Renseignez une URL de webhook avant d’activer les alertes Top 1',
+    message: 'Renseigne une URL de webhook avant d’activer les alertes Top 1',
     path: ['top1', 'webhookUrl'],
   })
   .refine(({ top1 }) => hasValidMention(top1.mention), {
@@ -67,7 +67,7 @@ const UpdateDiscordSettingsSchema = z
     path: ['tournament', 'webhookUrl'],
   })
   .refine(({ tournament }) => !tournament.enabled || tournament.webhookUrl.length > 0, {
-    message: 'Renseignez une URL de webhook avant d’activer les annonces de tournoi',
+    message: 'Renseigne une URL de webhook avant d’activer les annonces de tournoi',
     path: ['tournament', 'webhookUrl'],
   })
   .refine(({ tournament }) => hasValidMention(tournament.mention), {

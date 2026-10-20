@@ -47,12 +47,14 @@ describe('selectUnnamedKillFeedAccounts', () => {
     expect(mocks.queryRaw).toHaveBeenCalledTimes(1)
   })
 
-  it('écarte un compte nommé entre-temps (Player ou joueur croisé) ou abandonné', async () => {
+  it('écarte un compte nommé entre-temps (Player, joueurs croisés compris) ou abandonné', async () => {
     mocks.queryRaw.mockResolvedValue([account('a'), account('b'), account('c'), account('d')])
-    mocks.playerFindMany.mockResolvedValue([account('a')])
-    mocks.encounteredFindMany.mockResolvedValue([account('b')])
+    mocks.playerFindMany.mockResolvedValue([account('a'), account('b')])
     mocks.lookupFindMany.mockResolvedValue([account('c')])
     expect(await selectUnnamedKillFeedAccounts(5)).toEqual([account('d')])
+    // Tout joueur croisé a sa ligne Player : EncounteredPlayer n'est plus lu (fin d'EncounteredPlayer).
+    expect(mocks.encounteredFindMany).not.toHaveBeenCalled()
+    expect(String(mocks.queryRaw.mock.calls[0][0])).not.toContain('EncounteredPlayer')
   })
 
   it('redécouvre après l’échéance de 6 h', async () => {

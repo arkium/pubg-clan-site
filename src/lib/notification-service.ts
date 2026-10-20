@@ -271,7 +271,7 @@ export async function notifyJoinRequest(
         memberId: member.id,
         type: 'join_request',
         title: 'Nouvelle demande d\'adhésion',
-        message: `${pendingMemberName} a demandé à rejoindre votre clan. Validez ou refusez depuis la page des membres en attente.`,
+        message: `${pendingMemberName} a demandé à rejoindre ton clan. Valide ou refuse sa demande depuis la page des membres en attente.`,
         data: {
           pendingMemberId,
           clanId,
@@ -305,7 +305,7 @@ export async function notifyClanCreationRequest(
           memberId,
           type: 'clan_creation_request',
           title: 'Nouveau clan en attente de validation SuperUser',
-          message: `Le clan "${clanName}" [${clanTag}] a été créé par ${creatorPlayerName} et attend votre validation SuperUser avant activation dans la ligue.`,
+          message: `Le clan "${clanName}" [${clanTag}] a été créé par ${creatorPlayerName} et attend ta validation de SuperUser avant d’être activé dans la Ligue des clans.`,
           data: {
             clanId,
             clanName,

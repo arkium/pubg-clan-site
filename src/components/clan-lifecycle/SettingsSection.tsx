@@ -202,7 +202,7 @@ export function SettingsSection({ settings, onSaved, onToast }: { settings: Life
         id="lifecycle-mode-title"
         icon={ShieldCheck}
         title="Mode d’exécution"
-        meta="La seule décision qui engage : relisez les mouvements confirmés avant de basculer."
+        meta="La seule décision qui engage : relis les mouvements confirmés avant de basculer."
       >
         <p className="t-body text-gray-700">
           En <b className="text-gray-900">observation</b>, les écarts sont journalisés sans qu’aucun membre ne soit déplacé. En{' '}

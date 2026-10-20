@@ -736,7 +736,11 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
 - [ ] **Supprimer les colonnes en clair** une fois le rattrapage terminé : `DROP COLUMN … ALGORITHM=INSTANT`
   est accepté sur cette instance (vérifié, `scripts/check-instant-drop-column.ts`), donc là encore sans
   reconstruction. À ne faire qu'après une période d'observation : tant que les colonnes existent, un retour
-  arrière reste possible.
+  arrière reste possible. — **Mesuré le 2026-10-20** : les 15 colonnes en clair sont vides sur les 32 929 lignes
+  (rien n'y est écrit depuis le 2026-09-25 ; le compactage a eu lieu le 2026-09-25, 14,6 Go rendus). Un DROP
+  INSTANT ne rend **aucun octet** : c'est un nettoyage de code, pas un levier disque. Ordre : retirer d'abord les
+  colonnes du schéma et du code (écrivains `persistence-payload.ts`, `persistence-fallback.ts`, lectures, prédicats),
+  déployer sur les 4 services, puis seulement la migration, sur accord
 - [ ] **Compression de page InnoDB** (`PAGE_COMPRESSED=1`) — transparente, zéro changement de code, mais elle
   **reconstruit la table** : même impératif d'espace disque que l'OPTIMIZE, donc hors de portée aujourd'hui. À
   reconsidérer si le disque repasse largement au-dessus de la taille de la table.
@@ -753,17 +757,23 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
 - [x] 🐞 Un clan refusé restait listé dans « Clans en attente » — vérifié en prod : aucun refus n'a encore eu lieu
   (défaut latent) ; corrigé, le refus archive le clan : [clan-archive.md §3](clan-archive.md)
 - [x] 🐞 `PATCH /api/settings/players/[id]/favorite` répondait 500 au lieu de 404 sur un id inconnu — corrigé
-- [ ] 🐞 **Recherche de l'onglet Triage** : Prisma n'échappe pas `_` ni `%` dans `startsWith` / `contains`,
-  `Lord_Kromb` trouve aussi `LordXKromb` ([players.md §3.E](players.md)). L'annuaire échappe déjà ; Triage non
+- [x] 🐞 **Recherche de l'onglet Triage** : Prisma n'échappe pas `_` ni `%` dans `startsWith` / `contains`,
+  `Lord_Kromb` trouve aussi `LordXKromb` ([players.md §3.E](players.md)). L'annuaire échappe déjà ; Triage non —
+  **corrigé le 2026-10-20** : Triage reprend `buildNameFilter` de l'annuaire, et un `*` seul ne charge plus toute la
+  table (`encountered-players-triage-route.test.ts`)
 - [ ] **Index `Player(lastSeenAt)`** — le tri par défaut de l'annuaire coûte 1,5 à 1,8 s faute d'index. Proposé,
   non appliqué : [database-performance.md §4.6](../ops/database-performance.md)
 - [ ] **4 membres actifs sans ligne `Player`**, donc absents de l'annuaire (signalés à l'écran) :
-  [players.md §3.C](players.md)
-- [ ] ⚠️ **Constaté pendant ce lot : trois tests Vitest écrivent dans la base de `DATABASE_URL`, donc en
+  [players.md §3.C](players.md) — **2026-10-20** : le lien est désormais posé à la création et à la validation
+  (`src/lib/member-player-link.ts`) ; rattrapage prêt, `scripts/backfill-member-player-link.ts` (simulation : 54 fiches
+  sans lien, dont 3 lignes `Player` à créer). Reste à le lancer avec `--apply`, sur accord
+- [x] ⚠️ **Constaté pendant ce lot : trois tests Vitest écrivent dans la base de `DATABASE_URL`, donc en
   production** — `tracked-isolation.test.ts`, `drop-pressure-match-type.test.ts`,
   `matches-cache-match-type.test.ts` créent puis suppriment des clans, membres et matchs de test (blocs
   `finally`). `npm run test:telemetry` les exécute. Aucune ligne résiduelle après le passage du 2026-09-25.
-  À isoler (base de test dédiée, ou exclusion quand `DATABASE_URL` vise la production)
+  À isoler (base de test dédiée, ou exclusion quand `DATABASE_URL` vise la production) — **isolés le 2026-10-20** :
+  ignorés par défaut (`describe.runIf`), lancés seulement avec `VITEST_DB_WRITES=1`, contre une base de test
+  (CLAUDE.md, piège n° 9). La suite complète n'écrit plus en base
 
 #### Lot 5 — Bandeaux collants et filtre de période des pages joueurs — ✅ Implémenté le 2026-09-26
 
@@ -808,15 +818,26 @@ remplacés par le nom de chaque clan. DNS wildcard déjà en place.
 - [ ] Certificat wildcard (validation DNS) et `server_name` Nginx
 - [ ] `CLAN_SUBDOMAIN_ROOT` en production
 
-#### Lot 7 — Liens courts (`/m/<match>`, `/t/<tournoi>`, `/j/<joueur>`) — 📐 Cadrage validé le 2026-09-26, à implémenter
+#### Lot 7 — Liens courts (`/m/<match>`, `/t/<tournoi>`, `/j/<joueur>`) — ✅ Code livré le 2026-10-20 (non déployé)
 
 Spec : [url-masking.md](url-masking.md). Redirections 307 vers les adresses canoniques, cuid tel quel (ni Sqids, ni
 migration). 16 % des matchs réunissent plusieurs clans : clan porté par le sous-domaine, sinon page de choix.
 
-- [ ] `src/lib/short-links.ts` (base publique unique), pages `/m/[matchId]` et `/t/…`, exception `/m/` du proxy
-- [ ] Embeds Discord (Top 1, tournois) sur les liens courts, noms des joueurs cliquables
-- [ ] 🐞 Base publique : `APP_URL` et `NEXT_PUBLIC_APP_URL` lues dans deux ordres différents
-  (`auth-service.ts`, `discord-service.ts`) ; base vide → embed sans lien, sans avertissement
+- [x] `src/lib/short-links.ts` (base publique unique), pages `/m/[matchId]` et `/t/…`, exception `/m/` du proxy —
+  **fait le 2026-10-20** : `src/lib/short-links.ts` (pur), pages `/m/[matchId]` (redirection, ou page de choix pour un
+  match partagé), `/t/[tournamentId]`, `/t/[tournamentId]/[matchId]` (`?tab=replay`), `/j/[memberId]` ; résolution
+  `src/lib/short-link-resolution.ts`. L'exception `/m/` du proxy existait déjà. Tests : `short-links.test.ts`,
+  `short-link-route-contracts.test.ts`, `e2e/short-links.spec.ts`
+- [x] Embeds Discord (Top 1, tournois) sur les liens courts, noms des joueurs cliquables — **fait le 2026-10-20** :
+  titre du Top 1 par le sous-domaine du clan quand `CLAN_SUBDOMAIN_ROOT` est posée ; noms de l'escouade et du MVP en
+  liens `/j/` ; le lien « Replay 2D » ouvre enfin l'onglet Replay ; au-delà de 1 024 caractères, les derniers noms
+  perdent leur lien avant qu'un joueur soit retiré (`src/lib/discord/embed-lines.ts`). Aperçu du site : nom en gras
+  cliquable
+- [x] 🐞 Base publique : `APP_URL` et `NEXT_PUBLIC_APP_URL` lues dans deux ordres différents
+  (`auth-service.ts`, `discord-service.ts`) ; base vide → embed sans lien, sans avertissement — **corrigé le
+  2026-10-20** : une seule lecture, `src/lib/public-base-url.ts`. Les deux ordres sont gardés, car voulus depuis
+  /settings/configuration (2026-10-18) : adresse publique `NEXT_PUBLIC_APP_URL` d'abord (Discord, alertes), liens de
+  compte `APP_URL` d'abord. Variable vide = absente ; base publique absente → un avertissement par processus
 - [ ] Production : `APP_URL` / `NEXT_PUBLIC_APP_URL` = `https://chickendinner.fr`, rebuild, redémarrage web puis cron
 
 #### Lot 8 — Refonte UI (look cohérent des pages joueurs) — 📐 Maquette validée le 2026-09-26, à implémenter
@@ -1321,11 +1342,13 @@ barracuda73540, Akuhnamatata, MAX-BR (BF), Uranovx (BEE).
 - [x] Dans tous les cas, un événement `PlayerClanChange` est généré (statut `applied`) pour garder l'historique et notifier le SuperUser, mais **l'action n'attend pas de validation humaine**.
 - [x] **Historique public des mutations** : Ajouter un bouton en bas de la page `/clans` menant à une page publique listant tous les événements de mutations. Cela permet de rendre transparents les changements automatiques.
 - [x] **Notification Discord** : Envoyer un message au canal d'administration Discord pour chaque `PlayerClanChange` généré automatiquement par le Cron (évite les changements silencieux).
-- [x] **Coéquipiers fréquents — hebdomadaire.** Comptes ayant ≥ 10 parties partagées avec un clan suivi et une
+- [ ] **Coéquipiers fréquents — hebdomadaire.** Comptes ayant ≥ 10 parties partagées avec un clan suivi et une
       résolution de plus de 7 jours : ~114 appels en lots de 10
       (`/shards/{shard}/players?filter[playerIds]=…`), ~12 min à 10 req/min, la nuit.
       *À vérifier sur un appel réel : que l'endpoint multi-joueurs expose bien `attributes.clanId` comme
       `fetchPlayerClan`.*
+      **Décochée le 2026-10-20 : cochée à tort, rien n'est implémenté** — la source `player_refresh` est déclarée
+      (`player-clan-change.ts`) mais jamais émise ; le compteur pré-calculé demandé plus bas manque d'abord.
 - [x] **Journal des mutations** : onglet « Mutations » de la page unique du chantier 5 — **journal a posteriori**,
       pas file d'attente, puisque les mouvements sont déjà appliqués par le cron
 - [x] **Débriefing** : l'info-bulle du tag affiche « a quitté [X] pour [Y] le … » quand un changement est connu
@@ -2732,7 +2755,13 @@ Maquette Claude Design « Débrief télémétrie » — [debriefing.md](../featu
       panneau latéral, cartes de joueur, duels avec score et barres de zones, bande des équipes paginée.
 - [x] Bugs corrigés : plusieurs « #1 » (équipe partie avant l'avion), lancers jamais affichés, distances de la
       télémétrie en centimètres, « Arme » générique sur les mises à terre.
-- [ ] Parser : distances de `memberStats` en mètres, sans le vol ni le parachute.
+- [x] Parser : distances de `memberStats` en mètres, sans le vol ni le parachute. — **Fait autrement le
+      2026-10-20** : le parser ne compte plus le trajet depuis (0, 0) ni l'avion et la chute (à partir de
+      `LogParachuteLanding`, tout le trajet sans atterrissage) ; l'unité reste le **centimètre**, documentée, car la
+      version du parser ne distingue pas les anciennes données. Les pages Style de jeu (clan et joueur) lisent
+      désormais les distances de l'API PUBG (`SquadMember`, mètres exacts) : elles affichaient ≈ 86 km « à pied » par
+      partie au lieu de ≈ 2 km. Une ligne pas encore recalculée s'affiche « — ». **Reste** : recalculer les agrégats
+      (`npm run telemetry:batch -- --recalc-aggregates`, par lots), sur accord
 
 #### ~~Vitrine publique de l'accueil (`/`)~~ — ✅ Complété le 2026-09-26
 
@@ -4365,9 +4394,10 @@ n'expirait jamais et le décalage devenait **permanent**.
 
 - [ ] Appliquer `npx tsx scripts/resync-player-clan-identity.ts --apply` en production (mesure du
       2026-09-22 : 2 `conflict`, 3 `cleared`, 15 `filled`)
-- [ ] Aligner `/clans/[clanId]/telemetry/opponents` et `/api/members/[id]/nemesis` sur la cascade
+- [x] Aligner `/clans/[clanId]/telemetry/opponents` et `/api/members/[id]/nemesis` sur la cascade
       `EncounteredPlayer < Player < ClanMember` déjà appliquée par le rejeu et le débrief — elles
-      n'ont aujourd'hui aucun repli si le miroir dérive à nouveau
+      n'ont aujourd'hui aucun repli si le miroir dérive à nouveau — **fait le 2026-10-20**, plus loin encore : les deux
+      lisent l'identité globale `Player` (et `ClanEncounter` pour la page Adversaires), plus `EncounteredPlayer`
 - [ ] Afficher le tag du clan **courant** (et non celui figé au moment du kill) dans les vues
       télémétrie, ou assumer explicitement le choix inverse (cf. `KillEvent.clanId`, §10 du doc)
 
@@ -4394,7 +4424,14 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 - [x] Script de backfill (`scripts/backfill-opponent-normalization.ts`, `npm run telemetry:opponents:backfill`) : peuple `Player`/`OpponentClan`/`ClanEncounter` depuis `EncounteredPlayer` existant, idempotent, tri par `lastSeenAt` croissant (le plus récent l'emporte en cas de doublon cross-clan)
 - [x] Mettre à jour les 2 sites d'écriture (`src/lib/encountered-players.ts::captureEncounteredPlayers`, `src/lib/cron-jobs.ts::resolveEncounteredPlayerClans`) — dual-write vers les nouvelles tables + dédup des appels API de résolution de clan via `Player.clanResolvedAt` (fenêtre de fraîcheur `PLAYER_CLAN_RESOLUTION_FRESHNESS_DAYS = 7`)
 - [x] Cache DB-first pour `searchPlayerByName` (`src/lib/pubg.ts`) via `Player`, fenêtre de fraîcheur `PLAYER_NAME_SEARCH_FRESHNESS_DAYS = 3`
-- [ ] Le(s) site(s) de création de `ClanMember` ne sont pas modifiés — hors scope Phase 1
+- [x] Le(s) site(s) de création de `ClanMember` ne sont pas modifiés — hors scope Phase 1 — **fait le 2026-10-20** :
+  `/join`, la première installation, l'ajout d'un membre et les deux validations posent `ClanMember.playerId`
+  (`src/lib/member-player-link.ts`, sans toucher au clan PUBG du joueur) ; `syncOpponentIdentityForMemberId` aussi
+- [ ] **Fin d'`EncounteredPlayer`** (3,77 Go le 2026-10-20, 22 % de la base, +65 Mo/jour) — plan et mesures :
+  [inventaire-2026-10-20.md §6](inventaire-2026-10-20.md). Fait le 2026-10-20 : lectures du débriefing, du replay, des
+  joueurs d'un tournoi, du kill feed, de Némésis et de la page Adversaires basculées sur `Player` / `ClanEncounter`.
+  Reste : colonnes `Player.encounterCount` / `combatInteractionsCount` (migration, sur accord), bascule du Triage et du
+  cron de résolution, arrêt de la double écriture, une semaine d'observation, puis `DROP TABLE` (sur accord)
 
 **Priorisation par interactions de combat (La "Bounty List") — Phase 2 (Dénormalisation) — ✅ Fait, doublon de la section "Dénormalisation de la Bounty List — Phase 2 Terminée" plus bas, vérifié le 2026-08-30 :**
 - [x] `combatInteractionsCount` ajouté à `EncounteredPlayer` (`prisma/schema.prisma`) + index `@@index([clanResolvedAt, combatInteractionsCount])` + script de backfill `src/scripts/backfill-combat-interactions.ts`

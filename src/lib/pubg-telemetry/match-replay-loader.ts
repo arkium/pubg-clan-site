@@ -107,7 +107,7 @@ export async function loadMatchReplay(input: {
     row.reviveSamples
   )
 
-  const [clan, clanMembers, globalPlayers, encounteredPlayers, killEvents] = await Promise.all([
+  const [clan, clanMembers, globalPlayers, killEvents] = await Promise.all([
     input.currentClanId
       ? prisma.clan.findUnique({ where: { id: input.currentClanId }, select: { tag: true } })
       : Promise.resolve(null),
@@ -129,10 +129,6 @@ export async function loadMatchReplay(input: {
         opponentClan: { select: { tag: true } },
       },
     }),
-    prisma.encounteredPlayer.findMany({
-      where: { pubgAccountId: { in: memberKeys } },
-      select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
-    }),
     prisma.killEvent.findMany({
       where: { squadMatchId: row.squadMatchId },
       select: {
@@ -150,23 +146,15 @@ export async function loadMatchReplay(input: {
     }),
   ])
 
-  // Priorité croissante : joueur croisé < identité globale < membre d'un clan suivi.
+  // Priorité croissante : identité globale < membre d'un clan suivi. `Player` contient tous les joueurs croisés et
+  // porte leur clan le plus récent : la copie par clan d'EncounteredPlayer n'apportait rien de plus (fin
+  // d'EncounteredPlayer, docs/TODO/inventaire-2026-10-20.md §2.A).
   const identities = new Map<string, ReplayIdentity>()
-
-  for (const player of encounteredPlayers) {
-    const key = normalizeReplayKey(player.pubgAccountId)
-    if (!key) continue
-    identities.set(key, { name: player.pubgPlayerName, clanTag: player.pubgClanTag, clanId: null })
-  }
 
   for (const player of globalPlayers) {
     const key = normalizeReplayKey(player.pubgAccountId)
     if (!key) continue
-    identities.set(key, {
-      name: player.pubgPlayerName,
-      clanTag: player.opponentClan?.tag ?? identities.get(key)?.clanTag ?? null,
-      clanId: null,
-    })
+    identities.set(key, { name: player.pubgPlayerName, clanTag: player.opponentClan?.tag ?? null, clanId: null })
   }
 
   for (const member of clanMembers) {

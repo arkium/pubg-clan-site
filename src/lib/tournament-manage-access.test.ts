@@ -63,7 +63,7 @@ describe('tournamentManageAccess — même règle que requireClanFeature et la s
       session({ isSuperUser: true, members: [{ memberId: 10, clanId: 2 }, { memberId: 11, clanId: 1 }] }),
       FR
     )
-    expect(access.syncBlockedReason).toContain('passez sur votre joueur de [FR]')
+    expect(access.syncBlockedReason).toContain('passe sur ton joueur de [FR]')
   })
 
   it('tournoi sans organisateur connu : aucun bouton', () => {

@@ -61,7 +61,7 @@ test.describe('SuperUser', () => {
     await expect(page.getByTestId('preview-summary')).toBeVisible()
     await setField(page, 'threshold-official-week', '4')
     await expect(page.getByTestId('league-settings-dirty')).toContainText('seuil Normal / semaine : 5 → 4 parties')
-    await expect(page.getByTestId('preview-summary')).toContainText('avec vos réglages : 6 classés, 0 en qualification (seuil 4)')
+    await expect(page.getByTestId('preview-summary')).toContainText('avec tes réglages : 6 classés, 0 en qualification (seuil 4)')
     await expect(page.getByTestId('league-preview').getByRole('row', { name: /Clan Charlie/ })).toContainText('classé')
   })
 
@@ -71,7 +71,7 @@ test.describe('SuperUser', () => {
     await setField(page, 'zone-end', '2')
     await expect(page.getByText('dernier rang « Dans la zone » : entier entre 4 et 30')).toBeVisible()
     await expect(page.getByTestId('zone-end')).toHaveAttribute('aria-invalid', 'true')
-    await expect(page.getByText('Corrigez les champs en erreur pour voir l’aperçu.')).toBeVisible()
+    await expect(page.getByText('Corrige les champs en erreur pour voir l’aperçu.')).toBeVisible()
     // Docké sur mobile, le bandeau ne garde que la période : on remonte pour voir les boutons du brouillon.
     await page.evaluate(() => window.scrollTo(0, 0))
     await expect(toolbar(page).getByRole('button', { name: 'Enregistrer' })).toBeDisabled()

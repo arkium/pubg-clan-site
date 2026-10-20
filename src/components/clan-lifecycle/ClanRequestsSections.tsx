@@ -77,7 +77,7 @@ export function PendingClansSection({ onChanged, onToast }: { onChanged: () => v
       <EmptyState
         icon={Hourglass}
         title="Aucun clan en attente de validation"
-        text="Un clan découvert par la synchronisation ou demandé par /join apparaît ici jusqu’à ce que vous le validiez ou le refusiez."
+        text="Un clan découvert par la synchronisation ou demandé par /join apparaît ici jusqu’à ce que tu le valides ou le refuses."
         testId="lifecycle-pending-empty"
       />
     )
@@ -235,7 +235,7 @@ export function ArchivedClansSection({ onChanged, onToast }: { onChanged: () => 
       <EmptyState
         icon={Archive}
         title="Aucun clan archivé"
-        text="Arrêter le suivi d’un clan se fait depuis l’Observatoire (« Vos clans suivis ») ou depuis les paramètres du clan."
+        text="Arrêter le suivi d’un clan se fait depuis Plateforme › Clans (« Clans suivis ») ou depuis les paramètres du clan."
         testId="lifecycle-archived-empty"
       />
     )

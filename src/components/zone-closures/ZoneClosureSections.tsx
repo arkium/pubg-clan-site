@@ -272,7 +272,7 @@ export function WhoPlaysTheCircle({
       <div className="flex items-start gap-2 px-4 pb-2 pt-3">
         <div className="flex min-w-0 flex-1 flex-col gap-0.5">
           <h2 id="zone-players-title" className="t-section-title">Qui joue le cercle</h2>
-          <span className="t-meta">Du plus central au plus excentré — distance moyenne au centre, en % du rayon. Touchez un joueur pour filtrer la carte.</span>
+          <span className="t-meta">Du plus central au plus excentré — distance moyenne au centre, en % du rayon. Touche un joueur pour filtrer la carte.</span>
         </div>
         {pageCount > 1 ? (
           <nav className="flex shrink-0 items-center gap-1.5" aria-label="Pages des joueurs">

@@ -22,9 +22,9 @@ type PendingInvite = {
 
 const DEFAULT_WELCOME: WelcomeSettings = {
   badge: 'Activation en attente',
-  title: 'Finalisez votre acces Owner',
+  title: 'Finalise ton accès Owner',
   message:
-    'Le clan est initialise. Ouvrez le lien recu par email pour activer le compte Owner avant de vous connecter.',
+    'Le clan est initialisé. Ouvre le lien reçu par e-mail pour activer le compte Owner avant de te connecter.',
   imageUrl: null,
 }
 

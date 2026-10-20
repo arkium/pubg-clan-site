@@ -242,7 +242,7 @@ describe('POST /api/settings/opponents/track — comportements utilisés par l a
     expect((await postTrackRoute(trackRequest({ playerId: 'nope', targetClanId: 7 }))).status).toBe(404)
   })
 
-  it('crée un membre actif pour un joueur libre — sans ligne de journal (comportement actuel)', async () => {
+  it('crée un membre actif pour un joueur libre — sans ligne de journal', async () => {
     mocks.clanMemberFindFirst.mockResolvedValue(null)
     mocks.clanMemberCreate.mockResolvedValue({ id: 500 })
 
@@ -259,7 +259,8 @@ describe('POST /api/settings/opponents/track — comportements utilisés par l a
         playerId: 'player-1',
       }),
     })
-    // Question ouverte (players.md §10) : l'entrée dans le périmètre n'est pas journalisée.
+    // Décidé le 2026-10-20 (players.md §10) : l'entrée dans le périmètre n'est pas journalisée comme une mutation,
+    // le journal des actions d'administration la garde déjà.
     expect(mocks.playerClanChangeCreate).not.toHaveBeenCalled()
     expect(mocks.syncOpponentIdentityForMemberId).toHaveBeenCalledWith(500)
   })
@@ -273,20 +274,32 @@ describe('POST /api/settings/opponents/track — comportements utilisés par l a
     expect(mocks.transaction).not.toHaveBeenCalled()
   })
 
-  it('réactive un membre archivé SANS confirmation et trace le mouvement (comportement actuel)', async () => {
-    mocks.clanMemberFindFirst.mockResolvedValue({
-      id: 191,
-      clanId: 1,
-      isActive: false,
-      joinStatus: 'active',
-      archivedReason: 'ungrouped_inactive',
-    })
-    mocks.clanMemberUpdate.mockResolvedValue({ id: 191, clanId: 7 })
+  // Garde-fou serveur décidé le 2026-10-20 (players.md §10) : réactiver demande `confirmReactivation`, distinct du
+  // `confirmMove` d'un transfert.
+  const archivedMember = { id: 191, clanId: 1, isActive: false, joinStatus: 'active', archivedReason: 'ungrouped_inactive' }
+
+  it('refuse (409) de réactiver un membre archivé sans confirmation, sans écriture', async () => {
+    mocks.clanMemberFindFirst.mockResolvedValue(archivedMember)
+    mocks.clanFindUnique.mockResolvedValue({ id: 1, tag: 'UNG', name: 'Sans clan' })
 
     const result = await postTrackRoute(trackRequest({ playerId: 'player-1', targetClanId: 7 }))
+    const body = await result.json()
 
-    // Pas de 409 : la route ne protège que les membres ACTIFS d'un autre clan. L'annuaire
-    // demande donc confirmation côté interface (players.md §10).
+    expect(result.status).toBe(409)
+    expect(body).toMatchObject({ error: 'member_needs_reactivation', trackingStatus: 'archived' })
+    expect(body.message).toBe(
+      'ShadowSniper a été archivé avec le parking des inactifs dans [UNG] Sans clan. Confirme pour le réactiver.'
+    )
+    expect(mocks.transaction).not.toHaveBeenCalled()
+    expect(mocks.syncOpponentIdentityForMemberId).not.toHaveBeenCalled()
+  })
+
+  it('réactive un membre archivé quand le SuperUser confirme, et trace le mouvement', async () => {
+    mocks.clanMemberFindFirst.mockResolvedValue(archivedMember)
+    mocks.clanMemberUpdate.mockResolvedValue({ id: 191, clanId: 7 })
+
+    const result = await postTrackRoute(trackRequest({ playerId: 'player-1', targetClanId: 7, confirmReactivation: true }))
+
     expect(result.status).toBe(200)
     expect(mocks.clanMemberUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ data: expect.objectContaining({ isActive: true, joinStatus: 'active', clanId: 7 }) })
@@ -298,16 +311,47 @@ describe('POST /api/settings/opponents/track — comportements utilisés par l a
     )
   })
 
-  it('convertit une demande /join en attente en membre actif, sans confirmation (comportement actuel)', async () => {
+  it('la confirmation d’un transfert ne vaut pas réactivation', async () => {
+    mocks.clanMemberFindFirst.mockResolvedValue(archivedMember)
+    mocks.clanFindUnique.mockResolvedValue({ id: 1, tag: 'UNG', name: 'Sans clan' })
+
+    const result = await postTrackRoute(trackRequest({ playerId: 'player-1', targetClanId: 7, confirmMove: true }))
+
+    expect(result.status).toBe(409)
+    expect(mocks.transaction).not.toHaveBeenCalled()
+  })
+
+  it('une demande /join en attente : 409 qui prévient que l’Owner n’aura pas décidé, puis activation confirmée', async () => {
     mocks.clanMemberFindFirst.mockResolvedValue({ id: 250, clanId: 9, isActive: false, joinStatus: 'pending' })
+    mocks.clanFindUnique.mockResolvedValue({ id: 9, tag: 'BOFS', name: 'Bofs' })
+
+    const refused = await postTrackRoute(trackRequest({ playerId: 'player-1', targetClanId: 7 }))
+    const body = await refused.json()
+
+    expect(refused.status).toBe(409)
+    expect(body.trackingStatus).toBe('pending')
+    expect(body.message).toContain('demande d’adhésion en attente dans [BOFS] Bofs')
+    expect(body.message).toContain('sans attendre la décision de l’Owner')
+
     mocks.clanMemberUpdate.mockResolvedValue({ id: 250, clanId: 7 })
+    const accepted = await postTrackRoute(trackRequest({ playerId: 'player-1', targetClanId: 7, confirmReactivation: true }))
 
-    const result = await postTrackRoute(trackRequest({ playerId: 'player-1', targetClanId: 7 }))
-
-    expect(result.status).toBe(200)
+    expect(accepted.status).toBe(200)
     expect(mocks.clanMemberUpdate).toHaveBeenCalledWith(
       expect.objectContaining({ where: { id: 250 }, data: expect.objectContaining({ joinStatus: 'active' }) })
     )
+  })
+
+  it('un membre parti, même dans le clan cible : « plus suivi », 409 sans clan connu', async () => {
+    mocks.clanMemberFindFirst.mockResolvedValue({ id: 300, clanId: null, isActive: false, joinStatus: 'left' })
+
+    const result = await postTrackRoute(trackRequest({ playerId: 'player-1', targetClanId: 7 }))
+    const body = await result.json()
+
+    expect(result.status).toBe(409)
+    expect(body).toMatchObject({ trackingStatus: 'stopped', currentClan: null })
+    expect(body.message).toBe('ShadowSniper n’est plus suivi. Confirme pour le réactiver.')
+    expect(mocks.clanFindUnique).not.toHaveBeenCalled()
   })
 
   it('retrouve aussi une fiche par pseudo seul — risque de collision après un changement de pseudo', async () => {

@@ -223,7 +223,9 @@ Maquette validée : `docs/ui/refonte/maquettes/Refonte adaptée.html` (dossier i
 - **Rayons** : bloc bordé = `.app-panel` / `.app-panel-muted` / `.app-table-shell`, jamais `rounded` + `border` à la main.
 - **Vocabulaire** : Dégâts, Victoires / Top 1, Win rate, K/M, Temps, Jours actifs, Distinctions.
 - **Ton** : **tutoiement partout**, espace compte compris (`/join`, `/login`, `/activate`, messages de leurs API —
-  décision du 2026-10-18). Un seul nom par chose : « Ligue des clans », « Power score ».
+  décision du 2026-10-18), e-mails, notifications et Discord compris. `src/lib/tutoiement.test.ts` contrôle tout `src/`
+  (« vous / votre / vos », impératifs en « -ez ») ; seule exception, un pluriel adressé à l'escouade. Un seul nom par
+  chose : « Ligue des clans », « Power score ».
 - **Thème** : les `dark:` existants sont **conservés** ; un nouveau composant passe par les tokens plutôt que d'en ajouter.
 - **Hauteurs** : ne jamais modifier la hauteur du bandeau d'image d'une page ni celle du header.
 
@@ -380,6 +382,14 @@ Toute écriture (POST, PUT, PATCH, DELETE) d'une route d'administration est expo
 `withAdminActionLog('<gabarit de la route>', handler)` (`src/lib/admin-action-log.ts`, journal des actions, Q10) —
 `src/lib/admin-action-log-routes.test.ts` échoue sinon. Une route qui vérifie la session elle-même note son acteur par
 `rememberSessionActor` (`src/lib/auth/admin-actor.ts`).
+**Liens envoyés hors du site** (depuis le 2026-10-20) : un lien vers un match, un tournoi ou un joueur dans un message
+Discord ou un e-mail se fabrique **uniquement** par `src/lib/short-links.ts` (`/m/…`, `/t/…`, `/j/…`, résolus par
+`src/app/{m,t,j}`) ; la base publique vient de `src/lib/public-base-url.ts`, jamais d'une lecture directe de
+`APP_URL` / `NEXT_PUBLIC_APP_URL` — [url-masking.md](docs/TODO/url-masking.md).
+**Identité d'un membre** (depuis le 2026-10-20) : toute création ou validation de `ClanMember` appelle
+`ensurePlayerLinkForMember` (`src/lib/member-player-link.ts`), qui pose `playerId` sans toucher au clan PUBG du joueur.
+`EncounteredPlayer` est en cours de retrait (docs/TODO/inventaire-2026-10-20.md §6) : une **nouvelle** lecture passe par
+`Player` / `ClanEncounter`, jamais par `EncounteredPlayer`.
 **Alerte au SuperUser** (depuis le 2026-10-19) : salon Discord d'administration, par `sendAdminAlert` / `fireAdminAlert`
 (`src/lib/admin-alerts/`) — un nouvel événement = une entrée de `catalog.ts` (interrupteur et mention viennent seuls),
 jamais un `sendDiscordWebhook` direct ; ni adresse e-mail ni donnée d'une demande de confidentialité dans le message
@@ -454,6 +464,7 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 0 6 * * *  →  Geo-purge count (volume purgeable des tracés GPS, tous seuils, lecture seule — ~247 s)
 30 6 * * *  →  Resource map vehicle spots (véhicules observés de la Carte des ressources, 90 derniers jours — docs/features/carte-ressources.md)
 0 9 * * *  →  Admin daily digest (boîte « À traiter » vers le Discord d'administration, seulement si une action attend)
+*/4 * * * *  →  Home showcase warm (appelle le web pour recalculer la vitrine avant l'expiration de son cache)
 ```
 
 **Observability:** `/clans/[clanId]/settings/cron` dashboard shows last run time & errors.
@@ -560,6 +571,10 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
   Ne pas élargir le `include` sans raison : la convention existe et fonctionne.
 - **Gotcha:** les mocks Prisma de ces tests listent les modèles un par un. Quand une route se met à
   utiliser un nouveau modèle, le mock renvoie `undefined` et le test casse loin de la cause réelle.
+- **Base réelle:** trois tests n'ont pas de mock Prisma et écrivent dans la base de `DATABASE_URL` — la production sur
+  un poste de dev : `tracked-isolation`, `drop-pressure-match-type`, `matches-cache-match-type`. Depuis le 2026-10-20
+  ils sont **ignorés par défaut** (`describe.runIf`) ; `VITEST_DB_WRITES=1` les lance, contre une base de test
+  seulement. Un nouveau test sans mock Prisma suit la même règle.
 
 #### 10. **Colonnes JSON compressées — ne jamais les lire directement**
 - **Issue:** depuis le 2026-09-25, **toutes** les colonnes JSON volumineuses de `SquadMatchTelemetry` sont

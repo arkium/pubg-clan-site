@@ -103,7 +103,7 @@ export async function revertPlayerClanChange(
       ok: false,
       reason: 'superseded',
       detail:
-        'Un mouvement plus récent existe pour ce membre : annulez-le d’abord, sinon celui-ci écraserait ' +
+        'Un mouvement plus récent existe pour ce membre : annule-le d’abord, sinon celui-ci écraserait ' +
         'un état plus à jour.',
     }
   }

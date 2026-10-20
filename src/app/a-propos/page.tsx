@@ -1,8 +1,13 @@
-import { Ban, ExternalLink, FileLock2, Info, MonitorX, RadioTower, ShieldCheck, type LucideIcon } from 'lucide-react'
+import { Suspense } from 'react'
+import Link from 'next/link'
+import { Ban, Calculator, ExternalLink, FileLock2, Info, MonitorX, RadioTower, ShieldCheck, type LucideIcon } from 'lucide-react'
+
+import AboutFigures from '@/components/legal/AboutFigures'
 
 import { LegalDocument, LegalNote, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
 import {
   KRAFTON_DISCLAIMER,
+  METHODOLOGY_PATH,
   PUBG_API_TERMS_URL,
   PUBG_RULES_URL,
   PUBLISHER_NAME,
@@ -58,14 +63,26 @@ const SECTIONS: LegalSection[] = [
     id: 'donnees',
     title: 'D’où viennent les données',
     content: (
-      <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-3">
-        {DATA_FACTS.map((fact) => (
-          <li key={fact.label} className="app-panel-muted flex flex-col gap-1 px-3 py-2.5">
-            <span className="t-label">{fact.label}</span>
-            <span className="t-body text-gray-900">{fact.text}</span>
-          </li>
-        ))}
-      </ul>
+      <>
+        <ul className="m-0 grid list-none gap-2 p-0 sm:grid-cols-3">
+          {DATA_FACTS.map((fact) => (
+            <li key={fact.label} className="app-panel-muted flex flex-col gap-1 px-3 py-2.5">
+              <span className="t-label">{fact.label}</span>
+              <span className="t-body text-gray-900">{fact.text}</span>
+            </li>
+          ))}
+        </ul>
+        <p className="t-body m-0 flex items-center gap-2 text-gray-700">
+          <Calculator className="h-4 w-4 shrink-0 text-gray-500" aria-hidden="true" />
+          <span>
+            Power score, rôles, distinctions, soirées : chaque calcul est expliqué dans la{' '}
+            <Link href={METHODOLOGY_PATH} className="app-link">
+              méthodologie
+            </Link>
+            .
+          </span>
+        </p>
+      </>
     ),
   },
   {
@@ -112,6 +129,9 @@ export default function AboutPage() {
               {SITE_DOMAIN} est un hub communautaire et gratuit pour suivre les performances des clans PUBG, centraliser les
               rapports et organiser la vie du clan. Il est créé par {PUBLISHER_NAME}.
             </LegalText>
+            <Suspense fallback={null}>
+              <AboutFigures />
+            </Suspense>
           </div>
         }
       />

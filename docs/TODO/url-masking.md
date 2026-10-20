@@ -1,6 +1,9 @@
 # Liens courts — `/m/<match>`, `/t/<tournoi>` et `/j/<joueur>`
 
-> **Spécification — cadrage validé le 2026-09-26, à implémenter**
+> **Spécification — cadrage validé le 2026-09-26, code livré le 2026-10-20 (étapes 1 et 2 du §5, non déployé)**
+> Reste les étapes 3 et 4 (production, recette). Écarts au texte : base publique (§4.D, ordre des variables gardé),
+> identifiant hors format → pas de lien plutôt qu'un lien mort (message de test Discord), « Replay 2D » ouvert sur son
+> onglet (`?tab=replay`), match sans clan suivi actif → 404.
 > *Destiné à l'équipe de développement. Dépend de [chickendinnerfr.md](chickendinnerfr.md) (sous-domaine par clan).*
 >
 > Première version (2026-09-25) : réécriture transparente sous le sous-domaine du clan et jetons Sqids tirés d'un UUID.
@@ -135,10 +138,15 @@ la page de résolution applique la règle 1 du §4.B. Le proxy n'interroge toujo
   `tournamentShortUrl(tournamentId, squadMatchId?)` et `playerShortUrl(memberId)`, à partir d'une **base publique unique** `getPublicBaseUrl()`
   (qui remplace les deux lectures d'environnement actuelles, dans un ordre unique : `APP_URL`, puis
   `NEXT_PUBLIC_APP_URL`).
+  **Fait le 2026-10-20, autrement** : la base existe, `getPublicSiteBaseUrl()` de
+  [`src/lib/public-base-url.ts`](../../src/lib/public-base-url.ts), seule lecture de l'environnement pour Discord, les
+  alertes et les liens de compte. L'ordre unique n'a pas été retenu : /settings/configuration (2026-10-18) décrit
+  deux adresses voulues — publique, `NEXT_PUBLIC_APP_URL` d'abord ; liens de compte (`getAccountLinkBaseUrl()`),
+  `APP_URL` d'abord. Les liens courts partiront de `getPublicSiteBaseUrl()`.
 - Sous-domaine connu **et** `CLAN_SUBDOMAIN_ROOT` défini → `https://<sous-domaine>.<racine>/m/<match>` ; sinon
   `<base>/m/<match>`.
 - Base publique absente → pas de lien (comportement actuel), avec un **avertissement** dans les journaux du cron, au
-  lieu du silence.
+  lieu du silence. — **Fait le 2026-10-20** : un avertissement par processus.
 - Emplacements à migrer : embed Top 1 (titre), embed de tournoi (lien du tournoi, replay de la manche). Les liens
   *dans* le site ne changent pas.
 - **Joueurs cliquables** : dans le champ « Escouade » du Top 1 et la ligne MVP d'un tournoi, le nom devient un lien
@@ -150,9 +158,9 @@ la page de résolution applique la règle 1 du §4.B. Le proxy n'interroge toujo
 
 ## 5. Plan
 
-1. `src/lib/short-links.ts` et `getPublicBaseUrl()` ; pages `/m/[matchId]`, `/t/[...]` et `/j/[memberId]`
+1. ✅ `src/lib/short-links.ts` et `getPublicBaseUrl()` ; pages `/m/[matchId]`, `/t/[...]` et `/j/[memberId]`
    (redirections, page de choix) ; exception `/m/` dans le proxy du sous-domaine.
-2. Embeds Discord sur les liens courts, noms des joueurs cliquables ; `subdomain` ajouté au `select` du clan dans
+2. ✅ Embeds Discord sur les liens courts, noms des joueurs cliquables ; `subdomain` ajouté au `select` du clan dans
    `discord-service.ts` (l'identifiant des joueurs y est déjà connu).
 3. Production : `APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env` partagé ; build du
    web ; **redémarrer le web, puis le cron et les workers**.

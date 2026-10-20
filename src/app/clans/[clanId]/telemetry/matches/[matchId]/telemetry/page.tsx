@@ -312,8 +312,9 @@ function formatPercent(value: number) {
 }
 
 function formatMeters(value: number) {
-  // Distances telemetry are stored with a x10 scale.
-  return `${(Math.max(0, value) / 10).toFixed(0)} m`
+  // Distances de la télémétrie en centimètres (unités du moteur), depuis l'atterrissage pour les matchs analysés
+  // après le 2026-10-20 ; avant, l'avion et un trajet depuis (0, 0) y figurent encore.
+  return `${(Math.max(0, value) / 100).toFixed(0)} m`
 }
 
 function clamp01(value: number) {
@@ -1707,7 +1708,7 @@ export default function TelemetryMatchDetailPage() {
 
             {phaseSnapshots.length < 2 ? (
               <p className="mt-3 text-sm text-slate-500">
-                Aucune donnée de phases disponible. Resynchrisez ce match après la migration.
+                Aucune donnée de phases disponible. Resynchronise ce match après la migration.
               </p>
             ) : (
               <>

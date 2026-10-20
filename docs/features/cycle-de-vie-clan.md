@@ -370,6 +370,11 @@ reproduire même si le miroir dérive à nouveau :
   avec le clan courant. Le déplacement n'a lieu qu'avec `confirmMove: true`, et il
   écrit alors une ligne `PlayerClanChange` (`source: manual_transfer`) — il
   apparaît donc dans `/settings/clans/lifecycle` et reste annulable.
+- Depuis le 2026-10-20, la même route renvoie **409 `member_needs_reactivation`**
+  pour un membre qui n'est pas actif (demande `/join` en attente, parking archivé,
+  départ, refus) : la réactivation n'a lieu qu'avec `confirmReactivation: true`,
+  distinct de `confirmMove`. Sans ce garde-fou, l'écran Clans activait une demande
+  en attente sans la décision de l'Owner ([players.md §10](../TODO/players.md)).
 
 ### Réparer les décalages déjà en base
 

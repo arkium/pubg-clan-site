@@ -171,7 +171,7 @@ export function validateTournamentForm(form: TournamentFormState): TournamentFor
   if (!period) return { startTime: 'Heure invalide : format attendu HH:MM.' }
   if (tournamentWindowEnd(period.endDate).getTime() <= new Date(period.startDate).getTime()) {
     return form.endTime
-      ? { endTime: 'La fin doit être après le début : pour finir après minuit, choisissez le jour suivant.' }
+      ? { endTime: 'La fin doit être après le début : pour finir après minuit, choisis le jour suivant.' }
       : { endDate: 'La date de fin doit être après la date de début.' }
   }
   return {}

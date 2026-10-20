@@ -357,20 +357,20 @@ export function PreviewCard({ preview, loading, invalid, periodLabel, typeLabel 
       <div className="flex flex-col gap-0.5">
         <h2 id="league-preview-title" className="t-section-title">Aperçu du classement</h2>
         <span className="t-meta">
-          {typeLabel} · {periodLabel} — réglages en vigueur, puis avec vos modifications. Rien n’est enregistré.
+          {typeLabel} · {periodLabel} — réglages en vigueur, puis avec tes modifications. Rien n’est enregistré.
         </span>
       </div>
       {invalid ? (
         <p className="app-panel-muted flex items-center gap-2 px-3 py-2 text-[13px] text-gray-700">
           <AlertTriangle className="t-warn h-4 w-4 shrink-0" aria-hidden="true" />
-          Corrigez les champs en erreur pour voir l’aperçu.
+          Corrige les champs en erreur pour voir l’aperçu.
         </p>
       ) : null}
       {preview ? (
         <div className={`flex flex-col gap-3 transition-opacity ${loading || invalid ? 'opacity-60' : ''}`} aria-busy={loading} data-testid="league-preview">
           <p className="t-num text-[13px] text-gray-700" data-testid="preview-summary">
             En vigueur : <b className="text-gray-900">{preview.current.ranked} classés</b>, {preview.current.qualifying} en qualification (seuil {preview.current.minMatches}) ·
-            avec vos réglages : <b className="text-gray-900">{preview.draft.ranked} classés</b>, {preview.draft.qualifying} en qualification (seuil {preview.draft.minMatches})
+            avec tes réglages : <b className="text-gray-900">{preview.draft.ranked} classés</b>, {preview.draft.qualifying} en qualification (seuil {preview.draft.minMatches})
           </p>
           {rows.length > 0 ? (
             <div className="app-table-shell">

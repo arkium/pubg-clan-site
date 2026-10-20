@@ -135,7 +135,8 @@ function useNotifications() {
 
 /** Confirmation en attente : réactiver un membre archivé, parti ou en attente, ou déplacer un membre actif ailleurs. */
 type PendingConfirm =
-  | { kind: 'reactivate'; row: PlayersDirectoryRow; target: TrackableClan }
+  /** `message` : explication de la route, quand l'état affiché ne disait pas que le membre était à réactiver. */
+  | { kind: 'reactivate'; row: PlayersDirectoryRow; target: TrackableClan; message?: string }
   | { kind: 'move'; row: PlayersDirectoryRow; target: TrackableClan; message: string }
 
 export default function PlayersDirectoryPage() {
@@ -282,8 +283,8 @@ function PlayersDirectory() {
   }
 
   /**
-   * La route réactive sans confirmation un membre archivé, parti ou en attente : seul un membre ACTIF d'un autre clan
-   * déclenche son 409. La confirmation de réactivation est donc demandée ici, avant l'appel.
+   * La route refuse (409) de réactiver sans confirmation un membre archivé, parti ou en attente, comme de déplacer un
+   * membre actif d'un autre clan. Quand l'état affiché le montre déjà, la confirmation est demandée avant l'appel.
    */
   function requestTrack(row: PlayersDirectoryRow, target: TrackableClan) {
     const trackingStatus = row.tracking.status
@@ -291,22 +292,31 @@ function PlayersDirectory() {
       setConfirm({ kind: 'reactivate', row, target })
       return
     }
-    void trackPlayer(row, target, false)
+    void trackPlayer(row, target, null)
   }
 
-  async function trackPlayer(row: PlayersDirectoryRow, target: TrackableClan, confirmMove: boolean) {
+  async function trackPlayer(row: PlayersDirectoryRow, target: TrackableClan, confirmed: PendingConfirm['kind'] | null) {
     setRowPending(row.playerId, true)
     try {
       const response = await fetch('/api/settings/opponents/track', {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ playerId: row.playerId, targetClanId: target.id, ...(confirmMove ? { confirmMove: true } : {}) }),
+        body: JSON.stringify({
+          playerId: row.playerId,
+          targetClanId: target.id,
+          ...(confirmed === 'move' ? { confirmMove: true } : {}),
+          ...(confirmed === 'reactivate' ? { confirmReactivation: true } : {}),
+        }),
       })
       const body = await response.json().catch(() => null)
 
-      // 409 = déjà membre actif d'un autre clan suivi : le SuperUser tranche explicitement.
-      if (response.status === 409 && body?.error === 'member_tracked_elsewhere' && !confirmMove) {
+      // 409 = déjà membre actif d'un autre clan suivi, ou membre à réactiver : le SuperUser tranche explicitement.
+      if (response.status === 409 && body?.error === 'member_tracked_elsewhere' && confirmed !== 'move') {
         setConfirm({ kind: 'move', row, target, message: body.message ?? 'Ce joueur est déjà membre actif d’un autre clan suivi.' })
+        return
+      }
+      if (response.status === 409 && body?.error === 'member_needs_reactivation' && confirmed !== 'reactivate') {
+        setConfirm({ kind: 'reactivate', row, target, message: body.message })
         return
       }
 
@@ -573,12 +583,16 @@ function PlayersDirectory() {
           onConfirm={() => {
             const { row, target, kind } = confirm
             setConfirm(null)
-            void trackPlayer(row, target, kind === 'move')
+            void trackPlayer(row, target, kind)
           }}
         >
           {confirm.kind === 'move' ? (
             <>
               {confirm.message} Le déplacer vers {clanLabel(confirm.target)} ?
+            </>
+          ) : confirm.message ? (
+            <>
+              {confirm.message} Le réactiver dans {clanLabel(confirm.target)} ?
             </>
           ) : (
             <>

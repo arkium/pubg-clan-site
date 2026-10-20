@@ -47,7 +47,7 @@ export default function PlatformHub() {
       image="/trio.jpg"
       clanGroup={{
         title: 'Dépannage du clan sélectionné',
-        missingClanHint: 'Sélectionnez un clan pour voir les outils de dépannage liés au clan',
+        missingClanHint: 'Sélectionne un clan pour voir les outils de dépannage liés au clan',
       }}
       globalGroup={{ title: 'Toute la plateforme' }}
       globalFirst

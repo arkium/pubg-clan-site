@@ -634,7 +634,7 @@ export function MatchDebriefView({
         if (!res.ok || !data?.ok || !data.data?.match) {
           // Les liens des listes, du tableau de bord et de Discord mènent ici : les erreurs attendues
           // s'expliquent en français plutôt qu'avec le message technique de l'API.
-          if (res.status === 401) throw new Error('Connectez-vous pour consulter ce débriefing.')
+          if (res.status === 401) throw new Error('Connecte-toi pour consulter ce débriefing.')
           if (data?.error?.code === 'TOURNAMENT_ROUND_NOT_FOUND') throw new Error("Ce match n'est pas une manche de ce tournoi.")
           if (data?.error?.code === 'TELEMETRY_NOT_FOUND') {
             throw new Error(

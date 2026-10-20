@@ -55,7 +55,7 @@ export function tournamentManageAccess(
     canManage: true,
     canSync: false,
     syncBlockedReason: hasOrganizerPlayer
-      ? `Pour synchroniser, passez sur votre joueur de ${clanLabel} : la synchronisation part de ses propres parties PUBG.`
+      ? `Pour synchroniser, passe sur ton joueur de ${clanLabel} : la synchronisation part de ses propres parties PUBG.`
       : `Synchroniser est réservé à un joueur de ${clanLabel} qui a joué la manche : la synchronisation part de ses propres parties PUBG.`,
   }
 }

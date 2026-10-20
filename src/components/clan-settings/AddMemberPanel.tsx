@@ -68,7 +68,7 @@ export default function AddMemberPanel({ clanId }: { clanId: number }) {
 
     const trimmedPubg = pubgPlayerName.trim()
     if (!trimmedPubg) {
-      setError('Veuillez renseigner le pseudo PUBG du joueur.')
+      setError('Renseigne le pseudo PUBG du joueur.')
       return
     }
 
@@ -190,7 +190,7 @@ export default function AddMemberPanel({ clanId }: { clanId: number }) {
         clanId={clanId}
         active="ajout"
         title="Ajouter un joueur"
-        subtitle="Recherchez un joueur sur PUBG et intégrez-le au clan pour suivre ses parties et sa progression."
+        subtitle="Recherche un joueur sur PUBG et intègre-le au clan pour suivre ses parties et sa progression."
         icon={UserPlus}
       />
 
@@ -342,5 +342,5 @@ const ADD_STEPS = [
   { title: 'Recherche sur PUBG', text: 'Le pseudo est vérifié sur l’API PUBG, qui renvoie l’identifiant unique du joueur.' },
   { title: 'Clan PUBG détecté', text: 'S’il appartient à un clan PUBG officiel, son clan et son tag sont repérés.' },
   { title: 'Confirmation', text: 'Une fenêtre affiche les données trouvées avant d’enregistrer le joueur dans le clan.' },
-  { title: 'Rôle et invitation', text: 'Ensuite, vous pouvez lui attribuer un rôle et l’inviter à se connecter au site.' },
+  { title: 'Rôle et invitation', text: 'Ensuite, tu peux lui attribuer un rôle et l’inviter à se connecter au site.' },
 ]

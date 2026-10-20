@@ -121,7 +121,7 @@ export default function MemberRewardsPage() {
         <div className="app-panel p-6 text-center">
           <p className="text-sm text-gray-500">Aucune récompense pour ce joueur.</p>
           <p className="mt-2 text-4xl">🏆</p>
-          <p className="mt-2 text-sm text-gray-400">Participez aux challenges pour gagner des points !</p>
+          <p className="mt-2 text-sm text-gray-400">Participe aux challenges pour gagner des points !</p>
         </div>
       ) : null}
     </main>

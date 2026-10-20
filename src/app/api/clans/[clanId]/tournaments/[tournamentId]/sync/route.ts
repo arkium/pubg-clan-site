@@ -57,7 +57,7 @@ async function handlePost(
       return Response.json(
         {
           error:
-            'Seul un joueur du clan organisateur peut synchroniser : la synchronisation part de ses propres parties PUBG. Passez sur votre joueur de ce clan, ou demandez à l’Owner qui a joué la manche de cliquer.',
+            'Seul un joueur du clan organisateur peut synchroniser : la synchronisation part de ses propres parties PUBG. Passe sur ton joueur de ce clan, ou demande à l’Owner qui a joué la manche de cliquer.',
         },
         { status: 403 }
       )

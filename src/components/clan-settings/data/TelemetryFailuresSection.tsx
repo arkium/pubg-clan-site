@@ -164,7 +164,7 @@ export default function TelemetryFailuresSection({ clanId, refreshToken }: { cla
       id={DATA_ANCHORS.failures}
       icon={AlertTriangle}
       title="Échecs"
-      meta="Jobs du worker en échec pour ce clan, dans les deux files. Corrigez d’abord la cause (partie introuvable, fichier absent…) : sinon le job échouera de nouveau."
+      meta="Jobs du worker en échec pour ce clan, dans les deux files. Corrige d’abord la cause (partie introuvable, fichier absent…) : sinon le job échouera de nouveau."
     >
       {/* Dans le corps, pas en `aside` : à côté du titre, il écrasait le texte d'introduction sur mobile. */}
       <div className="flex flex-wrap items-center justify-between gap-2">

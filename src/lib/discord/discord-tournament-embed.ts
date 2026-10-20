@@ -1,5 +1,6 @@
 import type { DiscordEmbedField, DiscordWebhookPayload } from '@/lib/discord/discord-client'
-import { matchTournamentDebriefPath } from '@/lib/match-links'
+import { boldName, joinBoundedLines, truncate } from '@/lib/discord/embed-lines'
+import { playerShortUrl, tournamentShortUrl } from '@/lib/short-links'
 import { compactSquadLabel } from '@/lib/tournament-mode-display'
 import type { MixedSquadRule, TournamentMode } from '@/lib/tournament-service'
 
@@ -53,6 +54,8 @@ const MODE_WORDING: Record<TournamentMode, { roundField: string; standingsField:
 }
 
 export type TournamentRoundMvp = {
+  /** Fiche `ClanMember` : le nom devient un lien court vers le tableau de bord du joueur. */
+  memberId?: number | null
   displayName: string
   clanLabel: string
   kills: number
@@ -86,10 +89,6 @@ export type TournamentRoundEmbedInput = {
   siteUrl: string
 }
 
-function truncate(value: string, max: number) {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`
-}
-
 export function formatPoints(value: number) {
   return Number.isInteger(value) ? String(value) : value.toFixed(1)
 }
@@ -113,26 +112,6 @@ function formatResultLine(result: TournamentRoundParticipantResult, index: numbe
   }
 
   return `${rankPrefix(index)} **${result.label}** : ${parts.join(' · ')} = **${formatPoints(result.points)} pts**`
-}
-
-/**
- * Empile des lignes tant qu'elles tiennent dans la limite Discord, puis signale
- * le reliquat au lieu de tronquer une ligne en plein milieu.
- */
-function joinBoundedLines(lines: string[], max: number) {
-  const kept: string[] = []
-
-  for (const line of lines) {
-    if ([...kept, line].join('\n').length > max) {
-      const overflow = `… et ${lines.length - kept.length} autre(s)`
-      if ([...kept, overflow].join('\n').length <= max) kept.push(overflow)
-      break
-    }
-
-    kept.push(line)
-  }
-
-  return truncate(kept.join('\n') || '—', max)
 }
 
 /** Une escouade du classement final, ses joueurs déjà libellés « [TAG] Pseudo », les plus réguliers d'abord. */
@@ -181,7 +160,8 @@ export function buildTournamentSquadStandingsWebhookPayload(
       `${rankPrefix(index)} **${compactSquadLabel(squad.memberLabels)}**\n` +
       `**${formatPoints(squad.totalPoints)} pts** · ${squad.totalKills} kills · ${squad.wins} Top 1 · manches : ${formatSquadForm(squad.form)}`
   )
-  const footerLink = siteUrl ? [`\n[📊 Classement complet sur le site](${siteUrl}/tournaments/${input.tournamentId})`] : []
+  const tournamentUrl = tournamentShortUrl({ siteUrl }, input.tournamentId)
+  const footerLink = tournamentUrl ? [`\n[📊 Classement complet sur le site](${tournamentUrl})`] : []
   // Place gardée pour annoncer les escouades qui ne tiennent pas, plutôt que de couper la liste sans le dire.
   const budget = MAX_DESCRIPTION_LENGTH - header.join('\n').length - footerLink.join('\n').length - 60
   const kept: string[] = []
@@ -196,7 +176,7 @@ export function buildTournamentSquadStandingsWebhookPayload(
     embeds: [
       {
         title: truncate(`🏆 Tournoi : ${input.tournamentTitle} — Classement par squad`, MAX_TITLE_LENGTH),
-        ...(siteUrl ? { url: `${siteUrl}/tournaments/${input.tournamentId}` } : {}),
+        ...(tournamentUrl ? { url: tournamentUrl } : {}),
         color: TOURNAMENT_COLOR,
         description: truncate([...header, ...kept, ...footerLink].join('\n'), MAX_DESCRIPTION_LENGTH),
         footer: {
@@ -212,6 +192,8 @@ export function buildTournamentRoundWebhookPayload(
   input: TournamentRoundEmbedInput
 ): DiscordWebhookPayload {
   const siteUrl = input.siteUrl.replace(/\/+$/, '')
+  const tournamentUrl = tournamentShortUrl({ siteUrl }, input.tournamentId)
+  const replayUrl = tournamentShortUrl({ siteUrl }, input.tournamentId, { squadMatchId: input.squadMatchId, replay: true })
   const wording = MODE_WORDING[input.mode] ?? MODE_WORDING.inter_clan
   const fields: DiscordEmbedField[] = [
     {
@@ -221,12 +203,14 @@ export function buildTournamentRoundWebhookPayload(
   ]
 
   if (input.mvp) {
+    const mvp = input.mvp
+    const line = (url: string | null) =>
+      `${boldName(mvp.displayName, url)} (${mvp.clanLabel}) — ${mvp.kills} kills · ${Math.round(mvp.damage)} dégâts`
+    const linked = line(playerShortUrl({ siteUrl }, mvp.memberId))
     fields.push({
       name: '⭐ MVP de la manche',
-      value: truncate(
-        `**${input.mvp.displayName}** (${input.mvp.clanLabel}) — ${input.mvp.kills} kills · ${Math.round(input.mvp.damage)} dégâts`,
-        MAX_FIELD_VALUE_LENGTH
-      ),
+      // Trop long avec le lien : le nom reste en gras, sans lien, plutôt qu'un lien coupé.
+      value: truncate(linked.length <= MAX_FIELD_VALUE_LENGTH ? linked : line(null), MAX_FIELD_VALUE_LENGTH),
     })
   }
 
@@ -250,11 +234,9 @@ export function buildTournamentRoundWebhookPayload(
     descriptionLines.push('⚖️ Squads mixtes : placement et bonus partagés au prorata de l’effectif de chaque clan.')
   }
 
-  if (siteUrl) {
-    descriptionLines.push(
-      // Débriefing en vue tournoi : Replay 2D de la manche, ouvert à tout utilisateur connecté.
-      `[▶️ Replay 2D de la manche](${siteUrl}${matchTournamentDebriefPath(input.tournamentId, input.squadMatchId)})`
-    )
+  if (replayUrl) {
+    // Débriefing en vue tournoi, ouvert sur le Replay 2D de la manche (tout utilisateur connecté).
+    descriptionLines.push(`[▶️ Replay 2D de la manche](${replayUrl})`)
   }
 
   return {
@@ -265,7 +247,7 @@ export function buildTournamentRoundWebhookPayload(
           `🏆 Tournoi : ${input.tournamentTitle} — Résultats Manche #${input.roundNumber}`,
           MAX_TITLE_LENGTH
         ),
-        ...(siteUrl ? { url: `${siteUrl}/tournaments/${input.tournamentId}` } : {}),
+        ...(tournamentUrl ? { url: tournamentUrl } : {}),
         color: TOURNAMENT_COLOR,
         description: truncate(descriptionLines.join('\n'), MAX_DESCRIPTION_LENGTH),
         fields,

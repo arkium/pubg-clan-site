@@ -134,7 +134,7 @@ export async function archiveClan(
     throw new ClanFollowError(
       'clan_pending',
       409,
-      'Ce clan est en attente de validation : refusez sa demande depuis le cycle de vie des clans.'
+      'Ce clan est en attente de validation : refuse sa demande depuis le cycle de vie des clans.'
     )
   }
 
@@ -148,7 +148,7 @@ export async function archiveClan(
     throw new ClanFollowError(
       'disposition_required',
       400,
-      `Ce clan compte ${members.length} membre(s) actif(s) : choisissez de les déplacer vers le parking ou de les désactiver.`
+      `Ce clan compte ${members.length} membre(s) actif(s) : choisis de les déplacer vers le parking ou de les désactiver.`
     )
   }
 
@@ -175,7 +175,7 @@ export async function archiveClan(
         data: { isActive: false, archivedAt: now, archivedReason: CLAN_ARCHIVE_REASONS.unfollowed },
       })
       if (count === 0) {
-        throw new ClanFollowError('state_changed', 409, 'L’état du clan a changé pendant l’opération : rechargez la page.')
+        throw new ClanFollowError('state_changed', 409, 'L’état du clan a changé pendant l’opération : recharge la page.')
       }
 
       if (members.length === 0) return
@@ -252,7 +252,7 @@ export async function reactivateClan(clanId: number): Promise<ReactivateClanResu
     throw new ClanFollowError(
       'clan_pending',
       409,
-      'Ce clan est en attente de validation : validez-le depuis le cycle de vie des clans.'
+      'Ce clan est en attente de validation : valide-le depuis le cycle de vie des clans.'
     )
   }
 
@@ -261,7 +261,7 @@ export async function reactivateClan(clanId: number): Promise<ReactivateClanResu
     data: { isActive: true, archivedAt: null, archivedReason: null },
   })
   if (count === 0) {
-    throw new ClanFollowError('state_changed', 409, 'L’état du clan a changé pendant l’opération : rechargez la page.')
+    throw new ClanFollowError('state_changed', 409, 'L’état du clan a changé pendant l’opération : recharge la page.')
   }
 
   // Le sous-domaine conservé pendant l'arrêt de suivi redevient actif ; un clan qui n'en avait pas en reçoit un.

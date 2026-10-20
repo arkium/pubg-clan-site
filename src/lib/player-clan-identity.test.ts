@@ -28,6 +28,7 @@ const mocks = vi.hoisted(() => ({
   clanMemberFindFirst: vi.fn(),
   clanMemberFindMany: vi.fn(),
   clanMemberUpdate: vi.fn(),
+  clanMemberUpdateMany: vi.fn(),
   clanMemberCreate: vi.fn(),
   clanFindUnique: vi.fn(),
   queryRaw: vi.fn(),
@@ -47,6 +48,7 @@ vi.mock('@/lib/prisma', () => ({
       findFirst: mocks.clanMemberFindFirst,
       findMany: mocks.clanMemberFindMany,
       update: mocks.clanMemberUpdate,
+      updateMany: mocks.clanMemberUpdateMany,
       create: mocks.clanMemberCreate,
     },
     clan: { findUnique: mocks.clanFindUnique },
@@ -78,6 +80,7 @@ beforeEach(() => {
   mocks.opponentClanUpsert.mockResolvedValue({ id: 'opp-47r' })
   mocks.playerUpsert.mockResolvedValue({ id: 'player-1' })
   mocks.encounteredPlayerUpdateMany.mockResolvedValue({ count: 18 })
+  mocks.clanMemberUpdateMany.mockResolvedValue({ count: 1 })
 })
 
 describe('syncOpponentIdentityForMember', () => {
@@ -160,6 +163,23 @@ describe('syncOpponentIdentityForMemberId', () => {
     expect(mocks.playerUpsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: expect.objectContaining({ opponentClanId: null }) })
     )
+  })
+
+  it('rattache la fiche à sa ligne Player si elle ne l’était pas, sans écraser un lien existant', async () => {
+    mocks.clanMemberFindUnique.mockResolvedValue({
+      pubgAccountId: ACCOUNT,
+      pubgPlayerName: 'WESTEN88',
+      platformShard: 'steam',
+      isActive: true,
+      clan: { pubgClanId: 'clan.47r', tag: '47R', name: '47RONIN47' },
+    })
+
+    await syncOpponentIdentityForMemberId(191)
+
+    expect(mocks.clanMemberUpdateMany).toHaveBeenCalledWith({
+      where: { id: 191, playerId: null },
+      data: { playerId: 'player-1' },
+    })
   })
 
   it('journalise sans propager : un miroir en echec n annule pas un mouvement deja decide', async () => {

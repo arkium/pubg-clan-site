@@ -140,7 +140,7 @@ export default function ClanArchiveDialog({ clan, onClose, onArchived }: ClanArc
             <p>
               {summary.clan.state === 'archived'
                 ? 'Ce clan n’est déjà plus suivi.'
-                : 'Ce clan attend sa validation : refusez sa demande depuis le cycle de vie des clans.'}
+                : 'Ce clan attend sa validation : refuse sa demande depuis le cycle de vie des clans.'}
             </p>
           ) : !needsDisposition ? (
             <p>Ce clan n’a aucun membre actif : aucune autre question.</p>

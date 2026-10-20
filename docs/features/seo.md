@@ -38,7 +38,8 @@ par Google (règle du 2026-10-18). Une page de clan du menu latéral : une entr�
 | Pages du **menu latéral d'un clan suivi** (vue d'ensemble, classement, membres, matchs, stats, carrière, armurerie, heatmap, cartographie, fin de zone, drop zones, awards, challenges) | oui si le clan est actif, non archivé, hors clan système | « Nom [TAG] — Classement · chickendinner.fr » |
 | Autres pages d'un clan (réglages, télémétrie, demandes, débriefs, soirées) | non | « Nom [TAG] » |
 | `/tournaments/[id]` | oui si le tournoi est `active` ou `finished` | « Titre — tournoi PUBG » |
-| Pages légales | oui | « Mentions légales et CGU », etc. |
+| Pages légales, `/a-propos/methodologie` (depuis le 2026-10-20) | oui | « Mentions légales et CGU », « Méthodologie des stats et du Power score », etc. |
+| Liens courts `/m/…`, `/t/…`, `/j/…` (2026-10-20) | non (redirections 307 ; la page de choix d'un match partagé est hors liste blanche, donc `noindex`) | — |
 | **Pages joueur `/members/…`** | **non** (pseudos, y compris d'adversaires sur Némésis ; cohérent avec la page Confidentialité et le droit au retrait) | « Profil joueur » |
 | `/account`, `/settings/…`, `/login`, `/activate`, `/reset-password`, `/clans/mutations` | non | — |
 
@@ -105,11 +106,29 @@ Règle de Google : ne décrire que ce que la page montre. Deux sources, un modul
 | Bloc « En bref » de `/clans` | annuaire | `ItemList` des clans suivis (les liens du bloc) |
 | Bloc « En bref » de `/clans-leaderboard` | Ligue | `ItemList` du podium de la semaine |
 | `TournamentStructuredData`, à côté du résumé | page d'un tournoi | `SportsEvent` en ligne (`VirtualLocation`), clan organisateur, participants nommés en inter-clans seulement |
+| Layout racine (2026-10-20) | `/a-propos` | `AboutPage`, `about` : l'éditeur |
+| idem | `/a-propos/methodologie` | `Article` daté (`METHODOLOGY_UPDATED_AT`), auteur et éditeur Arkium |
+
+L'éditeur est une seule entité, `PUBLISHER_ORGANIZATION` (`page-seo.ts`), avec son `contactPoint` : celle de l'accueil
+(`#publisher`) et celle des autres blocs. Le **logo** attend un fichier d'Arkium.
 
 Le `SportsEvent` d'un tournoi n'est pas dans son résumé : celui-ci s'efface quand le classement arrive, et Google lit la
 page rendue. Le layout racine n'est pas rendu à nouveau lors d'une navigation dans le navigateur : son bloc décrit la
 page chargée, celle que lit un robot. Contrôle : outil de test des résultats enrichis de Google sur l'adresse de
 production, après déploiement.
+
+## 6 bis. IndexNow et audit du HTML brut (2026-10-20)
+
+- **IndexNow** (`src/lib/seo/indexnow.ts`) : prévient Bing (et les moteurs du protocole ; pas Google) quand une page
+  publique paraît — clan validé (`/clans/<id>/overview`, `/clans`), tournoi lancé ou terminé (`/tournaments/<id>`,
+  `/tournaments`). **Coupé** sans `INDEXNOW_KEY` (8 à 128 caractères `a-z A-Z 0-9 -`), et seulement si l'adresse
+  publique est `chickendinner.fr`. La clé est servie à `/indexnow.txt` (réécriture de `next.config.ts` vers `/api/indexnow-key` : un dossier de route `src/app/indexnow.txt` fait planter `next build` en code natif), exclu du proxy comme `robots.txt`. Un envoi
+  ne bloque ni ne fait échouer l'écriture. Après activation : importer la propriété dans Bing Webmaster Tools depuis
+  la Search Console.
+- **Audit du HTML brut** : `npx tsx scripts/seo-raw-html-audit.ts` relève, pour chaque page du sitemap, ce que lit un
+  robot sans JavaScript (titre, description, robots, canonique, H1, H2, mots visibles, images sans `alt`, `<main>`,
+  types JSON-LD). Options : `--base=`, `--path=` (sous Git Bash, `MSYS_NO_PATHCONV=1`), `--json`.
+- **Préchauffage de la vitrine** : cron `home_showcase_warm` ([cron.md](../ops/cron.md)).
 
 ## 7. Tests
 
@@ -120,4 +139,7 @@ production, après déploiement.
   page indexée), outils, équipe sans joueurs, rien pour l'accueil ni une page hors index, listes, tournoi, échappement.
 - `src/lib/seo/seo-service.test.ts` : clan suivi / archivé / en attente / système, tournoi lancé ou brouillon, base en
   panne, filtres du sitemap, en-tête `x-pathname` posé par le proxy (et non falsifiable).
-- `e2e/legal.spec.ts` (titres d'onglet), `e2e/not-found.spec.ts` (404).
+- `src/lib/seo/indexnow.test.ts` (coupé sans clé, jamais hors production, corps du protocole, échec silencieux,
+  route de la clé), `src/lib/seo/raw-html-audit.test.ts`, `src/lib/site-figures.test.ts` (phrase citable).
+- `e2e/legal.spec.ts` (titres d'onglet, méthodologie liée depuis À propos), `e2e/not-found.spec.ts` (404),
+  `e2e/short-links.spec.ts` (liens courts hors format).

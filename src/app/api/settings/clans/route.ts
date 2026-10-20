@@ -67,7 +67,7 @@ async function handlePost(request: Request) {
     if (state === 'archived') {
       return Response.json(
         {
-          error: `Le clan ${formatClanLabel(trackedClan)} n'est plus suivi. Réactivez-le pour le suivre de nouveau.`,
+          error: `Le clan ${formatClanLabel(trackedClan)} n'est plus suivi. Réactive-le pour le suivre de nouveau.`,
           code: 'clan_archived',
           clan: {
             id: trackedClan.id,

@@ -57,7 +57,7 @@ test('demande sans compte : adresse visible, avertissement avant d’accepter, l
   await newcomer.getByRole('button', { name: 'Approuver' }).click()
   const dialog = page.getByRole('dialog', { name: 'Approuver Balthazar_99 ?' })
   await expect(dialog).toContainText('le lien pour le créer part à joueur@exemple.fr')
-  await expect(dialog).toContainText('Vérifiez que cette adresse est bien la sienne')
+  await expect(dialog).toContainText('Vérifie que cette adresse est bien la sienne')
   await dialog.getByRole('button', { name: 'Approuver le joueur' }).click()
 
   await expect(page.getByRole('status')).toContainText('Lien de création du compte envoyé à joueur@exemple.fr')

@@ -5,6 +5,7 @@ import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { sendMemberApprovedEmail, type ClanDecisionEmailResult } from '@/lib/clan-lifecycle/clan-decision-email'
 import { activationUrlOf, invitationNotice, inviteApprovedRequester } from '@/lib/join-request-access'
+import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
 import { prisma } from '@/lib/prisma'
 import { initializeDefaultRoles, PREDEFINED_ROLES } from '@/lib/role-service'
 
@@ -69,6 +70,9 @@ async function handlePost(
       },
     })
 
+    // Demande antérieure au lien posé par /join : rattrapée ici.
+    await ensurePlayerLinkForMember(activatedMember.id)
+
     // If member has no roles yet, assign default Member role
     if (activatedMember.roles.length === 0) {
       const memberRole = await prisma.clanRole.findFirst({
@@ -104,7 +108,7 @@ async function handlePost(
         ? { sent: false, reason: 'failed' }
         : await sendMemberApprovedEmail({
             contactEmail: activatedMember.contactEmail,
-            clanName: activatedMember.clan?.name ?? 'votre clan',
+            clanName: activatedMember.clan?.name ?? 'ton clan',
             clanTag: activatedMember.clan?.tag ?? '',
             playerName: activatedMember.pubgPlayerName || activatedMember.displayName,
             activationUrl: activationUrlOf(invitation),

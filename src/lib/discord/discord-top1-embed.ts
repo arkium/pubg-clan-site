@@ -1,5 +1,6 @@
 import type { DiscordEmbedField, DiscordWebhookPayload } from '@/lib/discord/discord-client'
-import { matchDebriefPath } from '@/lib/match-links'
+import { boldName, joinLinkedLines, truncate } from '@/lib/discord/embed-lines'
+import { matchShortUrl, playerShortUrl, type ShortLinkContext } from '@/lib/short-links'
 
 export const CHICKEN_DINNER_COLOR = 0xf1c40f
 
@@ -9,6 +10,8 @@ const MAX_FIELD_VALUE_LENGTH = 1024
 const MAX_FOOTER_LENGTH = 2048
 
 export type Top1EmbedMember = {
+  /** Fiche `ClanMember` : le nom devient un lien court vers le tableau de bord du joueur. */
+  memberId?: number | null
   displayName: string
   kills: number
   damage: number
@@ -30,10 +33,9 @@ export type Top1EmbedInput = {
   members: Top1EmbedMember[]
   mention: string
   siteUrl: string
-}
-
-function truncate(value: string, max: number) {
-  return value.length <= max ? value : `${value.slice(0, max - 1)}…`
+  /** Sous-domaine du clan et `CLAN_SUBDOMAIN_ROOT` : le lien du match passe alors par le sous-domaine. */
+  clanSubdomain?: string | null
+  subdomainRoot?: string | null
 }
 
 function formatDuration(seconds: number) {
@@ -42,38 +44,29 @@ function formatDuration(seconds: number) {
   return `${minutes}m ${String(safe % 60).padStart(2, '0')}s`
 }
 
-function formatMemberLine(member: Top1EmbedMember) {
+function formatMemberLine(member: Top1EmbedMember, playerUrl: string | null) {
   const parts = [`${member.kills} kills`, `${Math.round(member.damage)} dégâts`]
 
   if (member.assists > 0) parts.push(`${member.assists} assists`)
   if (member.revives > 0) parts.push(`${member.revives} revives`)
 
-  return `🎖️ **${member.displayName}** — ${parts.join(' · ')}`
+  return `🎖️ ${boldName(member.displayName, playerUrl)} — ${parts.join(' · ')}`
 }
 
-function buildSquadField(members: Top1EmbedMember[]): DiscordEmbedField {
-  const lines: string[] = []
+/** Noms en liens courts vers le tableau de bord ; au-delà de 1 024 caractères, les derniers perdent leur lien. */
+function buildSquadField(members: Top1EmbedMember[], links: ShortLinkContext): DiscordEmbedField {
+  const lines = members.map((member) => ({
+    linked: formatMemberLine(member, playerShortUrl(links, member.memberId)),
+    plain: formatMemberLine(member, null),
+  }))
 
-  for (const member of members) {
-    const line = formatMemberLine(member)
-    const projected = [...lines, line].join('\n')
-
-    if (projected.length > MAX_FIELD_VALUE_LENGTH) {
-      lines.push(`… et ${members.length - lines.length} autre(s)`)
-      break
-    }
-
-    lines.push(line)
-  }
-
-  return {
-    name: 'Escouade',
-    value: truncate(lines.join('\n') || '—', MAX_FIELD_VALUE_LENGTH),
-  }
+  return { name: 'Escouade', value: joinLinkedLines(lines, MAX_FIELD_VALUE_LENGTH) }
 }
 
 export function buildTop1WebhookPayload(input: Top1EmbedInput): DiscordWebhookPayload {
   const siteUrl = input.siteUrl.replace(/\/+$/, '')
+  const links: ShortLinkContext = { siteUrl, subdomainRoot: input.subdomainRoot }
+  const matchUrl = matchShortUrl(links, input.squadMatchId, input.clanSubdomain)
   const totals = input.members.reduce(
     (acc, member) => {
       acc.kills += member.kills
@@ -85,7 +78,7 @@ export function buildTop1WebhookPayload(input: Top1EmbedInput): DiscordWebhookPa
   )
 
   const fields: DiscordEmbedField[] = [
-    buildSquadField(input.members),
+    buildSquadField(input.members, links),
     { name: 'Kills totaux', value: String(totals.kills), inline: true },
     { name: 'Dégâts cumulés', value: String(Math.round(totals.damage)), inline: true },
     { name: 'Survie', value: formatDuration(totals.timeSurvived), inline: true },
@@ -99,9 +92,8 @@ export function buildTop1WebhookPayload(input: Top1EmbedInput): DiscordWebhookPa
           `🍗 CHICKEN DINNER ! Top 1 pour [${input.clanTag}] ${input.clanName}`,
           MAX_TITLE_LENGTH
         ),
-        ...(siteUrl
-          ? { url: `${siteUrl}${matchDebriefPath(input.clanId, input.squadMatchId)}` }
-          : {}),
+        // Lien court (/m/<match>) : le site le résout vers le débriefing de ce clan (docs/TODO/url-masking.md).
+        ...(matchUrl ? { url: matchUrl } : {}),
         color: CHICKEN_DINNER_COLOR,
         description: `🗺️ **${input.mapLabel}** — ${input.gameModeLabel}`,
         fields,

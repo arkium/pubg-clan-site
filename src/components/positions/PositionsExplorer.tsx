@@ -508,7 +508,7 @@ export function TopCities({ event, roleIndex, counts, selectedLocationId, onSele
       ) : (
         <p className="t-body border-t border-gray-200 px-4 py-3 text-gray-500">Aucun événement en ville sur cette carte.</p>
       )}
-      <span className="border-t border-gray-200 px-4 pb-3 pt-2 text-[11px] text-gray-500">Touchez une ville pour zoomer dessus.</span>
+      <span className="border-t border-gray-200 px-4 pb-3 pt-2 text-[11px] text-gray-500">Touche une ville pour zoomer dessus.</span>
     </section>
   )
 }

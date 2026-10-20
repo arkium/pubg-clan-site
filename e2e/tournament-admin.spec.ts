@@ -224,7 +224,7 @@ test.describe('organisateur (manage_settings)', () => {
   test('suppression : modale de confirmation, DELETE envoyé, données de jeu annoncées préservées', async ({ page }) => {
     await card(page, 'Coupe d’automne').getByRole('button', { name: 'Supprimer', exact: true }).click()
     const dialog = page.getByRole('dialog', { name: 'Supprimer « Coupe d’automne » ?' })
-    await expect(dialog).toContainText('Vos données de jeu sont préservées.')
+    await expect(dialog).toContainText('Les données de jeu sont préservées.')
     await expectNoHorizontalScroll(page)
     // Échap ferme sans rien supprimer.
     await page.keyboard.press('Escape')
@@ -242,7 +242,7 @@ test.describe('organisateur (manage_settings)', () => {
     await expect(page.getByRole('region', { name: 'Tournois actifs' })).toHaveCount(0)
   })
 
-  test('synchronisation PUBG : appel du tournoi et toast du résultat, puis « rien de nouveau, recliquez »', async ({ page }) => {
+  test('synchronisation PUBG : appel du tournoi et toast du résultat, puis « rien de nouveau, reclique »', async ({ page }) => {
     const syncButton = card(page, 'Coupe d’automne').getByRole('button', { name: 'Synchroniser PUBG' })
     await syncButton.click()
     const toast = page.getByTestId('tournament-admin-toast')
@@ -323,7 +323,7 @@ test.describe('organisateur (manage_settings)', () => {
     const gurugun = list.getByRole('listitem').filter({ hasText: 'gurugun' })
     await gurugun.getByRole('button', { name: 'Ajouter au site' }).click()
     await expect(gurugun.getByRole('status')).toContainText('Ajout en cours')
-    await expect(gurugun.getByRole('status')).toContainText('attendez le message final')
+    await expect(gurugun.getByRole('status')).toContainText('attends le message final')
     await expect(gurugun.getByRole('button', { name: 'Ajout en cours…' })).toBeDisabled()
     await expect(dialog.getByRole('button', { name: 'Fermer', exact: true }).last()).toBeDisabled()
     release()

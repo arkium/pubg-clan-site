@@ -4,7 +4,9 @@ import { prisma } from './prisma'
 // Vérifie que le filtre matchType (bandeau /clans/[clanId]/overview) est bien
 // appliqué à la requête live sur DropPressureStat via la relation squadMatch,
 // puisque DropPressureStat n'a pas de colonne matchType propre.
-describe('Match type filtering (DropPressureStat live query)', () => {
+// Écrit dans la base de DATABASE_URL, la production sur un poste de dev : ignoré sauf VITEST_DB_WRITES=1
+// (CLAUDE.md, piège n° 9). À lancer contre une base de test.
+describe.runIf(process.env.VITEST_DB_WRITES === '1')('Match type filtering (DropPressureStat live query)', () => {
   it('filters dashboard stats by matchType via the squadMatch relation', async () => {
     const clan = await prisma.clan.create({
       data: { name: 'DropPressure MType Clan', tag: 'DPMT', isActive: true },

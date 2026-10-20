@@ -177,10 +177,10 @@ donnée périmée.
 | Défaut | Où | État au 2026-09-25 |
 |---|---|---|
 | `favorite` sur un id inconnu répond **500** (P2025 non intercepté) au lieu de 404 ; un corps JSON invalide aussi | [favorite/route.ts](../../src/app/api/settings/players/[id]/favorite/route.ts) | ✅ Corrigé : 404 et 400. Les deux tests échouent sur l'ancienne version |
-| `track` réactive un membre archivé, rejeté ou en attente **sans confirmation** | [track/route.ts:61-65](../../src/app/api/settings/opponents/track/route.ts#L61-L65) | Route inchangée, comportement verrouillé par un test. L'annuaire demande la confirmation **côté interface** avant d'appeler la route (§10) |
-| `track` : la création d'un nouveau membre n'écrit **aucune ligne `PlayerClanChange`** (seule la mise à jour en écrit) | [track/route.ts:136-149](../../src/app/api/settings/opponents/track/route.ts#L136-L149) | Inchangé, verrouillé par un test — à trancher (§10) |
+| `track` réactive un membre archivé, rejeté ou en attente **sans confirmation** | [track/route.ts](../../src/app/api/settings/opponents/track/route.ts) | ✅ Corrigé le 2026-10-20 : **409 `member_needs_reactivation`** sans `confirmReactivation: true` (distinct de `confirmMove`), avec le statut et une explication ; l'annuaire et l'écran Clans confirment en modale (§10) |
+| `track` : la création d'un nouveau membre n'écrit **aucune ligne `PlayerClanChange`** (seule la mise à jour en écrit) | [track/route.ts](../../src/app/api/settings/opponents/track/route.ts) | Gardé tel quel, décision du 2026-10-20 (§10) ; verrouillé par un test |
 | `track` retrouve un membre aussi par `pubgPlayerName` seul — risque de collision après un changement de pseudo | [track/route.ts:40-48](../../src/app/api/settings/opponents/track/route.ts#L40-L48) | Inchangé, verrouillé par un test |
-| Recherche : Prisma **n'échappe pas** `_` ni `%` dans `startsWith` / `contains` (`startsWith('a_')` : 36 416 joueurs au lieu de 285) | Découvert à la mesure | ✅ L'annuaire échappe lui-même. ⚠️ La recherche de l'onglet **Triage** ([encountered-players/route.ts:84-88](../../src/app/api/settings/encountered-players/route.ts#L84-L88)) a le même défaut, non corrigé |
+| Recherche : Prisma **n'échappe pas** `_` ni `%` dans `startsWith` / `contains` (`startsWith('a_')` : 36 416 joueurs au lieu de 285) | Découvert à la mesure | ✅ L'annuaire échappe lui-même. ✅ L'onglet **Triage** ([encountered-players/route.ts](../../src/app/api/settings/encountered-players/route.ts)) reprend son filtre `buildNameFilter` depuis le 2026-10-20 ; un `*` seul n'y charge plus toute la table |
 
 ---
 
@@ -438,15 +438,22 @@ L'arrêt de suivi d'un clan, lui, modifie `clan-lifecycle` : c'est pour cela qu'
 
 ## 10. Questions ouvertes
 
-- [ ] `track` sur un membre archivé, rejeté ou en attente : l'annuaire demande confirmation **côté interface**.
+- [x] `track` sur un membre archivé, rejeté ou en attente : l'annuaire demande confirmation **côté interface**.
       Faut-il aussi un garde-fou **serveur** (409 comme pour un membre actif) ? Les autres écrans qui appellent
-      `track` (onglet `Clans`) n'en bénéficient pas.
-- [ ] `track` : journaliser l'entrée d'un nouveau joueur dans le périmètre (`PlayerClanChange` sans clan précédent) ?
+      `track` (onglet `Clans`) n'en bénéficient pas. — **Oui, fait le 2026-10-20** : 409 `member_needs_reactivation`
+      sans `confirmReactivation: true` ; message propre à une demande `/join` en attente (la suivre l'active sans la
+      décision de l'Owner). Annuaire et écran Clans confirment en modale ; l'annuaire reprend l'explication de la route
+      quand l'état affiché était périmé. Tests : `players-directory-route-contracts.test.ts`,
+      `e2e/players-directory.spec.ts`.
+- [x] `track` : journaliser l'entrée d'un nouveau joueur dans le périmètre (`PlayerClanChange` sans clan précédent) ?
+      — **Non, décidé le 2026-10-20** : l'historique des mutations reste réservé aux changements de clan ; l'ajout
+      est déjà tracé par le journal des actions d'administration (`withAdminActionLog`).
 - [ ] Faut-il un filtre dédié aux 🟠 / 🟡 / ⚫, ou `Tous` + recherche suffit-il ?
 - [x] Mesure de volumétrie et `EXPLAIN` avant de figer la requête — fait le 2026-09-25 (§3.D)
 - [ ] Ajouter l'index `Player(lastSeenAt)` ? Proposé, non appliqué :
       [database-performance.md §4.6](../ops/database-performance.md)
-- [ ] Corriger l'échappement de `_` / `%` dans la recherche de l'onglet Triage (§3.E)
+- [x] Corriger l'échappement de `_` / `%` dans la recherche de l'onglet Triage (§3.E) — fait le 2026-10-20
+      (`encountered-players-triage-route.test.ts`)
 
 ---
 

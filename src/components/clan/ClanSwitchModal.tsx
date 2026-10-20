@@ -125,7 +125,7 @@ export function ClanSwitchModal({
                 Changer de clan
               </h2>
               <p className="text-xs text-slate-500 dark:text-slate-400">
-                Sélectionnez le clan à afficher et explorer
+                Sélectionne le clan à afficher et explorer
               </p>
             </div>
           </div>
@@ -192,7 +192,7 @@ export function ClanSwitchModal({
             </div>
           ) : filteredClans.length === 0 ? (
             <div className="py-12 text-center text-xs text-slate-500 dark:text-slate-400">
-              Aucun clan ne correspond à votre recherche &ldquo;{searchQuery}&rdquo;.
+              Aucun clan ne correspond à ta recherche &ldquo;{searchQuery}&rdquo;.
             </div>
           ) : (
             <ul className="space-y-2" role="listbox">

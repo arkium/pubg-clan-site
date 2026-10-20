@@ -74,7 +74,7 @@ export function TournamentAdminBanner({ onCreate }: { onCreate: () => void }) {
           <h1 className="t-banner-title text-white drop-shadow-md">Gestion des tournois</h1>
         </div>
         <p className="text-[13px] text-white/80 drop-shadow-md">
-          Créer, configurer et suivre les tournois organisés par votre clan.
+          Créer, configurer et suivre les tournois organisés par ton clan.
         </p>
       </div>
     </header>

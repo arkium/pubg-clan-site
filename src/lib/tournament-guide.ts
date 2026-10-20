@@ -120,8 +120,8 @@ export const TOURNAMENT_GUIDE_CARDS: TournamentGuideCard[] = [
     title: 'La synchronisation PUBG',
     body: "« Synchroniser PUBG » va chercher sur PUBG les dernières parties du joueur qui clique, retient celles du tournoi et met à jour le classement. Les parties arrivent aussi toutes seules par la synchronisation automatique : le bouton sert à ne pas attendre.",
     bullets: [
-      'Cliquez après chaque manche, une fois la partie terminée : PUBG ne publie une partie que quelques minutes après sa fin.',
-      'Le bouton annonce 0 manche ? PUBG ne l’a pas encore publiée : attendez deux ou trois minutes, puis recliquez. Recliquer est sans risque, une manche n’est jamais comptée deux fois.',
+      'Clique après chaque manche, une fois la partie terminée : PUBG ne publie une partie que quelques minutes après sa fin.',
+      'Le bouton annonce 0 manche ? PUBG ne l’a pas encore publiée : attends deux ou trois minutes, puis reclique. Recliquer est sans risque, une manche n’est jamais comptée deux fois.',
       'Le classement se met à jour aussitôt ; le replay de la manche suit quelques secondes plus tard, le temps d’analyser la télémétrie.',
       'Seul un joueur du clan organisateur qui a joué la manche peut la retrouver : un hôte ou un spectateur n’apparaît pas dans les données PUBG.',
       'Les boutons d’organisation (synchroniser, diffuser, paramètres) ne sont visibles que de l’Owner du clan organisateur et du SuperUser.',
@@ -132,7 +132,7 @@ export const TOURNAMENT_GUIDE_CARDS: TournamentGuideCard[] = [
     title: 'Le calcul des scores',
     body: "Chaque manche rapporte des points de placement (Top 1 à Top 10), des points par kill et un bonus de victoire. L’option « meilleures manches retenues » ne garde que les N meilleures d’un participant, pour qu’une soirée ratée ne condamne pas un tournoi.",
     bullets: [
-      'Un filtre de mode ou de carte trop strict ne retient aucune manche : dans le doute, laissez « tous les modes ».',
+      'Un filtre de mode ou de carte trop strict ne retient aucune manche : dans le doute, laisse « tous les modes ».',
       'Avec le partage au prorata, les totaux deviennent décimaux : c’est normal, pas une erreur d’arrondi.',
     ],
   },

@@ -339,7 +339,7 @@ export async function readOptimizeRunForDisplay(now: Date = new Date()): Promise
     ...state,
     status: 'failed',
     error:
-      'Suivi perdu : le processus qui pilotait le compactage s’est arrêté. MariaDB peut encore être en train de travailler — vérifiez la taille de la table avant de relancer.',
+      'Suivi perdu : le processus qui pilotait le compactage s’est arrêté. MariaDB peut encore être en train de travailler — vérifie la taille de la table avant de relancer.',
     finishedAt: state.updatedAt,
   }
 }

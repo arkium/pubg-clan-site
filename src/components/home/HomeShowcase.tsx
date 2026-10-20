@@ -503,7 +503,7 @@ const NEWS = [
     eyebrow: 'Carte des ressources',
     title: 'La zone ferme ?',
     accent: 'Ta caisse t’attend.',
-    text: 'Véhicules repérés dans vos vraies parties, stations-service, garages, pontons et salles secrètes : toute la map, annotée par la communauté. Plus jamais de sprint dans la zone bleue faute de bagnole.',
+    text: 'Véhicules repérés dans tes vraies parties, stations-service, garages, pontons et salles secrètes : toute la map, annotée par la communauté. Plus jamais de sprint dans la zone bleue faute de bagnole.',
     href: '/carte-des-ressources',
     link: 'Ouvrir la carte',
   },

@@ -23,7 +23,7 @@ Ce document consigne l'état **mesuré** de la base MariaDB de production, les d
 | Table | Lignes | Données | Index | Index ÷ données |
 |---|---|---|---|---|
 | `SquadMatchTelemetry` | 7 622 | 13 427 Mo | 3 Mo | — (JSON hors page) |
-| `EncounteredPlayer` | 1 642 613 | 374 Mo | **1 129 Mo** | **3,0** |
+| `EncounteredPlayer` | 1 642 613 | 374 Mo | **1 129 Mo** | **3,0** — **2026-10-20 : 3 629 815 lignes, 972 Mo + 2 802 Mo d'index (22 % de la base), en cours de retrait : [inventaire-2026-10-20.md §6](../TODO/inventaire-2026-10-20.md)** |
 | `ClanEncounter` | 1 635 860 | 195 Mo | 381 Mo | 2,0 |
 | `Player` | 431 557 | 83 Mo | 145 Mo | 1,8 |
 | `PubgApiCallLog` | 326 956 | 63 Mo | 58 Mo | 0,9 |

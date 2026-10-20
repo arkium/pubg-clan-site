@@ -1434,7 +1434,7 @@ export function MatchReplay2D({
       icon: <Package className="w-3.5 h-3.5" />,
       disabledReason:
         crates.length === 0
-          ? "Caisses non capturées pour ce match : analysé avant le 13/09/2026, relancez la synchronisation télémétrie (matchs de moins de 14 jours)."
+          ? "Caisses non capturées pour ce match : analysé avant le 13/09/2026, relance la synchronisation télémétrie (matchs de moins de 14 jours)."
           : undefined,
     },
   ]

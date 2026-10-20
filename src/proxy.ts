@@ -156,6 +156,7 @@ export async function proxy(request: NextRequest) {
 
 export const config = {
   matcher: [
-    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|maps|icons|avatars|uploads).*)',
+    // indexnow.txt : fichier de clé IndexNow, public comme robots.txt (src/lib/seo/indexnow.ts).
+    '/((?!api|_next/static|_next/image|favicon.ico|robots.txt|sitemap.xml|indexnow.txt|maps|icons|avatars|uploads).*)',
   ],
 }

@@ -183,7 +183,7 @@ export default function PendingRequestsPanel() {
         clanId={clanId}
         active="demandes"
         title="Demandes d’adhésion"
-        subtitle={`${clanName ? `${clanName} · ` : ''}Validez ou refusez les demandes des joueurs avant leur activation dans le clan.`}
+        subtitle={`${clanName ? `${clanName} · ` : ''}Valide ou refuse les demandes des joueurs avant leur activation dans le clan.`}
         icon={UserCheck}
         pills={[<><span className="t-num">{pending.length}</span> en attente</>]}
       />
@@ -322,11 +322,11 @@ export default function PendingRequestsPanel() {
             <>
               Le joueur devient membre actif du clan. Il n’a pas encore de compte : le lien pour le créer part à{' '}
               <b className="text-gray-900">{confirmModal.member.contactEmail}</b>.{' '}
-              <b className="text-gray-900">Vérifiez que cette adresse est bien la sienne</b> (en jeu, sur le Discord du clan) avant
+              <b className="text-gray-900">Vérifie que cette adresse est bien la sienne</b> (en jeu, sur le Discord du clan) avant
               d’accepter.
             </>
           ) : (
-            'Le joueur devient membre actif du clan. Il n’a ni compte ni adresse de contact : invitez-le ensuite depuis la liste des membres.'
+            'Le joueur devient membre actif du clan. Il n’a ni compte ni adresse de contact : invite-le ensuite depuis la liste des membres.'
           )}
         </ConfirmDialog>
       ) : null}

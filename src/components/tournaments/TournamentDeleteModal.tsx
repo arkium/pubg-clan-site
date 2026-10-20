@@ -93,7 +93,7 @@ export default function TournamentDeleteModal({
         <div className="app-panel-muted mt-4 flex items-start gap-2.5 p-3">
           <ShieldCheck className="t-pos mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
           <p className="t-body text-gray-700">
-            <b className="text-gray-900">Vos données de jeu sont préservées.</b> Les matchs PUBG, la télémétrie et les
+            <b className="text-gray-900">Les données de jeu sont préservées.</b> Les matchs PUBG, la télémétrie et les
             statistiques des membres restent en base : seule la configuration du tournoi disparaît.
           </p>
         </div>

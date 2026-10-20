@@ -34,7 +34,12 @@ vi.mock('@/lib/prisma', () => ({
 
 vi.mock('@/middleware/auth-permission', () => ({ requireSuperUser: mocks.requireSuperUser }))
 
-import { sendClanApprovedEmail, sendClanRejectedEmail } from '@/lib/clan-lifecycle/clan-decision-email'
+import {
+  sendClanApprovedEmail,
+  sendClanRejectedEmail,
+  sendMemberApprovedEmail,
+  sendMemberRejectedEmail,
+} from '@/lib/clan-lifecycle/clan-decision-email'
 import { POST as rejectClan } from '@/app/api/clans/[clanId]/reject/route'
 
 const params = Promise.resolve({ clanId: '999' })
@@ -110,6 +115,25 @@ describe('Notification de décision', () => {
     })
 
     expect(mocks.sendEmail.mock.calls[0][0].text).toContain('Clan inactif depuis trop longtemps')
+  })
+
+  // Tutoiement partout, e-mails compris (CLAUDE.md §6 bis) ; contrôle des sources : tutoiement.test.ts.
+  it('tutoie le demandeur dans les quatre e-mails, avec ou sans lien de création du compte', async () => {
+    const base = { contactEmail: 'a@b.c', clanName: 'Smoke', clanTag: 'SMK', playerName: 'Vvila' }
+    await sendClanApprovedEmail({ ...base, activationUrl: 'https://chickendinner.fr/activate?token=t' })
+    await sendClanApprovedEmail(base)
+    await sendClanRejectedEmail({ ...base, reason: 'Doublon' })
+    await sendMemberApprovedEmail({ ...base, activationUrl: 'https://chickendinner.fr/activate?token=t' })
+    await sendMemberApprovedEmail(base)
+    await sendMemberRejectedEmail(base)
+
+    expect(mocks.sendEmail).toHaveBeenCalledTimes(6)
+    for (const [{ subject, text }] of mocks.sendEmail.mock.calls) {
+      expect(`${subject}\n${text}`).not.toMatch(/\b(vous|votre|vos)\b/i)
+    }
+    expect(mocks.sendEmail.mock.calls[0][0].subject).toBe('Ton clan [SMK] Smoke a été validé')
+    expect(mocks.sendEmail.mock.calls[0][0].text).toContain('choisis ton mot de passe')
+    expect(mocks.sendEmail.mock.calls[1][0].text).toContain('Connecte-toi avec ton compte')
   })
 })
 

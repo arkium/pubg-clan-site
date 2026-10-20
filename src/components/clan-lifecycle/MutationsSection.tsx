@@ -226,7 +226,7 @@ export function MutationsSection({ onChanged, onToast }: { onChanged: () => void
           <li className="flex items-start gap-2">
             <CheckCircle2 className="t-pos mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
             <span>
-              <b className="text-gray-900">Marquer comme vu</b> — indique que vous avez relu ce mouvement et qu’il est
+              <b className="text-gray-900">Marquer comme vu</b> — indique que tu as relu ce mouvement et qu’il est
               normal. Le sort de la file de relecture, <b className="text-gray-900">sans rien modifier</b>.
             </span>
           </li>

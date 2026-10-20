@@ -75,7 +75,7 @@ function buildNetworkAwareErrorMessage(prefix: string, error: unknown) {
     normalizedMessage.includes('networkerror') ||
     normalizedMessage.includes('network request failed')
   return isNetworkFetchError
-    ? `${prefix} Le serveur semble indisponible (verifiez que npm run dev est actif).`
+    ? `${prefix} Le serveur semble indisponible (vérifie que npm run dev est actif).`
     : `${prefix} ${message}`
 }
 
@@ -687,7 +687,7 @@ export default function TelemetrySessionDatePage() {
     if (!clanId || !date) return
 
     if (selectedMatchIds.length === 0) {
-      setTelemetryFileSyncMessage('Sélectionnez au moins 1 match avant le resync fichiers.')
+      setTelemetryFileSyncMessage('Sélectionne au moins 1 match avant le resync fichiers.')
       setTelemetryFileSyncTone('error')
       return
     }
@@ -701,7 +701,7 @@ export default function TelemetrySessionDatePage() {
       : selectedMatchIds.filter((matchId) => !alreadySucceededIds.includes(matchId))
 
     if (candidateIds.length === 0) {
-      setTelemetryFileSyncMessage('Aucun match à resync: la sélection est déjà en Parser OK. Activez "Forcer le resync" pour retraiter.')
+      setTelemetryFileSyncMessage('Aucun match à resync: la sélection est déjà en Parser OK. Active "Forcer le resync" pour retraiter.')
       setTelemetryFileSyncTone('warning')
       return
     }
@@ -837,7 +837,7 @@ export default function TelemetrySessionDatePage() {
       const aggregateDeferredPart = !interruptedReason && successCount > 0 && remainingIds.length > 0 ? ' Recalcul des agrégats différé jusqu\'à la fin de tous les lots.' : ''
 
       if (interruptedReason) {
-        setTelemetryFileSyncMessage(`Resync interrompu: ${successCount} succès, ${failedCount} échec(s) avant interruption.${remainingPart} Relancez pour reprendre.`)
+        setTelemetryFileSyncMessage(`Resync interrompu: ${successCount} succès, ${failedCount} échec(s) avant interruption.${remainingPart} Relance pour reprendre.`)
         setTelemetryFileSyncTone('error')
       } else {
         setTelemetryFileSyncMessage(`Resync fichiers terminé: ${successCount} succès, ${failedCount} échec(s).${bytesPart}${aggPart}${deferredPart}${remainingPart}${aggregateDeferredPart}${nonRetryablePart}`)
@@ -875,7 +875,7 @@ export default function TelemetrySessionDatePage() {
     if (!clanId || !date) return
 
     if (selectedMatchIds.length === 0) {
-      setTelemetryFileQueueMessage('Selectionnez au moins 1 match avant la mise en file worker.')
+      setTelemetryFileQueueMessage('Sélectionne au moins 1 match avant la mise en file worker.')
       return
     }
 
@@ -884,7 +884,7 @@ export default function TelemetrySessionDatePage() {
     const candidateIds = forceResync ? selectedMatchIds : selectedMatchIds.filter((id) => !alreadySucceededIds.includes(id))
 
     if (candidateIds.length === 0) {
-      setTelemetryFileQueueMessage('Aucun match à mettre en file: la sélection est déjà en "Parser OK". Activez "Forcer le resync" pour retraiter.')
+      setTelemetryFileQueueMessage('Aucun match à mettre en file: la sélection est déjà en "Parser OK". Active "Forcer le resync" pour retraiter.')
       return
     }
 
@@ -940,7 +940,7 @@ export default function TelemetrySessionDatePage() {
       const resetPart = resetBeforeResync ? ' Option "Réinitialiser DB" active.' : ''
 
       setTelemetryFileQueueMessage(
-        `Mise en file terminée: ${queuedCount} job(s) ajouté(s), ${alreadyQueuedCount} déjà en file ou en cours. Restant à traiter: ${queueRemaining} (${queueQueued} en attente, ${queueRunning} en cours). Historique: ${queueSuccess} succès, ${queueFailed} échec(s).${resetPart} Lancez \`npm run telemetry:worker\` dans un terminal séparé pour exécuter la file.`
+        `Mise en file terminée: ${queuedCount} job(s) ajouté(s), ${alreadyQueuedCount} déjà en file ou en cours. Restant à traiter: ${queueRemaining} (${queueQueued} en attente, ${queueRunning} en cours). Historique: ${queueSuccess} succès, ${queueFailed} échec(s).${resetPart} Lance \`npm run telemetry:worker\` dans un terminal séparé pour exécuter la file.`
       )
       setTelemetryFileSyncMessage(null)
     } catch (err) {
@@ -1097,7 +1097,7 @@ export default function TelemetrySessionDatePage() {
             matches={sessionMatches}
             mapLabels={mapLabels}
             title="Parties de la soirée"
-            description={`${sessionMatches.length} partie(s) le ${dayLabel}. Cochez celles à traiter.`}
+            description={`${sessionMatches.length} partie(s) le ${dayLabel}. Coche celles à traiter.`}
             emptyMessage="Aucune partie ce jour-là."
             limit={sessionMatches.length}
             selectable

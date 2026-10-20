@@ -226,7 +226,8 @@ Toutes les 4 minutes, sous la durée du cache de la vitrine (5 min, `CACHE_TTL_M
 redémarrage du web (docs/TODO/geo-seo-propositions.md, 5.2). Le cache vit dans le **process web** : le cron l'appelle par
 `INTERNAL_APP_URL` (`POST /api/internal/home-showcase/warm`, en-tête `x-cron-bootstrap-secret`), un appel direct ne
 remplirait que sa propre mémoire. La vitrine n'est remplacée qu'une fois la nouvelle prête ; un échec garde l'ancienne.
-Sans `CRON_BOOTSTRAP_SECRET`, le job s'arrête avec un seul avertissement. Tâche globale : pas de ligne `CronExecution`,
+Sans `CRON_BOOTSTRAP_SECRET`, le job s'arrête avec un seul avertissement. En production, le secret est posé dans les
+units systemd du web **et** du cron (`Environment=`, [deployment.md](deployment.md)), pas dans le `.env`. Tâche globale : pas de ligne `CronExecution`,
 une ligne de journal en cas d'échec.
 
 ---

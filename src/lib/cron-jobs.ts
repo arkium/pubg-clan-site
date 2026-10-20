@@ -95,6 +95,8 @@ const globalForCron = globalThis as typeof globalThis & {
   adminDailyDigestCronTask?: ScheduledTask
   homeShowcaseWarmCronTask?: ScheduledTask
   homeShowcaseWarmSecretWarned?: boolean
+  /** Dernier échec journalisé du préchauffage (`null` : en ordre). */
+  homeShowcaseWarmFailure?: string | null
 }
 
 function isCronWorkerEnabled() {
@@ -1212,6 +1214,7 @@ async function runHomeShowcaseWarm() {
     return
   }
 
+  let failure: string | null = null
   try {
     const response = await fetch(`${getInternalApiBaseUrl()}/api/internal/home-showcase/warm`, {
       method: 'POST',
@@ -1219,9 +1222,17 @@ async function runHomeShowcaseWarm() {
       cache: 'no-store',
       signal: AbortSignal.timeout(60_000),
     })
-    if (!response.ok) console.error(`[Cron] Préchauffage de la vitrine échoué — HTTP ${response.status}`)
+    // 403 : le web n'a pas le même CRON_BOOTSTRAP_SECRET que le cron (units systemd, docs/ops/deployment.md).
+    if (!response.ok) failure = `HTTP ${response.status}`
   } catch (error) {
-    console.error('[Cron] Préchauffage de la vitrine échoué', error instanceof Error ? error.message : error)
+    failure = error instanceof Error ? error.message : String(error)
+  }
+
+  // Toutes les 4 minutes : une ligne quand l'échec apparaît ou change, une quand il cesse — pas 360 par jour.
+  if (failure !== (globalForCron.homeShowcaseWarmFailure ?? null)) {
+    if (failure) console.error(`[Cron] Préchauffage de la vitrine échoué — ${failure}`)
+    else console.info('[Cron] Préchauffage de la vitrine rétabli')
+    globalForCron.homeShowcaseWarmFailure = failure
   }
 }
 

@@ -162,7 +162,7 @@ la page de résolution applique la règle 1 du §4.B. Le proxy n'interroge toujo
    (redirections, page de choix) ; exception `/m/` dans le proxy du sous-domaine.
 2. ✅ Embeds Discord sur les liens courts, noms des joueurs cliquables ; `subdomain` ajouté au `select` du clan dans
    `discord-service.ts` (l'identifiant des joueurs y est déjà connu).
-3. Production : `APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env` partagé ; build du
+3. Production (`.env` posé le 2026-10-20) : `APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env` partagé ; build du
    web ; **redémarrer le web, puis le cron et les workers**.
 4. Vérifier un lien court réel depuis Discord avant d'annoncer.
 

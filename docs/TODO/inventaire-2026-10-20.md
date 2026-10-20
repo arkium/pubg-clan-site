@@ -99,7 +99,7 @@ lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne
 | ⚠️ `REVOKE` des droits globaux du compte `smk` | [database-performance.md](../ops/database-performance.md) |
 | Rapport `db-health` à J+7 (prévu le 2026-09-22) jamais consigné ; en dépendent les index d'`EncounteredPlayer`, les réglages mémoire MariaDB et le `db-health disable` | [todo.md](todo.md) l. 157, 170 |
 | Sous-domaines de clan : certificat wildcard (DNS-01), `server_name *.chickendinner.fr` dans Nginx, `CLAN_SUBDOMAIN_ROOT=chickendinner.fr`, redémarrage ; **puis** `includeSubDomains` au HSTS | [chickendinnerfr.md §5](chickendinnerfr.md), [deployment.md](../ops/deployment.md) |
-| `APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env`, rebuild, redémarrage du web puis du cron | [url-masking.md §5](url-masking.md) |
+| `APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env` (**posé le 2026-10-20**), rebuild, redémarrage du web puis du cron | [url-masking.md §5](url-masking.md) |
 | Créer la boîte `contact@chickendinner.fr` (déjà citée par les pages légales) | [CU_todo.md](CU_todo.md) |
 | `OPTIMIZE` de `SquadMatchTelemetry` (~16 Go à rendre au disque) | [todo.md](todo.md) l. 721, 733 |
 | `scripts/resync-player-clan-identity.ts --apply` jamais lancé | [todo.md](todo.md) l. 4366 |
@@ -108,7 +108,7 @@ lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne
 | Constats en base : `ZoneClosurePosition` remplie par les nouveaux matchs, `ClanComparatorCache` rempli par `daily_stats_recalc` | [todo.md](todo.md) l. 4012, 5961 |
 | **Après le déploiement du 2026-10-20** : recalculer les agrégats de télémétrie (distances en mètres) — `npm run telemetry:batch -- --recalc-aggregates`, par lots si le worker tombe | §2.A |
 | **Après le déploiement du 2026-10-20** : `npx tsx scripts/backfill-member-player-link.ts --apply` (54 fiches) | §2.A |
-| Vérifier que `CRON_BOOTSTRAP_SECRET` est posé pour le web **et** le cron (préchauffage de la vitrine) ; poser `INDEXNOW_KEY` pour activer IndexNow, puis importer la propriété dans Bing Webmaster Tools | [docs/ops/cron.md](../ops/cron.md), [seo.md](../features/seo.md) |
+| ~~Vérifier que `CRON_BOOTSTRAP_SECRET` est posé pour le web **et** le cron~~ — **vérifié le 2026-10-20** : même valeur dans les units systemd des deux (`Environment=`, pas le `.env`, [deployment.md](../ops/deployment.md)). Reste : poser `INDEXNOW_KEY` pour activer IndexNow, puis importer la propriété dans Bing Webmaster Tools | [docs/ops/cron.md](../ops/cron.md), [seo.md](../features/seo.md) |
 
 **Recettes dans un navigateur** — une quarantaine de cases, dont une partie déjà couverte par `e2e/` : arrêt de suivi
 d'un clan, annuaire des joueurs (§9.D), Replay Karakin, manche de tournoi vue d'un autre clan, six états du Triage,

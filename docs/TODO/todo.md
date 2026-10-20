@@ -838,7 +838,9 @@ migration). 16 % des matchs réunissent plusieurs clans : clan porté par le sou
   2026-10-20** : une seule lecture, `src/lib/public-base-url.ts`. Les deux ordres sont gardés, car voulus depuis
   /settings/configuration (2026-10-18) : adresse publique `NEXT_PUBLIC_APP_URL` d'abord (Discord, alertes), liens de
   compte `APP_URL` d'abord. Variable vide = absente ; base publique absente → un avertissement par processus
-- [ ] Production : `APP_URL` / `NEXT_PUBLIC_APP_URL` = `https://chickendinner.fr`, rebuild, redémarrage web puis cron
+- [ ] Production : `APP_URL` / `NEXT_PUBLIC_APP_URL` = `https://chickendinner.fr`, rebuild, redémarrage web puis cron —
+  **`.env` de production posé le 2026-10-20** ; reste au déploiement : build du web (`NEXT_PUBLIC_APP_URL` est figée au
+  build), redémarrage du web puis du cron, recette d'un lien court reçu sur Discord
 
 #### Lot 8 — Refonte UI (look cohérent des pages joueurs) — 📐 Maquette validée le 2026-09-26, à implémenter
 

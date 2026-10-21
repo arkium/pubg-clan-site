@@ -366,13 +366,14 @@ export async function resolveOneEncounteredPlayerCandidate(
         }
       : { outcome: 'resolved_without_clan', updatedRowCount: count }
   } catch (error) {
+    const identity = { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard }
     const updatedRowCount = await prisma.encounteredPlayer
-      .updateMany({
-        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
-        data: { resolveAttempts: { increment: 1 } },
-      })
+      .updateMany({ where: identity, data: { resolveAttempts: { increment: 1 } } })
       .then((result) => result.count)
       .catch(() => 0)
+    // Même compteur sur l'identité globale (fin d'EncounteredPlayer, étape 2) : jusqu'ici, Player.resolveAttempts
+    // n'était jamais écrit.
+    await prisma.player.updateMany({ where: identity, data: { resolveAttempts: { increment: 1 } } }).catch(() => undefined)
 
     return { outcome: 'failed', error, updatedRowCount }
   }

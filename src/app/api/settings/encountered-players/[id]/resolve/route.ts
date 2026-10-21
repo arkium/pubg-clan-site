@@ -119,10 +119,9 @@ async function handlePost(
 
   try {
     if (forceRetry) {
-      await prisma.encounteredPlayer.updateMany({
-        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
-        data: { resolveAttempts: 0 },
-      })
+      const identity = { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard }
+      await prisma.encounteredPlayer.updateMany({ where: identity, data: { resolveAttempts: 0 } })
+      await prisma.player.updateMany({ where: identity, data: { resolveAttempts: 0 } })
     }
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate, { source: 'manual' })

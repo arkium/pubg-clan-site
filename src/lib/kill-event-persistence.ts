@@ -240,7 +240,8 @@ export async function persistKillEventsForMatch(
       await transaction.killEvent.createMany({ data: rows })
     }
 
-    // Appliquer les deltas à EncounteredPlayer
+    // Appliquer les deltas à EncounteredPlayer (par clan) et à Player (tous clans confondus, fin d'EncounteredPlayer)
+    const playerDeltas = new Map<string, number>()
     for (const [clanId, clanDeltas] of deltas.entries()) {
       for (const [pubgAccountId, delta] of clanDeltas.entries()) {
         if (delta !== 0) {
@@ -248,7 +249,16 @@ export async function persistKillEventsForMatch(
             where: { clanId, pubgAccountId },
             data: { combatInteractionsCount: { increment: delta } }
           })
+          playerDeltas.set(pubgAccountId, (playerDeltas.get(pubgAccountId) ?? 0) + delta)
         }
+      }
+    }
+    for (const [pubgAccountId, delta] of playerDeltas.entries()) {
+      if (delta !== 0) {
+        await transaction.player.updateMany({
+          where: { pubgAccountId },
+          data: { combatInteractionsCount: { increment: delta } }
+        })
       }
     }
   })

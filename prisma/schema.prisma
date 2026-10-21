@@ -209,6 +209,13 @@ model Player {
   clanResolvedAt  DateTime?
   resolveAttempts Int       @default(0)
 
+  // Fin d'EncounteredPlayer, étape 2 (docs/TODO/inventaire-2026-10-20.md §6) : compteurs tous clans confondus, pour
+  // que la résolution et le Triage lisent une ligne par joueur. `encounterCount` = somme des `ClanEncounter` du
+  // joueur ; `combatInteractionsCount` = kills échangés avec un clan suivi (KillEvent). Rattrapage :
+  // scripts/backfill-player-encounter-counters.ts.
+  encounterCount          Int @default(0)
+  combatInteractionsCount Int @default(0)
+
   isFavorite  Boolean  @default(false)
   firstSeenAt DateTime @default(now())
   lastSeenAt  DateTime @default(now())
@@ -229,6 +236,9 @@ model Player {
   // aligner le schema sur la base plutot que de le laisser supprimer par un
   // `db push`.
   @@index([clanResolvedAt, lastSeenAt], map: "idx_player_resolved_last_seen")
+  // Priorité de la résolution : joueurs non résolus parcourus dans l'ordre (combat, rencontres), sans tri ni
+  // regroupement — remplace le `groupBy` d'EncounteredPlayer (~48 s) et son cache de 6 h.
+  @@index([clanResolvedAt, combatInteractionsCount, encounterCount, resolveAttempts], map: "idx_player_resolution_priority")
   @@map("Player")
 }
 

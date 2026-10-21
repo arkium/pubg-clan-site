@@ -168,11 +168,14 @@ export async function captureEncounteredPlayers(
         ? opponentClanIdByPubgClanId.get(trackedClan.pubgClanId) ?? null
         : null
 
+      // `encounterCount` : une rencontre par clan suivi et par partie, comme la somme des `ClanEncounter` du joueur
+      // (fin d'EncounteredPlayer, étape 2).
       const player = await prisma.player.upsert({
         where: { pubgAccountId_platformShard: { pubgAccountId, platformShard } },
         update: {
           pubgPlayerName,
           lastSeenAt: now,
+          encounterCount: { increment: 1 },
           ...(trackedClan ? { clanResolvedAt: now, opponentClanId: trackedOpponentClanId } : {}),
         },
         create: {
@@ -181,6 +184,7 @@ export async function captureEncounteredPlayers(
           platformShard,
           firstSeenAt: now,
           lastSeenAt: now,
+          encounterCount: 1,
           clanResolvedAt: trackedClan ? now : null,
           opponentClanId: trackedClan ? trackedOpponentClanId : null,
         },

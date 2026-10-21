@@ -5,7 +5,7 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $queryRaw: vi.fn(),
-    player: { findUnique: vi.fn(), upsert: vi.fn() },
+    player: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
     clanMember: { findFirst: vi.fn() },
     opponentClan: { upsert: vi.fn() },
     encounteredPlayer: { updateMany: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
@@ -177,6 +177,7 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     vi.mocked(prisma.player.findUnique).mockResolvedValue(null as never)
     mockedFetchPlayerClan.mockRejectedValue(new Error('PUBG API down'))
     vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 4 } as never)
+    vi.mocked(prisma.player.updateMany).mockResolvedValue({ count: 1 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
@@ -188,6 +189,20 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
         data: { resolveAttempts: { increment: 1 } },
       })
     )
+    // Fin d'EncounteredPlayer, étape 2 : l'identité globale compte aussi l'échec.
+    expect(prisma.player.updateMany).toHaveBeenCalledWith({
+      where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
+      data: { resolveAttempts: { increment: 1 } },
+    })
+  })
+
+  it("l'échec reste un échec même si l'écriture sur Player échoue", async () => {
+    vi.mocked(prisma.player.findUnique).mockResolvedValue(null as never)
+    mockedFetchPlayerClan.mockRejectedValue(new Error('PUBG API down'))
+    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 2 } as never)
+    vi.mocked(prisma.player.updateMany).mockRejectedValue(new Error('Unknown column'))
+
+    await expect(resolveOneEncounteredPlayerCandidate(candidate)).resolves.toMatchObject({ outcome: 'failed', updatedRowCount: 2 })
   })
 })
 

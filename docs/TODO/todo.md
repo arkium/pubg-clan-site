@@ -4434,8 +4434,10 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 - [ ] **Fin d'`EncounteredPlayer`** (3,77 Go le 2026-10-20, 22 % de la base, +65 Mo/jour) — plan et mesures :
   [inventaire-2026-10-20.md §6](inventaire-2026-10-20.md). Fait le 2026-10-20 : lectures du débriefing, du replay, des
   joueurs d'un tournoi, du kill feed, de Némésis et de la page Adversaires basculées sur `Player` / `ClanEncounter`.
-  Reste : colonnes `Player.encounterCount` / `combatInteractionsCount` (migration, sur accord), bascule du Triage et du
-  cron de résolution, arrêt de la double écriture, une semaine d'observation, puis `DROP TABLE` (sur accord)
+  Prêt le 2026-10-21, à déployer : colonnes `Player.encounterCount` / `combatInteractionsCount` (migration additive),
+  alimentées par la capture, les kills et les échecs de résolution, rattrapage `scripts/backfill-player-encounter-counters.ts`.
+  Reste : bascule du Triage et du cron de résolution (après le rattrapage), arrêt de la double écriture, une semaine
+  d'observation, puis `DROP TABLE` (sur accord)
 
 **Priorisation par interactions de combat (La "Bounty List") — Phase 2 (Dénormalisation) — ✅ Fait, doublon de la section "Dénormalisation de la Bounty List — Phase 2 Terminée" plus bas, vérifié le 2026-08-30 :**
 - [x] `combatInteractionsCount` ajouté à `EncounteredPlayer` (`prisma/schema.prisma`) + index `@@index([clanResolvedAt, combatInteractionsCount])` + script de backfill `src/scripts/backfill-combat-interactions.ts`

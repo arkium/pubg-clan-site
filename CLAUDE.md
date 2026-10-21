@@ -389,7 +389,8 @@ Discord ou un e-mail se fabrique **uniquement** par `src/lib/short-links.ts` (`/
 **Identité d'un membre** (depuis le 2026-10-20) : toute création ou validation de `ClanMember` appelle
 `ensurePlayerLinkForMember` (`src/lib/member-player-link.ts`), qui pose `playerId` sans toucher au clan PUBG du joueur.
 `EncounteredPlayer` est en cours de retrait (docs/TODO/inventaire-2026-10-20.md §6) : une **nouvelle** lecture passe par
-`Player` / `ClanEncounter`, jamais par `EncounteredPlayer`.
+`Player` / `ClanEncounter`, jamais par `EncounteredPlayer` ; une écriture d'un compteur d'adversaire (rencontres, combats,
+échecs de résolution) alimente aussi ses compteurs tous clans sur `Player`.
 **Alerte au SuperUser** (depuis le 2026-10-19) : salon Discord d'administration, par `sendAdminAlert` / `fireAdminAlert`
 (`src/lib/admin-alerts/`) — un nouvel événement = une entrée de `catalog.ts` (interrupteur et mention viennent seuls),
 jamais un `sendDiscordWebhook` direct ; ni adresse e-mail ni donnée d'une demande de confidentialité dans le message

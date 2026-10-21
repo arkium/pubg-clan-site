@@ -763,10 +763,10 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
   table (`encountered-players-triage-route.test.ts`)
 - [ ] **Index `Player(lastSeenAt)`** — le tri par défaut de l'annuaire coûte 1,5 à 1,8 s faute d'index. Proposé,
   non appliqué : [database-performance.md §4.6](../ops/database-performance.md)
-- [ ] **4 membres actifs sans ligne `Player`**, donc absents de l'annuaire (signalés à l'écran) :
+- [x] **4 membres actifs sans ligne `Player`**, donc absents de l'annuaire (signalés à l'écran) :
   [players.md §3.C](players.md) — **2026-10-20** : le lien est désormais posé à la création et à la validation
   (`src/lib/member-player-link.ts`) ; rattrapage prêt, `scripts/backfill-member-player-link.ts` (simulation : 54 fiches
-  sans lien, dont 3 lignes `Player` à créer). Reste à le lancer avec `--apply`, sur accord
+  sans lien, dont 3 lignes `Player` à créer). **Appliqué le 2026-10-20** : 54 fiches rattachées, 0 restante
 - [x] ⚠️ **Constaté pendant ce lot : trois tests Vitest écrivent dans la base de `DATABASE_URL`, donc en
   production** — `tracked-isolation.test.ts`, `drop-pressure-match-type.test.ts`,
   `matches-cache-match-type.test.ts` créent puis suppriment des clans, membres et matchs de test (blocs
@@ -838,9 +838,9 @@ migration). 16 % des matchs réunissent plusieurs clans : clan porté par le sou
   2026-10-20** : une seule lecture, `src/lib/public-base-url.ts`. Les deux ordres sont gardés, car voulus depuis
   /settings/configuration (2026-10-18) : adresse publique `NEXT_PUBLIC_APP_URL` d'abord (Discord, alertes), liens de
   compte `APP_URL` d'abord. Variable vide = absente ; base publique absente → un avertissement par processus
-- [ ] Production : `APP_URL` / `NEXT_PUBLIC_APP_URL` = `https://chickendinner.fr`, rebuild, redémarrage web puis cron —
-  **`.env` de production posé le 2026-10-20** ; reste au déploiement : build du web (`NEXT_PUBLIC_APP_URL` est figée au
-  build), redémarrage du web puis du cron, recette d'un lien court reçu sur Discord
+- [x] Production : `APP_URL` / `NEXT_PUBLIC_APP_URL` = `https://chickendinner.fr`, rebuild, redémarrage web puis cron —
+  **fait le 2026-10-20** (`.env` posé, déployé par `scripts/deploy.sh`). Reste la recette d'un lien court reçu sur Discord
+  (prochain Top 1)
 
 #### Lot 8 — Refonte UI (look cohérent des pages joueurs) — 📐 Maquette validée le 2026-09-26, à implémenter
 
@@ -2762,8 +2762,10 @@ Maquette Claude Design « Débrief télémétrie » — [debriefing.md](../featu
       `LogParachuteLanding`, tout le trajet sans atterrissage) ; l'unité reste le **centimètre**, documentée, car la
       version du parser ne distingue pas les anciennes données. Les pages Style de jeu (clan et joueur) lisent
       désormais les distances de l'API PUBG (`SquadMember`, mètres exacts) : elles affichaient ≈ 86 km « à pied » par
-      partie au lieu de ≈ 2 km. Une ligne pas encore recalculée s'affiche « — ». **Reste** : recalculer les agrégats
-      (`npm run telemetry:batch -- --recalc-aggregates`, par lots), sur accord
+      partie au lieu de ≈ 2 km. Une ligne pas encore recalculée s'affiche « — ». **Agrégats recalculés le 2026-10-20**
+      (`npm run telemetry:batch -- --all-clans --recalc-aggregates-only`, 41 clans en 253 s) : 1,7 à 1,9 km à pied et
+      1,9 km en véhicule par partie. Les semaines et mois passés gardent l'ancienne unité ; non affichés, ils donneraient
+      « — »
 
 #### ~~Vitrine publique de l'accueil (`/`)~~ — ✅ Complété le 2026-09-26
 

@@ -11,9 +11,11 @@
  * croisé pendant le passage peut garder un écart d'une unité (la somme lue précède l'écriture) ; une seconde passe le
  * corrige. Rien n'est lu par les pages avant l'étape 3.
  *
- * Coût : `EncounteredPlayer` (3,6 M lignes, sans index par compte) est lue une fois dans l'ordre de sa clé primaire,
- * par tranches ; seules ses lignes non nulles restent en mémoire. `ClanEncounter` est lue par l'index de sa clé
- * étrangère `playerId`, lot par lot de `Player`. Écritures par lots de 500 lignes, seulement celles qui changent.
+ * Coût : `EncounteredPlayer` (3,6 M lignes) est lue une fois dans l'ordre de sa clé primaire, par tranches — lecture
+ * séquentielle, plus douce pour le buffer pool que des centaines de milliers de recherches par son index de compte ;
+ * seules ses lignes non nulles restent en mémoire. `ClanEncounter` est lue par l'index de sa clé étrangère `playerId`,
+ * lot par lot de `Player`. Écritures par lots de 500 lignes, seulement celles qui changent.
+ * Appliqué le 2026-10-21 : 767 987 lignes écrites en 720 s.
  *
  * ⚠️ DATABASE_URL vise la base de PRODUCTION. Le défaut est une simulation (lecture seule). À lancer sur le serveur.
  *

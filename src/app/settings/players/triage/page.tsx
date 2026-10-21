@@ -9,6 +9,7 @@ import Pagination from '@/components/ui/Pagination'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS } from '@/lib/encountered-player-resolution-constants'
 
 /**
  * Triage des joueurs croisés dont le clan PUBG reste à découvrir — onglet « Triage API » de Plateforme › Joueurs.
@@ -56,8 +57,8 @@ const STATUS_CONFIG: Record<TriageStatus, { label: string; tooltip: string; tone
     tone: 'warn',
   },
   failed: {
-    label: 'Sans réponse (5 essais)',
-    tooltip: 'Nombre maximal de tentatives (5) dépassé. Compte souvent inexistant, supprimé ou robot.',
+    label: `Sans réponse (${ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS} essais)`,
+    tooltip: `Nombre maximal de tentatives (${ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS}) atteint. Compte souvent inexistant, supprimé ou robot.`,
     tone: 'neg',
   },
   below_threshold: {
@@ -191,17 +192,34 @@ export default function OpponentsTriagePage() {
 
       if (!res.ok) throw new Error(data?.error || 'Échec de la résolution')
 
-      const outcome = data.result?.outcome
-      let message = 'Résolu.'
-      if (outcome === 'resolved_with_clan') {
-        message = `Clan trouvé : [${data.result.pubgClanTag || 'TAG'}] ${data.result.pubgClanName || ''}`
-      } else if (outcome === 'resolved_without_clan') {
-        message = 'Joueur sans clan confirmé'
-      } else if (outcome === 'cache_hit') {
-        message = 'Résolu depuis le cache'
+      // La route répond `{ data: { outcome, viaCache, clanTag, clanName } }`, un résultat déjà connu traduit en
+      // « avec clan » / « sans clan ». Un appel PUBG sans réponse renvoie 200 avec `outcome: 'failed'`.
+      const result = (data?.data ?? {}) as { outcome?: string; viaCache?: boolean; clanTag?: string | null; clanName?: string | null }
+
+      if (result.outcome === 'failed') {
+        const attempts = forceRetry ? 1 : (player.resolveAttempts ?? 0) + 1
+        const exhausted = attempts >= ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS
+        setResolutionFeedback((prev) => ({
+          ...prev,
+          [player.id]: {
+            success: false,
+            message: exhausted ? 'Pas de réponse de l’API PUBG : nombre maximal d’essais atteint.' : 'Pas de réponse de l’API PUBG : le cron réessaiera.',
+          },
+        }))
+        setTriageRows((prev) =>
+          prev.map((row) =>
+            row.id === player.id ? { ...row, resolveAttempts: attempts, status: exhausted ? 'failed' : 'retry_pending' } : row
+          )
+        )
+        return
       }
 
-      setResolutionFeedback((prev) => ({ ...prev, [player.id]: { success: true, message } }))
+      const withClan = result.outcome === 'resolved_with_clan'
+      const message = withClan ? `Clan trouvé : [${result.clanTag || 'TAG'}] ${result.clanName || ''}`.trim() : 'Joueur sans clan confirmé'
+      setResolutionFeedback((prev) => ({
+        ...prev,
+        [player.id]: { success: true, message: result.viaCache ? `${message} (déjà connu)` : message },
+      }))
 
       // Mise à jour optimiste de la ligne
       setTriageRows((prev) =>
@@ -209,10 +227,10 @@ export default function OpponentsTriagePage() {
           row.id === player.id
             ? {
                 ...row,
-                pubgClanTag: data.result?.pubgClanTag ?? row.pubgClanTag,
-                pubgClanName: data.result?.pubgClanName ?? row.pubgClanName,
+                pubgClanTag: withClan ? result.clanTag ?? null : null,
+                pubgClanName: withClan ? result.clanName ?? null : null,
                 clanResolvedAt: new Date().toISOString(),
-                status: outcome === 'resolved_with_clan' ? 'resolved_with_clan' : 'resolved_without_clan',
+                status: withClan ? 'resolved_with_clan' : 'resolved_without_clan',
               }
             : row
         )
@@ -376,7 +394,7 @@ export default function OpponentsTriagePage() {
                   </span>
                   <ClansCell row={row} />
                   <span className="t-meta t-num">
-                    {row.totalEncounterCount ?? row.encounterCount ?? 1} rencontre(s) · {row.resolveAttempts ?? 0} / 5 essais · vu le{' '}
+                    {row.totalEncounterCount ?? row.encounterCount ?? 1} rencontre(s) · {row.resolveAttempts ?? 0} / {ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS} essais · vu le{' '}
                     {row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleDateString('fr-FR') : '—'}
                   </span>
                   <ResolveAction
@@ -426,7 +444,9 @@ export default function OpponentsTriagePage() {
                         <ClansCell row={row} />
                       </td>
                       <td className="t-num px-[9px] py-2 text-right font-bold text-gray-900">{row.totalEncounterCount ?? row.encounterCount ?? 1}</td>
-                      <td className="t-num px-[9px] py-2 text-right text-gray-700">{row.resolveAttempts ?? 0} / 5</td>
+                      <td className="t-num px-[9px] py-2 text-right text-gray-700">
+                        {row.resolveAttempts ?? 0} / {ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS}
+                      </td>
                       <td className="whitespace-nowrap px-[9px] py-2 text-gray-700">
                         {row.lastSeenAt ? new Date(row.lastSeenAt).toLocaleDateString('fr-FR') : '—'}
                       </td>

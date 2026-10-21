@@ -5,10 +5,11 @@ vi.mock('server-only', () => ({}))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $queryRaw: vi.fn(),
-    player: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn() },
+    player: { findUnique: vi.fn(), upsert: vi.fn(), updateMany: vi.fn(), findMany: vi.fn() },
+    clanEncounter: { groupBy: vi.fn() },
     clanMember: { findFirst: vi.fn() },
     opponentClan: { upsert: vi.fn() },
-    encounteredPlayer: { updateMany: vi.fn(), groupBy: vi.fn(), findMany: vi.fn() },
+    encounteredPlayer: { updateMany: vi.fn() },
   },
 }))
 
@@ -19,7 +20,6 @@ vi.mock('@/lib/pubg', () => ({
 import { prisma } from '@/lib/prisma'
 import { fetchPlayerClan } from '@/lib/pubg'
 import {
-  resetEncounteredPlayerRankingCache,
   resolveOneEncounteredPlayerCandidate,
   selectPrioritizedEncounteredPlayerIdentities,
 } from '@/lib/encountered-player-resolution'
@@ -208,113 +208,77 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
 
 describe('selectPrioritizedEncounteredPlayerIdentities', () => {
   const thresholds = { minEncounters: 2, maxAttempts: 3 }
-  const lastSeen = new Date('2026-08-09T00:00:00Z')
+  const lastSeen = new Date('2026-10-21T20:00:00Z')
 
-  const group = (pubgAccountId: string, clans = 1, encounters = 2, combat = 0) => ({
-    pubgAccountId,
+  const player = (id: string, pubgPlayerName: string, encounterCount: number) => ({
+    id,
+    pubgAccountId: `account.${id}`,
     platformShard: 'steam',
-    _count: { clanId: clans },
-    _sum: { encounterCount: encounters, combatInteractionsCount: combat },
-    _max: { lastSeenAt: lastSeen },
+    pubgPlayerName,
+    encounterCount,
+    lastSeenAt: lastSeen,
   })
-
-  const identity = (pubgAccountId: string) => ({ pubgAccountId, platformShard: 'steam' })
-
-  // Les appels groupBy se distinguent par leur filtre : `OR` = liste restreinte d'identités
-  // (palier 1 ou revérification du cache), sans `OR` = classement complet (palier 2).
-  const isFullRanking = (args: { where: Record<string, unknown> }) => !('OR' in args.where)
 
   beforeEach(() => {
-    resetEncounteredPlayerRankingCache()
-    vi.mocked(prisma.encounteredPlayer.groupBy).mockReset()
-    vi.mocked(prisma.encounteredPlayer.findMany).mockReset()
+    vi.mocked(prisma.player.findMany).mockReset()
+    vi.mocked(prisma.clanEncounter.groupBy).mockReset()
   })
 
-  it('garde l’ordre de priorité et départage les ex æquo par compte', async () => {
-    vi.mocked(prisma.encounteredPlayer.findMany).mockResolvedValue([] as never)
-    vi.mocked(prisma.encounteredPlayer.groupBy).mockResolvedValue([] as never)
+  it('lit Player : éligibilité au total tous clans, ordre du cron, la base s’arrête au lot', async () => {
+    vi.mocked(prisma.player.findMany).mockResolvedValue([] as never)
 
     await selectPrioritizedEncounteredPlayerIdentities(5, thresholds)
 
-    expect(prisma.encounteredPlayer.groupBy).toHaveBeenCalledWith(
+    expect(prisma.player.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        by: ['pubgAccountId', 'platformShard'],
+        where: { clanResolvedAt: null, encounterCount: { gte: 2 }, resolveAttempts: { lt: 3 } },
         orderBy: [
-          { _sum: { combatInteractionsCount: 'desc' } },
-          { _count: { clanId: 'desc' } },
-          { _sum: { encounterCount: 'desc' } },
-          { _max: { lastSeenAt: 'desc' } },
-          { pubgAccountId: 'asc' },
+          { combatInteractionsCount: 'desc' },
+          { encounterCount: 'desc' },
+          { resolveAttempts: 'desc' },
+          { id: 'desc' },
         ],
+        take: 5,
       })
     )
   })
 
-  it('palier 1 : si les identités avec combat remplissent le lot, aucun classement complet n’est calculé', async () => {
-    vi.mocked(prisma.encounteredPlayer.findMany)
-      .mockResolvedValueOnce([identity('acc-a'), identity('acc-b')] as never)
-      .mockResolvedValueOnce([
-        { pubgAccountId: 'acc-a', platformShard: 'steam', pubgPlayerName: 'Alpha' },
-        { pubgAccountId: 'acc-b', platformShard: 'steam', pubgPlayerName: 'Bravo' },
-      ] as never)
-    vi.mocked(prisma.encounteredPlayer.groupBy).mockResolvedValueOnce([
-      group('acc-b', 3, 12, 5),
-      group('acc-a', 1, 4, 1),
+  it('aucun candidat : pas de lecture des clans', async () => {
+    vi.mocked(prisma.player.findMany).mockResolvedValue([] as never)
+
+    await expect(selectPrioritizedEncounteredPlayerIdentities(5, thresholds)).resolves.toEqual([])
+    expect(prisma.clanEncounter.groupBy).not.toHaveBeenCalled()
+  })
+
+  it('garde l’ordre de la base et compte les clans suivis qui ont croisé chaque joueur', async () => {
+    vi.mocked(prisma.player.findMany).mockResolvedValue([player('b', 'Bravo', 12), player('a', 'Alpha', 4)] as never)
+    vi.mocked(prisma.clanEncounter.groupBy).mockResolvedValue([
+      { playerId: 'a', _count: { _all: 1 } },
+      { playerId: 'b', _count: { _all: 3 } },
     ] as never)
 
     const result = await selectPrioritizedEncounteredPlayerIdentities(2, thresholds)
 
-    expect(result.map((candidate) => candidate.pubgPlayerName)).toEqual(['Bravo', 'Alpha'])
-    expect(result[0]).toEqual({
-      pubgAccountId: 'acc-b',
-      platformShard: 'steam',
-      pubgPlayerName: 'Bravo',
-      distinctClanCount: 3,
-      totalEncounterCount: 12,
-      lastSeenAt: lastSeen,
-    })
-    expect(vi.mocked(prisma.encounteredPlayer.groupBy).mock.calls.some(([args]) => isFullRanking(args as never))).toBe(false)
-  })
-
-  it('palier 2 : complète le lot avec le classement en cache, sans doublon ni identité devenue inéligible', async () => {
-    vi.mocked(prisma.encounteredPlayer.findMany).mockImplementation((async (args: { where: Record<string, unknown> }) => {
-      if ('combatInteractionsCount' in args.where) return [identity('acc-combat')]
-      return [
-        { pubgAccountId: 'acc-combat', platformShard: 'steam', pubgPlayerName: 'Combat' },
-        { pubgAccountId: 'acc-x', platformShard: 'steam', pubgPlayerName: 'X' },
-        { pubgAccountId: 'acc-z', platformShard: 'steam', pubgPlayerName: 'Z' },
-      ]
-    }) as never)
-    vi.mocked(prisma.encounteredPlayer.groupBy).mockImplementation((async (args: { where: { OR?: Array<{ pubgAccountId: string }> } }) => {
-      if (!args.where.OR) {
-        // Classement complet : contient aussi l'identité du palier 1 et une identité résolue depuis.
-        return [group('acc-combat', 1, 3, 2), group('acc-x', 9, 40), group('acc-resolved', 8, 30), group('acc-z', 2, 5)]
-      }
-      const requested = args.where.OR.map((entry) => entry.pubgAccountId)
-      if (requested.length === 1 && requested[0] === 'acc-combat') return [group('acc-combat', 1, 3, 2)]
-      // Revérification : acc-resolved n'est plus éligible.
-      return [group('acc-x', 9, 41), group('acc-z', 2, 5)].filter((entry) => requested.includes(entry.pubgAccountId))
-    }) as never)
-
-    const result = await selectPrioritizedEncounteredPlayerIdentities(3, thresholds)
-
-    expect(result.map((candidate) => candidate.pubgAccountId)).toEqual(['acc-combat', 'acc-x', 'acc-z'])
-    // Agrégats relus au moment de la sélection, pas ceux du cache.
-    expect(result[1].totalEncounterCount).toBe(41)
-  })
-
-  it('réutilise le classement en cache au passage suivant au lieu de le recalculer', async () => {
-    vi.mocked(prisma.encounteredPlayer.findMany).mockImplementation((async (args: { where: Record<string, unknown> }) =>
-      'combatInteractionsCount' in args.where ? [] : [{ pubgAccountId: 'acc-x', platformShard: 'steam', pubgPlayerName: 'X' }]) as never)
-    vi.mocked(prisma.encounteredPlayer.groupBy).mockImplementation((async (args: { where: { OR?: unknown[] } }) =>
-      args.where.OR ? [group('acc-x', 4, 10)] : [group('acc-x', 4, 10)]) as never)
-
-    await selectPrioritizedEncounteredPlayerIdentities(1, thresholds)
-    await selectPrioritizedEncounteredPlayerIdentities(1, thresholds)
-
-    const fullRankings = vi
-      .mocked(prisma.encounteredPlayer.groupBy)
-      .mock.calls.filter(([args]) => isFullRanking(args as never))
-    expect(fullRankings).toHaveLength(1)
+    expect(prisma.clanEncounter.groupBy).toHaveBeenCalledWith(
+      expect.objectContaining({ by: ['playerId'], where: { playerId: { in: ['b', 'a'] } } })
+    )
+    expect(result).toEqual([
+      {
+        pubgAccountId: 'account.b',
+        platformShard: 'steam',
+        pubgPlayerName: 'Bravo',
+        distinctClanCount: 3,
+        totalEncounterCount: 12,
+        lastSeenAt: lastSeen,
+      },
+      {
+        pubgAccountId: 'account.a',
+        platformShard: 'steam',
+        pubgPlayerName: 'Alpha',
+        distinctClanCount: 1,
+        totalEncounterCount: 4,
+        lastSeenAt: lastSeen,
+      },
+    ])
   })
 })

@@ -1326,10 +1326,8 @@ async function resolveEncounteredPlayerClans() {
       } else killFeedResolved += 1
     }
 
-    // Priorisation cross-clan : une identité (pubgAccountId+platformShard)
-    // croisée par plusieurs clans suivis est traitée en priorité — un seul
-    // appel PUBG résout alors plusieurs lignes EncounteredPlayer d'un coup.
-    // Voir docs/TODO/todo.md, section "Priorisation cross-clan".
+    // Une identité (pubgAccountId+platformShard) = une ligne `Player`, priorisée par ses compteurs tous clans
+    // (fin d'EncounteredPlayer, étape 3 — docs/TODO/inventaire-2026-10-20.md §6).
     const remainingBatch = batchSize - killFeedCandidates.length
     const candidates = remainingBatch > 0 ? await selectPrioritizedEncounteredPlayerIdentities(remainingBatch, thresholds) : []
 
@@ -1364,7 +1362,9 @@ async function resolveEncounteredPlayerClans() {
     runErrorMessage = error instanceof Error ? error.message : String(error)
     console.error('[Cron] Encountered player clan resolution failed before processing batch', error)
   } finally {
-    const backlogRemaining = await prisma.encounteredPlayer
+    // En identités `Player` depuis l'étape 3 (2026-10-21) ; auparavant en lignes `EncounteredPlayer` (une par clan).
+    // Lecture couverte par l'index `idx_player_resolution_priority`.
+    const backlogRemaining = await prisma.player
       .count({
         where: {
           clanResolvedAt: null,

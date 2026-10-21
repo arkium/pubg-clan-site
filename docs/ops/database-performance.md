@@ -110,6 +110,13 @@ Aucune requête vérifiée ne manque d'index. Ajouter des index sur `Encountered
 
 Le `count` du backlog en fin de passage (1,3 s) est conservé.
 
+**Remplacé le 2026-10-21** (fin d'`EncounteredPlayer`, étape 3 — [inventaire-2026-10-20.md §6](../TODO/inventaire-2026-10-20.md)) :
+la sélection lit une ligne `Player` par identité, avec ses compteurs tous clans, sur l'index
+`idx_player_resolution_priority (clanResolvedAt, combatInteractionsCount, encounterCount, resolveAttempts)` parcouru à
+rebours. Plus de regroupement, de paliers ni de cache : **126 à 135 ms** pour un lot de 40 (production, lecture seule),
+452 942 identités en attente. Le `count` du backlog, couvert par le même index, prend ~0,8 s et compte des identités
+(911 302 lignes `EncounteredPlayer` la veille, une par clan).
+
 ### 3.3 Maintenance nocturne non destructive — cron `db_maintenance`
 
 Cron `db_maintenance` (`DB_MAINTENANCE_CRON`, défaut `15 1 * * *`, `src/lib/db-maintenance.ts`) : clôt en `failed` les exécutions restées `running` **plus de 6 h** (plus longue exécution normale observée : 77 min pour `daily_sync`). Au 2026-09-15 : **32 `CronExecution`** orphelines (la plus ancienne du 2026-05-30) et **21 `EncounteredPlayerResolutionRun`** (du 2026-08-16 au 2026-09-14), affichées « en cours » indéfiniment.

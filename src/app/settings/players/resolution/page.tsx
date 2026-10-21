@@ -9,6 +9,7 @@ import { FormFeedback } from '@/components/settings/AdminPageStates'
 import { Callout, EmptyState, ListSkeleton, SectionCard, Switch, Tag } from '@/components/ui/CharteKit'
 import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS } from '@/lib/encountered-player-resolution-constants'
 
 /**
  * Résolution des clans PUBG des joueurs croisés — onglet « Résolution & Cron » de Plateforme › Joueurs : débit du cron,
@@ -220,7 +221,7 @@ export default function OpponentsResolutionPage() {
     {
       label: 'Sans réponse',
       value: backlogPending ? '…' : formatCount(backlog?.failed),
-      detail: 'cinq tentatives échouées',
+      detail: `${ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS} tentatives échouées`,
       icon: UserX,
       color: 'var(--game-neg)',
     },

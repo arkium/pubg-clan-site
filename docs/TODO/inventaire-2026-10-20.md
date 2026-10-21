@@ -44,8 +44,8 @@ lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne
 | **Liens courts `/m`, `/t`, `/j`** | ✅ Code ([url-masking.md](url-masking.md)) : module, pages de redirection et de choix, embeds Discord, aperçu du site ; déployé le 2026-10-20 | Recette d'un lien reçu sur Discord (prochain Top 1) |
 | **Distances de jeu** (vrai bug) | ✅ Les pages Style de jeu affichaient ≈ 86 km « à pied » par partie (centimètres de la télémétrie, avion et trajet depuis (0, 0) compris) au lieu de ≈ 2 km. Elles lisent désormais les mètres de l'API PUBG ; le parser n'ajoute plus l'avion ni la chute ; une ligne pas encore recalculée s'affiche « — » | ✅ Recalculés le 2026-10-20 (41 clans, 253 s) : 1,7 à 1,9 km à pied, 1,9 km en véhicule par partie |
 | **Rattachement `ClanMember` → `Player`** | ✅ `src/lib/member-player-link.ts`, appelé par `/join`, l'installation, l'ajout d'un membre, les deux validations et la resynchronisation du miroir. Ne touche jamais au clan PUBG du joueur | ✅ Appliqué le 2026-10-20 : 54 fiches rattachées, 3 lignes `Player` créées, 0 fiche restante |
-| **SEO, lot 4 et suite** | ✅ `/a-propos` : chiffres vivants datés (ceux de la vitrine) et phrase citable, lien vers la méthodologie. ✅ Page [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx) (réglages du Power score lus en direct, `Article` daté). ✅ `Organization` avec `contactPoint`, `AboutPage`. ✅ Préchauffage de la vitrine (cron `home_showcase_warm`). ✅ IndexNow, **coupé** sans `INDEXNOW_KEY`. ✅ `scripts/seo-raw-html-audit.ts` | Logo d'Arkium à fournir (aucun visuel du dépôt ne convient). `INDEXNOW_KEY` posée le 2026-10-20 : IndexNow s'active au prochain déploiement. CSP bloquante vers le 25 octobre – 1er novembre |
-| **Fin d'`EncounteredPlayer`** | 🟡 Étape 1 faite (lectures basculées) ; étape 2 prête le 2026-10-21 : colonnes, écritures et rattrapage (§6) | Déployer l'étape 2 et lancer le rattrapage ; étapes 3 à 5 (§6), le `DROP` sur accord |
+| **SEO, lot 4 et suite** | ✅ `/a-propos` : chiffres vivants datés (ceux de la vitrine) et phrase citable, lien vers la méthodologie. ✅ Page [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx) (réglages du Power score lus en direct, `Article` daté). ✅ `Organization` avec `contactPoint`, `AboutPage`. ✅ Préchauffage de la vitrine (cron `home_showcase_warm`). ✅ IndexNow, **coupé** sans `INDEXNOW_KEY`. ✅ `scripts/seo-raw-html-audit.ts` | Logo d'Arkium à fournir (aucun visuel du dépôt ne convient). ✅ IndexNow actif depuis le déploiement du 2026-10-21 (`/indexnow.txt` répond). CSP bloquante vers le 25 octobre – 1er novembre |
+| **Fin d'`EncounteredPlayer`** | 🟡 Étapes 1 (lectures basculées) et 2 (compteurs sur `Player`, déployés et rattrapés le 2026-10-21) faites ; étape 3 (Triage, cron, comptages sur `Player`) prête le 2026-10-21 (§6) | Déployer l'étape 3 ; étapes 4 et 5 (§6), le `DROP` sur accord |
 | **Colonnes JSON en clair** | Mesuré : vides sur les 32 929 lignes ; un DROP ne rend **aucun** octet | Nettoyage de code d'abord, puis migration ; sans urgence ([todo.md](todo.md) « Supprimer les colonnes en clair ») |
 | **Passe hebdomadaire sur les coéquipiers fréquents** | Non commencée : une dizaine de questions à trancher (§4) | Le compteur existe déjà (`ClanEncounter.teammateEncounterCount`), il manque un index et tes réponses |
 
@@ -106,10 +106,10 @@ lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne
 | `TELEMETRY_CAPTURE_FIXTURES_DIR` : même chemin absolu pour les 4 services, **puis seulement** `turbopackIgnore` dans le code | [todo.md](todo.md) l. 180 |
 | SEO : nouveau test de `/clans` dans la Search Console et demande d'indexation, Bing Webmaster Tools, test des résultats enrichis, `application/json` dans les `gzip_types` de Nginx, PageSpeed | [geo-seo-propositions.md](geo-seo-propositions.md) |
 | Constats en base : `ZoneClosurePosition` remplie par les nouveaux matchs, `ClanComparatorCache` rempli par `daily_stats_recalc` | [todo.md](todo.md) l. 4012, 5961 |
-| Déployer l'étape 2 de la fin d'`EncounteredPlayer` (`deploy.sh` applique la migration avant le build), puis `scripts/backfill-player-encounter-counters.ts` en `smk` : simulation, puis `--apply` | §6 |
+| ~~Déployer l'étape 2 de la fin d'`EncounteredPlayer`, puis `scripts/backfill-player-encounter-counters.ts --apply`~~ — **fait le 2026-10-21** (767 987 lignes `Player`, 720 s) | §6 |
 | ~~Recalculer les agrégats de télémétrie (distances en mètres)~~ — **fait le 2026-10-20** (41 clans, 253 s) | §2.A |
 | ~~`npx tsx scripts/backfill-member-player-link.ts --apply`~~ — **fait le 2026-10-20** (54 fiches) | §2.A |
-| ~~Vérifier que `CRON_BOOTSTRAP_SECRET` est posé pour le web **et** le cron~~ — **vérifié le 2026-10-20** : même valeur dans les units systemd des deux (`Environment=`, pas le `.env`, [deployment.md](../ops/deployment.md)). `INDEXNOW_KEY` posée le 2026-10-20 dans le `.env`, active au prochain déploiement (le build recopie le `.env`) ; reste à importer la propriété dans Bing Webmaster Tools | [docs/ops/cron.md](../ops/cron.md), [seo.md](../features/seo.md) |
+| ~~Vérifier que `CRON_BOOTSTRAP_SECRET` est posé pour le web **et** le cron~~ — **vérifié le 2026-10-20** : même valeur dans les units systemd des deux (`Environment=`, pas le `.env`, [deployment.md](../ops/deployment.md)). `INDEXNOW_KEY` posée le 2026-10-20 dans le `.env`, **active depuis le déploiement du 2026-10-21** ; reste à importer la propriété dans Bing Webmaster Tools | [docs/ops/cron.md](../ops/cron.md), [seo.md](../features/seo.md) |
 
 **Recettes dans un navigateur** — une quarantaine de cases, dont une partie déjà couverte par `e2e/` : arrêt de suivi
 d'un clan, annuaire des joueurs (§9.D), Replay Karakin, manche de tournoi vue d'un autre clan, six états du Triage,
@@ -199,7 +199,7 @@ Mesuré en lecture seule le 2026-10-20 (MariaDB 10.11, `innodb_file_per_table=1`
    (`src/lib/clan-encountered-players-service.ts`) lit `ClanEncounter` ⋈ `Player` ⋈ `OpponentClan` en un passage
    groupé. Mesure : 8,5 à 15 s pour les deux plus gros clans contre 9 à 19 s avant (plus l'agrégation de 300 000
    objets dans le serveur web), < 0,3 s pour un clan ordinaire. Le goulot reste le buffer pool de 128 Mo.
-2. 🟡 **Colonnes** — code prêt le 2026-10-21, **à déployer**. Migration additive
+2. ✅ **Colonnes** — déployées et rattrapées le 2026-10-21. Migration additive
    `20261021090000_player_encounter_counters`, identique au `migrate diff` : `Player.encounterCount` (somme des
    `ClanEncounter`), `Player.combatInteractionsCount` et l'index `idx_player_resolution_priority (clanResolvedAt,
    combatInteractionsCount, encounterCount, resolveAttempts)`, dans l'ordre du tri de la sélection du cron (~50 Mo).
@@ -209,12 +209,33 @@ Mesuré en lecture seule le 2026-10-20 (MariaDB 10.11, `innodb_file_per_table=1`
    `encountered-player-resolution.test.ts`. Rattrapage : `scripts/backfill-player-encounter-counters.ts` (simulation par
    défaut, `--apply` ; valeurs absolues, relançable ; refuse de tourner si la migration manque). Validés sur une
    MariaDB jetable : le schéma obtenu égale le schéma Prisma, la simulation n'écrit rien, `--apply` laisse 0 écart
-   contre un calcul SQL indépendant, une seconde passe ne trouve rien. Sur le serveur : `deploy.sh`, puis le script
-   en `smk` (simulation, puis `--apply`).
-3. **Dernières lectures** : Triage (`/api/settings/encountered-players`, une ligne par identité), sélection du cron de
-   résolution (une requête sur le nouvel index remplace le `groupBy` de 48 s et son cache de 6 h), comptages du
-   backlog. Le statut de résolution devient global (correction des 30 % en retard). Seuil « au moins 2 rencontres » :
-   **au total** (tranché le 2026-10-21). **Jamais avant le rattrapage** de l'étape 2 : des compteurs `Player` encore à
-   zéro bloqueraient la sélection du cron.
+   contre un calcul SQL indépendant, une seconde passe ne trouve rien. **Production** : 767 987 lignes `Player`
+   écrites en 720 s (89 365 comptes avec des combats, 25 avec des échecs de résolution) ; contrôle en lecture seule
+   sur 800 joueurs (les 200 vus le plus récemment, après le script, et trois tranches au hasard) : 0 écart avec
+   `ClanEncounter` et `EncounteredPlayer`.
+3. 🟡 **Dernières lectures** — code prêt le 2026-10-21, **à déployer** (aucune migration). Plus aucune page ni aucun
+   cron ne lit `EncounteredPlayer` ; seules restent les écritures en double (étape 4) et le script de rattrapage
+   `opponent-normalization-backfill.ts`.
+   - **Cron de résolution** (`selectPrioritizedEncounteredPlayerIdentities`, partagé par la passe manuelle) : une
+     ligne `Player` par identité, au moins 2 rencontres **au total** (tranché le 2026-10-21), triée par combats,
+     rencontres, échecs puis identité la plus récente, sur `idx_player_resolution_priority` lu à rebours. Mesuré en
+     production : **0,13 s** pour un lot de 40, contre 1,8 s (et 48 s à chaque recalcul du classement en cache).
+     Le nombre de clans qui ont croisé le joueur ne départage plus (il reste dans le journal des passages).
+   - **Statut global** : celui de l'identité, « avec clan » lu sur `Player.opponentClanId` (aucun `OpponentClan` sans
+     tag) — `buildPlayerStatusWhereClause`, `derivePlayerResolutionStatus`, `buildPlayerStatusesWhere` (clause
+     compacte : un `OR` par statut faisait renoncer MariaDB aux index). Les 30 % de lignes en retard disparaissent.
+   - **Triage** (`src/lib/encountered-players-triage.ts`) : une ligne par identité ; tri des seuls identifiants sur
+     l'index puis relecture des 20 lignes. Mesuré : file 0,4 à 1 s (le comptage passe de 0,8 à 2,8 s selon le plan que
+     choisit MariaDB), tri par rencontres ou statut ~1 à 3 s (6,4 s en lisant les lignes complètes), recherche 0,2 s,
+     tous statuts ~3,5 s. Corrigés au passage : « / 5 essais » affiché pour un maximum de 3, et la réponse du bouton
+     « Résoudre » mal lue (une tentative échouée passait la ligne en « Sans clan »).
+   - **Tableau de bord** : comptages en identités (452 942 jamais tentés, au lieu de 911 302 lignes) ; ~4 à 5 s pour le
+     panneau, chargé à part.
+   - **Écart assumé** : un joueur déjà résolu n'est plus redemandé quand un nouveau clan le croise après 7 jours
+     (l'ancienne sélection le faisait par la ligne `EncounteredPlayer` neuve de ce clan) ; le rafraîchissement relève
+     de la passe `player_refresh` (§4). Les 1 569 appels PUBG par jour vont désormais tous aux joueurs jamais résolus.
+   - Tests : `encountered-player-status.test.ts` (filtres SQL et statut calculé d'accord, sur les 63 ensembles de
+     statuts), `encountered-players-triage-route.test.ts`, `encountered-players-resolve-route.test.ts`,
+     `encountered-player-resolution.test.ts`.
 4. **Arrêt de la double écriture**, puis une semaine d'observation (`MAX(updatedAt)` figé).
 5. **`DROP TABLE EncounteredPlayer`**, sur accord ; seulement quand plus aucun process ne tourne l'ancien code.

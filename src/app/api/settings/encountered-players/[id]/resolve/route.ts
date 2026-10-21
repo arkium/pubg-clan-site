@@ -5,7 +5,7 @@ import {
   ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
 } from '@/lib/encountered-player-resolution-constants'
 import { resolveOneEncounteredPlayerCandidate } from '@/lib/encountered-player-resolution'
-import { deriveEncounteredPlayerStatus } from '@/lib/encountered-player-status'
+import { derivePlayerResolutionStatus } from '@/lib/encountered-player-status'
 import { prisma } from '@/lib/prisma'
 import { requireSuperUser } from '@/middleware/auth-permission'
 
@@ -48,12 +48,20 @@ async function handlePost(
   const url = new URL(request.url)
   const forceRetry = url.searchParams.get('force') === 'retry'
 
-  let candidate = await prisma.encounteredPlayer.findUnique({ where: { id } })
-  if (!candidate) {
-    candidate = await prisma.encounteredPlayer.findFirst({
-      where: { OR: [{ playerId: id }, { pubgAccountId: id }] },
-    })
-  }
+  // `id` est celui d'une ligne `Player` (Triage, fin d'EncounteredPlayer, étape 3) ; un compte PUBG est aussi accepté.
+  // Le statut est celui de l'identité, le même pour tous les clans qui l'ont croisée.
+  const candidateSelect = {
+    pubgAccountId: true,
+    platformShard: true,
+    pubgPlayerName: true,
+    encounterCount: true,
+    resolveAttempts: true,
+    clanResolvedAt: true,
+    opponentClanId: true,
+  } as const
+  const candidate =
+    (await prisma.player.findUnique({ where: { id }, select: candidateSelect })) ??
+    (await prisma.player.findFirst({ where: { pubgAccountId: id }, select: candidateSelect }))
   if (!candidate) {
     return Response.json({ error: 'Joueur introuvable' }, { status: 404 })
   }
@@ -62,7 +70,7 @@ async function handlePost(
     minEncounters: ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
     maxAttempts: ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
   }
-  const status = deriveEncounteredPlayerStatus(candidate, thresholds)
+  const status = derivePlayerResolutionStatus(candidate, thresholds)
 
   const isAlreadyResolved = status === 'resolved_with_clan' || status === 'resolved_without_clan'
   if (isAlreadyResolved) {
@@ -120,11 +128,19 @@ async function handlePost(
   try {
     if (forceRetry) {
       const identity = { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard }
+      // Les deux tables tant que dure la double écriture (étape 4 à venir).
       await prisma.encounteredPlayer.updateMany({ where: identity, data: { resolveAttempts: 0 } })
       await prisma.player.updateMany({ where: identity, data: { resolveAttempts: 0 } })
     }
 
-    const result = await resolveOneEncounteredPlayerCandidate(candidate, { source: 'manual' })
+    const result = await resolveOneEncounteredPlayerCandidate(
+      {
+        pubgAccountId: candidate.pubgAccountId,
+        platformShard: candidate.platformShard,
+        pubgPlayerName: candidate.pubgPlayerName,
+      },
+      { source: 'manual' }
+    )
     const finishedAt = new Date()
 
     await prisma.encounteredPlayerResolutionRun.update({

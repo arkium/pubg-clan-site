@@ -1,3 +1,4 @@
+import type { Prisma } from '@prisma/client'
 import { z } from 'zod'
 
 import { withAdminActionLog } from '@/lib/admin-action-log'
@@ -12,7 +13,7 @@ import {
   setEncounteredPlayerResolutionBatchSize,
   setEncounteredPlayerResolutionEnabled,
 } from '@/lib/encountered-player-resolution-config-service'
-import { buildStatusWhereClause } from '@/lib/encountered-player-status'
+import { buildPlayerStatusWhereClause } from '@/lib/encountered-player-status'
 import { describeCronExpression, getCronWorkerRuntimeStatus } from '@/lib/cron-observability'
 import { getEffectiveCronSchedules } from '@/lib/cron-jobs'
 import { prisma } from '@/lib/prisma'
@@ -94,7 +95,10 @@ async function buildBacklogPayload(batchSize: number, enabled: boolean, cronExpr
   }
 
   const last24hCutoff = new Date(Date.now() - LAST_24H_MS)
+  const countPlayers = (where: Prisma.PlayerWhereInput) => prisma.player.count({ where })
 
+  // Comptés en identités `Player` (une par joueur, tous clans confondus) depuis la fin d'EncounteredPlayer, étape 3
+  // (2026-10-21) ; auparavant en lignes `EncounteredPlayer`, une par clan qui avait croisé le joueur.
   const [
     neverAttempted,
     retryPending,
@@ -105,17 +109,13 @@ async function buildBacklogPayload(batchSize: number, enabled: boolean, cronExpr
     resolvedWithoutClanLast24h,
     last24hRuns,
   ] = await Promise.all([
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('never_attempted', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('retry_pending', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('failed', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('resolved_with_clan', thresholds) }),
-    prisma.encounteredPlayer.count({ where: buildStatusWhereClause('resolved_without_clan', thresholds) }),
-    prisma.encounteredPlayer.count({
-      where: { clanResolvedAt: { gte: last24hCutoff }, pubgClanTag: { not: null } },
-    }),
-    prisma.encounteredPlayer.count({
-      where: { clanResolvedAt: { gte: last24hCutoff }, pubgClanTag: null },
-    }),
+    countPlayers(buildPlayerStatusWhereClause('never_attempted', thresholds)),
+    countPlayers(buildPlayerStatusWhereClause('retry_pending', thresholds)),
+    countPlayers(buildPlayerStatusWhereClause('failed', thresholds)),
+    countPlayers(buildPlayerStatusWhereClause('resolved_with_clan', thresholds)),
+    countPlayers(buildPlayerStatusWhereClause('resolved_without_clan', thresholds)),
+    countPlayers({ clanResolvedAt: { gte: last24hCutoff }, opponentClanId: { not: null }, encounterCount: { gt: 0 } }),
+    countPlayers({ clanResolvedAt: { gte: last24hCutoff }, opponentClanId: null, encounterCount: { gt: 0 } }),
     prisma.encounteredPlayerResolutionRun.findMany({
       where: { startedAt: { gte: last24hCutoff } },
       select: { failed: true },

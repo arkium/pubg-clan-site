@@ -2,7 +2,8 @@
 
 > **Spécification et implémentation**
 > *Date : 25 septembre 2026*
-> *Statut : ✅ implémenté le 2026-09-25 — migration **appliquée** le même jour, code non déployé (§7)*
+> *Statut : ✅ implémenté le 2026-09-25 — migration **appliquée** le même jour, code ~~non déployé~~ commité (`fbe46ba`) et déployé depuis,
+> vérifié le 2026-10-22 (§7)*
 > *Origine : ancien §5 de [players.md](players.md), sorti dans ce document après vérification du code.*
 > *Destiné au SuperUser et à l'équipe de développement.*
 
@@ -253,7 +254,8 @@ utilisé par le refus (piège n° 9 du CLAUDE.md).
 
 ## 7. Implémentation du 2026-09-25
 
-**Non commité, non déployé. Migration appliquée le 2026-09-25** (`prisma migrate deploy`, avec accord explicite),
+**~~Non commité, non déployé.~~ Commité (`fbe46ba`) et déployé depuis (vérifié le 2026-10-22). Migration
+appliquée le 2026-09-25** (`prisma migrate deploy`, avec accord explicite),
 après lecture du `migrate diff` : exactement les deux `ADD COLUMN`. Après application, le `migrate diff` répond
 `-- This is an empty migration.`
 

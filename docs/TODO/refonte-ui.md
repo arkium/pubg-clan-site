@@ -123,7 +123,8 @@ div.app-main-flush
 > Implémentation : tri côté client (`src/lib/leaderboard-sort.ts`, rang = ordre décroissant du critère, donc médailles
 > aux meilleurs même en tri croissant) ; `LeaderboardStats.tsx` supprimé (podium + distinctions) ; test
 > `e2e/leaderboard.spec.ts`. Sur ordinateur, le bandeau docké resserre ses segments (13 px) pour garder le rappel du
-> tri sur la ligne. À 768 px, le tableau (jusqu'à 14 colonnes) défile dans sa carte — point ouvert, voir phase 3.
+> tri sur la ligne. À 768 px, le tableau (jusqu'à 14 colonnes) défile dans sa carte — ~~point ouvert, voir phase 3~~
+> corrigé le 2026-10-04 (`f7265ba` : colonnes secondaires masquées sous 1 280 px, `src/components/Leaderboard.tsx`).
 
 `/clans/[clanId]/leaderboard` au standard §4.A (`page.tsx`, `Leaderboard.tsx`, `LeaderboardStats.tsx`). Nouveau test
 Playwright : clic sur l'en-tête = tri et inversion ; colonnes de mode masquées hors « Tous » ; rappel du tri visible une

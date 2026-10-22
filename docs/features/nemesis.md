@@ -60,13 +60,11 @@ de bord l'appelle aussi avec sa période), `?weapon=` filtre chasseurs, proies e
 
 ### Noms des adversaires — « Joueur inconnu » (2026-10-03)
 
-Le kill feed ne garde que l'identifiant de compte. Le nom vient, dans l'ordre :
-
-1. des joueurs croisés **par le clan du joueur** (`EncounteredPlayer`, relevés dans les lobbies) ;
-2. sinon, de l'**identité globale** `Player` (nommée par un autre clan suivi ou par le cron ci-dessous) ou des joueurs
-   croisés **par un autre clan** — une requête par table, bornée aux comptes encore sans nom. Un `Player` dont le nom
-   est son identifiant n'est pas un nom ;
-3. sinon « **Joueur inconnu** » (`resolved: false`).
+Le kill feed ne garde que l'identifiant de compte. Le nom vient de l'**identité globale** `Player` — tous les joueurs
+croisés dans un lobby par n'importe quel clan suivi, et les comptes nommés par le cron ci-dessous — en une requête
+bornée aux comptes des kills et des morts. Un `Player` dont le nom est son identifiant n'est pas un nom : il s'affiche
+« **Joueur inconnu** » (`resolved: false`). Jusqu'au 2026-10-20, les copies par clan d'`EncounteredPlayer` étaient lues
+d'abord (fin d'`EncounteredPlayer`, [inventaire-2026-10-20.md §6](../TODO/inventaire-2026-10-20.md)).
 
 **Cron** : la résolution des joueurs croisés (`encountered_player_clan_resolution`, toutes les 30 min) traite ces
 comptes **en priorité**, dans le même lot et le même quota (`src/lib/kill-feed-name-resolution.ts`). Un appel
@@ -80,6 +78,10 @@ n'est plus redemandé ; un autre échec (quota, réseau) compte une tentative, a
 Mesuré le 2026-10-03 (`scripts/count-unresolved-opponents.ts`, lecture seule) : **1 511** comptes sans nom sur 68 878
 adversaires ; **884** nommés tout de suite par l'étape 2 (aucun appel) ; **627** pour le cron — un appel par compte,
 soit ~63 h au lot par défaut (5 par passage), ~8 h au lot maximal (40, réglage du cron).
+
+Mesuré le 2026-10-22 (lecture seule, 48 s) : **92 940 comptes adverses du kill feed nommés sur 92 941** ; le dernier
+est inconnu de l'API PUBG (`notFound`) et n'est plus redemandé. `scripts/count-unresolved-opponents.ts` lit encore
+`EncounteredPlayer` : à revoir avant le `DROP` de cette table.
 
 **Déploiement** : la table `KillFeedAccountLookup` (migration `20261003120000_add_kill_feed_account_lookup`) doit
 exister avant le premier passage du cron (`npx prisma migrate deploy`). Sans elle, la priorité kill feed échoue et le

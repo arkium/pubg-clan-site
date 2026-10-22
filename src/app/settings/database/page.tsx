@@ -744,6 +744,10 @@ export default function DatabaseStatsPage() {
               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-5">
                 {AGE_OPTIONS.map((opt) => {
                   const isSelected = selectedAge === opt.value
+                  // Volume de chaque seuil, lu dans l'instantané : un seuil vide (aucun match si ancien encore tracé) est
+                  // marqué « Rien à purger » et estompé, sans être masqué — le choisir reste sans effet.
+                  const optionCount = purgeCounts?.byThreshold?.[opt.value]?.purgeable ?? null
+                  const isEmpty = optionCount === 0
                   return (
                     <button
                       key={opt.value}
@@ -751,7 +755,7 @@ export default function DatabaseStatsPage() {
                       disabled={isPurging}
                       aria-pressed={isSelected}
                       onClick={() => handleAgeChange(opt.value)}
-                      className="app-panel-muted flex flex-col gap-1 p-3 text-left transition-colors enabled:hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-45"
+                      className={`app-panel-muted flex flex-col gap-1 p-3 text-left transition-colors enabled:hover:bg-gray-100 disabled:cursor-not-allowed disabled:opacity-45 ${isEmpty && !isSelected ? 'opacity-60' : ''}`}
                       style={isSelected ? { borderColor: 'var(--theme-ui-accent)', backgroundColor: 'var(--theme-ui-accent-tint)' } : undefined}
                     >
                       <span className="flex w-full items-center justify-between gap-1.5">
@@ -759,6 +763,11 @@ export default function DatabaseStatsPage() {
                         <Tag tone="neutral">{opt.badge}</Tag>
                       </span>
                       <span className="t-meta">{opt.desc}</span>
+                      {optionCount !== null ? (
+                        <span className={`t-meta t-num font-semibold ${isEmpty ? '' : 'text-gray-900'}`}>
+                          {isEmpty ? 'Rien à purger' : `${optionCount.toLocaleString('fr-FR')} match${optionCount > 1 ? 's' : ''} à purger`}
+                        </span>
+                      ) : null}
                     </button>
                   )
                 })}

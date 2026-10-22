@@ -3,7 +3,7 @@
 > **Spécification fonctionnelle — onglet « Joueurs » de `/settings/opponents`**
 > *Destiné au SuperUser et à l'équipe de développement*
 > *Date : 25 septembre 2026 — revue contre le code le même jour*
-> *Statut : ✅ implémenté le 2026-09-25 (non déployé) — voir [§11](#11-implémentation-du-2026-09-25)*
+> *Statut : ✅ implémenté le 2026-09-25 (~~non déployé~~ commité `fbe46ba`, déployé depuis — vérifié le 2026-10-22) — voir [§11](#11-implémentation-du-2026-09-25)*
 >
 > L'arrêt de suivi d'un clan (ancien §5) est un chantier distinct, qui modifie `clan-lifecycle` :
 > voir [clan-archive.md](clan-archive.md).
@@ -459,7 +459,7 @@ L'arrêt de suivi d'un clan, lui, modifie `clan-lifecycle` : c'est pour cela qu'
 
 ## 11. Implémentation du 2026-09-25
 
-**Non déployé, non commité.** Aucune écriture en base : ni migration, ni backfill.
+**~~Non déployé, non commité.~~ Commité (`fbe46ba`) et déployé depuis (vérifié le 2026-10-22).** Aucune écriture en base : ni migration, ni backfill.
 
 | Fichier | Rôle |
 |---|---|

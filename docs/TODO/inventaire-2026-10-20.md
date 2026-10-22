@@ -6,6 +6,8 @@
 > *Destiné à l'équipe de développement et à Claude Code.*
 >
 > Les numéros de ligne renvoient à l'état des documents le 2026-10-20 ; ils glissent dès qu'un document est modifié.
+>
+> **Tenu à jour jusqu'au 2026-10-22** : chantiers du §2, actions du §3, ménage du §5, fin d'`EncounteredPlayer` (§6).
 
 **En bref.** Il reste bien moins à faire que les cases ouvertes ne le laissent croire : une cinquantaine sont faites
 mais pas cochées, une quarantaine sont des recettes à refaire dans un navigateur (en partie couvertes par Playwright),
@@ -29,8 +31,9 @@ nouveau joueur, rattachement `ClanMember` → `Player` **reporté** (§2).
 | « Suivre » réactive sans confirmation un membre archivé, parti ou en attente | [track/route.ts](../../src/app/api/settings/opponents/track/route.ts) : **409 `member_needs_reactivation`** sans `confirmReactivation: true` (distinct de `confirmMove`), message propre à une demande `/join` en attente. L'annuaire et l'écran Clans confirment en modale | `players-directory-route-contracts.test.ts` ; e2e `players-directory.spec.ts`, `settings-clans-track.spec.ts` |
 | Journaliser l'entrée d'un nouveau joueur suivi | **Décidé : non** — l'historique des mutations reste réservé aux changements de clan, l'ajout est déjà dans le journal des actions d'administration | test existant conservé |
 
-**Constat en chemin, non traité** : dans le Triage, une recherche par préfixe court (`a`) charge encore toutes les
-lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne couvre pas ce cas.
+~~**Constat en chemin, non traité** : dans le Triage, une recherche par préfixe court (`a`) charge encore toutes les
+lignes correspondantes avant de paginer en mémoire.~~ — **Réglé par la fin d'`EncounteredPlayer`, étape 3
+(2026-10-21)** : le Triage lit `Player` et pagine toujours en base, recherche comprise (§6).
 
 ---
 
@@ -44,22 +47,27 @@ lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne
 | **Liens courts `/m`, `/t`, `/j`** | ✅ Code ([url-masking.md](url-masking.md)) : module, pages de redirection et de choix, embeds Discord, aperçu du site ; déployé le 2026-10-20 | Recette d'un lien reçu sur Discord (prochain Top 1) |
 | **Distances de jeu** (vrai bug) | ✅ Les pages Style de jeu affichaient ≈ 86 km « à pied » par partie (centimètres de la télémétrie, avion et trajet depuis (0, 0) compris) au lieu de ≈ 2 km. Elles lisent désormais les mètres de l'API PUBG ; le parser n'ajoute plus l'avion ni la chute ; une ligne pas encore recalculée s'affiche « — » | ✅ Recalculés le 2026-10-20 (41 clans, 253 s) : 1,7 à 1,9 km à pied, 1,9 km en véhicule par partie |
 | **Rattachement `ClanMember` → `Player`** | ✅ `src/lib/member-player-link.ts`, appelé par `/join`, l'installation, l'ajout d'un membre, les deux validations et la resynchronisation du miroir. Ne touche jamais au clan PUBG du joueur | ✅ Appliqué le 2026-10-20 : 54 fiches rattachées, 3 lignes `Player` créées, 0 fiche restante |
-| **SEO, lot 4 et suite** | ✅ `/a-propos` : chiffres vivants datés (ceux de la vitrine) et phrase citable, lien vers la méthodologie. ✅ Page [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx) (réglages du Power score lus en direct, `Article` daté). ✅ `Organization` avec `contactPoint`, `AboutPage`. ✅ Préchauffage de la vitrine (cron `home_showcase_warm`). ✅ IndexNow, **coupé** sans `INDEXNOW_KEY`. ✅ `scripts/seo-raw-html-audit.ts` | Logo d'Arkium à fournir (aucun visuel du dépôt ne convient). ✅ IndexNow actif depuis le déploiement du 2026-10-21 (`/indexnow.txt` répond). CSP bloquante vers le 25 octobre – 1er novembre |
+| **SEO, lot 4 et suite** | ✅ `/a-propos` : chiffres vivants datés (ceux de la vitrine) et phrase citable, lien vers la méthodologie. ✅ Page [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx) (réglages du Power score lus en direct, `Article` daté). ✅ `Organization` avec `contactPoint`, `AboutPage`. ✅ Préchauffage de la vitrine (cron `home_showcase_warm`). ✅ IndexNow, **coupé** sans `INDEXNOW_KEY`. ✅ `scripts/seo-raw-html-audit.ts` | Logo d'Arkium à fournir (aucun visuel du dépôt ne convient). ✅ IndexNow actif depuis le déploiement du 2026-10-21 (`/indexnow.txt` répond). **CSP** : relevé du 2026-10-22, 58 pages publiques de production parcourues en visiteur (débriefing et télémétrie d'une partie compris) → un seul écart, l'essai d'`eval` de zod sur `/confidentialite/demande`, corrigé (zod sans compilation dans le navigateur, `privacy-request.ts`) ; suite Playwright complète sur le build avec la nouvelle fixture `cspViolations` → 0 écart sur 394 tests. Reste : déployer, revérifier `/confidentialite/demande`, puis passer en mode bloquant (`CSP_HEADER`, `upgrade-insecure-requests`) |
 | **Fin d'`EncounteredPlayer`** | 🟡 Étapes 1 à 3 faites (lectures, compteurs et Triage / cron sur `Player`, déployés le 2026-10-21) ; étape 4 (arrêt de la double écriture) prête le 2026-10-22 (§6) | Déployer l'étape 4, une semaine d'observation, puis le `DROP` (étape 5) sur accord |
 | **Colonnes JSON en clair** | Mesuré : vides sur les 32 929 lignes ; un DROP ne rend **aucun** octet | Nettoyage de code d'abord, puis migration ; sans urgence ([todo.md](todo.md) « Supprimer les colonnes en clair ») |
 | **Passe hebdomadaire sur les coéquipiers fréquents** | Non commencée : une dizaine de questions à trancher (§4) | Le compteur existe déjà (`ClanEncounter.teammateEncounterCount`), il manque un index et tes réponses |
 
 ### B. Petits, sans urgence
 
-- Seuils de purge vides (« > 60 j », « > 90 j ») ni masqués ni marqués : `src/app/settings/database/page.tsx`
-  (l. 394).
-- Modale « Sortir du clan » (trois choix) absente du catalogue `docs/ui/index.html` (l. 1748).
+- ✅ Seuils de purge vides (2026-10-22) : chaque seuil de `/settings/database` affiche son volume, un seuil vide est
+  marqué « Rien à purger » et estompé (sans être masqué).
+- ✅ Modale « Sortir du clan » (2026-10-22) : exemple n° 3 du catalogue `docs/ui/index.html` (§17), copié sur
+  `MembersRolesPanel.tsx`.
 - Débriefing : badges « First contact P{n} » et « Retard cercle » (l. 5290).
 - Avatars du podium et du classement solo des tournois (l. 4891).
-- `mapAssetUrl()` à propager : 13 chemins `/maps/pubg/${…}` codés en dur (l. 5264).
-- `PositionMetricCell` écrit hors de la transaction de la télémétrie (l. 4041).
-- `docs/features/challenges.md:105` dit encore « déclenchement à implémenter » : `refreshChallengeProgressForClan` est
-  déjà appelé par `cron-jobs.ts`.
+- `mapAssetUrl()` à propager : 13 chemins `/maps/pubg/${…}` codés en dur — **priorité basse** (requalifié le
+  2026-09-13) : aucun bug sur les données réelles, seul gain une image de repli pour 5 parties arcade.
+- `PositionMetricCell` écrit hors de la transaction de la télémétrie — **proposé à l'abandon (§4)** : chaque table
+  dérivée d'une partie (zones d'atterrissage, kills, positions, phases…) est reconstruite à l'identique par sa propre
+  transaction à chaque resynchronisation, ce qui répare un échec partiel ; une transaction unique tiendrait ses verrous
+  longtemps sur une base partagée au buffer pool de 128 Mo.
+- ✅ `docs/features/challenges.md` (2026-10-22) : le déclenchement par `daily_sync` (`refreshChallengeProgressForClan`)
+  y est décrit.
 - Écran Clans de l'administration : badge « manquants » non cliquable, pas de bandeau « Ajouter à <clan> »
   (l. 4423, 4437).
 
@@ -99,7 +107,7 @@ lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne
 | ⚠️ `REVOKE` des droits globaux du compte `smk` | [database-performance.md](../ops/database-performance.md) |
 | Rapport `db-health` à J+7 (prévu le 2026-09-22) jamais consigné ; en dépendent les index d'`EncounteredPlayer`, les réglages mémoire MariaDB et le `db-health disable` | [todo.md](todo.md) l. 157, 170 |
 | Sous-domaines de clan : certificat wildcard (DNS-01), `server_name *.chickendinner.fr` dans Nginx, `CLAN_SUBDOMAIN_ROOT=chickendinner.fr`, redémarrage ; **puis** `includeSubDomains` au HSTS | [chickendinnerfr.md §5](chickendinnerfr.md), [deployment.md](../ops/deployment.md) |
-| `APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env` (**posé le 2026-10-20**), rebuild, redémarrage du web puis du cron | [url-masking.md §5](url-masking.md) |
+| ~~`APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env`, rebuild, redémarrage~~ — **fait** : posées le 2026-10-20, prises en compte par les déploiements des 2026-10-21 et 22 (`deploy.sh` reconstruit et redémarre tout) | [url-masking.md §5](url-masking.md) |
 | Créer la boîte `contact@chickendinner.fr` (déjà citée par les pages légales) | [CU_todo.md](CU_todo.md) |
 | `OPTIMIZE` de `SquadMatchTelemetry` (~16 Go à rendre au disque) | [todo.md](todo.md) l. 721, 733 |
 | `scripts/resync-player-clan-identity.ts --apply` jamais lancé | [todo.md](todo.md) l. 4366 |
@@ -142,7 +150,9 @@ d'un clan, annuaire des joueurs (§9.D), Replay Karakin, manche de tournoi vue d
   additive de l'étape 2 acceptée, seuil « au moins 2 rencontres » compté au total.
 - **Code sans appelant** : `src/components/ProgressionChart.tsx`, `getClanSquadAnalysis`, routes `drop-pressure-stats`
   et `city-insights` d'un clan, `standings` d'un tournoi côté clan.
-- **Divers** : tag du clan actuel ou figé au moment du kill ; résoudre les ~5 % de pseudos inconnus du lobby ;
+- **Télémétrie (2026-10-22)** : abandonner « cellules de position dans la même transaction que la télémétrie » (§2.B) ?
+- **Divers** : tag du clan actuel ou figé au moment du kill ; ~~résoudre les ~5 % de pseudos inconnus du lobby~~ (fait :
+  92 940 comptes adverses du kill feed nommés sur 92 941 le 2026-10-22, le dernier inconnu de l'API PUBG) ;
   confidentialité inter-clans ; serveur Discord officiel (`sameAs`) ; préfixe `owner.` de
   `owner.encountered-opponents`.
 
@@ -150,7 +160,23 @@ d'un clan, annuaire des joueurs (§9.D), Replay Karakin, manche de tournoi vue d
 
 ## 5. Documents en retard sur le code
 
-À cocher, rayer ou corriger lors d'un prochain ménage :
+✅ **Ménage fait le 2026-10-22**, chaque point vérifié dans le code ou l'historique Git (commit cité à côté de chaque
+case) : `administration.md`, `score.md`, `clan-archive.md`, `players.md`, `refonte-ui.md`, `sticky.md`, `CU_todo.md`,
+`geo-seo-propositions.md` (lots 0.0 et 4), `todo.md` (déploiements des lots 2, 3, 4 et 7, webhook de test, cache de
+`searchPlayerByName`, heatmap comparée, `rideDistance`, tournois testés, rapports et rôle Moderator « sans objet »),
+`CLAUDE.md` (crons de rapports supprimés). **Laissés ouverts**, faute de preuve ou parce que l'inventaire se trompait :
+
+- `todo.md`, ligne « Sans clan » du tableau des clans adverses : elle n'existe pas ; seul le filtre « Sans clan PUBG »
+  de l'annuaire (`/settings/players`) s'en approche — la marquer « remplacée » ou la garder ?
+- `todo.md`, Power score « normalisé et delta » : **l'inventaire se trompait**, ce n'est pas fait (pas d'échelle 0–100,
+  pas d'historique ; le « delta » n'est qu'un mouvement de rang ▲/▼, `RankMovement`) ; la case `[~]` cite encore
+  l'ancienne formule.
+- Tournois : suppression d'un tournoi (réponses 200 / 404 / 403, `SquadMatch` préservés) sans test → §2.C ; recette UI
+  en partie seulement couverte par `e2e/tournaments.spec.ts`.
+- Non vérifiés : « Le code n'est pas encore déployé » des fermetures de zone (`todo.md`) ; cases « Rapport hebdomadaire
+  enrichi », qui parlent d'une fonction supprimée.
+
+Liste d'origine (2026-10-20), pour mémoire :
 
 - [administration.md](administration.md) : l'en-tête (l. 11-12) dit encore que les scripts du lot 2 « n'ont tourné
   qu'en simulation », de même que l. 556, 570, 799 et Q-D6 — ils ont été appliqués le 2026-10-12 (`47ad1bd`). La liste

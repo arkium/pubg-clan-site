@@ -152,8 +152,9 @@ Discuté le 2026-08-03. Objectif différent de la section "Comparaison de perfor
   `db-maintenance.test.ts` (2). 341 tests verts hors 3 fichiers branchés sur la base.
 - [x] Documentation : `docs/ops/database-performance.md` (nouveau), `docs/ops/cron.md` (`encountered_player_clan_resolution`,
   qui manquait, et `db_maintenance`), `docs/sommaire.md`, `CLAUDE.md`.
-- [ ] **Déployer** : le cron `db_maintenance` et la nouvelle sélection ne tournent en production qu'après déploiement
-  (le déploiement actuel exécute du code plus ancien).
+- [x] **Déployer** : le cron `db_maintenance` et la nouvelle sélection ne tournent en production qu'après déploiement
+  (le déploiement actuel exécute du code plus ancien). — Fait : `e3e4799` est dans `main` déployé (`ee2c820`, au plus
+  tard le 2026-10-12), vérifié le 2026-10-22 (`src/lib/db-maintenance.ts`, `src/lib/cron-jobs.ts`).
 - [ ] **2026-09-22 (J+7, couvre un lundi)** : `npx tsx scripts/db-health.ts report --days=7`, consigner le résultat dans
   `docs/ops/database-performance.md`, puis décider des index de `EncounteredPlayer` (chevauchements structurels listés
   §4.2 — à confirmer par les lectures réelles et par le code avant toute suppression).
@@ -190,7 +191,7 @@ Discuté le 2026-08-03. Objectif différent de la section "Comparaison de perfor
   parcourrait 1,64 M lignes — prévoir un compteur pré-calculé.
 
 
-#### Lot 2 — Purge de l'historique de géolocalisation (`/settings/superuser/database`) : le message « Aucun match ne correspond au filtre » était faux — 🔬 Mesuré et ✅ corrigé le 2026-09-23 (non déployé)
+#### Lot 2 — Purge de l'historique de géolocalisation (`/settings/superuser/database`) : le message « Aucun match ne correspond au filtre » était faux — 🔬 Mesuré et ✅ corrigé le 2026-09-23 (déployé depuis, vérifié le 2026-10-22)
 
 > **Signalement :** la page annonce « Aucun match ne correspond au filtre sélectionné pour la purge » alors que
 > **3 103 matchs de plus de 14 jours** portent encore leur géolocalisation. Le message est un artefact d'interface :
@@ -372,8 +373,9 @@ pour 18 874 matchs. Le garde-fou « ne purger que les matchs dont les agrégats 
   purge (p. ex. `geoBytes Int?` ou `geoPurgedAt DateTime?`) + index composite avec la date, puis compter dessus.
   À mesurer avant de migrer, conformément au principe du Lot 1 ; la marge existe : `SquadMatchTelemetry` ne porte
   aujourd'hui que **3 Mo d'index pour 21,76 Go de données** (l'inverse exact de `EncounteredPlayer`).
-- [ ] **Déployer** : le correctif ne vit qu'en local ; en production la page continue d'annoncer « Aucun match ne
-  correspond au filtre ».
+- [x] **Déployer** : le correctif ne vit qu'en local ; en production la page continue d'annoncer « Aucun match ne
+  correspond au filtre ». — Fait : `8595a56` (2026-09-23) est dans `main` déployé (`ee2c820`, au plus tard le
+  2026-10-12), vérifié le 2026-10-22 (`src/lib/telemetry-geo-purge.ts`).
 - [x] **Rattrapage `ZoneClosurePosition` — fait le 2026-09-23, la purge n'a plus de frein de ce côté.** Passe
   complète (`npm run telemetry:zone-closures:backfill`, sans `--limit`) : **2 529 matchs évalués, 368 lignes
   écrites, 373 s.** Toute la file en attente est passée — donc tout ce qui pouvait encore être extrait des
@@ -395,7 +397,7 @@ pour 18 874 matchs. Le garde-fou « ne purger que les matchs dont les agrégats 
   disponible.
 
 
-#### Lot 3 — Compactage InnoDB et compression de la télémétrie — 🔬 Mesuré et ✅ corrigé le 2026-09-24 (non déployé)
+#### Lot 3 — Compactage InnoDB et compression de la télémétrie — 🔬 Mesuré et ✅ corrigé le 2026-09-24 (déployé les 2026-09-24 et 25, vérifié le 2026-10-22)
 
 > **Signalement :** le bouton « Compacter SquadMatchTelemetry (OPTIMIZE) » de
 > `/settings/superuser/database` rend **« Erreur serveur HTTP 504 »**. Demande initiale : faire fonctionner le
@@ -567,7 +569,7 @@ vérifié : aucun code de production n'en fait sur ces deux colonnes, seuls des 
   à vide ensuite, comme l'exige le dépôt.
 - `docs/sommaire.md` si un document dédié est créé.
 
-*État au 2026-09-24 — ✅ implémenté, non déployé*
+*État au 2026-09-24 — ✅ implémenté, non déployé* — déployé ensuite, avant le rattrapage du 2026-09-24 (ci-dessous).
 
 - [x] **Migration** `prisma/migrations/20260924120000_add_geo_compressed_columns` : `positionSamplesGz` et
   `trajectorySegmentsGz` en `LONGBLOB`, **appliquée** avec `ALGORITHM=INSTANT` explicite (sans cette clause MariaDB
@@ -590,9 +592,10 @@ vérifié : aucun code de production n'en fait sur ces deux colonnes, seuls des 
   sans régression.
 - [x] **Documentation** : `CLAUDE.md` piège n° 10 (ne jamais lire la colonne sans `decodeGeoColumn`),
   `docs/ops/database-performance.md` §4bis, `docs/ops/cron.md` (durée du comptage).
-- [ ] **Déployer dans l'ordre** : les lectures doivent être vivantes sur les **quatre** services avant que les
+- [x] **Déployer dans l'ordre** : les lectures doivent être vivantes sur les **quatre** services avant que les
   écritures compressées ne partent. Comme tout est dans le même build, un déploiement unique suffit — mais les
   redémarrages étant séparés, vérifier que les quatre unités ont bien redémarré avant de lancer le rattrapage.
+  — Fait : déployé avant le rattrapage du 2026-09-24 (case suivante, commit `38d0de9`), vérifié le 2026-10-22.
 - [x] **Rattrapage exécuté en production le 2026-09-24** : **6 670 matchs, 11 409 Mo → 1 312 Mo (8,7×) en 24 min.**
   Contrôle après coup (`scripts/check-compression-outcome.ts`) :
 
@@ -671,7 +674,7 @@ Mesuré sur 8 matchs récents (`scripts/check-remaining-columns-compressibility.
 
 Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque passerait de 91 % à environ 50 %.
 
-- [x] **Compression étendue à toutes les colonnes JSON** — implémentée le 2026-09-25, **non déployée**.
+- [x] **Compression étendue à toutes les colonnes JSON** — implémentée le 2026-09-25, ~~**non déployée**~~ déployée le 2026-09-25 (plus bas).
   - **Migration** `20260925090000_compress_remaining_json_columns` : 13 colonnes `LONGBLOB` en
     `ALGORITHM=INSTANT`. **À appliquer par `npx prisma migrate deploy` sur le serveur** — pas de `db execute`
     depuis un poste de développement, c'est ce qui avait provoqué le `P3018` du 2026-09-24.
@@ -699,9 +702,10 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
   - **Documentation** : `CLAUDE.md` piège n° 10 réécrit (liste des colonnes, règle `decodeTelemetryRow`,
     piège de `backfill-null-json`, ordre de déploiement), `docs/ops/database-performance.md` §4bis.
 
-- [ ] **Déployer dans l'ordre** : `migrate deploy` (les colonnes), puis le code sur les quatre services, puis
+- [x] **Déployer dans l'ordre** : `migrate deploy` (les colonnes), puis le code sur les quatre services, puis
   seulement le rattrapage. Les écritures compressées démarrent dès le déploiement du code — d'où l'importance
   que les quatre unités aient redémarré.
+  — Fait le 2026-09-25 (case suivante, commit `f3da4fc`), vérifié le 2026-10-22 (`src/lib/pubg-telemetry/json-codec.ts`).
 - [x] **Déployé et rattrapé le 2026-09-25.** État vérifié :
 
   | Mesure | Avant compression | Après |
@@ -745,7 +749,7 @@ Le compactage rendrait alors **~19,6 Go** au système de fichiers : le disque pa
   **reconstruit la table** : même impératif d'espace disque que l'OPTIMIZE, donc hors de portée aujourd'hui. À
   reconsidérer si le disque repasse largement au-dessus de la taille de la table.
 
-#### Lot 4 — Annuaire des joueurs et arrêt de suivi d'un clan — ✅ Implémentés le 2026-09-25 (non déployés, migration appliquée)
+#### Lot 4 — Annuaire des joueurs et arrêt de suivi d'un clan — ✅ Implémentés le 2026-09-25 (migration appliquée ; déployés depuis, `fbe46ba`, vérifié le 2026-10-22)
 
 - [x] **Onglet « Joueurs » de `/settings/opponents`** — implémenté, 62 tests : [players.md §11](players.md).
   Recette manuelle du §9.D encore à faire dans un navigateur
@@ -806,7 +810,7 @@ persistance de la période par l'URL et une mémoire de visite.
   `startup.sh` et `.deployment` (démarrage Azure App Service) et `deploy-phase2.sh` retirés le 2026-10-11, remplacés
   par `scripts/deploy.sh`
 
-#### Lot 6 — Sous-domaine par clan (`<clan>.chickendinner.fr`) — 📐 Cadrage validé le 2026-09-26, à implémenter
+#### Lot 6 — Sous-domaine par clan (`<clan>.chickendinner.fr`) — 📐 Cadrage validé le 2026-09-26 ; ✅ code livré le 2026-09-26 (`7a36208`), reste la mise en service
 
 Spec : [chickendinnerfr.md](chickendinnerfr.md). Décisions : **redirection** vers `chickendinner.fr/clans/<id>/overview`
 (pas de sous-domaine persistant), champ **`Clan.subdomain` unique** plutôt que le tag, tags en double (`kms`, `fr`)
@@ -818,7 +822,7 @@ remplacés par le nom de chaque clan. DNS wildcard déjà en place.
 - [ ] Certificat wildcard (validation DNS) et `server_name` Nginx
 - [ ] `CLAN_SUBDOMAIN_ROOT` en production
 
-#### Lot 7 — Liens courts (`/m/<match>`, `/t/<tournoi>`, `/j/<joueur>`) — ✅ Code livré le 2026-10-20 (non déployé)
+#### Lot 7 — Liens courts (`/m/<match>`, `/t/<tournoi>`, `/j/<joueur>`) — ✅ Code livré et déployé le 2026-10-20 (`1ea5662`, `c9d0ba8`)
 
 Spec : [url-masking.md](url-masking.md). Redirections 307 vers les adresses canoniques, cuid tel quel (ni Sqids, ni
 migration). 16 % des matchs réunissent plusieurs clans : clan porté par le sous-domaine, sinon page de choix.
@@ -1357,7 +1361,8 @@ barracuda73540, Akuhnamatata, MAX-BR (BF), Uranovx (BEE).
 - [x] **Corriger le raccourci « membre suivi »** ([encountered-player-resolution.ts:301](../../src/lib/encountered-player-resolution.ts#L301)) :
       ajouter `isActive: true` et `joinStatus: 'active'` au `findFirst`, pour qu'un membre non suivi retombe sur
       l'appel API PUBG au lieu de rester tamponné avec son ancien clan
-      *(reporté volontairement par l'utilisateur le 2026-09-20, à reprendre ici)*
+      *(reporté volontairement par l'utilisateur le 2026-09-20, à reprendre ici)* — fait (`a90e74d`), vérifié le
+      2026-10-22 (`src/lib/encountered-player-resolution.ts`)
 
 > **Contrainte de performance (mesurée le 2026-09-15)** : la sélection des coéquipiers fréquents parcourt
 > l'intégralité d'`EncounteredPlayer` (1,64 M lignes) — le même motif qui faisait durer 45 s chaque passage du cron
@@ -1593,8 +1598,10 @@ cet onglet, sans redéploiement.
 - [x] **Affichage de la date d'archivage** : `lastMatchAt`, jours d'inactivité et date d'éligibilité.
       `GET .../ungrouped?thresholdDays=N` permet de simuler un autre seuil **avant** de l'enregistrer
       (`eligibleAt` est calculé côté service, pas en base, précisément pour ça)
-- [~] **Test du webhook** — disponible en ligne de commande
+- [x] **Test du webhook** — disponible en ligne de commande
       (`npx tsx scripts/set-clan-lifecycle-config.ts --webhook "<url>" --test`), **pas encore en bouton** dans la page
+      — fait le 2026-10-19 : bouton « Envoyer un test » (`src/components/clan-lifecycle/SettingsSection.tsx`,
+      commit `6374255`), vérifié le 2026-10-22
 - [x] Garde-fou : webhook vide = aucune notification, et la page affiche « non configuré » plutôt que d'échouer
 
 **Règle d'archivage d'UNG** — répond au risque « UNG ne se vide jamais » :
@@ -2007,9 +2014,12 @@ parfaitement normale.
 
 Les routes `generateWeeklyReport` et `generateMonthlyReport` existent mais leur déclenchement automatique dépend d'une vérification que le cron est bien configuré et actif.
 
-- [ ] Vérifier que le cron `weekly_report` est actif et déclenche `generateWeeklyReport`
-- [ ] Vérifier que le cron `monthly_report` est actif et déclenche `generateMonthlyReport`
-- [ ] Tester la génération d'un rapport complet (toutes les sections)
+**Sans objet depuis le 2026-08-20** : la fonction de rapports est supprimée (`9c03382`) ; ni `generateWeeklyReport`
+ni `generateMonthlyReport` n'existent plus dans `src/` (vérifié le 2026-10-22).
+
+- [x] ~~Vérifier que le cron `weekly_report` est actif et déclenche `generateWeeklyReport`~~ — sans objet
+- [x] ~~Vérifier que le cron `monthly_report` est actif et déclenche `generateMonthlyReport`~~ — sans objet
+- [x] ~~Tester la génération d'un rapport complet (toutes les sections)~~ — sans objet
 
 ---
 
@@ -2422,10 +2432,13 @@ Les items 1 et 2 peuvent être livrés ensemble comme un premier lot cohérent :
 
 Le rôle Moderator existe en DB mais n'a pas de fonctions définies. Quatre axes d'animation identifiés à implémenter dans une future itération.
 
-- [ ] **Gestion des défis internes (Challenges)** — le Moderator peut créer, modifier et clore des challenges (`kill_race`, `damage_race`, etc.) sans impliquer l'Owner/Admin. Permission à câbler : `manage_challenges` sur `POST/PATCH /api/clans/[clanId]/challenges`.
-- [ ] **Annonces et rappels (Notifications)** — le Moderator peut rédiger et envoyer des annonces aux membres (soirée scrims, objectif de la semaine), gestion des canaux (Discord webhook, email). Permissions : `manage_notifications`, `manage_channels`.
-- [ ] **Recrutement (Invitations membres)** — le Moderator peut envoyer des invitations à de nouveaux joueurs, mais ne peut pas retirer/archiver un membre existant. Permission : `invite_members` (sans `remove_members` ni `kick_members`).
-- [ ] **Export des rapports** — le Moderator peut exporter les rapports hebdomadaires/mensuels du clan (PDF, CSV), utile pour des analyses hors site (Discord, Google Sheets). Permission : `export_reports`.
+**Sans objet depuis le 2026-10-07** : le rôle Moderator est supprimé (`a448513`, lot 2 d'[administration.md](administration.md)),
+ses lignes en base retirées le 2026-10-12 (`47ad1bd`) — vérifié le 2026-10-22 (`src/lib/role-service.ts` : Owner et Member seulement).
+
+- [x] ~~**Gestion des défis internes (Challenges)**~~ (sans objet, rôle supprimé) — le Moderator peut créer, modifier et clore des challenges (`kill_race`, `damage_race`, etc.) sans impliquer l'Owner/Admin. Permission à câbler : `manage_challenges` sur `POST/PATCH /api/clans/[clanId]/challenges`.
+- [x] ~~**Annonces et rappels (Notifications)**~~ (sans objet, rôle supprimé) — le Moderator peut rédiger et envoyer des annonces aux membres (soirée scrims, objectif de la semaine), gestion des canaux (Discord webhook, email). Permissions : `manage_notifications`, `manage_channels`.
+- [x] ~~**Recrutement (Invitations membres)**~~ (sans objet, rôle supprimé) — le Moderator peut envoyer des invitations à de nouveaux joueurs, mais ne peut pas retirer/archiver un membre existant. Permission : `invite_members` (sans `remove_members` ni `kick_members`).
+- [x] ~~**Export des rapports**~~ (sans objet, rôle et rapports supprimés) — le Moderator peut exporter les rapports hebdomadaires/mensuels du clan (PDF, CSV), utile pour des analyses hors site (Discord, Google Sheets). Permission : `export_reports`.
 
 #### Compétitions inter-clans
 
@@ -3513,7 +3526,9 @@ Développé et déployé le 2026-08-04 à partir de fichiers réels dans `.telem
 - [ ] Si la granularité par session (pas juste le total du match) devient un jour un besoin réel, reprendre l'investigation `LogVehicleLeave.rideDistance` avec plus de temps — comparer instance de véhicule par instance de véhicule (`vehicle.vehicleId`), pas juste une somme par joueur sur tout le match
 - [x] Mesuré `SquadMember.rideDistance` en base pour objectiver : `4390` lignes, moyenne `1289 m`, max `12836 m`, jamais affiché dans l'UI (seulement `awards-service.ts`)
 
-**Ce qui pourrait être fait à la place, à effort quasi nul :** exposer `SquadMember.rideDistance` (déjà fiable, déjà en base) quelque part en UI si le besoin est simplement "voir sa distance en véhicule" — pas fait ici, hors scope de cette investigation, mais noté comme piste bien moins chère que le parsing télémétrie.
+**Ce qui pourrait être fait à la place, à effort quasi nul :** exposer `SquadMember.rideDistance` (déjà fiable, déjà en base) quelque part en UI si le besoin est simplement "voir sa distance en véhicule" — pas fait ici, hors scope de cette investigation, mais noté comme piste bien moins chère que le parsing télémétrie. **Fait depuis** : le débriefing de match affiche la
+distance « en véhicule » de chaque membre (`src/components/telemetry/MatchDebriefView.tsx`, `30100f1`, 2026-09-26),
+vérifié le 2026-10-22.
 
 #### 3. ~~`CharacterWrapper.primaryWeaponFirst` — arme en main au moment des kills~~ — ❌ Prémisse invalidée, ne pas faire tel quel
 
@@ -3774,7 +3789,7 @@ Afin de ne pas surcharger la page et de maintenir une navigation fluide :
     - Distinction stricte et fidèle entre les **dégâts infligés** par nos joueurs et les **dégâts subis** par l'escouade.
   - [x] **🗺️ Résolution et affichage garanti de l'image satellite de la carte :** — livré (VOLET 4, `map-asset.ts`)
     - Remplacement du chemin direct par un résolveur d'alias bidirectionnel (`resolveMapAssetKey`) pour garantir que `/maps/pubg/${mapKey}.webp` charge toujours l'image haute résolution (ex: `Erangel` ↔ `Baltic_Main`, `Miramar` ↔ `Desert_Main`, `Sanhok` ↔ `Savage_Main`, `Taego` ↔ `Tiger_Main`, `Rondo` ↔ `Neon_Main`, etc.) sans erreur 404.
-  - [~] **👤 Noms complets de tous les joueurs (non-membres et adversaires) :** — 95 à 99 % résolus (VOLET 4) ; ~5 % de comptes jamais croisés restent ouverts
+  - [x] **👤 Noms complets de tous les joueurs (non-membres et adversaires) :** — 95 à 99 % résolus (VOLET 4) ; ~5 % de comptes jamais croisés restent ouverts — **fait** : le cron nomme en priorité les comptes vus seulement dans le kill feed (2026-10-03, [nemesis.md](../features/nemesis.md)) ; mesuré le 2026-10-22 : 92 940 comptes adverses du kill feed nommés sur 92 941, le dernier inconnu de l'API PUBG
     - Enrichissement de `memberIdentityMap` : extraction des vrais pseudos in-game PUBG pour l'ensemble des 100 participants depuis les payloads télémétriques (`killerRawKey`, `victimRawKey`, `LogPlayerKillV2`, `positionSamples`).
     - Fin des identifiants bruts ou tronqués pour les adversaires externes.
   - [ ] Revue et validation utilisateur sur le match réel `cmtonisut8oru04b2vnaaxrdj` (clan RAF + BOFS) et `cmtoouiyw8t6304b22w3f4u8y`.
@@ -4331,7 +4346,7 @@ Demande utilisateur : `/settings/telemetry-recoveries` n'affichait aucune inform
 - [x] **Indice de Synergie :** Répartition des tailles de squad par clan (solo/duo/trio/squad) dans `ClanComparatorPayload.pulse.squadSizeDistribution`, dérivé du nombre de `SquadMember` par `squadMatchId` appartenant au clan.
 - [x] **Taux de participation (Roster Health) :** `pulse.rosterHealth` — membres actifs ayant joué / effectif total, filtré `isActive: true, joinStatus: 'active'` (isolation stricte, cf. `tracked-isolation.test.ts`).
 - [x] **Régularité :** `pulse.dailyMatchCounts` (matchs par jour sur la période) et `pulse.activityByDayHour` (grille 7×24 jour/heure), affichés sous forme de compteurs sur la page — pas encore de heatmap visuelle superposée entre clans.
-- [ ] **Heatmap d'activité comparée :** `activityByDayHour` est déjà calculé et mis en cache, mais la page ne l'affiche pas encore visuellement (juxtaposition Night Owls vs Weekend warriors) — reste à construire le composant de visualisation.
+- [x] **Heatmap d'activité comparée :** `activityByDayHour` est déjà calculé et mis en cache, mais la page ne l'affiche pas encore visuellement (juxtaposition Night Owls vs Weekend warriors) — reste à construire le composant de visualisation. — Fait le 2026-08-14 : punchcard `src/components/comparator/ClanActivityHeatmap.tsx` sur `/clans/comparator` (`fa3a234`), vérifié le 2026-10-22.
   - [ ] **Design Visuel attractif :** Concevoir une matrice style "Punchcard" (Github contribution graph). Si on compare 2 clans, utiliser des couleurs distinctes avec un mode de fusion (`mix-blend-mode: screen` ou `multiply`) pour mettre en évidence les heures de forte collision d'activité, ou une vue côte-à-côte avec des tooltips riches montrant le pourcentage d'activité.
 
 
@@ -4530,7 +4545,7 @@ Objectif : rendre le clic sur une ligne utile en place au lieu de naviguer hors 
 - [ ] **Intégrité DB :** Valider par des tests les contraintes d'unicité sur `Player` et `OpponentClan` lors du parsing simultané de plusieurs matchs.
 - [ ] **Agrégation Télémétrie :** Créer un test unitaire garantissant que `killsAgainst`, `deathsBy`, etc. sont incrémentés sur le bon `ClanEncounter` lors du parsing d'un faux match JSON.
 - [ ] **Isolation stricte de la Watchlist :** Test automatisé s'assurant qu'un `ClanMember` avec `joinStatus='Tracked'` est formellement ignoré par toutes les requêtes de moyennes, leaderboards et calculs de densité du clan.
-- [ ] **Invalidation du Cache Local :** Vérifier que la table `Player` agit comme cache pour `searchPlayerByName`, mais force un rafraîchissement API (invalidation) si les données sont trop vieilles.
+- [x] **Invalidation du Cache Local :** Vérifier que la table `Player` agit comme cache pour `searchPlayerByName`, mais force un rafraîchissement API (invalidation) si les données sont trop vieilles. — Fait : `Player` lu d'abord si `updatedAt` a moins de `PLAYER_NAME_SEARCH_FRESHNESS_DAYS` (3 j), sinon appel API puis upsert — vérifié le 2026-10-22 (`src/lib/pubg.ts`).
 
 **Recherche de joueur — Vérifier la DB avant l'appel API PUBG :**
 
@@ -5556,13 +5571,15 @@ type TournamentRules = {
 #### 4. Plan de Tests & Recette
 
 ##### Tests Automatisés (Vitest — `src/lib/tournament-service.test.ts` & `src/lib/discord/`)
-- [ ] **Moteur de règles et calculs des scores (`tournament-service.test.ts`) :**
+- [x] **Moteur de règles et calculs des scores (`tournament-service.test.ts`) :** — couvert, vérifié le 2026-10-22 : les cinq cas sont dans
+  `src/lib/tournament-modes.test.ts` (partage intégral, prorata, équipes libres, solo, intra-clan).
   - **Mode Inter-Clans - Option Partage Intégral :** Vérifier que chaque clan représenté reçoit 100 % des points de placement.
   - **Mode Inter-Clans - Option Prorata :** Vérifier la division exacte des points de placement et bonus selon la répartition des joueurs (ex: 2/4 = 50%, 1/4 = 25%).
   - **Mode Équipes Libres :** Vérifier le regroupement par clé d'équipe indépendamment du clan.
   - **Mode Solo FFA :** Vérifier le calcul individuel par joueur sans regroupement d'escouade.
   - **Mode Intra-Clan :** Vérifier l'exclusion des joueurs tiers n'appartenant pas au clan organisateur.
-- [ ] **Générateur d'Embed Discord (`discord-tournament-embed.test.ts`) :**
+- [x] **Générateur d'Embed Discord (`discord-tournament-embed.test.ts`) :** — couvert, vérifié le 2026-10-22 (4 modes, prorata, solo,
+  titre intra-clan) ; seuls les noms des membres en Équipes libres ne sont pas testés à part.
   - Test de rendu de l'embed pour chacun des 4 modes de tournoi.
   - Vérification de la mention du prorata en mode Inter-Clans avec option prorata.
   - Vérification de l'affichage des noms d'équipes et membres en mode Équipes Libres.
@@ -5573,7 +5590,8 @@ type TournamentRules = {
   - Vérifier le rejet 403 si un clan non organisateur tente de supprimer.
 
 ##### Tests d'Intégration API (`src/lib/discord/discord-route-contracts.test.ts` & routes tournois)
-- [ ] `POST /api/clans/[clanId]/tournaments` :
+- [x] `POST /api/clans/[clanId]/tournaments` : — couvert, vérifié le 2026-10-22 : la route passe par `normalizeTournamentRules`
+  (`src/lib/tournament-modes.test.ts`, valeurs par défaut comprises) ; corps du POST dans `e2e/tournament-admin.spec.ts`.
   - Validation du payload avec les nouveaux champs de mode (`mode`, `mixedSquadRule`).
   - Validation des valeurs par défaut (`mode: 'inter_clan'`, `mixedSquadRule: 'full_share'`).
 - [ ] `DELETE /api/clans/[clanId]/tournaments/[tournamentId]` :
@@ -5962,7 +5980,7 @@ Les préférences `pushNotifications` sont stockées et lues, mais l'envoi réel
 - [x] **Performances par mode :** cartes `TeamModeBadge` par clan (duo/trio/squad), même style que le panneau existant sur `/clans/[clanId]/overview`.
 - [x] **Head-to-Head :** section dédiée avec confrontations par paire de clans sélectionnés, message explicite si aucun match commun.
 - [x] Cache `ClanComparatorCache` peuplé manuellement pour les 7 clans actifs le 2026-08-10 (le cron nocturne `daily_stats_recalc` le repeuplera automatiquement ensuite) — les données radar/tableaux n'étaient pas visibles avant ce peuplement initial car la page ne calcule jamais à la volée.
-- [ ] **Heatmap d'activité comparée** (section 1) : `pulse.activityByDayHour` est disponible mais pas encore visualisé.
+- [x] **Heatmap d'activité comparée** (section 1) : `pulse.activityByDayHour` est disponible mais pas encore visualisé. — Fait le 2026-08-14 (`src/components/comparator/ClanActivityHeatmap.tsx`, `fa3a234`), vérifié le 2026-10-22.
 - [ ] **Tests Unitaires (Services d'agrégation) :** Aucun test automatisé sur `clan-comparator-service.ts`/`head-to-head-service.ts` pour l'instant — validé manuellement par exécution directe sur les données réelles des 7 clans (a révélé et permis de corriger le bug d'isolation watchlist ci-dessus). À couvrir : Synergie, Roster Health, Hot Drop, Teamplay, isolation `joinStatus`, détection de matchs communs, calcul du vainqueur par meilleur placement.
 - [ ] **Tests de Composants (UI) :** Pas de test automatisé sur la page/le radar — à couvrir : données vides, un seul clan sélectionné, clan sans télémétrie parsée, aucun match commun.
 - [ ] Vérifier dans le navigateur (session authentifiée) les rendus desktop/mobile et les thèmes clair/sombre — non fait dans cette session (pas d'accès à une session de test ; seule la résolution de route a été vérifiée via `curl`, qui redirige correctement vers `/login` sans authentification).

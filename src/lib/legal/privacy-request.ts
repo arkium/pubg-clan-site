@@ -8,6 +8,12 @@ import { siteName } from '@/lib/site-name'
  * le formulaire et la route, limite de fréquence en mémoire, textes de la notification et de l'e-mail. Module pur.
  */
 
+// Seul module zod chargé par le navigateur (formulaire de demande, page d'administration des demandes). Au premier
+// contrôle d'un objet, zod 4 essaie `Function("")` pour savoir s'il peut compiler ses validations : la CSP, sans
+// `unsafe-eval`, le refuse et l'écart s'affiche dans la console (seul écart relevé en production le 2026-10-22, avant le
+// passage en mode bloquant). Le mode sans compilation n'essaie rien ; un formulaire n'y perd rien. Côté serveur, rien ne
+// change.
+if (typeof window !== 'undefined') z.config({ jitless: true })
 export const PRIVACY_REQUEST_KINDS = ['hide', 'purge', 'correct', 'other'] as const
 export type PrivacyRequestKind = (typeof PRIVACY_REQUEST_KINDS)[number]
 

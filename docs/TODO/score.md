@@ -1,3 +1,5 @@
+> ✅ Implémenté (`src/lib/clan-league.ts`), vérifié le 2026-10-22 — état en fin de document.
+
 Je veux changer le calcul du Power Score de la Ligue Inter-Clans (/clans-leaderboard).
 
 ## Pourquoi

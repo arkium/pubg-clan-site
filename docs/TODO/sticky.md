@@ -37,7 +37,7 @@ même façon** : même bandeau, même place, même contrôle de période, mêmes
 | Pages SuperUser | **Non alignées** : elles gardent leur vocabulaire d'exploitation | 2026-09-25 |
 | Captures automatisées | **Playwright adopté**, moteurs **Chromium et WebKit** (§7.C) | 2026-09-25 |
 | Base de données des tests Playwright | **Aucune base de test** : le serveur local tel que le configure `.env` (mode visiteur, crons coupés) ; tous les appels d'API du navigateur sont interceptés, seules des lectures serveur atteignent la base (§7.C) | 2026-09-25 |
-| Workflow GitHub `main_smkclan.yml` (déploiement Azure) | **Obsolète** : la production se déploie par build autonome et systemd (CLAUDE.md, [deployment.md](../ops/deployment.md)) — à supprimer | 2026-09-25 |
+| Workflow GitHub `main_smkclan.yml` (déploiement Azure) | **Obsolète** : la production se déploie par build autonome et systemd (CLAUDE.md, [deployment.md](../ops/deployment.md)) — supprimé le 2026-09-26 (`2bd0115`) | 2026-09-25 |
 
 Pourquoi le calendaire : c'est ce que calculent déjà tous les agrégats (classements, awards, comparateur,
 statistiques de télémétrie, cache des matchs). Quatre API seulement comptent en jours glissants (§3.C). Les
@@ -464,7 +464,8 @@ pages SuperUser non alignées ; Playwright avec Chromium et WebKit, sans base de
 
 Action hors chantier, signalée dans [todo.md](todo.md) : supprimer le workflow obsolète
 [main_smkclan.yml](../../.github/workflows/main_smkclan.yml). Il se déclenche encore à chaque push sur `main` et tente
-un déploiement vers une Web App Azure qui ne sert plus.
+un déploiement vers une Web App Azure qui ne sert plus. **Fait le 2026-09-26** (`2bd0115`) : le fichier est
+supprimé (vérifié le 2026-10-22).
 
 ---
 

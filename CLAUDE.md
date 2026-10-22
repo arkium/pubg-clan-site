@@ -363,7 +363,8 @@ meilleur de son clan (`MemberTelemetryStats`).
 - **CSP** (2026-10-18, `src/lib/security/csp.ts`) : `passThrough()` pose une CSP à nonce, en observation
   (`Report-Only`) ; Next ajoute le nonce à ses propres scripts. Tout script ajouté à la main (tiers, `<Script>`) doit
   recevoir ce nonce, sinon il sera bloqué le jour où la CSP passe en mode bloquant. Un écart ne s'affiche pas dans la
-  console de Playwright : l'écouter par l'événement `securitypolicyviolation`. En-têtes de sécurité :
+  console de Playwright : la fixture `cspViolations` (`e2e/support/api.ts`) l'écoute par `securitypolicyviolation` et
+  fait échouer le test (suite complète sur le build : 0 écart le 2026-10-22). En-têtes de sécurité :
   `SECURITY_HEADERS` de `next.config.ts` (HSTS **sans** `includeSubDomains` tant que le wildcard n'est pas posé).
 
 **Administration (depuis le 2026-10-07, [administration.md](docs/TODO/administration.md)) :** quatre profils — visiteur,
@@ -457,8 +458,6 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 0 4 * * *  →  Lifetime stats sync (season averages)
 0 5 * * *  →  Ranked season data sync
 0 18 * * *  →  Send online reminders (if enabled)
-0 8 * * 1  →  Weekly report generation
-0 8 1 * *  →  Monthly report generation
 */30 * * * *  →  Encountered players PUBG clan resolution (one `Player` row per identity, priority index) — kill feed names first (« Joueur inconnu »)
 45 1 * * *  →  Clan membership sync (per-player clan check — observe mode by default)
 15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h ; only deletion: admin action log rows > 12 months)

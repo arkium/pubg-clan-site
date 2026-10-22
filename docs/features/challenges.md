@@ -102,7 +102,9 @@ Un membre peut rejoindre un défi `active` après sa création. Utilise le même
 
 ### 4. Mise à jour du score (`updateParticipantProgress`)
 
-Fonction interne `challenge-service.ts`. Met à jour `progress` d'un participant. Le déclenchement (cron, webhook, API) est à implémenter selon le type de métrique.
+Fonction interne `challenge-service.ts`. Met à jour `progress` d'un participant.
+
+Déclenchement : `refreshChallengeProgressForClan` (même fichier) recalcule la progression de chaque participant des défis `active` d'un clan à partir de ses parties de la période (`SquadMember`), selon le type du défi. Le cron `daily_sync` (02:00, `runDailyClanSync` dans `cron-jobs.ts`) l'appelle pour chaque clan juste après la synchronisation de ses matchs ; une erreur est journalisée sans interrompre la synchronisation (vérifié le 2026-10-22).
 
 ### 5. Clôture (`endChallenge`)
 

@@ -48,7 +48,8 @@ la page* doit lister les `/api/…` comme **« Bloquée par le fichier robots.tx
 
 **Corriger — lot 0.0, à faire avant tout le reste.** Points 1 à 3 **réalisés le 2026-10-18** (`robotsRules` et
 `sitemap` de `CLAN_PAGES` dans `page-seo.ts`, `headers()` de `next.config.ts`, tests dans `page-seo.test.ts`),
-vérifiés sur le serveur de dev ; **en attente de déploiement**, puis point 4.
+vérifiés sur le serveur de dev ; ~~en attente de déploiement~~ **déployés au plus tard le 2026-10-20** (`83b733d`,
+vérifié le 2026-10-22), puis point 4.
 
 1. `robotsRules` (`src/lib/seo/page-seo.ts`) : remplacer `Disallow: /api/` par **`/api/internal/` et `/api/cron/`
    seulement**, les deux préfixes qu'aucune page n'appelle. Le shell d'une page publique appelle `/api/auth/mode`,
@@ -386,7 +387,7 @@ balisage est facultatif. `Dataset` pour la lecture de zone : possible plus tard 
 
 ### Lot 4 — autorité et présence hors du site (E-E-A-T, GEO)
 
-**Réalisé le 2026-10-20** (code, non déployé) : 4.1 sauf le logo, 4.2, 4.3 côté code, 4.7. Le logo d'Arkium attend un
+**Réalisé le 2026-10-20** (code, ~~non déployé~~ déployé le 2026-10-20 avec `1ea5662`, vérifié le 2026-10-22) : 4.1 sauf le logo, 4.2, 4.3 côté code, 4.7. Le logo d'Arkium attend un
 fichier (aucun visuel du dépôt ne convient : marques PUBG / KRAFTON, image de partage non carrée). IndexNow est
 **coupé** tant que `INDEXNOW_KEY` n'est pas posée ; l'import dans Bing Webmaster Tools reste à faire à la main.
 

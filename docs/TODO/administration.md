@@ -8,8 +8,10 @@
 > route, garde ni table modifiée.
 > **Révision du 2026-10-08** : la télémétrie d'un clan (santé des données, resynchronisation, outils) est réservée au
 > SuperUser et n'est plus délégable aux Owners (Q1, Q17 révisées).
-> Aucune donnée ni entrée de menu n'a été modifiée en base : les deux scripts du lot 2 n'ont tourné qu'en simulation
-> (lecture seule). Seule écriture : la migration du journal (3c-1, une table vide), appliquée le 2026-10-07 sur accord.
+> Écritures en base : la migration du journal (3c-1, une table vide), appliquée le 2026-10-07 sur accord, puis les deux
+> scripts du lot 2, appliqués le 2026-10-12 (`47ad1bd`, §8.7) après une simulation en lecture seule.
+> **Suite livrée le 2026-10-19** (`6374255`, hors de ce plan) : alertes Discord du SuperUser (`src/lib/admin-alerts/`),
+> boîte « À traiter » (`src/lib/admin-inbox/`) et mise en route d'un clan (`src/lib/clan-onboarding/`).
 >
 > Décisions du 2026-10-07 : **quatre profils** (visiteur, membre, Owner, SuperUser — Admin et Moderator supprimés) ;
 > le SuperUser **choisit les outils de clan ouverts aux Owners**, par un réglage **commun à tous les Owners** ; le
@@ -554,7 +556,8 @@ Fait depuis (plus rien à faire sur ce lot) :
   anglais interdits dans `src/app/settings/` ; test du script en simulation.
 
 **État au 2026-10-07 : code fait (branche `fix/admin-rights`) ; les deux scripts de données sont écrits, simulés sur la
-base de production (lecture seule) et PAS appliqués** — voir « Ordre de déploiement ».
+base de production (lecture seule) et PAS appliqués** — voir « Ordre de déploiement ». Mise à jour : appliqués le
+2026-10-12 (`47ad1bd`, §8.7).
 
 Simulations du 2026-10-07 :
 
@@ -567,8 +570,8 @@ Simulations du 2026-10-07 :
 
 Ordre de déploiement :
 
-1. Déployer le code (lots 0, 1 et 2) sur les quatre services. **Dans `main` depuis le 2026-10-08, pas encore
-   déployé** ; les étapes 2 et 3 attendent ce déploiement.
+1. Déployer le code (lots 0, 1 et 2) sur les quatre services. **Dans `main` depuis le 2026-10-08, déployé
+   ensuite** ; étapes 2 et 3 appliquées le 2026-10-12 (`47ad1bd`, §8.7).
 2. `npx tsx scripts/cleanup-admin-nav.ts --apply` — avant, les icônes des entrées renommées retombent sur l'icône par
    défaut (elles sont choisies d'après le libellé, `NavIcon`).
 3. `npx tsx scripts/remove-admin-moderator-roles.ts --apply` — jamais avant l'étape 1 : l'ancien code recréait les
@@ -796,7 +799,7 @@ présentation seulement, aucune route, garde, table ni entrée de menu modifiée
   `npm run telemetry:batch -- --all-clans --recalc-aggregates-only`) ; bouton retiré de la console.
 - **Q16** : `GET /api/members` exige une session (même en mode visiteur) ; hors SuperUser, limité au clan du membre actif.
 - **Menus** : `superuser.players` et `superuser.privacy-requests` ajoutés au registre ; `scripts/cleanup-admin-nav.ts`
-  (toujours pas appliqué) les crée en base et suit les nouvelles adresses de `superuser.opponents` (renommé « Clans »),
+  (appliqué le 2026-10-12, `47ad1bd`) les crée en base et suit les nouvelles adresses de `superuser.opponents` (renommé « Clans »),
   `superuser.clan-lifecycle`, `superuser.database`, `superuser.telemetry-recoveries`.
 
 3a — écarts au plan :
@@ -866,7 +869,7 @@ présentation seulement, aucune route, garde, table ni entrée de menu modifiée
 > **Étape 1 — analyse rédigée le 2026-10-11** : lecture du code et lecture seule de la base de production
 > (`AdminActionLog`, `CronExecution`, `AppConfig`, `NavItem`). Aucune page, route, donnée ni entrée de menu modifiée.
 > **Étape 2 réalisée le 2026-10-11** (§8.7) : code, tests et documentation ; aucune donnée ni entrée de menu modifiée
-> en base (le script de menus attend son `--apply` après déploiement).
+> en base (le script de menus a reçu son `--apply` le 2026-10-12, `47ad1bd`).
 > **Étape 2 validée le 2026-10-11** : recommandations Q-D1 à Q-D10 acceptées telles quelles, et optimisation de
 > `GET T/recoveries` (backlog du seul clan affiché) incluse, dans un commit à part. Branche `refactor/donnees-clan`.
 
@@ -1236,6 +1239,7 @@ mêmes lignes. Le script affichera le plan, puis demandera une confirmation au c
   alors un champ de plus dans `settings/data-health` : la route serait modifiée, pas supprimée.
 - **Q-D6 — Script de menus** : étendre `cleanup-admin-nav.ts` (recommandé) ou écrire un script séparé à lancer après
   lui ? Et quand l'appliquer : le `--apply` du lot 2 attend toujours, et `remove-admin-moderator-roles.ts` aussi.
+  — Les deux scripts ont été appliqués le 2026-10-12 (`47ad1bd`).
 - **Q-D7 — Surcharges devenues identiques à la base après renommage** : les effacer (recommandé) ou les garder telles
   quelles ?
 - **Q-D8 — Liens « Soirée » et « Partie »** de l'Historique et des Échecs : vers la soirée des Données (recommandé :
@@ -1311,7 +1315,8 @@ supprimées le même jour, sur accord : POST `T/sync-batch-manual` (le GET reste
 `getQueuePriority` n'avait déjà plus d'appelant). `GET settings/data-health` ne lit plus le registre ni ne renvoie
 `resync`. **Les cinq points ci-dessous sont faits.**
 
-**Reste à faire** :
+**Reste à faire** — ✅ tout fait le 2026-10-12 (ci-dessus) ; vérifié le 2026-10-22 (`47ad1bd`, routes retirées par
+`c22ae46`) :
 
 1. **Fusionner et déployer** : seul le service `web` est concerné (pages, `next.config.ts`, une route).
 2. **Appliquer le script de menus, après le déploiement** :

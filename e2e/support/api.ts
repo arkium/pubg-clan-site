@@ -65,7 +65,10 @@ export class ApiMock {
   }
 }
 
-export const test = base.extend<{ api: ApiMock; pageErrors: string[] }>({
+/** Écart à la CSP relevé par le navigateur (événement `securitypolicyviolation`, absent de la console de Playwright). */
+export type CspViolation = { directive: string; blocked: string; source: string; line: number; page: string }
+
+export const test = base.extend<{ api: ApiMock; pageErrors: string[]; cspViolations: CspViolation[] }>({
   page: async ({ page }, use) => {
     // Visiteur qui revient : clan déjà choisi. Sans cela, un lien direct vers une page de clan
     // renvoie aujourd'hui un premier visiteur vers /clans (useSelectedClan), hors du sujet testé.
@@ -81,8 +84,31 @@ export const test = base.extend<{ api: ApiMock; pageErrors: string[] }>({
     await use(errors)
     expect(errors, 'erreurs JavaScript de la page').toEqual([])
   },
-  api: async ({ page, pageErrors }, use) => {
+  // La CSP est encore en observation (src/lib/security/csp.ts) : un écart ne bloque rien, mais il bloquerait en mode
+  // bloquant. La liaison survit aux navigations, contrairement à une liste tenue dans la page.
+  cspViolations: async ({ page }, use) => {
+    const violations: CspViolation[] = []
+    await page.exposeBinding('__reportCspViolation', (_source, violation: CspViolation) => {
+      violations.push(violation)
+    })
+    await page.addInitScript(() => {
+      document.addEventListener('securitypolicyviolation', (event) => {
+        const report = (window as unknown as { __reportCspViolation?: (violation: unknown) => void }).__reportCspViolation
+        report?.({
+          directive: event.violatedDirective,
+          blocked: event.blockedURI,
+          source: event.sourceFile,
+          line: event.lineNumber,
+          page: window.location.pathname,
+        })
+      })
+    })
+    await use(violations)
+    expect(violations, 'écarts à la Content-Security-Policy').toEqual([])
+  },
+  api: async ({ page, pageErrors, cspViolations }, use) => {
     void pageErrors
+    void cspViolations
     const api = new ApiMock(page)
     await api.install()
     await use(api)

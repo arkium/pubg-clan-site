@@ -60,7 +60,10 @@ de Safari sur iPhone, pas un iPhone réel). Les tests qui n'ont de sens que sur 
 - **Tous les appels `/api/**` du navigateur sont interceptés** (`e2e/support/api.ts`) : réponses figées du shell
   (session, navigation, liste des clans) et de chaque page (`e2e/support/pages.ts`, données fictives de
   `e2e/support/data.ts`). Un appel sans réponse prévue est **bloqué et fait échouer le test** ; une erreur JavaScript
-  de la page aussi. Aucun test ne peut donc écrire en base.
+  de la page aussi, et un **écart à la CSP** (fixture `cspViolations`, depuis le 2026-10-22 : l'événement
+  `securitypolicyviolation`, absent de la console de Playwright, est relevé sur toutes les navigations du test). Aucun
+  test ne peut donc écrire en base. La CSP n'est complète que sur le build (`E2E_PORT=3001`) : en développement elle
+  autorise `unsafe-eval` et les WebSocket du rechargement à chaud.
 - Seules les lectures du rendu serveur atteignent la base (état d'installation).
 - Le test simule un visiteur qui revient (clan sélectionné en `localStorage`) : aujourd'hui, un premier visiteur qui
   ouvre directement une page de clan est renvoyé vers `/clans` par `useSelectedClan` (voir « Points connus »).

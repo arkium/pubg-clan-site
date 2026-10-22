@@ -4,7 +4,6 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     clanMember: { findMany: vi.fn() },
     opponentClan: { upsert: vi.fn() },
-    encounteredPlayer: { upsert: vi.fn() },
     player: { upsert: vi.fn() },
     clanEncounter: { upsert: vi.fn() },
   },
@@ -25,6 +24,7 @@ const match = {
   ],
 } as unknown as ResolvedPubgMatch
 
+// Le faux client n'a pas `encounteredPlayer` : depuis la fin d'EncounteredPlayer, étape 4, la capture n'y écrit plus.
 describe('captureEncounteredPlayers — compteurs de Player', () => {
   beforeEach(() => {
     vi.clearAllMocks()

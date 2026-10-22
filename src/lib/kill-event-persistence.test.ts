@@ -24,7 +24,6 @@ function fakeClient(options: {
       deleteMany: vi.fn().mockResolvedValue({ count: 0 }),
       createMany: vi.fn().mockResolvedValue({ count: 0 }),
     },
-    encounteredPlayer: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
     player: { updateMany: vi.fn().mockResolvedValue({ count: 1 }) },
   }
   const client = {
@@ -45,8 +44,9 @@ function kill(killerKey: string, victimKey: string) {
   return { killerKey, victimKey, weaponName: 'WeapM416_C', distance: 4200, headshot: false, timestampSeconds: 600 }
 }
 
+// Le faux client n'a pas `encounteredPlayer` : depuis la fin d'EncounteredPlayer, étape 4, les deltas ne vont qu'à Player.
 describe('persistKillEventsForMatch — compteurs de combat', () => {
-  it('applique le solde (anciens kills retirés, nouveaux ajoutés) par clan et sur Player, sans écrire un solde nul', async () => {
+  it('applique le solde (anciens kills retirés, nouveaux ajoutés) sur Player, sans écrire un solde nul', async () => {
     const { client, transaction } = fakeClient({
       clanIds: [1],
       members: [{ id: 10, clanId: 1, pubgAccountId: 'account.member1', pubgPlayerName: 'Member1' }],
@@ -63,10 +63,6 @@ describe('persistKillEventsForMatch — compteurs de combat', () => {
     ], client)
 
     expect(written).toBe(3)
-    expect(transaction.encounteredPlayer.updateMany.mock.calls.map(([args]) => args)).toEqual([
-      { where: { clanId: 1, pubgAccountId: 'account.gone' }, data: { combatInteractionsCount: { increment: -1 } } },
-      { where: { clanId: 1, pubgAccountId: 'account.rival' }, data: { combatInteractionsCount: { increment: 1 } } },
-    ])
     expect(transaction.player.updateMany.mock.calls.map(([args]) => args)).toEqual([
       { where: { pubgAccountId: 'account.gone' }, data: { combatInteractionsCount: { increment: -1 } } },
       { where: { pubgAccountId: 'account.rival' }, data: { combatInteractionsCount: { increment: 1 } } },
@@ -87,14 +83,6 @@ describe('persistKillEventsForMatch — compteurs de combat', () => {
       kill('account.foe', 'account.member2'),
     ], client)
 
-    expect(transaction.encounteredPlayer.updateMany).toHaveBeenCalledWith({
-      where: { clanId: 1, pubgAccountId: 'account.foe' },
-      data: { combatInteractionsCount: { increment: 1 } },
-    })
-    expect(transaction.encounteredPlayer.updateMany).toHaveBeenCalledWith({
-      where: { clanId: 2, pubgAccountId: 'account.foe' },
-      data: { combatInteractionsCount: { increment: 1 } },
-    })
     expect(transaction.player.updateMany).toHaveBeenCalledTimes(1)
     expect(transaction.player.updateMany).toHaveBeenCalledWith({
       where: { pubgAccountId: 'account.foe' },

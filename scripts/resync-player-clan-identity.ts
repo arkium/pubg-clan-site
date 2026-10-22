@@ -112,7 +112,7 @@ async function main() {
         name: row.trackedClanName,
       },
     })
-    console.log(`            ${result?.encounteredRowsUpdated ?? 0} ligne(s) EncounteredPlayer réalignée(s)`)
+    console.log(`            Player ${result?.playerId ?? '—'} réaligné`)
   }
 
   if (!apply) {

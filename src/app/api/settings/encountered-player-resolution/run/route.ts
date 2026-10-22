@@ -46,19 +46,17 @@ async function handlePost(request: Request) {
     }
 
     const candidates = await selectPrioritizedEncounteredPlayerIdentities(batchSize, thresholds)
-    let candidatesSelected = candidates.reduce((sum, candidate) => sum + candidate.distinctClanCount, 0)
-    let uniqueCandidatesSelected = candidates.length
-    let crossClanCandidatesSelected = candidates.filter((candidate) => candidate.distinctClanCount > 1).length
+    const candidatesSelected = candidates.reduce((sum, candidate) => sum + candidate.distinctClanCount, 0)
+    const uniqueCandidatesSelected = candidates.length
+    const crossClanCandidatesSelected = candidates.filter((candidate) => candidate.distinctClanCount > 1).length
     let resolvedFromCache = 0
     let resolvedWithClan = 0
     let resolvedWithoutClan = 0
     let failed = 0
-    let encounterRowsUpdated = 0
 
     for (const candidate of candidates) {
       try {
         const result = await resolveOneEncounteredPlayerCandidate(candidate, { source: 'manual' })
-        encounterRowsUpdated += result.updatedRowCount
 
         if (result.outcome === 'cache_hit') {
           resolvedFromCache += 1
@@ -77,8 +75,6 @@ async function handlePost(request: Request) {
     const durationMs = Date.now() - t0
     const rateLimitAfter = await getLatestPubgRateLimitSnapshot().catch(() => null)
     const pubgApiCalls = resolvedWithClan + resolvedWithoutClan + failed
-    const rowsResolvedPerApiCall =
-      pubgApiCalls > 0 ? encounterRowsUpdated / pubgApiCalls : null
 
     const finishedRun = await prisma.encounteredPlayerResolutionRun.update({
       where: { id: run.id },
@@ -94,8 +90,6 @@ async function handlePost(request: Request) {
         resolvedWithClan,
         resolvedWithoutClan,
         failed,
-        encounterRowsUpdated,
-        rowsResolvedPerApiCall,
         rateLimitRemainingAfter: rateLimitAfter?.remaining ?? null,
       },
     })
@@ -110,12 +104,12 @@ async function handlePost(request: Request) {
         resolvedWithoutClan,
         resolvedFromCache,
         failed,
-        encounterRowsUpdated,
       },
     })
-  } catch (err: any) {
+  } catch (err) {
+    console.error('[Résolution] Passe manuelle interrompue', err)
     return Response.json(
-      { error: err?.message || 'Erreur lors de l’exécution manuelle' },
+      { error: (err instanceof Error && err.message) || 'Erreur lors de l’exécution manuelle' },
       { status: 500 }
     )
   }

@@ -79,12 +79,12 @@ beforeEach(() => {
   mocks.getSessionFromRequest.mockResolvedValue({ userId: 1 })
   mocks.opponentClanUpsert.mockResolvedValue({ id: 'opp-47r' })
   mocks.playerUpsert.mockResolvedValue({ id: 'player-1' })
-  mocks.encounteredPlayerUpdateMany.mockResolvedValue({ count: 18 })
+  mocks.encounteredPlayerUpdateMany.mockResolvedValue({ count: 0 })
   mocks.clanMemberUpdateMany.mockResolvedValue({ count: 1 })
 })
 
 describe('syncOpponentIdentityForMember', () => {
-  it('réécrit OpponentClan, Player et toutes les lignes EncounteredPlayer du compte', async () => {
+  it('réécrit OpponentClan et Player, plus aucune ligne EncounteredPlayer (fin d’EncounteredPlayer, étape 4)', async () => {
     const result = await syncOpponentIdentityForMember({
       pubgAccountId: ACCOUNT,
       platformShard: 'steam',
@@ -95,7 +95,6 @@ describe('syncOpponentIdentityForMember', () => {
     expect(result).toEqual({
       playerId: 'player-1',
       opponentClanId: 'opp-47r',
-      encounteredRowsUpdated: 18,
     })
 
     expect(mocks.opponentClanUpsert).toHaveBeenCalledWith(
@@ -106,17 +105,7 @@ describe('syncOpponentIdentityForMember', () => {
     expect(mocks.playerUpsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: expect.objectContaining({ opponentClanId: 'opp-47r' }) })
     )
-    // Toutes les lignes du compte, pas seulement celles d'un clan observateur :
-    // un compte n'a qu'une appartenance.
-    expect(mocks.encounteredPlayerUpdateMany).toHaveBeenCalledWith({
-      where: { pubgAccountId: ACCOUNT, platformShard: 'steam' },
-      data: expect.objectContaining({
-        playerId: 'player-1',
-        pubgClanId: 'clan.47r',
-        pubgClanTag: '47R',
-        pubgClanName: '47RONIN47',
-      }),
-    })
+    expect(mocks.encounteredPlayerUpdateMany).not.toHaveBeenCalled()
   })
 
   it('remet le miroir a null quand le clan suivi n a pas de pubgClanId (parking)', async () => {
@@ -128,11 +117,10 @@ describe('syncOpponentIdentityForMember', () => {
 
     expect(result?.opponentClanId).toBeNull()
     expect(mocks.opponentClanUpsert).not.toHaveBeenCalled()
-    expect(mocks.encounteredPlayerUpdateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ pubgClanId: null, pubgClanTag: null, pubgClanName: null }),
-      })
+    expect(mocks.playerUpsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ opponentClanId: null, clanResolvedAt: expect.any(Date) }) })
     )
+    expect(mocks.encounteredPlayerUpdateMany).not.toHaveBeenCalled()
   })
 
   it('ne fait rien sans compte PUBG', async () => {

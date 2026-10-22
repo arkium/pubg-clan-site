@@ -1294,7 +1294,6 @@ async function resolveEncounteredPlayerClans() {
   let resolvedWithClan = 0
   let resolvedWithoutClan = 0
   let failed = 0
-  let encounterRowsUpdated = 0
   let runStatus: 'success' | 'failed' = 'success'
   let runErrorMessage: string | null = null
 
@@ -1337,7 +1336,6 @@ async function resolveEncounteredPlayerClans() {
 
     for (const candidate of candidates) {
       const result = await resolveOneEncounteredPlayerCandidate(candidate, { source: 'cron' })
-      encounterRowsUpdated += result.updatedRowCount
 
       if (result.outcome === 'cache_hit') {
         resolvedFromCache += 1
@@ -1355,7 +1353,7 @@ async function resolveEncounteredPlayerClans() {
     }
 
     console.info(
-      `[Cron] Encountered player clan resolution finished at ${new Date().toISOString()} — run=${run.id}, uniqueCandidates=${uniqueCandidatesSelected}, crossClanCandidates=${crossClanCandidatesSelected}, resolvedWithClan=${resolvedWithClan}, resolvedWithoutClan=${resolvedWithoutClan}, resolvedFromCache=${resolvedFromCache}, failed=${failed}, rowsUpdated=${encounterRowsUpdated}, killFeedNamed=${killFeedResolved}, killFeedNotFound=${killFeedNotFound}, killFeedFailed=${killFeedFailed}`
+      `[Cron] Encountered player clan resolution finished at ${new Date().toISOString()} — run=${run.id}, uniqueCandidates=${uniqueCandidatesSelected}, crossClanCandidates=${crossClanCandidatesSelected}, resolvedWithClan=${resolvedWithClan}, resolvedWithoutClan=${resolvedWithoutClan}, resolvedFromCache=${resolvedFromCache}, failed=${failed}, killFeedNamed=${killFeedResolved}, killFeedNotFound=${killFeedNotFound}, killFeedFailed=${killFeedFailed}`
     )
   } catch (error) {
     runStatus = 'failed'
@@ -1393,8 +1391,8 @@ async function resolveEncounteredPlayerClans() {
           resolvedWithClan,
           resolvedWithoutClan,
           failed,
-          encounterRowsUpdated,
-          rowsResolvedPerApiCall: pubgApiCalls > 0 ? encounterRowsUpdated / pubgApiCalls : null,
+          // `encounterRowsUpdated` et `rowsResolvedPerApiCall` comptaient des lignes `EncounteredPlayer` : plus écrits
+          // depuis la fin d'EncounteredPlayer, étape 4 (colonnes gardées pour l'historique des passages).
           backlogRemaining,
           rateLimitRemainingAfter: rateLimitAfter?.remaining ?? null,
           errorMessage: runErrorMessage,

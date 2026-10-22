@@ -209,24 +209,21 @@ export async function persistKillEventsForMatch(
 
   await client.$transaction(async (transaction) => {
     // 1. Récupérer les anciens kills pour calculer les décréments
-    const oldKills = await transaction.killEvent.findMany({ 
+    const oldKills = await transaction.killEvent.findMany({
       where: { squadMatchId },
-      select: { clanId: true, killerMemberId: true, victimMemberId: true, killerAccountId: true, victimAccountId: true }
+      select: { killerMemberId: true, victimMemberId: true, killerAccountId: true, victimAccountId: true }
     })
 
-    const deltas = new Map<number, Map<string, number>>()
+    // Interactions de combat par compte adverse, tous clans suivis confondus
+    const deltas = new Map<string, number>()
 
     const applyDeltas = (kills: typeof oldKills | typeof rows, multiplier: number) => {
       for (const kill of kills) {
         if (kill.killerMemberId !== null && kill.victimAccountId && !kill.victimAccountId.startsWith('ai.')) {
-          const clanMap = deltas.get(kill.clanId) ?? new Map()
-          clanMap.set(kill.victimAccountId, (clanMap.get(kill.victimAccountId) ?? 0) + multiplier)
-          deltas.set(kill.clanId, clanMap)
+          deltas.set(kill.victimAccountId, (deltas.get(kill.victimAccountId) ?? 0) + multiplier)
         }
         if (kill.victimMemberId !== null && kill.killerAccountId && !kill.killerAccountId.startsWith('ai.')) {
-          const clanMap = deltas.get(kill.clanId) ?? new Map()
-          clanMap.set(kill.killerAccountId, (clanMap.get(kill.killerAccountId) ?? 0) + multiplier)
-          deltas.set(kill.clanId, clanMap)
+          deltas.set(kill.killerAccountId, (deltas.get(kill.killerAccountId) ?? 0) + multiplier)
         }
       }
     }
@@ -240,20 +237,9 @@ export async function persistKillEventsForMatch(
       await transaction.killEvent.createMany({ data: rows })
     }
 
-    // Appliquer les deltas à EncounteredPlayer (par clan) et à Player (tous clans confondus, fin d'EncounteredPlayer)
-    const playerDeltas = new Map<string, number>()
-    for (const [clanId, clanDeltas] of deltas.entries()) {
-      for (const [pubgAccountId, delta] of clanDeltas.entries()) {
-        if (delta !== 0) {
-          await transaction.encounteredPlayer.updateMany({
-            where: { clanId, pubgAccountId },
-            data: { combatInteractionsCount: { increment: delta } }
-          })
-          playerDeltas.set(pubgAccountId, (playerDeltas.get(pubgAccountId) ?? 0) + delta)
-        }
-      }
-    }
-    for (const [pubgAccountId, delta] of playerDeltas.entries()) {
+    // Appliquer les deltas à Player seul : plus de copie par clan dans EncounteredPlayer depuis la fin
+    // d'EncounteredPlayer, étape 4 (docs/TODO/inventaire-2026-10-20.md §6)
+    for (const [pubgAccountId, delta] of deltas.entries()) {
       if (delta !== 0) {
         await transaction.player.updateMany({
           where: { pubgAccountId },

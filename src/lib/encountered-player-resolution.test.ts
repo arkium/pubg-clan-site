@@ -2,6 +2,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('server-only', () => ({}))
 
+// `encounteredPlayer` est absent du faux client : depuis la fin d'EncounteredPlayer, étape 4, toute écriture vers la
+// table ferait échouer le cas (la résolution renverrait « failed »).
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $queryRaw: vi.fn(),
@@ -9,7 +11,6 @@ vi.mock('@/lib/prisma', () => ({
     clanEncounter: { groupBy: vi.fn() },
     clanMember: { findFirst: vi.fn() },
     opponentClan: { upsert: vi.fn() },
-    encounteredPlayer: { updateMany: vi.fn() },
   },
 }))
 
@@ -26,53 +27,47 @@ import {
 
 const mockedFetchPlayerClan = vi.mocked(fetchPlayerClan)
 const candidate = { pubgAccountId: 'acc-1', platformShard: 'steam', pubgPlayerName: 'Praetes' }
+const identity = { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard }
 
 describe('resolveOneEncounteredPlayerCandidate', () => {
   beforeEach(() => {
     vi.mocked(prisma.player.findUnique).mockReset()
     vi.mocked(prisma.player.upsert).mockReset()
+    vi.mocked(prisma.player.updateMany).mockReset()
     vi.mocked(prisma.opponentClan.upsert).mockReset()
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockReset()
     mockedFetchPlayerClan.mockReset()
     // Par défaut le compte croisé n'est pas un membre d'un clan suivi : les cas
     // ci-dessous portent sur la résolution via l'API PUBG.
     vi.mocked(prisma.clanMember.findFirst).mockReset().mockResolvedValue(null as never)
   })
 
-  it('propage un cache-hit récent à toutes les lignes du compte (cross-clan), sans appel PUBG', async () => {
+  it('un Player résolu récemment répond depuis le cache : ni appel PUBG ni écriture', async () => {
     vi.mocked(prisma.player.findUnique).mockResolvedValue({
       id: 'player-1',
       clanResolvedAt: new Date(),
       opponentClan: { pubgClanId: 'clan-9', tag: 'SVN', name: 'The Seven' },
     } as never)
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 3 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
-    expect(result.outcome).toBe('cache_hit')
-    expect(result.updatedRowCount).toBe(3)
+    expect(result).toEqual({ outcome: 'cache_hit', pubgClanId: 'clan-9', pubgClanTag: 'SVN', pubgClanName: 'The Seven' })
     expect(mockedFetchPlayerClan).not.toHaveBeenCalled()
-    expect(prisma.encounteredPlayer.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
-      })
-    )
+    expect(prisma.player.upsert).not.toHaveBeenCalled()
   })
 
-  it('résout un joueur sans clan (clanResolvedAt renseigné, pubgClanTag null) et propage sur toutes les lignes', async () => {
+  it('résout un joueur sans clan : Player résolu, sans OpponentClan', async () => {
     vi.mocked(prisma.player.findUnique).mockResolvedValue(null as never)
     mockedFetchPlayerClan.mockResolvedValue(null)
     vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 2 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
-    expect(result.outcome).toBe('resolved_without_clan')
-    expect(result.updatedRowCount).toBe(2)
+    expect(result).toEqual({ outcome: 'resolved_without_clan' })
     expect(prisma.opponentClan.upsert).not.toHaveBeenCalled()
-    expect(prisma.encounteredPlayer.updateMany).toHaveBeenCalledWith(
+    expect(prisma.player.upsert).toHaveBeenCalledWith(
       expect.objectContaining({
-        data: expect.objectContaining({ pubgClanTag: null, pubgClanId: null }),
+        where: { pubgAccountId_platformShard: identity },
+        update: expect.objectContaining({ opponentClanId: null, clanResolvedAt: expect.any(Date) }),
       })
     )
   })
@@ -82,14 +77,13 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     mockedFetchPlayerClan.mockResolvedValue({ id: 'clan-9', tag: 'SVN', name: 'The Seven' } as never)
     vi.mocked(prisma.opponentClan.upsert).mockResolvedValue({ id: 'opp-1' } as never)
     vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 1 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
-    expect(result.outcome).toBe('resolved_with_clan')
-    if (result.outcome === 'resolved_with_clan') {
-      expect(result.pubgClanTag).toBe('SVN')
-    }
+    expect(result).toEqual({ outcome: 'resolved_with_clan', pubgClanId: 'clan-9', pubgClanTag: 'SVN', pubgClanName: 'The Seven' })
+    expect(prisma.player.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ update: expect.objectContaining({ opponentClanId: 'opp-1' }) })
+    )
   })
 
   it('auto-découvre un compte déjà membre d’un clan suivi, sans appel PUBG', async () => {
@@ -99,12 +93,10 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     } as never)
     vi.mocked(prisma.opponentClan.upsert).mockResolvedValue({ id: 'opp-trk' } as never)
     vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 2 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
     expect(result.outcome).toBe('resolved_with_clan')
-    expect(result.updatedRowCount).toBe(2)
     expect(mockedFetchPlayerClan).not.toHaveBeenCalled()
     expect(prisma.clanMember.findFirst).toHaveBeenCalledWith({
       where: {
@@ -133,7 +125,6 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     } as never)
     vi.mocked(prisma.opponentClan.upsert).mockResolvedValue({ id: 'opp-47r' } as never)
     vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 18 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
@@ -141,14 +132,8 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     if (result.outcome === 'resolved_with_clan') {
       expect(result.pubgClanTag).toBe('47R')
     }
-    // Le miroir global est réécrit, pas seulement les lignes par clan.
     expect(prisma.player.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ update: expect.objectContaining({ opponentClanId: 'opp-47r' }) })
-    )
-    expect(prisma.encounteredPlayer.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        data: expect.objectContaining({ pubgClanTag: '47R', pubgClanId: 'clan.47r' }),
-      })
     )
   })
 
@@ -160,7 +145,6 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     mockedFetchPlayerClan.mockResolvedValue({ id: 'clan.x', tag: 'XYZ', name: 'Clan X' } as never)
     vi.mocked(prisma.opponentClan.upsert).mockResolvedValue({ id: 'opp-x' } as never)
     vi.mocked(prisma.player.upsert).mockResolvedValue({ id: 'player-1' } as never)
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 1 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
@@ -173,36 +157,29 @@ describe('resolveOneEncounteredPlayerCandidate', () => {
     }
   })
 
-  it("en cas d'échec PUBG, incrémente resolveAttempts sur toutes les lignes du compte (échec partagé cross-clan)", async () => {
+  it("en cas d'échec PUBG, incrémente resolveAttempts sur l'identité Player", async () => {
     vi.mocked(prisma.player.findUnique).mockResolvedValue(null as never)
     mockedFetchPlayerClan.mockRejectedValue(new Error('PUBG API down'))
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 4 } as never)
     vi.mocked(prisma.player.updateMany).mockResolvedValue({ count: 1 } as never)
 
     const result = await resolveOneEncounteredPlayerCandidate(candidate)
 
     expect(result.outcome).toBe('failed')
-    expect(result.updatedRowCount).toBe(4)
-    expect(prisma.encounteredPlayer.updateMany).toHaveBeenCalledWith(
-      expect.objectContaining({
-        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
-        data: { resolveAttempts: { increment: 1 } },
-      })
-    )
-    // Fin d'EncounteredPlayer, étape 2 : l'identité globale compte aussi l'échec.
     expect(prisma.player.updateMany).toHaveBeenCalledWith({
-      where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
+      where: identity,
       data: { resolveAttempts: { increment: 1 } },
     })
   })
 
-  it("l'échec reste un échec même si l'écriture sur Player échoue", async () => {
+  it("l'échec reste un échec, journalisé, même si son compte ne peut pas être écrit", async () => {
+    const consoleError = vi.spyOn(console, 'error').mockImplementation(() => undefined)
     vi.mocked(prisma.player.findUnique).mockResolvedValue(null as never)
     mockedFetchPlayerClan.mockRejectedValue(new Error('PUBG API down'))
-    vi.mocked(prisma.encounteredPlayer.updateMany).mockResolvedValue({ count: 2 } as never)
-    vi.mocked(prisma.player.updateMany).mockRejectedValue(new Error('Unknown column'))
+    vi.mocked(prisma.player.updateMany).mockRejectedValue(new Error('Lock wait timeout'))
 
-    await expect(resolveOneEncounteredPlayerCandidate(candidate)).resolves.toMatchObject({ outcome: 'failed', updatedRowCount: 2 })
+    await expect(resolveOneEncounteredPlayerCandidate(candidate)).resolves.toMatchObject({ outcome: 'failed' })
+    expect(consoleError).toHaveBeenCalled()
+    consoleError.mockRestore()
   })
 })
 

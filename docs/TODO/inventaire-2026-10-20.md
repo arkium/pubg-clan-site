@@ -45,7 +45,7 @@ lignes correspondantes avant de paginer en mémoire. Le correctif du `*` seul ne
 | **Distances de jeu** (vrai bug) | ✅ Les pages Style de jeu affichaient ≈ 86 km « à pied » par partie (centimètres de la télémétrie, avion et trajet depuis (0, 0) compris) au lieu de ≈ 2 km. Elles lisent désormais les mètres de l'API PUBG ; le parser n'ajoute plus l'avion ni la chute ; une ligne pas encore recalculée s'affiche « — » | ✅ Recalculés le 2026-10-20 (41 clans, 253 s) : 1,7 à 1,9 km à pied, 1,9 km en véhicule par partie |
 | **Rattachement `ClanMember` → `Player`** | ✅ `src/lib/member-player-link.ts`, appelé par `/join`, l'installation, l'ajout d'un membre, les deux validations et la resynchronisation du miroir. Ne touche jamais au clan PUBG du joueur | ✅ Appliqué le 2026-10-20 : 54 fiches rattachées, 3 lignes `Player` créées, 0 fiche restante |
 | **SEO, lot 4 et suite** | ✅ `/a-propos` : chiffres vivants datés (ceux de la vitrine) et phrase citable, lien vers la méthodologie. ✅ Page [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx) (réglages du Power score lus en direct, `Article` daté). ✅ `Organization` avec `contactPoint`, `AboutPage`. ✅ Préchauffage de la vitrine (cron `home_showcase_warm`). ✅ IndexNow, **coupé** sans `INDEXNOW_KEY`. ✅ `scripts/seo-raw-html-audit.ts` | Logo d'Arkium à fournir (aucun visuel du dépôt ne convient). ✅ IndexNow actif depuis le déploiement du 2026-10-21 (`/indexnow.txt` répond). CSP bloquante vers le 25 octobre – 1er novembre |
-| **Fin d'`EncounteredPlayer`** | 🟡 Étapes 1 (lectures basculées) et 2 (compteurs sur `Player`, déployés et rattrapés le 2026-10-21) faites ; étape 3 (Triage, cron, comptages sur `Player`) prête le 2026-10-21 (§6) | Déployer l'étape 3 ; étapes 4 et 5 (§6), le `DROP` sur accord |
+| **Fin d'`EncounteredPlayer`** | 🟡 Étapes 1 à 3 faites (lectures, compteurs et Triage / cron sur `Player`, déployés le 2026-10-21) ; étape 4 (arrêt de la double écriture) prête le 2026-10-22 (§6) | Déployer l'étape 4, une semaine d'observation, puis le `DROP` (étape 5) sur accord |
 | **Colonnes JSON en clair** | Mesuré : vides sur les 32 929 lignes ; un DROP ne rend **aucun** octet | Nettoyage de code d'abord, puis migration ; sans urgence ([todo.md](todo.md) « Supprimer les colonnes en clair ») |
 | **Passe hebdomadaire sur les coéquipiers fréquents** | Non commencée : une dizaine de questions à trancher (§4) | Le compteur existe déjà (`ClanEncounter.teammateEncounterCount`), il manque un index et tes réponses |
 
@@ -213,9 +213,10 @@ Mesuré en lecture seule le 2026-10-20 (MariaDB 10.11, `innodb_file_per_table=1`
    écrites en 720 s (89 365 comptes avec des combats, 25 avec des échecs de résolution) ; contrôle en lecture seule
    sur 800 joueurs (les 200 vus le plus récemment, après le script, et trois tranches au hasard) : 0 écart avec
    `ClanEncounter` et `EncounteredPlayer`.
-3. 🟡 **Dernières lectures** — code prêt le 2026-10-21, **à déployer** (aucune migration). Plus aucune page ni aucun
-   cron ne lit `EncounteredPlayer` ; seules restent les écritures en double (étape 4) et le script de rattrapage
-   `opponent-normalization-backfill.ts`.
+3. ✅ **Dernières lectures** — déployées le 2026-10-21 au soir (aucune migration). Plus aucune page ni aucun cron ne
+   lit `EncounteredPlayer`. Constaté le 2026-10-22 (lecture seule) : 40 joueurs et 40 appels PUBG par passage, aucun
+   échec, file comptée en joueurs (452 902 au premier passage, 458 861 vingt heures plus tard : elle grossit d'environ
+   6 000 joueurs par jour pour ~1 700 résolus, plafond du quota PUBG, comme avant l'étape 3).
    - **Cron de résolution** (`selectPrioritizedEncounteredPlayerIdentities`, partagé par la passe manuelle) : une
      ligne `Player` par identité, au moins 2 rencontres **au total** (tranché le 2026-10-21), triée par combats,
      rencontres, échecs puis identité la plus récente, sur `idx_player_resolution_priority` lu à rebours. Mesuré en
@@ -237,5 +238,18 @@ Mesuré en lecture seule le 2026-10-20 (MariaDB 10.11, `innodb_file_per_table=1`
    - Tests : `encountered-player-status.test.ts` (filtres SQL et statut calculé d'accord, sur les 63 ensembles de
      statuts), `encountered-players-triage-route.test.ts`, `encountered-players-resolve-route.test.ts`,
      `encountered-player-resolution.test.ts`.
-4. **Arrêt de la double écriture**, puis une semaine d'observation (`MAX(updatedAt)` figé).
-5. **`DROP TABLE EncounteredPlayer`**, sur accord ; seulement quand plus aucun process ne tourne l'ancien code.
+4. 🟡 **Arrêt de la double écriture** — code prêt le 2026-10-22, **à déployer** (aucune migration). Plus aucune
+   écriture vers `EncounteredPlayer` : la capture des rencontres n'écrit que `Player` et `ClanEncounter`, les deltas
+   des kills ne vont qu'à `Player`, la résolution et le réalignement du clan d'un joueur (`player-clan-identity.ts`)
+   n'écrivent que `Player`, la relance forcée du Triage aussi. Les colonnes `encounterRowsUpdated` et
+   `rowsResolvedPerApiCall` du journal des passages ne sont plus écrites (elles comptaient des lignes
+   `EncounteredPlayer` ; aucun écran ne les affiche). Les tests retirent la table de leurs faux clients Prisma :
+   une écriture oubliée y échouerait. **Après le déploiement**, la table cesse de grossir (~65 Mo par jour) ;
+   observer une semaine que `MAX(updatedAt)` reste figé. Un retour à un code d'avant l'étape 3 lirait alors des
+   données périmées.
+5. **`DROP TABLE EncounteredPlayer`**, sur accord ; seulement quand plus aucun process ne tourne l'ancien code. À
+   préparer avec : le retrait du modèle Prisma (migration `DROP`), des colonnes du journal ci-dessus si on le
+   souhaite, et des scripts qui la lisent encore — `scripts/count-unresolved-opponents.ts`,
+   `scripts/inspect-match-replay.ts`, `scripts/tournament-participant-coverage.ts`,
+   `scripts/backfill-opponent-normalization.ts` (+ `src/lib/opponent-normalization-backfill.ts`),
+   `scripts/backfill-player-encounter-counters.ts`, `src/scripts/backfill-combat-interactions.ts`.

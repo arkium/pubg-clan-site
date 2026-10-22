@@ -127,40 +127,8 @@ export async function captureEncounteredPlayers(
     Array.from(opponents.entries()).map(async ([pubgAccountId, { pubgPlayerName, wasTeammate }]) => {
       const trackedClan = trackedClanByAccountId.get(pubgAccountId)
 
-      await prisma.encounteredPlayer.upsert({
-        where: { clanId_pubgAccountId: { clanId, pubgAccountId } },
-        update: {
-          pubgPlayerName,
-          lastSeenAt: now,
-          encounterCount: { increment: 1 },
-          ...(wasTeammate ? { teammateEncounterCount: { increment: 1 } } : {}),
-          ...(trackedClan
-            ? {
-                pubgClanId: trackedClan.pubgClanId,
-                pubgClanName: trackedClan.name,
-                pubgClanTag: trackedClan.tag,
-                clanResolvedAt: now,
-              }
-            : {}),
-        },
-        create: {
-          clanId,
-          pubgAccountId,
-          pubgPlayerName,
-          platformShard,
-          firstSeenAt: now,
-          lastSeenAt: now,
-          teammateEncounterCount: wasTeammate ? 1 : 0,
-          pubgClanId: trackedClan?.pubgClanId ?? null,
-          pubgClanName: trackedClan?.name ?? null,
-          pubgClanTag: trackedClan?.tag ?? null,
-          clanResolvedAt: trackedClan ? now : null,
-        },
-      })
-
-      // Écriture en double vers le modèle normalisé (Player/ClanEncounter) pendant
-      // la transition — voir docs/TODO/todo.md, section "Adversaires — Vue
-      // superadmin globale". Les lectures existantes restent sur EncounteredPlayer.
+      // Une ligne `Player` par identité et une `ClanEncounter` par clan suivi : depuis la fin d'EncounteredPlayer,
+      // étape 4 (docs/TODO/inventaire-2026-10-20.md §6), plus aucune copie par clan dans `EncounteredPlayer`.
       // `trackedClan` a forcément un `pubgClanId` ici (filtre ci-dessus) : on
       // écrit le miroir normalisé en même temps que `clanResolvedAt`, jamais
       // l'un sans l'autre — c'était la cause du décalage permanent.

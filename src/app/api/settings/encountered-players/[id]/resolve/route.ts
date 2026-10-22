@@ -127,10 +127,10 @@ async function handlePost(
 
   try {
     if (forceRetry) {
-      const identity = { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard }
-      // Les deux tables tant que dure la double écriture (étape 4 à venir).
-      await prisma.encounteredPlayer.updateMany({ where: identity, data: { resolveAttempts: 0 } })
-      await prisma.player.updateMany({ where: identity, data: { resolveAttempts: 0 } })
+      await prisma.player.updateMany({
+        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
+        data: { resolveAttempts: 0 },
+      })
     }
 
     const result = await resolveOneEncounteredPlayerCandidate(
@@ -155,9 +155,6 @@ async function handlePost(
         resolvedWithClan: result.outcome === 'resolved_with_clan' ? 1 : 0,
         resolvedWithoutClan: result.outcome === 'resolved_without_clan' ? 1 : 0,
         failed: result.outcome === 'failed' ? 1 : 0,
-        encounterRowsUpdated: result.updatedRowCount,
-        crossClanCandidatesSelected: result.updatedRowCount > 1 ? 1 : 0,
-        rowsResolvedPerApiCall: result.outcome === 'cache_hit' ? null : result.updatedRowCount,
         // Pas de détail technique renvoyé au client — message générique côté
         // réponse, mais conservé ici pour l'audit interne.
         errorMessage:

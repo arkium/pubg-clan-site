@@ -12,7 +12,8 @@ import { prisma } from '@/lib/prisma'
  * 2. `Player.opponentClanId` → `OpponentClan` — l'identité globale, écrite par la
  *    résolution des joueurs croisés.
  * 3. `EncounteredPlayer.pubgClanId/Tag/Name` — une copie par clan suivi ayant
- *    croisé ce compte.
+ *    croisé ce compte. Plus écrite depuis la fin d'EncounteredPlayer, étape 4
+ *    (docs/TODO/inventaire-2026-10-20.md §6) : tout se lit sur (2).
  *
  * Quand un joueur changeait de clan, seul (1) bougeait. (2) et (3) restaient figés
  * sur l'ancien clan, et comme `Player.clanResolvedAt` était repoussé à chaque
@@ -21,7 +22,7 @@ import { prisma } from '@/lib/prisma'
  * 2026-09-22 : WESTEN88, promu de `UNG` vers `47R`, restait listé comme
  * « candidat détecté » de BOFTEAM sur `/settings/clans`.
  *
- * Ce module est le point unique par lequel (2) et (3) sont réalignés sur (1).
+ * Ce module est le point unique par lequel (2) est réaligné sur (1).
  *
  * Règle : le clan suivi fait autorité. Si le clan suivi n'a pas de `pubgClanId`
  * (cas du parking `Ungrouped`), le compte n'a pas de clan PUBG et le miroir est
@@ -48,11 +49,10 @@ export type SyncOpponentIdentityInput = {
 export type SyncOpponentIdentityResult = {
   playerId: string
   opponentClanId: string | null
-  encounteredRowsUpdated: number
 }
 
 /**
- * Réaligne `Player` et `EncounteredPlayer` sur le clan suivi passé en argument.
+ * Réaligne `Player` sur le clan suivi passé en argument.
  *
  * Renvoie `null` si le compte PUBG est inconnu (rien à réaligner).
  */
@@ -63,7 +63,6 @@ export async function syncOpponentIdentityForMember(
   if (!pubgAccountId) return null
 
   const now = new Date()
-  const hasPubgClan = Boolean(clan?.pubgClanId)
   let opponentClanId: string | null = null
 
   if (clan?.pubgClanId) {
@@ -99,21 +98,7 @@ export async function syncOpponentIdentityForMember(
     },
   })
 
-  // Toutes les lignes du compte, pas seulement celles d'un clan : un compte a une
-  // seule appartenance, quel que soit le nombre de clans suivis qui l'ont croisé
-  // (même règle que `resolveOneEncounteredPlayerCandidate`).
-  const { count } = await prisma.encounteredPlayer.updateMany({
-    where: { pubgAccountId, platformShard },
-    data: {
-      playerId: player.id,
-      clanResolvedAt: now,
-      pubgClanId: hasPubgClan ? clan!.pubgClanId : null,
-      pubgClanTag: hasPubgClan ? clan!.tag ?? null : null,
-      pubgClanName: hasPubgClan ? clan!.name ?? null : null,
-    },
-  })
-
-  return { playerId: player.id, opponentClanId, encounteredRowsUpdated: count }
+  return { playerId: player.id, opponentClanId }
 }
 
 /**

@@ -16,7 +16,6 @@ const mocks = vi.hoisted(() => ({
   playerFindUnique: vi.fn(),
   playerFindFirst: vi.fn(),
   playerUpdateMany: vi.fn(),
-  encounteredPlayerUpdateMany: vi.fn(),
   runCreate: vi.fn(),
   runUpdate: vi.fn(),
 }))
@@ -24,7 +23,6 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     player: { findUnique: mocks.playerFindUnique, findFirst: mocks.playerFindFirst, updateMany: mocks.playerUpdateMany },
-    encounteredPlayer: { updateMany: mocks.encounteredPlayerUpdateMany },
     encounteredPlayerResolutionRun: { create: mocks.runCreate, update: mocks.runUpdate },
   },
 }))
@@ -57,7 +55,7 @@ beforeEach(() => {
   mocks.playerFindFirst.mockResolvedValue(null)
   mocks.runCreate.mockResolvedValue({ id: 'run-1', startedAt: new Date() })
   mocks.runUpdate.mockResolvedValue({})
-  mocks.resolveOne.mockResolvedValue({ outcome: 'resolved_with_clan', pubgClanId: 'clan.1', pubgClanTag: 'KRM', pubgClanName: 'Kromb Squad', updatedRowCount: 2 })
+  mocks.resolveOne.mockResolvedValue({ outcome: 'resolved_with_clan', pubgClanId: 'clan.1', pubgClanTag: 'KRM', pubgClanName: 'Kromb Squad' })
 })
 
 // Le verrou et le délai de 60 s sont tenus par identité : un compte différent par appel.
@@ -115,7 +113,7 @@ describe('POST /api/settings/encountered-players/[id]/resolve', () => {
     expect(mocks.resolveOne).not.toHaveBeenCalled()
   })
 
-  it('un échec définitif exige « Réessayer », qui remet les essais à zéro sur les deux tables', async () => {
+  it('un échec définitif exige « Réessayer », qui remet les essais de l’identité Player à zéro', async () => {
     const player = withFreshAccount({ resolveAttempts: 3 })
     mocks.playerFindUnique.mockResolvedValue(player)
 
@@ -125,13 +123,12 @@ describe('POST /api/settings/encountered-players/[id]/resolve', () => {
     const identity = { pubgAccountId: player.pubgAccountId, platformShard: 'steam' }
     expect(response.status).toBe(200)
     expect(mocks.playerUpdateMany).toHaveBeenCalledWith({ where: identity, data: { resolveAttempts: 0 } })
-    expect(mocks.encounteredPlayerUpdateMany).toHaveBeenCalledWith({ where: identity, data: { resolveAttempts: 0 } })
     expect(mocks.resolveOne).toHaveBeenCalledTimes(1)
   })
 
   it('un appel PUBG sans réponse répond 200 avec outcome « failed »', async () => {
     mocks.playerFindUnique.mockResolvedValue(withFreshAccount())
-    mocks.resolveOne.mockResolvedValue({ outcome: 'failed', error: new Error('PUBG down'), updatedRowCount: 1 })
+    mocks.resolveOne.mockResolvedValue({ outcome: 'failed', error: new Error('PUBG down') })
 
     const response = await post('player-1')
 

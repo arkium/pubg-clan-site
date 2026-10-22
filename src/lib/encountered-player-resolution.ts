@@ -11,14 +11,11 @@ export type ResolveOneCandidateInput = {
   pubgPlayerName: string
 }
 
-export type ResolveOneCandidateResult = {
-  updatedRowCount: number
-} & (
+export type ResolveOneCandidateResult =
   | { outcome: 'cache_hit'; pubgClanId: string | null; pubgClanTag: string | null; pubgClanName: string | null }
   | { outcome: 'resolved_with_clan'; pubgClanId: string; pubgClanTag: string | null; pubgClanName: string | null }
   | { outcome: 'resolved_without_clan' }
   | { outcome: 'failed'; error: unknown }
-)
 
 export type PrioritizedIdentityCandidate = {
   pubgAccountId: string
@@ -89,11 +86,10 @@ export async function selectPrioritizedEncounteredPlayerIdentities(
 // (resolveEncounteredPlayerClans) et la résolution manuelle SuperUser — un
 // seul appel PUBG par compte, jamais un par clan qui l'a croisé.
 //
-// Écrit sur TOUTES les lignes EncounteredPlayer de ce compte (tous les clans
-// suivis qui l'ont croisé), pas seulement `candidate` : un compte a un seul
-// statut de résolution, y compris en cas d'échec (resolveAttempts incrémenté
-// partout), pour ne jamais désynchroniser le statut affiché entre deux clans
-// qui ont croisé le même adversaire.
+// Écrit sur l'identité globale `Player` seule : un compte a un seul statut de
+// résolution, échecs compris, quel que soit le nombre de clans suivis qui l'ont
+// croisé. Les copies par clan d'`EncounteredPlayer` ne sont plus écrites depuis la
+// fin d'EncounteredPlayer, étape 4 (docs/TODO/inventaire-2026-10-20.md §6).
 export async function resolveOneEncounteredPlayerCandidate(
   candidate: ResolveOneCandidateInput,
   options?: { source?: 'cron' | 'manual' }
@@ -122,7 +118,7 @@ export async function resolveOneEncounteredPlayerCandidate(
     // site n'a simplement pas d'avis, et c'est l'API qui doit trancher — sinon on
     // perdrait la découverte du clan non suivi qu'il vient peut-être de rejoindre.
     if (trackedClanMember?.clan?.pubgClanId) {
-      const identity = await syncOpponentIdentityForMember({
+      await syncOpponentIdentityForMember({
         pubgAccountId: candidate.pubgAccountId,
         platformShard: candidate.platformShard,
         pubgPlayerName: candidate.pubgPlayerName,
@@ -138,7 +134,6 @@ export async function resolveOneEncounteredPlayerCandidate(
         pubgClanId: trackedClanMember.clan.pubgClanId,
         pubgClanTag: trackedClanMember.clan.tag ?? null,
         pubgClanName: trackedClanMember.clan.name ?? null,
-        updatedRowCount: identity?.encounteredRowsUpdated ?? 0,
       }
     }
 
@@ -152,24 +147,13 @@ export async function resolveOneEncounteredPlayerCandidate(
       include: { opponentClan: true },
     })
 
+    // Déjà résolu récemment (par un autre chemin depuis la sélection) : rien à écrire, `Player` fait foi.
     if (cachedPlayer?.clanResolvedAt && cachedPlayer.clanResolvedAt >= freshnessCutoff) {
-      const { count } = await prisma.encounteredPlayer.updateMany({
-        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
-        data: {
-          playerId: cachedPlayer.id,
-          clanResolvedAt: new Date(),
-          pubgClanId: cachedPlayer.opponentClan?.pubgClanId ?? null,
-          pubgClanTag: cachedPlayer.opponentClan?.tag ?? null,
-          pubgClanName: cachedPlayer.opponentClan?.name ?? null,
-        },
-      })
-
       return {
         outcome: 'cache_hit',
         pubgClanId: cachedPlayer.opponentClan?.pubgClanId ?? null,
         pubgClanTag: cachedPlayer.opponentClan?.tag ?? null,
         pubgClanName: cachedPlayer.opponentClan?.name ?? null,
-        updatedRowCount: count,
       }
     }
 
@@ -182,15 +166,13 @@ export async function resolveOneEncounteredPlayerCandidate(
 
     const clan = await fetchPlayerClan(candidate.pubgAccountId, candidate.platformShard, apiContext)
 
-    // Même écriture que pour un membre suivi, un seul chemin : `OpponentClan`,
-    // `Player` puis toutes les lignes `EncounteredPlayer` du compte.
-    const identity = await syncOpponentIdentityForMember({
+    // Même écriture que pour un membre suivi, un seul chemin : `OpponentClan` puis `Player`.
+    await syncOpponentIdentityForMember({
       pubgAccountId: candidate.pubgAccountId,
       platformShard: candidate.platformShard,
       pubgPlayerName: candidate.pubgPlayerName,
       clan: clan?.id ? { pubgClanId: clan.id, tag: clan.tag ?? null, name: clan.name ?? null } : null,
     })
-    const count = identity?.encounteredRowsUpdated ?? 0
 
     return clan?.id
       ? {
@@ -198,19 +180,20 @@ export async function resolveOneEncounteredPlayerCandidate(
           pubgClanId: clan.id,
           pubgClanTag: clan.tag ?? null,
           pubgClanName: clan.name ?? null,
-          updatedRowCount: count,
         }
-      : { outcome: 'resolved_without_clan', updatedRowCount: count }
+      : { outcome: 'resolved_without_clan' }
   } catch (error) {
-    const identity = { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard }
-    const updatedRowCount = await prisma.encounteredPlayer
-      .updateMany({ where: identity, data: { resolveAttempts: { increment: 1 } } })
-      .then((result) => result.count)
-      .catch(() => 0)
-    // Même compteur sur l'identité globale (fin d'EncounteredPlayer, étape 2) : jusqu'ici, Player.resolveAttempts
-    // n'était jamais écrit.
-    await prisma.player.updateMany({ where: identity, data: { resolveAttempts: { increment: 1 } } }).catch(() => undefined)
+    // Un échec qui ne serait pas compté ferait retenter ce compte à chaque passage : l'écriture est journalisée, mais
+    // ne transforme pas l'échec PUBG en échec du lot.
+    await prisma.player
+      .updateMany({
+        where: { pubgAccountId: candidate.pubgAccountId, platformShard: candidate.platformShard },
+        data: { resolveAttempts: { increment: 1 } },
+      })
+      .catch((writeError) => {
+        console.error(`[Résolution] Échec non compté pour ${candidate.pubgAccountId}`, writeError)
+      })
 
-    return { outcome: 'failed', error, updatedRowCount }
+    return { outcome: 'failed', error }
   }
 }

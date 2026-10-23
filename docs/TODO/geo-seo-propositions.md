@@ -190,7 +190,7 @@ Playwright avec réponses figées) : le site est en production.
 | Point | Fait | Écart au plan |
 |---|---|---|
 | 0.1 En-têtes | `SECURITY_HEADERS` dans `next.config.ts` (+ `usb=()`, `payment=()`), `poweredByHeader: false` ; `server_tokens off;` posé dans Nginx le 2026-10-18 (`Server: nginx`, sans version) | — |
-| 0.2 CSP | Proxy, nonce par requête, **observation** (`Report-Only`) ; aucun écart sur 28 pages du build | Passage en mode bloquant après une à deux semaines sans écart en production |
+| 0.2 CSP | Proxy, nonce par requête ; observation (`Report-Only`) du 2026-10-18 au 22, puis **bloquante depuis le 2026-10-23** : 54 pages de production et suite Playwright complète sans écart (seul écart relevé, l'`eval` de zod, corrigé) | ✅ |
 | 0.3 `www` | 301 par le proxy, chemin et requête gardés | Dans l'application plutôt que Nginx (versionné, testé) ; `/api`, `/_next`, `robots.txt`, `sitemap.xml` restent servis sur `www` |
 | 0.4 Titres | Les cinq titres proposés ; suffixe retiré d'un titre calculé trop long ; test sur toutes les pages indexées | — |
 | 0.5 Descriptions | Accueil (160), mentions légales, confidentialité ; test ≤ 160 | — |

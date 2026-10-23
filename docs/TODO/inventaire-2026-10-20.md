@@ -47,7 +47,7 @@ lignes correspondantes avant de paginer en mémoire.~~ — **Réglé par la fin 
 | **Liens courts `/m`, `/t`, `/j`** | ✅ Code ([url-masking.md](url-masking.md)) : module, pages de redirection et de choix, embeds Discord, aperçu du site ; déployé le 2026-10-20 | Recette d'un lien reçu sur Discord (prochain Top 1) |
 | **Distances de jeu** (vrai bug) | ✅ Les pages Style de jeu affichaient ≈ 86 km « à pied » par partie (centimètres de la télémétrie, avion et trajet depuis (0, 0) compris) au lieu de ≈ 2 km. Elles lisent désormais les mètres de l'API PUBG ; le parser n'ajoute plus l'avion ni la chute ; une ligne pas encore recalculée s'affiche « — » | ✅ Recalculés le 2026-10-20 (41 clans, 253 s) : 1,7 à 1,9 km à pied, 1,9 km en véhicule par partie |
 | **Rattachement `ClanMember` → `Player`** | ✅ `src/lib/member-player-link.ts`, appelé par `/join`, l'installation, l'ajout d'un membre, les deux validations et la resynchronisation du miroir. Ne touche jamais au clan PUBG du joueur | ✅ Appliqué le 2026-10-20 : 54 fiches rattachées, 3 lignes `Player` créées, 0 fiche restante |
-| **SEO, lot 4 et suite** | ✅ `/a-propos` : chiffres vivants datés (ceux de la vitrine) et phrase citable, lien vers la méthodologie. ✅ Page [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx) (réglages du Power score lus en direct, `Article` daté). ✅ `Organization` avec `contactPoint`, `AboutPage`. ✅ Préchauffage de la vitrine (cron `home_showcase_warm`). ✅ IndexNow, **coupé** sans `INDEXNOW_KEY`. ✅ `scripts/seo-raw-html-audit.ts` | Logo d'Arkium à fournir (aucun visuel du dépôt ne convient). ✅ IndexNow actif depuis le déploiement du 2026-10-21 (`/indexnow.txt` répond). **CSP** : relevé du 2026-10-22, 58 pages publiques de production parcourues en visiteur (débriefing et télémétrie d'une partie compris) → un seul écart, l'essai d'`eval` de zod sur `/confidentialite/demande`, corrigé (zod sans compilation dans le navigateur, `privacy-request.ts`) ; suite Playwright complète sur le build avec la nouvelle fixture `cspViolations` → 0 écart sur 394 tests. Reste : déployer, revérifier `/confidentialite/demande`, puis passer en mode bloquant (`CSP_HEADER`, `upgrade-insecure-requests`) |
+| **SEO, lot 4 et suite** | ✅ `/a-propos` : chiffres vivants datés (ceux de la vitrine) et phrase citable, lien vers la méthodologie. ✅ Page [`/a-propos/methodologie`](../../src/app/a-propos/methodologie/page.tsx) (réglages du Power score lus en direct, `Article` daté). ✅ `Organization` avec `contactPoint`, `AboutPage`. ✅ Préchauffage de la vitrine (cron `home_showcase_warm`). ✅ IndexNow, **coupé** sans `INDEXNOW_KEY`. ✅ `scripts/seo-raw-html-audit.ts` | Logo d'Arkium à fournir (aucun visuel du dépôt ne convient). ✅ IndexNow actif depuis le déploiement du 2026-10-21 (`/indexnow.txt` répond). **CSP** : relevé du 2026-10-22, 58 pages publiques de production parcourues en visiteur (débriefing et télémétrie d'une partie compris) → un seul écart, l'essai d'`eval` de zod sur `/confidentialite/demande`, corrigé (zod sans compilation dans le navigateur, `privacy-request.ts`) ; suite Playwright complète sur le build avec la nouvelle fixture `cspViolations` → 0 écart sur 394 tests. ✅ Déployé dans la nuit du 22 au 23 : relevé de production refait le 2026-10-23, **0 écart sur 54 pages** ; **CSP bloquante** préparée le 2026-10-23 (`CSP_HEADER`, sans `upgrade-insecure-requests` : HSTS suffit, et la directive casserait le build local en http), à déployer |
 | **Fin d'`EncounteredPlayer`** | 🟡 Étapes 1 à 3 faites (lectures, compteurs et Triage / cron sur `Player`, déployés le 2026-10-21) ; étape 4 (arrêt de la double écriture) prête le 2026-10-22 (§6) | Déployer l'étape 4, une semaine d'observation, puis le `DROP` (étape 5) sur accord |
 | **Colonnes JSON en clair** | Mesuré : vides sur les 32 929 lignes ; un DROP ne rend **aucun** octet | Nettoyage de code d'abord, puis migration ; sans urgence ([todo.md](todo.md) « Supprimer les colonnes en clair ») |
 | **Passe hebdomadaire sur les coéquipiers fréquents** | Non commencée : une dizaine de questions à trancher (§4) | Le compteur existe déjà (`ClanEncounter.teammateEncounterCount`), il manque un index et tes réponses |
@@ -62,7 +62,7 @@ lignes correspondantes avant de paginer en mémoire.~~ — **Réglé par la fin 
 - Avatars du podium et du classement solo des tournois (l. 4891).
 - `mapAssetUrl()` à propager : 13 chemins `/maps/pubg/${…}` codés en dur — **priorité basse** (requalifié le
   2026-09-13) : aucun bug sur les données réelles, seul gain une image de repli pour 5 parties arcade.
-- `PositionMetricCell` écrit hors de la transaction de la télémétrie — **proposé à l'abandon (§4)** : chaque table
+- ~~`PositionMetricCell` écrit hors de la transaction de la télémétrie~~ — **abandonné le 2026-10-22** : chaque table
   dérivée d'une partie (zones d'atterrissage, kills, positions, phases…) est reconstruite à l'identique par sa propre
   transaction à chaque resynchronisation, ce qui répare un échec partiel ; une transaction unique tiendrait ses verrous
   longtemps sur une base partagée au buffer pool de 128 Mo.
@@ -83,7 +83,8 @@ lignes correspondantes avant de paginer en mémoire.~~ — **Réglé par la fin 
 
 - Adversaires : stats tactiques (K/D direct, badges Némésis / Proie, phasage drop / late game, vue Watchlist,
   l. 4478-4481) ; rivalité automatique et notification « croisé [Clan X] » (l. 4535).
-- Ligue : historique et sparklines du Power score (l. 5585, 5810) ; défis inter-clans `ClanChallenge` (l. 5610-5612).
+- Ligue : Power score sur 100 avec bonus de régularité, historique (courbe, sparklines) et delta de score par période
+  (rangé ici le 2026-10-22 ; aujourd'hui seul le mouvement de rang ▲/▼ existe) ; défis inter-clans `ClanChallenge`.
 - Joueur : temps de jeu / jours actifs et badges « Marathonien » / « Régulier » sur le tableau de bord (l. 2457-2459) ;
   DPM et kills par heure (l. 2474) ; rappels par membre (l. 3375) ; Circle IQ, radar 6 axes, kills par distance et par
   phase (l. 2370-2375) ; objectifs personnels, badges de progression (l. 2388-2391).
@@ -150,7 +151,7 @@ d'un clan, annuaire des joueurs (§9.D), Replay Karakin, manche de tournoi vue d
   additive de l'étape 2 acceptée, seuil « au moins 2 rencontres » compté au total.
 - **Code sans appelant** : `src/components/ProgressionChart.tsx`, `getClanSquadAnalysis`, routes `drop-pressure-stats`
   et `city-insights` d'un clan, `standings` d'un tournoi côté clan.
-- **Télémétrie (2026-10-22)** : abandonner « cellules de position dans la même transaction que la télémétrie » (§2.B) ?
+- ~~**Télémétrie** : cellules de position dans la même transaction que la télémétrie~~ — abandonné le 2026-10-22 (§2.B).
 - **Divers** : tag du clan actuel ou figé au moment du kill ; ~~résoudre les ~5 % de pseudos inconnus du lobby~~ (fait :
   92 940 comptes adverses du kill feed nommés sur 92 941 le 2026-10-22, le dernier inconnu de l'API PUBG) ;
   confidentialité inter-clans ; serveur Discord officiel (`sameAs`) ; préfixe `owner.` de
@@ -166,11 +167,11 @@ case) : `administration.md`, `score.md`, `clan-archive.md`, `players.md`, `refon
 `searchPlayerByName`, heatmap comparée, `rideDistance`, tournois testés, rapports et rôle Moderator « sans objet »),
 `CLAUDE.md` (crons de rapports supprimés). **Laissés ouverts**, faute de preuve ou parce que l'inventaire se trompait :
 
-- `todo.md`, ligne « Sans clan » du tableau des clans adverses : elle n'existe pas ; seul le filtre « Sans clan PUBG »
-  de l'annuaire (`/settings/players`) s'en approche — la marquer « remplacée » ou la garder ?
-- `todo.md`, Power score « normalisé et delta » : **l'inventaire se trompait**, ce n'est pas fait (pas d'échelle 0–100,
-  pas d'historique ; le « delta » n'est qu'un mouvement de rang ▲/▼, `RankMovement`) ; la case `[~]` cite encore
-  l'ancienne formule.
+- ✅ `todo.md`, ligne « Sans clan » du tableau des clans adverses : marquée **remplacée** par le filtre « Sans clan
+  PUBG » de l'annuaire (`/settings/players`), décision du 2026-10-22.
+- ✅ `todo.md`, Power score « normalisé et delta » : l'inventaire se trompait, ce n'est pas fait (pas d'échelle 0–100,
+  pas d'historique ; le « delta » n'est qu'un mouvement de rang ▲/▼, `RankMovement`) — **rangé dans les idées**
+  (§2.D) le 2026-10-22, avec une note dans `todo.md`.
 - Tournois : suppression d'un tournoi (réponses 200 / 404 / 403, `SquadMatch` préservés) sans test → §2.C ; recette UI
   en partie seulement couverte par `e2e/tournaments.spec.ts`.
 - Non vérifiés : « Le code n'est pas encore déployé » des fermetures de zone (`todo.md`) ; cases « Rapport hebdomadaire
@@ -264,7 +265,11 @@ Mesuré en lecture seule le 2026-10-20 (MariaDB 10.11, `innodb_file_per_table=1`
    - Tests : `encountered-player-status.test.ts` (filtres SQL et statut calculé d'accord, sur les 63 ensembles de
      statuts), `encountered-players-triage-route.test.ts`, `encountered-players-resolve-route.test.ts`,
      `encountered-player-resolution.test.ts`.
-4. 🟡 **Arrêt de la double écriture** — code prêt le 2026-10-22, **à déployer** (aucune migration). Plus aucune
+4. ✅ **Arrêt de la double écriture** — déployé dans la nuit du 22 au 23 ; **en observation jusqu'au 2026-10-30**.
+   Constaté le 2026-10-23 à 18 h 15 (lecture seule) : dernière écriture dans `EncounteredPlayer` à 05 h 22 (heure de
+   Paris, le déploiement), plus rien depuis, alors que `Player` et `ClanEncounter` reçoivent des milliers d'écritures
+   par heure ; 23 passages du cron de résolution, 40 joueurs et 40 appels chacun, aucun échec, aucune ligne
+   `EncounteredPlayer` touchée ; file à ~462 000 joueurs. (aucune migration). Plus aucune
    écriture vers `EncounteredPlayer` : la capture des rencontres n'écrit que `Player` et `ClanEncounter`, les deltas
    des kills ne vont qu'à `Player`, la résolution et le réalignement du clan d'un joueur (`player-clan-identity.ts`)
    n'écrivent que `Player`, la relance forcée du Triage aussi. Les colonnes `encounterRowsUpdated` et

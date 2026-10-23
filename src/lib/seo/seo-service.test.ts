@@ -102,10 +102,12 @@ describe('proxy — chemin transmis au layout racine', () => {
     const { proxy } = await import('../../proxy')
     const first = await proxy(new NextRequest('https://chickendinner.fr/clans'))
     const second = await proxy(new NextRequest('https://chickendinner.fr/clans'))
-    const csp = first.headers.get('content-security-policy-report-only')
+    // Bloquante depuis le 2026-10-23 : plus d'en-tête d'observation.
+    const csp = first.headers.get('content-security-policy')
     expect(csp).toMatch(/script-src 'self' 'nonce-[A-Za-z0-9+/=]+' 'strict-dynamic'/)
-    expect(first.headers.get('x-middleware-request-content-security-policy-report-only')).toBe(csp)
-    expect(second.headers.get('content-security-policy-report-only')).not.toBe(csp)
+    expect(first.headers.get('x-middleware-request-content-security-policy')).toBe(csp)
+    expect(first.headers.get('content-security-policy-report-only')).toBeNull()
+    expect(second.headers.get('content-security-policy')).not.toBe(csp)
   })
 
   it('renvoie www. vers le domaine sans www, chemin et requête gardés, avant toute autre logique', async () => {

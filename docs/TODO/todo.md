@@ -4086,7 +4086,10 @@ Objectif : remplacer la lecture et l'agrégation à la demande des gros JSON té
 - [x] Extraire un helper pur qui transforme les échantillons d'un match en cellules persistables
 - [x] Couvrir les métriques `position`, `rotation`, `kill`, `shot`, `damage_dealt`, `damage_taken`, `knockout_dealt`, `knockout_taken`, `revive_given`, `revive_received`, `vehicle` et `death`
 - [x] Pondérer correctement les tirs et dégâts avec leur champ `count`
-- [ ] Alimenter les cellules dans la même transaction que la persistance télémétrique du match
+- [x] ~~Alimenter les cellules dans la même transaction que la persistance télémétrique du match~~ — **abandonné**
+  (décision du 2026-10-22) : chaque table dérivée d'une partie est reconstruite à l'identique par sa propre transaction à
+  chaque resynchronisation, ce qui répare un échec partiel ; une transaction unique tiendrait ses verrous longtemps sur
+  une base partagée (buffer pool de 128 Mo)
 - [x] 🐞 **Corrigé dans le code le 2026-09-16 — deux défauts de synchronisation, trouvés en analysant le todo.**
   1. **Plus aucune cellule écrite depuis le 31/07.** `persistPositionMetricCellsForMatch` n'était appelée que par
      `syncTelemetryForSquadMatchFromStream` — malgré son nom, le **chemin fichier local** (import, resync depuis
@@ -4451,9 +4454,9 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
   joueurs d'un tournoi, du kill feed, de Némésis et de la page Adversaires basculées sur `Player` / `ClanEncounter`.
   Fait le 2026-10-21 : colonnes `Player.encounterCount` / `combatInteractionsCount` (migration additive), alimentées
   par la capture, les kills et les échecs de résolution, rattrapées en production (767 987 lignes, 0 écart sur 800).
-  Déployé le 2026-10-21 : Triage, cron de résolution et comptages lus sur `Player` (étape 3). Prêt le 2026-10-22, à
-  déployer : arrêt de la double écriture (étape 4, sans migration). Reste : une semaine d'observation, puis
-  `DROP TABLE` (sur accord)
+  Déployé le 2026-10-21 : Triage, cron de résolution et comptages lus sur `Player` (étape 3). Déployé dans la nuit du
+  22 au 23 : arrêt de la double écriture (étape 4) — plus aucune écriture depuis 05 h 22. Reste : observation jusqu'au
+  2026-10-30, puis `DROP TABLE` (sur accord)
 
 **Priorisation par interactions de combat (La "Bounty List") — Phase 2 (Dénormalisation) — ✅ Fait, doublon de la section "Dénormalisation de la Bounty List — Phase 2 Terminée" plus bas, vérifié le 2026-08-30 :**
 - [x] `combatInteractionsCount` ajouté à `EncounteredPlayer` (`prisma/schema.prisma`) + index `@@index([clanResolvedAt, combatInteractionsCount])` + script de backfill `src/scripts/backfill-combat-interactions.ts`
@@ -4486,7 +4489,7 @@ Réflexion démarrée le 2026-08-07 à partir du tableau `/clans/[clanId]/teleme
 
 **Tableau 2 — Clans adversaires** (10 lignes, paginé, tri serveur, recherche) :
 - [x] Colonnes : clan adverse, fois adversaire, fois coéquipier, dernière rencontre
-- [ ] Ligne séparée "Sans clan" dans le tableau — **non fait** : le total est visible dans le bandeau de compteurs (`noClanPlayerCount`) mais pas comme ligne dédiée cliquable/détaillée
+- [x] ~~Ligne séparée "Sans clan" dans le tableau~~ — **remplacée** (décision du 2026-10-22) par le filtre « Sans clan PUBG » de l'annuaire des joueurs (`/settings/players`) ; le total reste dans le bandeau de compteurs (`noClanPlayerCount`)
 - [x] Icône d'info si coéquipier ≫ adversaire (seuil : `asTeammateCount > asOpponentCount × 2` et `> 2`)
 - [x] Tri par défaut décroissant sur fois adversaire, tri cliquable (y compris coéquipier)
 - [x] Recherche texte tag/nom
@@ -5639,7 +5642,11 @@ type TournamentRules = {
 ---
 
 
-#### ~~2. Score de puissance de clan ("Clan Power Rating")~~ — ⚠️ Partiellement fait (vérifié le 2026-08-30)
+#### ~~2. Score de puissance de clan ("Clan Power Rating")~~ — ⚠️ Partiellement fait (vérifié le 2026-08-30) — 💡 **rangé dans les idées le 2026-10-22**
+
+> Le Power score a été refait en octobre (`src/lib/clan-league.ts`, [score.md](score.md)) sans échelle sur 100, sans
+> régularité, sans historique ni delta de score : seul existe le mouvement de rang ▲/▼ (`RankMovement`) par rapport à
+> la période précédente. Les cases ci-dessous (formule d'origine comprise) décrivent l'idée, pas un reste à faire.
 
 **Pourquoi c'est utile :** un score unique, facile à afficher en badge, qui résume la force d'un clan mieux qu'un classement multi-colonnes.
 

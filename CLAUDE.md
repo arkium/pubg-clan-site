@@ -360,9 +360,10 @@ meilleur de son clan (`MemberTelemetryStats`).
 - Pages légales (`LEGAL_PATHS`, `src/lib/legal/legal-info.ts`) ouvertes sans session — [pages-legales.md](docs/features/pages-legales.md).
 - Chaque laissez-passer de page passe par `passThrough()`, qui pose l'en-tête `x-pathname` : **ne jamais revenir à un
   `NextResponse.next()` nu** pour une page, sinon elle perd son titre, sa description et son indexation — et sa CSP.
-- **CSP** (2026-10-18, `src/lib/security/csp.ts`) : `passThrough()` pose une CSP à nonce, en observation
-  (`Report-Only`) ; Next ajoute le nonce à ses propres scripts. Tout script ajouté à la main (tiers, `<Script>`) doit
-  recevoir ce nonce, sinon il sera bloqué le jour où la CSP passe en mode bloquant. Un écart ne s'affiche pas dans la
+- **CSP** (2026-10-18, `src/lib/security/csp.ts`) : `passThrough()` pose une CSP à nonce, **bloquante depuis le
+  2026-10-23** (observation `Report-Only` avant) ; Next ajoute le nonce à ses propres scripts. Tout script ajouté à la
+  main (tiers, `<Script>`) doit recevoir ce nonce, sinon il est bloqué ; pas d'`eval` dans le navigateur (zod y tourne
+  sans compilation, `privacy-request.ts`). Un écart ne s'affiche pas dans la
   console de Playwright : la fixture `cspViolations` (`e2e/support/api.ts`) l'écoute par `securitypolicyviolation` et
   fait échouer le test (suite complète sur le build : 0 écart le 2026-10-22). En-têtes de sécurité :
   `SECURITY_HEADERS` de `next.config.ts` (HSTS **sans** `includeSubDomains` tant que le wildcard n'est pas posé).

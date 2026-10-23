@@ -3,14 +3,16 @@
  * node_modules/next/dist/docs/01-app/02-guides/content-security-policy.md). Posée par le proxy sur chaque page, avec un
  * nonce par requête : Next le lit dans l'en-tête de la requête et l'ajoute à ses propres scripts.
  *
- * **Mode observation** (`Report-Only`) depuis le 2026-10-18 : rien n'est bloqué, les écarts s'affichent dans la console du
- * navigateur (« [Report Only] Refused to… »). Une fois la console propre en production, passer `CSP_HEADER` à
- * `Content-Security-Policy` et ajouter `upgrade-insecure-requests` (ignoré en observation).
+ * **Mode bloquant** depuis le 2026-10-23, après cinq jours d'observation (`Report-Only`, à partir du 2026-10-18) : relevé
+ * de 54 pages de production en visiteur et suite Playwright complète sur le build, fixture `cspViolations` (un seul écart,
+ * l'essai d'`eval` de zod, corrigé dans `privacy-request.ts`). Un écart bloque désormais la ressource et s'affiche dans
+ * la console (« Refused to… »). Pas de `upgrade-insecure-requests` : HSTS force déjà le HTTPS sur le domaine, et la
+ * directive réécrirait en `https://` les requêtes du build local servi en `http://localhost` (tests Playwright).
  *
  * Module pur, sans Prisma : importé par le proxy.
  */
 
-export const CSP_HEADER = 'Content-Security-Policy-Report-Only'
+export const CSP_HEADER = 'Content-Security-Policy'
 
 /** Nonce aléatoire d'une requête (Web Crypto : disponible dans le proxy comme dans Node). */
 export function createNonce(): string {

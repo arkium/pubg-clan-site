@@ -357,11 +357,13 @@ Posés par l'application, donc versionnés et testés — rien à ajouter dans N
   `poweredByHeader: false` (plus de `X-Powered-By: Next.js`). **HSTS sans `includeSubDomains`** tant que le certificat
   wildcard des sous-domaines de clan n'est pas posé : un navigateur qui l'aurait vu refuserait d'ouvrir un sous-domaine
   sans certificat valide. Une fois `https://<clan>.chickendinner.fr` valide, ajouter `; includeSubDomains`.
-- **CSP** : posée par le proxy (`src/proxy.ts`, `src/lib/security/csp.ts`) avec un nonce par requête, **en mode
-  observation** (`Content-Security-Policy-Report-Only`) : rien n'est bloqué. Aucun écart relevé sur 28 pages du build
-  de production le 2026-10-18 (relevé par l'événement `securitypolicyviolation`, la console de Playwright ne montre
-  pas ces signalements). Après une à deux semaines sans écart dans la console des navigateurs en production, passer
-  `CSP_HEADER` à `Content-Security-Policy` et ajouter `upgrade-insecure-requests`.
+- **CSP** : posée par le proxy (`src/proxy.ts`, `src/lib/security/csp.ts`) avec un nonce par requête, **bloquante**
+  (`Content-Security-Policy`) depuis le 2026-10-23, après cinq jours en observation (`Report-Only`, depuis le
+  2026-10-18). Avant la bascule : 54 pages de production parcourues en visiteur et suite Playwright complète sur le
+  build (fixture `cspViolations`, événement `securitypolicyviolation`) ; un seul écart, l'essai d'`eval` de zod,
+  corrigé. Pas de `upgrade-insecure-requests` : HSTS force déjà le HTTPS, et la directive casserait le build local
+  servi en `http://localhost`. **Après un déploiement**, un script ou une ressource refusés s'affichent dans la console
+  du navigateur (« Refused to… ») : un script ajouté à la main doit porter le nonce.
 - **`www.chickendinner.fr`** → `chickendinner.fr`, en 301, par le proxy (chemin et requête conservés). Les adresses
   hors proxy (`/api/`, `/_next/`, `robots.txt`, `sitemap.xml`) restent servies sur `www` : pour les rediriger aussi,
   un bloc Nginx `server_name www.chickendinner.fr; return 301 https://chickendinner.fr$request_uri;`.

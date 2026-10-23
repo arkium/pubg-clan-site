@@ -27,8 +27,9 @@ describe('buildCsp', () => {
     expect(directive(csp, 'img-src')).toBe("img-src 'self' data: blob: https:")
   })
 
-  it('en observation tant que la console de production n’est pas propre', () => {
-    expect(CSP_HEADER).toBe('Content-Security-Policy-Report-Only')
+  it('bloquante depuis le 2026-10-23, sans upgrade-insecure-requests (HSTS ; build local en http)', () => {
+    expect(CSP_HEADER).toBe('Content-Security-Policy')
+    expect(csp).not.toContain('upgrade-insecure-requests')
   })
 
   it('un nonce différent à chaque requête', () => {

@@ -213,9 +213,9 @@ export const CLAN_PAGES: Array<{ path: string; label: string; describe: (clan: s
     describe: (clan) => `Les armes du clan PUBG ${clan} : kills, dégâts et précision par arme et par catégorie.`,
   },
   {
-    path: '/stats/heatmap-kills',
-    label: 'Heatmap des kills',
-    describe: (clan) => `Où le clan PUBG ${clan} fait ses kills, carte par carte.`,
+    path: '/stats/maps',
+    label: 'Cartes',
+    describe: (clan) => `Les cartes du clan PUBG ${clan} : Top 10, place moyenne et kills par carte, comparés aux autres clans.`,
   },
   {
     path: '/stats/positions',

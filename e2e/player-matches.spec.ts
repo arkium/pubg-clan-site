@@ -4,6 +4,7 @@ import { expect, test } from './support/api'
 import { MEMBER_ID } from './support/data'
 import { appHeader, dock, periodFilter, toolbar } from './support/layout'
 import { mockPlayerMatches, sessionDaysAgo } from './support/player-matches'
+import { mockMemberSession, withSessionCookie } from './support/session'
 
 /**
  * Carnet de vol d'un joueur — docs/features/matchs-joueur.md (maquette « Matchs joueur », 2026-09-27). Chiffres clés,
@@ -30,6 +31,18 @@ async function openMatches(page: Page, query = '') {
   await expect(page.getByRole('heading', { level: 1, name: 'Carnet de vol de Joueur Alpha' })).toBeVisible()
   await expect(chronology(page)).toBeVisible()
 }
+
+test.describe('carnet de vol vu par le SuperUser', () => {
+  test('télémétrie pas prête : « État » mène à la soirée dans les données du clan', async ({ api, page, baseURL }) => {
+    mockPlayerMatches(api)
+    mockMemberSession(api, { superUser: true })
+    await withSessionCookie(page, baseURL!)
+    await openMatches(page)
+    const today = sessions(page).getByRole('listitem').first()
+    await expect(today).toContainText('Télémétrie en attente')
+    await expect(today.getByRole('link', { name: 'État' })).toHaveAttribute('href', `/clans/1/settings/data/sessions/${sessionDaysAgo(0)}`)
+  })
+})
 
 test.describe('carnet de vol', () => {
   test.beforeEach(async ({ api, page }) => {
@@ -68,7 +81,8 @@ test.describe('carnet de vol', () => {
     const today = sessions(page).getByRole('listitem').first()
     await expect(today.getByRole('link', { name: 'Débriefing' }).first()).toHaveAttribute('href', new RegExp(`/clans/1/telemetry/matches/sm-\\d+/debrief\\?period=week&fromDate=${sessionDaysAgo(0)}`))
     await expect(today).toContainText('Télémétrie en attente')
-    await expect(today.getByRole('link', { name: 'État' })).toHaveAttribute('href', /\/telemetry\/matches\/sm-21\/telemetry/)
+    // Visiteur : pas de lien vers l'outil technique, réservé au SuperUser.
+    await expect(today.getByRole('link', { name: 'État' })).toHaveCount(0)
     // Soirée à 6 jours : une partie sans coéquipier du clan, sans lien.
     await sessionButton(page, 3).click()
     const older = sessions(page).getByRole('list', { name: 'Soirées' }).getByRole('listitem').nth(3)

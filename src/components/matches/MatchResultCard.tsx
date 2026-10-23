@@ -2,7 +2,7 @@ import Link from 'next/link'
 
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
-import { matchDebriefPath, matchTelemetryAuditPath } from '@/lib/match-links'
+import { clanSessionDataPath, matchDebriefPath } from '@/lib/match-links'
 import { killBars, sessionDateOf, teamModeOf } from '@/lib/match-sessions'
 import { mapAssetUrl } from '@/lib/pubg-assets'
 import { isTelemetryDataExpiredError } from '@/lib/pubg-telemetry/telemetry-error-presentation'
@@ -42,6 +42,7 @@ export default function MatchResultCard({
   mapLabel,
   sessionMaxKills,
   selected,
+  showDataLink = false,
 }: {
   clanId: number
   period: SquadPeriod
@@ -49,6 +50,8 @@ export default function MatchResultCard({
   mapLabel: string
   sessionMaxKills: number
   selected: boolean
+  /** SuperUser : télémétrie pas prête → « État » mène à la soirée dans les données du clan. */
+  showDataLink?: boolean
 }) {
   const image = mapAssetUrl(match.mapName)
   const state = telemetryState(match)
@@ -126,11 +129,11 @@ export default function MatchResultCard({
             <Link href={matchDebriefPath(clanId, match.id, viewContext)} className="app-btn app-btn--xs app-btn--primary shrink-0">
               Débriefing
             </Link>
-          ) : (
-            <Link href={matchTelemetryAuditPath(clanId, match.id, viewContext)} className="app-btn app-btn--xs app-btn--secondary shrink-0">
+          ) : showDataLink ? (
+            <Link href={clanSessionDataPath(clanId, viewContext.fromDate)} className="app-btn app-btn--xs app-btn--secondary shrink-0">
               État
             </Link>
-          )}
+          ) : null}
         </div>
       </div>
     </article>

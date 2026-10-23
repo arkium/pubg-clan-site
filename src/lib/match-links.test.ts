@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { matchDebriefPath, matchTelemetryAuditPath, matchTournamentDebriefPath, matchTournamentReplayPath } from './match-links'
+import { clanSessionDataPath, matchDebriefPath, matchTournamentDebriefPath, matchTournamentReplayPath } from './match-links'
 
 describe('match-links', () => {
   it('construit le lien du débriefing sans contexte', () => {
@@ -13,9 +13,10 @@ describe('match-links', () => {
     expect(matchDebriefPath(1, 'abc', { period: 'week', fromDate: '2026-09-13' })).toBe(
       '/clans/1/telemetry/matches/abc/debrief?period=week&fromDate=2026-09-13'
     )
-    expect(matchTelemetryAuditPath('1', 'abc', { period: 'month' })).toBe(
-      '/clans/1/telemetry/matches/abc/telemetry?period=month'
-    )
+  })
+
+  it('mène le SuperUser à la soirée d’une partie dans les données du clan', () => {
+    expect(clanSessionDataPath(292, '2026-10-22')).toBe('/clans/292/settings/data/sessions/2026-10-22')
   })
 
   it('encode un identifiant inattendu plutôt que de casser le chemin', () => {

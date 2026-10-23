@@ -1,9 +1,10 @@
 /**
  * Adresses des vues d'un match (SquadMatch) côté clan.
  *
- * Le débriefing est la vue de lecture pour tous les membres (Replay 2D, Combat Log, duels).
- * La vue d'audit technique reste l'outil de diagnostic du pipeline : état, resync, import, JSON brut.
- * Les anciennes pages `/clans/[clanId]/matches/[matchId]/telemetry` et
+ * Le débriefing est la vue de lecture pour tous les membres (Replay 2D, Combat Log, duels). Le suivi technique d'une
+ * partie (état de la télémétrie, resynchronisation) se fait par soirée, dans la page Soirées des données du clan
+ * (SuperUser) : la vue d'audit d'un match (`…/telemetry/matches/[matchId]/telemetry`) est supprimée depuis le 2026-10-23.
+ * Les anciennes pages `/clans/[clanId]/matches/[matchId]/telemetry`, `…/telemetry/matches/[matchId]/telemetry` et
  * `/tournaments/[tournamentId]/matches/[matchId]/telemetry?clanId=` ne sont plus que des redirections vers le
  * débriefing, gardées pour les liens déjà publiés : ne pas leur envoyer de nouveaux liens.
  */
@@ -35,12 +36,9 @@ export function matchDebriefPath(
   return withContext(`${basePath(clanId, squadMatchId)}/debrief`, context)
 }
 
-export function matchTelemetryAuditPath(
-  clanId: number | string,
-  squadMatchId: string,
-  context?: MatchViewContext
-): string {
-  return withContext(`${basePath(clanId, squadMatchId)}/telemetry`, context)
+/** Soirée d'une partie dans les données du clan (SuperUser) : état de la télémétrie, resynchronisation. */
+export function clanSessionDataPath(clanId: number | string, sessionDate: string): string {
+  return `/clans/${clanId}/settings/data/sessions/${encodeURIComponent(sessionDate)}`
 }
 
 /** Débriefing d'une manche de tournoi : ouvert à tout utilisateur connecté, contexte du tournoi affiché. */

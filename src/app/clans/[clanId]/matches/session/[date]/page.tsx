@@ -11,6 +11,7 @@ import SessionFlightPlan from '@/components/matches/SessionFlightPlan'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useSquadMatches } from '@/hooks/useSquadMatches'
 import {
@@ -85,6 +86,8 @@ export default function ClanSessionDatePage() {
   const date = validDate && typeof params.date === 'string' ? params.date : null
 
   const { clanName, mapLabels, squads, loading, error } = useSquadMatches(clanId, period, gameMode)
+  // Télémétrie pas prête : seul le SuperUser a un lien, vers la soirée dans les données du clan.
+  const { isSuperUser } = useAuthSession()
 
   const sessionMatches = useMemo(
     () => (date ? chronological(squads.filter((match) => sessionDateOf(match.createdAt) === date)) : []),
@@ -279,6 +282,7 @@ export default function ClanSessionDatePage() {
                     mapLabel={mapLabels[match.mapName] ?? match.mapName}
                     sessionMaxKills={sessionMaxKills}
                     selected={match.id === selectedId}
+                    showDataLink={isSuperUser}
                   />
                 ))}
               </div>

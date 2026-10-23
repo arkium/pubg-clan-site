@@ -216,10 +216,11 @@ export const NAV_REGISTRY: NavItemDef[] = [
   {
     navKey: 'clan.heatmap-kills',
     section: 'clan-section',
-    label: 'Heatmap kills',
-    hrefTemplate: '/clans/:clanId/stats/heatmap-kills',
+    label: 'Cartes',
+    hrefTemplate: '/clans/:clanId/stats/maps',
     defaultRole: 'none',
-    description: 'Heatmap des kills via télémétrie — API /telemetry/heatmap.',
+    // Clé de l'ancienne page « Heatmap kills », gardée : elle sert de garde d'API (NAV_GUARD_KEYS).
+    description: 'Cartes du clan : performance par carte, verdict, joueur phare, écart aux clans — API /map-stats.',
   },
   {
     navKey: 'clan.positions',

@@ -68,7 +68,7 @@ describe('telemetry persistence payload', () => {
       parsed
     )
 
-    // `summary` reste en clair : cinq routes l'interrogent par JSON_EXTRACT.
+    // `summary` reste en clair (voir COMPRESSED_JSON_COLUMNS).
     expect(payload.summary).not.toBe(Prisma.DbNull)
 
     for (const colonne of COMPRESSED_JSON_COLUMNS) {

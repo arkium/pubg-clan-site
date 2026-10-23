@@ -5366,7 +5366,8 @@ Discuté le 2026-08-04 : les stats bots n'étaient visibles que sur des pages se
   > autres utilisent encore `InteractiveMap` (zoom hors standard) :
   > - `/clans/[clanId]/telemetry/matches/[matchId]/debrief` — la page cible ;
   > - `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` — vue d'audit (resync, import, JSON brut), à conserver
-  >   comme `/telemetry/audit` selon le plan d'origine ;
+  >   comme `/telemetry/audit` selon le plan d'origine ; **supprimée le 2026-10-23** (redirige vers le débriefing ; suivi
+  >   technique par la page Soirées des données du clan, SuperUser) ;
   > - `/clans/[clanId]/matches/[matchId]/telemetry` — ancienne page monolithique côté clan ;
   > - `/tournaments/[tournamentId]/matches/[matchId]/telemetry` — ancienne page monolithique côté tournoi.
   >

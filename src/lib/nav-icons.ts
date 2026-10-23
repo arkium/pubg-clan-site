@@ -7,7 +7,6 @@ import {
   Target,
   MapPin,
   Crosshair,
-  Flame,
   Map,
   Skull,
   Calendar,
@@ -33,7 +32,7 @@ export const NAV_ICONS: Record<string, NavIconDef> = {
   'clan.challenges': { icon: Target, colorClass: 'text-green-500' },
   'clan.drop-zones': { icon: MapPin, colorClass: 'text-orange-500' },
   'clan.stats-weapons': { icon: Crosshair, colorClass: 'text-blue-500' },
-  'clan.heatmap-kills': { icon: Flame, colorClass: 'text-rose-500' },
+  'clan.heatmap-kills': { icon: Map, colorClass: 'text-sky-500' },
   'clan.positions': { icon: Map, colorClass: 'text-emerald-500' },
   
   // Member section

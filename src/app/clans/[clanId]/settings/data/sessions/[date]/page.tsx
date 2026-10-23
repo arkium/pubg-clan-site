@@ -1104,7 +1104,6 @@ export default function TelemetrySessionDatePage() {
             selectedMatchIds={selectedMatchIds}
             onToggleMatchSelection={toggleMatchSelection}
             telemetryFileStatusByMatchId={telemetryFileStatusByMatchId}
-            showAuditLink
           />
 
           <SectionCard

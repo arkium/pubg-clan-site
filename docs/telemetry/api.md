@@ -179,12 +179,9 @@ Retourne les échantillons de positions sur carte (`positionSamples` dans `Squad
 
 ---
 
-### GET /heatmap
+### ~~GET /heatmap~~ — supprimée le 2026-10-23
 
-**Auth :** permission `clan.heatmap-kills` (configurable par rôle, voir `/settings/nav-permissions`)
-**Query params :** `?period=week|month|all`, `?map=Baltic_Main` (optionnel)
-
-Retourne une grille de densité de kills par cellule sur la carte, pour overlay visuel.
+Remplacée par `GET /api/clans/[clanId]/map-stats` (page Cartes du clan, [cartes-clan.md](../features/cartes-clan.md)).
 
 ---
 
@@ -323,18 +320,9 @@ Enqueue des jobs de resync depuis les fichiers capturés dans `.telemetry-captur
 
 ---
 
-### POST /sync-selected
+### ~~POST /sync-selected~~ — supprimée le 2026-10-23
 
-Déclenche le sync direct pour les matchs sélectionnés depuis la vue session.
-
-**Corps :**
-
-```typescript
-{
-  matchIds: string[]
-  force?: boolean    // traiter même si statut 'success' existant
-}
-```
+Outil de l'ancienne vue d'audit d'un match ; la relance passe par la file (`sync-selected-enqueue`).
 
 ### POST /resync-files-selected
 
@@ -498,11 +486,9 @@ Déclenche le recalcul des agrégats périodiques (`MemberWeaponStats`, `MemberT
 
 ---
 
-### POST /import-file
+### ~~POST /import-file~~ — supprimée le 2026-10-23
 
-**Auth :** Owner uniquement
-
-Importe un fichier télémétrie JSON uploadé manuellement (hors CDN PUBG).
+Import manuel d'un fichier de télémétrie depuis l'ancienne vue d'audit d'un match.
 
 ### POST /backfill-null-json
 

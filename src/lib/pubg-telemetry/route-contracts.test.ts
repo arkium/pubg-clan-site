@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({
   queryRaw: vi.fn(),
   cronExecutionFindMany: vi.fn(),
   squadMatchTelemetryFindMany: vi.fn(),
+  squadMatchFindMany: vi.fn(),
   requireRole: vi.fn(),
   requirePlatformAdmin: vi.fn(),
   requireSameClanAsMember: vi.fn(),
@@ -21,6 +22,9 @@ vi.mock('@/lib/prisma', () => ({
     },
     squadMatchTelemetry: {
       findMany: mocks.squadMatchTelemetryFindMany,
+    },
+    squadMatch: {
+      findMany: mocks.squadMatchFindMany,
     },
   },
 }))
@@ -49,6 +53,7 @@ describe('telemetry route contracts', () => {
     mocks.queryRaw.mockReset()
     mocks.cronExecutionFindMany.mockReset()
     mocks.squadMatchTelemetryFindMany.mockReset().mockResolvedValue([])
+    mocks.squadMatchFindMany.mockReset().mockResolvedValue([])
     mocks.requireRole.mockReset()
     mocks.requireRole.mockReturnValue(async () => null)
     mocks.requirePlatformAdmin.mockReset()
@@ -185,6 +190,12 @@ describe('telemetry route contracts', () => {
       },
     ])
 
+    // Date des parties : un échec renvoie vers la soirée de sa partie (sm-3 inconnue → null).
+    mocks.squadMatchFindMany.mockResolvedValue([
+      { id: 'sm-1', createdAt: new Date('2026-06-03T17:40:00.000Z') },
+      { id: 'sm-2', createdAt: new Date('2026-06-03T15:30:00.000Z') },
+    ])
+
     const response = await getClanObservability(
       new Request('http://localhost:3000/api/clans/7/telemetry/observability?window=7d&limit=50'),
       { params: Promise.resolve({ clanId: '7' }) }
@@ -290,7 +301,13 @@ describe('telemetry route contracts', () => {
       status: 'success',
       expired: false,
       durationMs: 4000,
+      matchCreatedAt: '2026-06-03T17:40:00.000Z',
     })
+    expect(mocks.squadMatchFindMany).toHaveBeenCalledWith({
+      where: { id: { in: ['sm-1', 'sm-2', 'sm-3'] } },
+      select: { id: true, createdAt: true },
+    })
+    expect(payload.data.series[2]).toMatchObject({ squadMatchId: 'sm-3', matchCreatedAt: null })
     expect(payload.summary.runs).toBe(payload.data.summary.runs)
     expect(payload.health.alerts).toEqual(payload.data.health.alerts)
     expect(payload.latency.p95DurationMs).toBe(payload.data.latency.p95DurationMs)

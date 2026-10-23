@@ -76,14 +76,12 @@ import { POST as postBackfillNullJson } from '@/app/api/clans/[clanId]/telemetry
 import { POST as postClearSelected } from '@/app/api/clans/[clanId]/telemetry/clear-selected/route'
 import { POST as postDeadLetter } from '@/app/api/clans/[clanId]/telemetry/dead-letter/route'
 import { POST as postFetchFilesSelected } from '@/app/api/clans/[clanId]/telemetry/fetch-files-selected/route'
-import { POST as postImportFile } from '@/app/api/clans/[clanId]/telemetry/import-file/route'
 import { GET as getMetrics } from '@/app/api/clans/[clanId]/telemetry/metrics/route'
 import { GET as getObservability } from '@/app/api/clans/[clanId]/telemetry/observability/route'
 import { GET as getRecoveries, POST as postRecoveries } from '@/app/api/clans/[clanId]/telemetry/recoveries/route'
 import { POST as postResyncFilesQueue } from '@/app/api/clans/[clanId]/telemetry/resync-files-queue/route'
 import { POST as postResyncFilesSelected } from '@/app/api/clans/[clanId]/telemetry/resync-files-selected/route'
 import { GET as getSyncBatchManual } from '@/app/api/clans/[clanId]/telemetry/sync-batch-manual/route'
-import { POST as postSyncSelected } from '@/app/api/clans/[clanId]/telemetry/sync-selected/route'
 import {
   GET as getSyncSelectedEnqueue,
   POST as postSyncSelectedEnqueue,
@@ -166,7 +164,6 @@ const TELEMETRY_TOOL_ROUTES: Array<[string, Handler]> = [
   ['POST clear-selected', () => postClearSelected(req(`${T}/clear-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['POST dead-letter', () => postDeadLetter(req(`${T}/dead-letter`, 'POST') as never, clan)],
   ['POST fetch-files-selected', () => postFetchFilesSelected(req(`${T}/fetch-files-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
-  ['POST import-file', () => postImportFile(req(`${T}/import-file`, 'POST') as never, clan)],
   ['GET metrics', () => getMetrics(req(`${T}/metrics`) as never, clan)],
   ['GET observability', () => getObservability(req(`${T}/observability`) as never, clan)],
   ['GET recoveries', () => getRecoveries(req(`${T}/recoveries`) as never, clan)],
@@ -174,7 +171,6 @@ const TELEMETRY_TOOL_ROUTES: Array<[string, Handler]> = [
   ['POST resync-files-queue', () => postResyncFilesQueue(req(`${T}/resync-files-queue`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['POST resync-files-selected', () => postResyncFilesSelected(req(`${T}/resync-files-selected`, 'POST', { squadMatchIds: ['s'], resetBeforeSync: true }) as never, clan)],
   ['GET sync-batch-manual', () => getSyncBatchManual(req(`${T}/sync-batch-manual`) as never, clan)],
-  ['POST sync-selected', () => postSyncSelected(req(`${T}/sync-selected`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
   ['GET sync-selected-enqueue', () => getSyncSelectedEnqueue(req(`${T}/sync-selected-enqueue`) as never, clan)],
   ['POST sync-selected-enqueue', () => postSyncSelectedEnqueue(req(`${T}/sync-selected-enqueue`, 'POST', { squadMatchIds: ['s'] }) as never, clan)],
 ]

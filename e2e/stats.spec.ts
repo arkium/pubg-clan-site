@@ -28,6 +28,15 @@ test.describe('Style de jeu du clan', () => {
     await expect(section(page, 'sec-profile').getByRole('article', { name: /Fragger/ })).toBeVisible()
   })
 
+  test('« Aller plus loin » : les cartes, l’armurerie et la carrière du clan', async ({ page }) => {
+    const links = page.getByRole('region', { name: 'Aller plus loin' }).getByRole('link')
+    await expect(links).toHaveCount(3)
+    await expect(links.nth(0)).toHaveAttribute('href', `/clans/${CLAN_ID}/stats/maps`)
+    await expect(links.nth(0)).toContainText('Les cartes du clan')
+    await expect(links.nth(1)).toHaveAttribute('href', `/clans/${CLAN_ID}/stats/weapons`)
+    await expect(links.nth(2)).toHaveAttribute('href', `/clans/${CLAN_ID}/stats/career`)
+  })
+
   test('une seule période pour toute la page, synergies et coopération en parties officielles', async ({ api, page }) => {
     await expect(page.getByTestId('playstyle-context')).toHaveText('8 joueurs · 3,4 bots / match · 212 positions / match')
     await periodFilter(page).getByRole('button', { name: 'Mois' }).click()

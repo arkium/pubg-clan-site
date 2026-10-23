@@ -79,10 +79,22 @@ describe('échecs de la file de récupération PUBG', () => {
         jobId: 'j1',
         squadMatchId: 'sm1',
         pubgMatchId: 'pubg-sm1',
+        sessionDate: null,
         at: '2026-10-11T20:00:00.000Z',
         code: 'TELEMETRY_FETCH_FAILED',
         message: 'PUBG indisponible',
       },
+    ])
+  })
+})
+
+describe('soirée d’un échec', () => {
+  it('rattache l’échec à la soirée de sa partie (journée de jeu à Paris, de 06:00 à 06:00)', () => {
+    const late = job('j1', 'sm1', 'failed', 0, { matchCreatedAt: '2026-10-21T23:40:00.000Z' })
+    const evening = job('j2', 'sm2', 'failed', 0, { matchCreatedAt: '2026-10-21T19:30:00.000Z' })
+    expect(pubgFailures([late, evening]).map((failure) => failure.queue === 'pubg' && failure.sessionDate)).toEqual([
+      '2026-10-21',
+      '2026-10-21',
     ])
   })
 })

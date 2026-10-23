@@ -9,7 +9,9 @@
  *   Plateforme déplacées (`/settings/clans`, `/settings/clans/lifecycle`, `/settings/database`, `/settings/telemetry`) ;
  * - lot 3b : place « Adversaires rencontrés » dans les statistiques du clan (rôle membre, surcharges effacées) ;
  * - §8 (2026-10-11) : supprime les cinq cartes `owner.telemetry-*`, crée `superuser.clan-data` (seule carte « Dépannage
- *   du clan sélectionné ») et renomme en `superuser.*` les clés `owner.*` réservées au SuperUser, surcharges conservées.
+ *   du clan sélectionné ») et renomme en `superuser.*` les clés `owner.*` réservées au SuperUser, surcharges conservées ;
+ * - page Cartes du clan (2026-10-23) : `clan.heatmap-kills` prend le libellé « Cartes », l'adresse `/stats/maps` et perd
+ *   sa surcharge « SuperUser » (ouverte aux visiteurs).
  *
  * Simulation par défaut : affiche le plan sans rien écrire. Avec `--apply`, affiche le plan puis demande de taper « oui »
  * (terminal interactif obligatoire) avant d'écrire, en une seule transaction. Idempotent : relancé, il ne trouve plus

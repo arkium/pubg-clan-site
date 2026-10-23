@@ -7,6 +7,8 @@
  * - retraitement de fichiers (`telemetry_resync_file`) : réanalyse un fichier déjà capturé sur le serveur.
  */
 
+import { sessionDateOf } from '@/lib/match-sessions'
+
 // ── Fenêtres ────────────────────────────────────────────────────────────────────────────────────
 
 export type TelemetryWindow = '24h' | '7d' | '30d' | 'all'
@@ -38,6 +40,8 @@ export type LiveSyncJob = {
   errorCode: string | null
   errorMessage: string | null
   bytesDownloaded: number
+  /** Date de la partie (`SquadMatch.createdAt`) : un échec renvoie vers sa soirée. */
+  matchCreatedAt?: string | null
 }
 
 export type TelemetryObservability = {
@@ -93,6 +97,8 @@ export type TelemetryFailure =
       jobId: string
       squadMatchId: string
       pubgMatchId: string | null
+      /** Soirée de la partie (`sessionDateOf`), `null` si sa date est inconnue. */
+      sessionDate: string | null
       at: string
       code: string | null
       message: string | null
@@ -116,6 +122,7 @@ export function pubgFailures(series: readonly LiveSyncJob[]): TelemetryFailure[]
       jobId: job.id,
       squadMatchId: job.squadMatchId,
       pubgMatchId: job.pubgMatchId,
+      sessionDate: job.matchCreatedAt ? sessionDateOf(job.matchCreatedAt) : null,
       at: job.finishedAt ?? job.startedAt,
       code: job.errorCode,
       message: job.errorMessage,

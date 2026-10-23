@@ -1,5 +1,3 @@
-import { NextRequest } from 'next/server'
-
 import { prisma } from '@/lib/prisma'
 import {
   buildTelemetryErrorResponse,
@@ -220,6 +218,17 @@ export async function GET(
       },
     ] as const
 
+    // Date de chaque partie : un échec renvoie vers la soirée de sa partie (page Soirées du SuperUser), depuis la
+    // suppression de la vue d'audit d'un match (2026-10-23).
+    const matchIds = Array.from(new Set(rows.map((row) => row.squadMatchId).filter((id): id is string => Boolean(id))))
+    const matchDates = new Map(
+      matchIds.length > 0
+        ? (
+            await prisma.squadMatch.findMany({ where: { id: { in: matchIds } }, select: { id: true, createdAt: true } })
+          ).map((match) => [match.id, match.createdAt.toISOString()])
+        : []
+    )
+
     const data = {
       summary: {
         runs: summary.runs,
@@ -238,7 +247,10 @@ export async function GET(
       latency: {
         p95DurationMs: durationP95Ms,
       },
-      series: rows,
+      series: rows.map((row) => ({
+        ...row,
+        matchCreatedAt: row.squadMatchId ? matchDates.get(row.squadMatchId) ?? null : null,
+      })),
     }
 
     return Response.json(

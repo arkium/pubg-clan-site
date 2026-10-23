@@ -3,6 +3,7 @@ import type { TestInfo } from '@playwright/test'
 import { expect, test } from './support/api'
 import { CLAN_ID } from './support/data'
 import { mockClanMatches } from './support/pages'
+import { mockMemberSession, withSessionCookie } from './support/session'
 
 /**
  * Matchs du clan et soirée — docs/features/matches.md (maquette Claude Design « Matchs et soirées »).
@@ -35,6 +36,18 @@ test.describe('liste des matchs', () => {
     await first.click()
     await expect(page).toHaveURL(new RegExp(`/clans/${CLAN_ID}/matches/session/2026-09-26\\?period=month`))
     await expect(page.getByRole('heading', { level: 1, name: 'Samedi 26 septembre' })).toBeVisible()
+  })
+})
+
+test.describe('soirée vue par le SuperUser', () => {
+  test('télémétrie pas prête : « État » mène à la soirée dans les données du clan', async ({ api, page, baseURL }) => {
+    mockClanMatches(api)
+    mockMemberSession(api, { superUser: true })
+    await withSessionCookie(page, baseURL!)
+    await page.goto(`/clans/${CLAN_ID}/matches/session/2026-09-26?period=month`)
+    const pending = page.getByRole('article', { name: /00:40/ })
+    await expect(pending).toContainText('Télémétrie en attente')
+    await expect(pending.getByRole('link', { name: 'État' })).toHaveAttribute('href', `/clans/${CLAN_ID}/settings/data/sessions/2026-09-26`)
   })
 })
 
@@ -88,7 +101,8 @@ test.describe('soirée', () => {
     await expect(win.getByRole('link', { name: 'Débriefing' })).toHaveAttribute('href', /\/telemetry\/matches\/s26-3\/debrief/)
     const pending = page.getByRole('article', { name: /00:40/ })
     await expect(pending).toContainText('Télémétrie en attente')
-    await expect(pending.getByRole('link', { name: 'État' })).toBeVisible()
+    // Visiteur : pas de lien vers l'outil technique, réservé au SuperUser (vue d'audit d'un match supprimée le 2026-10-23).
+    await expect(pending.getByRole('link', { name: 'État' })).toHaveCount(0)
     // Plus de jargon technique côté joueurs.
     await expect(page.getByText(/Parser OK|Fichier local/)).toHaveCount(0)
   })

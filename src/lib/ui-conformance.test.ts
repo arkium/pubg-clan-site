@@ -58,7 +58,7 @@ const TOOLBAR_PAGES = [
   'src/app/clans/[clanId]/stats/career/page.tsx',
   'src/app/clans/[clanId]/stats/positions/page.tsx',
   'src/app/clans/[clanId]/stats/zone-closures/page.tsx',
-  'src/app/clans/[clanId]/stats/heatmap-kills/page.tsx',
+  'src/app/clans/[clanId]/stats/maps/page.tsx',
   'src/app/clans/[clanId]/drop-zones/page.tsx',
   'src/app/clans/[clanId]/stats/opponents/page.tsx',
   'src/app/clans/[clanId]/settings/data/sessions/page.tsx',
@@ -99,9 +99,8 @@ const TOOLBAR_COMPONENTS: Record<string, string> = {
  * Pages dont les seuls contrôles appartiennent à une section (saison / ranked, filtre de phase d'un
  * tableau, granularité d'un classement) : ils restent dans leur section, la page n'a pas de bandeau.
  */
-const SECTION_LOCAL_CONTROL_PAGES = [
-  'src/app/clans/[clanId]/telemetry/matches/[matchId]/telemetry/page.tsx',
-]
+// Vide depuis la suppression de la vue d'audit d'un match (2026-10-23), sa seule entrée.
+const SECTION_LOCAL_CONTROL_PAGES: string[] = []
 
 /**
  * Pages sans période dont le bandeau docke aussi sur mobile — exception à sticky.md §2 (« une page sans période ne
@@ -133,6 +132,7 @@ const MOBILE_DOCKED_EXTRA_CONTROLS: Record<string, string> = {
   'src/app/members/[id]/matches/page.tsx': 'pastille de mode, sur une ligne avec la période',
   'src/components/zone-reading/ZoneReadingPage.tsx': 'carte ‹ › et mode (Squad / Duo), sur une ligne avec la période (06/10/2026)',
   'src/app/players/page.tsx': 'critère de tri (liste déroulante), sur une ligne avec la période (18/10/2026)',
+  'src/app/clans/[clanId]/stats/maps/page.tsx': 'rappel court du tri avec la période, type de partie en seconde rangée (maquette Cartes clan, 23/10/2026)',
 }
 
 /** Composants autorisés à écouter le défilement de la fenêtre — jamais pour se docker. */

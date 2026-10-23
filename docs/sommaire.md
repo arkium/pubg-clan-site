@@ -56,6 +56,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Mortier](features/mortier.md) | `/mortier` (menu, sous « Tournois ») : entraînement au réglage du mortier sur la grille de Sanhok (10 cibles par série, trois difficultés, dénivelé), « Artilleurs du clan », guide en quatre fiches ; séries enregistrées et recalculées côté serveur (table `MortarSeries`) |
 | [Carte des ressources](features/carte-ressources.md) | `/carte-des-ressources` (menu) : véhicules observés dans les parties (emplacements recalculés chaque nuit) et points saisis par les joueurs (stations-service, garages, pontons, salles secrètes) — proposer, signaler, « Toujours là » ; vue SuperUser : file de validation, revérification après mise à jour PUBG, historique annulable |
 | [Lecture de zone](features/lecture-de-zone.md) | `/lecture-de-zone` (menu, sous « Carte des ressources ») : ce que la ligne de vol du C-130 dit des cercles, sur toutes les parties du site — l'avion place le premier cercle, ensuite c'est le hasard (maquette recadrée sur les données réelles le 2026-10-06) — et entraînement « Où finit la zone ? » noté à chaque cercle, classement du clan (tables `ZoneReadingMatch`, `ZoneReadingSeries`) |
+| [Cartes du clan](features/cartes-clan.md) | `/clans/[id]/stats/maps` : verdict, performance par carte comptée par partie d'escouade, écart aux autres clans, tendance, joueur phare ; page publique |
 | [Statistiques](features/statistiques.md) | « Style de jeu du clan » (télémétrie par période : rôles, objets, synergies, coopération) et « Carrière PUBG du clan » (lifetime, sans période, engagement réel) ; décisions de cohérence, redirections |
 | [Objets consommés](features/objets-consommes.md) | Soins, boosts, carburant et gadgets réellement utilisés : source `LogItemUse`, table `MemberItemUseStat`, page membre et section de « Style de jeu » |
 | [Fin de zone](features/fin-de-zone.md) | Positions d'arrivée à chaque fermeture de cercle : détection des fermetures, bandes centre/bord/hors zone, biais de survie, page et rattrapage |
@@ -119,6 +120,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 | Document | Contenu |
 |---|---|
+| [Page « Cartes » du clan — brief](TODO/cartes-clan.md) | Refonte de la page heatmap-kills (livrée le 2026-10-23, fiche : [Cartes du clan](features/cartes-clan.md)) : constat, données par partie d'escouade (chiffres réels), règles, accès et liens, prompt Claude Design |
 | [Inventaire du reste à faire](TODO/inventaire-2026-10-20.md) | Relevé du 2026-10-20 de tous les documents `TODO/`, contrôlé contre le code : petits correctifs traités, chantiers restants, actions de production, décisions en attente, documents en retard |
 | [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3, idées de comparaison inter-clans, suggestions de stats et fonctionnalités |
 | [Annuaire des joueurs](TODO/players.md) | Onglet « Joueurs » de `/settings/clans` (implémenté le 2026-09-25) : statuts de suivi, filtres, mesures de coût, tests |

@@ -11,7 +11,14 @@ import { mockMemberSession } from './session'
 const base = `/api/clans/${CLAN_ID}`
 const at = (minutesAgo: number) => new Date(Date.now() - minutesAgo * 60_000).toISOString()
 
-function liveJob(id: string, squadMatchId: string, status: 'success' | 'failed', minutesAgo: number, expired = false) {
+function liveJob(
+  id: string,
+  squadMatchId: string,
+  status: 'success' | 'failed',
+  minutesAgo: number,
+  expired = false,
+  matchCreatedAt: string | null = null
+) {
   return {
     id,
     squadMatchId,
@@ -24,13 +31,15 @@ function liveJob(id: string, squadMatchId: string, status: 'success' | 'failed',
     errorCode: status === 'failed' ? (expired ? 'TELEMETRY_DATA_EXPIRED' : 'TELEMETRY_FETCH_FAILED') : null,
     errorMessage: status === 'failed' ? (expired ? 'Fichier expiré chez PUBG' : 'PUBG a répondu 503') : null,
     bytesDownloaded: 2_400_000,
+    matchCreatedAt,
   }
 }
 
 function observability() {
   const series = [
     liveJob('live-3', 'sm-ok', 'success', 30),
-    liveJob('live-2', 'sm-ko', 'failed', 60),
+    // Partie jouée le 21 octobre à 21 h 30 (heure de Paris) : l'échec renvoie vers cette soirée.
+    liveJob('live-2', 'sm-ko', 'failed', 60, false, '2026-10-21T19:30:00.000Z'),
     liveJob('live-1', 'sm-old', 'failed', 90, true),
   ]
   return {

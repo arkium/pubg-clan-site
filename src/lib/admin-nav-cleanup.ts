@@ -76,8 +76,10 @@ export const NAV_KEYS_HREF_FROM_REGISTRY = [
 /**
  * Entrées dont la place change (lot 3b, Q5) : section, adresse et rôle repris du registre, surcharges effacées.
  * « Adversaires rencontrés » quitte le menu Propriétaire pour les statistiques du clan, ouvertes à ses membres.
+ * « Heatmap kills » devient la page Cartes du clan (2026-10-23, docs/TODO/cartes-clan.md) : nouvelle adresse, et sa
+ * surcharge « SuperUser » tombe — la page est ouverte aux visiteurs.
  */
-export const NAV_KEYS_RESET_FROM_REGISTRY = ['owner.encountered-opponents'] as const
+export const NAV_KEYS_RESET_FROM_REGISTRY = ['owner.encountered-opponents', 'clan.heatmap-kills'] as const
 
 /** Libellés de base alignés sur le registre (libellés francisés, et « Stats armes » resté en base). */
 export const NAV_KEYS_LABEL_FROM_REGISTRY = [
@@ -88,6 +90,7 @@ export const NAV_KEYS_LABEL_FROM_REGISTRY = [
   'superuser.platform-settings',
   'superuser.opponents',
   'clan.stats-weapons',
+  'clan.heatmap-kills',
 ] as const
 
 export type NavRename = {

@@ -8,7 +8,7 @@ import { PlaceCell } from '@/components/matches/MatchesUi'
 import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import PlacementBadge from '@/components/ui/PlacementBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
-import { matchDebriefPath, matchTelemetryAuditPath } from '@/lib/match-links'
+import { clanSessionDataPath, matchDebriefPath } from '@/lib/match-links'
 import { formatPlayTime, sessionDateOf, sessionDateParts } from '@/lib/match-sessions'
 import type { StandardPeriod } from '@/lib/period'
 import {
@@ -250,7 +250,20 @@ export function ModeBar({ shares, playSeconds }: { shares: ModeShare[]; playSeco
 
 // ── Soirées ──────────────────────────────────────────────────────────────────────────────────────
 
-function PlayerMatchCard({ match, mapLabel, selected, period }: { match: DashboardMatch; mapLabel: string; selected: boolean; period: StandardPeriod }) {
+function PlayerMatchCard({
+  match,
+  mapLabel,
+  selected,
+  period,
+  showDataLink,
+}: {
+  match: DashboardMatch
+  mapLabel: string
+  selected: boolean
+  period: StandardPeriod
+  /** SuperUser : télémétrie pas prête → « État » mène à la soirée dans les données du clan. */
+  showDataLink: boolean
+}) {
   const image = mapAssetUrl(match.mapName)
   const win = match.placement === 1
   const badge = telemetryBadge(match.telemetryStatus)
@@ -316,9 +329,9 @@ function PlayerMatchCard({ match, mapLabel, selected, period }: { match: Dashboa
             >
               Débriefing
             </Link>
-          ) : canLink && match.telemetryStatus ? (
+          ) : canLink && match.telemetryStatus && showDataLink ? (
             <Link
-              href={matchTelemetryAuditPath(match.clanId!, match.squadMatchId!, context)}
+              href={clanSessionDataPath(match.clanId!, context.fromDate)}
               className="app-btn app-btn--xs app-btn--secondary shrink-0"
             >
               État
@@ -343,6 +356,7 @@ export function SessionList({
   small,
   period,
   emptyText,
+  showDataLink = false,
 }: {
   sessions: PlayerSession<DashboardMatch>[]
   page: number
@@ -356,6 +370,7 @@ export function SessionList({
   small: boolean
   period: StandardPeriod
   emptyText: string
+  showDataLink?: boolean
 }) {
   return (
     <section aria-labelledby="sessions-title" className="flex flex-col gap-2.5">
@@ -409,7 +424,14 @@ export function SessionList({
               {open ? (
                 <div id={`session-${session.date}`} className="grid gap-2.5 px-3 pb-3 sm:grid-cols-2 lg:grid-cols-3">
                   {session.matches.map((match) => (
-                    <PlayerMatchCard key={match.id} match={match} mapLabel={mapLabels[match.mapName] ?? match.mapName} selected={match.id === selectedId} period={period} />
+                    <PlayerMatchCard
+                      key={match.id}
+                      match={match}
+                      mapLabel={mapLabels[match.mapName] ?? match.mapName}
+                      selected={match.id === selectedId}
+                      period={period}
+                      showDataLink={showDataLink}
+                    />
                   ))}
                 </div>
               ) : null}

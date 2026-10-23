@@ -21,9 +21,9 @@ const ECHANTILLONS = [
 ]
 
 describe('COMPRESSED_JSON_COLUMNS', () => {
-  it('exclut summary, que cinq routes interrogent en SQL par JSON_EXTRACT', () => {
-    // Compresser `summary` casserait /telemetry/circles, heatmap, loot et vehicles, sans erreur
-    // visible : les agrégats tomberaient simplement à zéro.
+  it('exclut summary, gardée en clair (lue autrefois en SQL par JSON_EXTRACT)', () => {
+    // Plus aucun lecteur SQL depuis la suppression de /telemetry/heatmap (2026-10-23) ; la compresser reste un
+    // choix à part, à vérifier d'abord contre tout nouveau JSON_EXTRACT.
     expect(COMPRESSED_JSON_COLUMNS).not.toContain('summary')
   })
 

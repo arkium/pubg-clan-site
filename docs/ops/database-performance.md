@@ -39,7 +39,7 @@ mesuré à 70–120 ms contre 340–670 ms en lecture JSON.
 |---|---|---|
 | Débriefing / replay : `EncounteredPlayer WHERE pubgAccountId IN (…)` | `range` sur `(pubgAccountId, platformShard, clanResolvedAt)`, ~30 lignes | ✅ indexée |
 | `KillEvent WHERE squadMatchId = ?` | `ref` sur `KillEvent_squadMatchId_idx` | ✅ indexée |
-| Heatmap kills (`JSON_EXTRACT(t.summary, …)` sur les matchs d'un clan) | sous-requête matérialisée sur `ClanMember` + `SquadMember`, `eq_ref` sur la télémétrie | ✅ indexée |
+| Heatmap kills (`JSON_EXTRACT(t.summary, …)` sur les matchs d'un clan) — route supprimée le 2026-10-23 (page Cartes du clan) | sous-requête matérialisée sur `ClanMember` + `SquadMember`, `eq_ref` sur la télémétrie | ✅ indexée |
 | Cron de résolution des adversaires (`GROUP BY` identité + tri sur agrégats) | ~821 000 lignes examinées, `Using temporary; Using filesort` | ❌ **aucun index ne corrige un tri sur agrégats** → corrigé par la forme de la requête (§3.2) |
 | Sélection « coéquipiers fréquents » (plan de détection des changements de clan) | parcours complet d'index, 1,64 M lignes | ⚠️ exigera un compteur pré-calculé avant implémentation |
 

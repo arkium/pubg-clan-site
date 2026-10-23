@@ -25,7 +25,7 @@ Utile pour scoper le travail de refonte visuelle par type de page plutôt que pa
 1. **Pages liste/tableau** — `/clans`, `/members`, `clan.members`, `clan.leaderboard`, `clan.reports`, `clan.challenges`, settings admin (labels/alias)
 2. **Pages dashboard/stats à cartes & graphiques** — `member.dashboard`, `member.stats`, `member.weapons`, `clan.stats*`, `superuser.clan-data`
 3. **Pages détail** — `[matchId]/telemetry`, `[reportId]`, `[challengeId]`, `member.matches`
-4. **Pages carto/heatmap** (canvas/SVG interactif) — `clan.heatmap-kills`, `clan.positions`, `clan.drop-zones`, `member.map-stats`, `member.drop-zones`
+4. **Pages carto/heatmap** (canvas/SVG interactif) — `clan.positions`, `clan.drop-zones`, `member.map-stats`, `member.drop-zones` (`clan.heatmap-kills` est devenue la page Cartes du clan, sans carte interactive, le 2026-10-23)
 5. **Pages formulaire/settings** — `members/add`, `settings/*`, `clans/[clanId]/settings/*`
 
 ---
@@ -81,7 +81,7 @@ La colonne **Position** est un simple numéro d'ordre séquentiel (1, 2, 3…) d
 | 17b | `/clans/[clanId]/stats/career`               | ▸▸▸ Carrière PUBG du clan (2026-09-27) | Tous |
 | 18 | `/clans/[clanId]/stats/weapons`               | ▸▸ L'armurerie du clan | Owner (état actuel) / Tous (cible) |
 | 19 | `/clans/[clanId]/stats/weapons/categories`    | ▸▸▸ Catégories d'armes | **Redirection** vers `…/stats/weapons?cat=AR` depuis le 2026-09-27 (armurerie du clan) |
-| 20 | `/clans/[clanId]/stats/heatmap-kills`         | ▸▸ Heatmap des kills | Owner (état actuel) / Tous (cible) |
+| 20 | `/clans/[clanId]/stats/maps`                  | ▸▸ Cartes (clé `clan.heatmap-kills`, ancienne adresse redirigée) | Tous (2026-10-23) |
 | 21 | `/clans/[clanId]/stats/positions`             | ▸▸ Cartographie tactique | Owner (état actuel) / Tous (cible) |
 | 21b | `/clans/[clanId]/stats/zone-closures`        | ▸▸ Fin de zone (2026-09-17) | Tous |
 | 21c | `/clans/[clanId]/stats/items`                | ▸▸ Objets consommés | **Redirection** vers `…/stats#sec-items` depuis le 2026-09-27 |
@@ -117,7 +117,7 @@ Même principe qu'en 8.1 (hub avec cartes → détail, retour vers la page d'app
 | 10 | — | *(ex-Synchronisation, supprimée le 2026-10-11)* | — | — |
 | 11 | `/clans/[clanId]/settings/data/recoveries` | ▸ Récupérations (couverture, échecs, historique) | SuperUser | ✓ (onglets) |
 | 12 | `/clans/[clanId]/settings/data/sessions` | ▸ Soirées de télémétrie (ex-`telemetry/matches`, redirigée vers `/clans/[clanId]/matches`) | Owner | ✱ |
-| 13 | `/clans/[clanId]/telemetry/matches/[matchId]/telemetry` | ▸▸ Détail | Owner | ✱ (page confirmée ; lien sortant explicite à standardiser) |
+| 13 | ~~`/clans/[clanId]/telemetry/matches/[matchId]/telemetry`~~ | ▸▸ Détail | Owner | supprimée le 2026-10-23 : redirige vers le débriefing |
 | 14 | `/clans/[clanId]/settings/data/sessions/[date]` | ▸▸ Soirée et panneau d'exploitation (ex-`telemetry/matches/session/[date]`, redirigée vers la soirée joueur) | Owner | ✓ (lien réel liste → soirée) |
 | 15 | `/clans/[clanId]/stats/opponents` | ▸ Adversaires rencontrés | Owner | ✱ |
 | 16 | `/members` | Liste des membres (accès direct, hors clan) | Admin | — |
@@ -305,7 +305,7 @@ Légende rapide : ✅ validé/existant · ⚠️ à valider/à implémenter · �
 | `/clans/[clanId]/stats` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/weapons` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/weapons/categories` | redirection 307 vers l'armurerie (`next.config.ts`) — page supprimée le 2026-09-27 | | | | | | |
-| `/clans/[clanId]/stats/heatmap-kills` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
+| `/clans/[clanId]/stats/maps` (ex-`heatmap-kills`) | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/positions` | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ |
 | `/clans/[clanId]/stats/zone-closures` | ✅ | ✅ | ✅ | ✅ | ✅ | ☐ | ☐ |
 | `/clans/[clanId]/stats/items` | redirection 307 vers `…/stats#sec-items` (`next.config.ts`) — page supprimée le 2026-09-27 | | | | | | |

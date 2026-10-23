@@ -89,8 +89,12 @@ partagent `MatchDebriefView`. Les contrôles `.debrief-*` étaient déjà en acc
   il ouvre sur le retour du fil d'Ariane ; pas de période, donc rien de docké sur mobile (sticky.md §2). Ordre : en-tête,
   onglets, **escouade analysée**, contenu de l'onglet. La page déclare son bandeau dans `ui-conformance.test.ts` par
   `MatchDebriefView` (vues clan et tournoi). La vue n'ouvre plus de second `<main>`.
-- **Lien « Audit technique » retiré** de l'en-tête (et les props `period` / `fromDate` qui ne servaient qu'à lui) : l'audit
-  s'ouvre par « État » sur la carte de partie et depuis la page de pilotage de la télémétrie.
+- **Lien « Audit technique » retiré** de l'en-tête (et les props `period` / `fromDate` qui ne servaient qu'à lui).
+  **Vue d'audit d'un match supprimée le 2026-10-23** (`…/telemetry/matches/[matchId]/telemetry` redirige vers le
+  débriefing, avec ses routes « resync immédiat » et « import d'un fichier ») : le débriefing et son Replay 2D suffisent
+  à la lecture ; l'état de la télémétrie et la resynchronisation se font par soirée, page Soirées des données du clan
+  (SuperUser). Sur une carte de partie dont la télémétrie n'est pas prête, « État » n'apparaît plus qu'au SuperUser et
+  mène à cette soirée ; les échecs de « Récupérations » aussi (« Voir la soirée »).
 - **Style de jeu de la semaine** : pastille et nom des membres de l'escouade (en-tête, cartes Escouade) à la couleur de
   leur style dominant de la semaine en cours, lu dans le style de jeu du clan de l'escouade analysée
   (`usePlaystyleColors`) ; libellé du style dans la carte, légende sous l'escouade. Sans accès ou sans style : neutre.

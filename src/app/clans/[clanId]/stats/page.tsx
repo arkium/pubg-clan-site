@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { Radar } from 'lucide-react'
+import { Crosshair, Radar } from 'lucide-react'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo } from 'react'
 
@@ -13,6 +13,7 @@ import {
   SectionHeading,
   SynergySection,
 } from '@/components/clan-stats/PlaystyleSections'
+import { PLAYSTYLE_LINK_ICONS, PlaystyleLinks } from '@/components/player-playstyle/PlayerPlaystyleSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -201,6 +202,17 @@ export default function ClanStatsPage() {
               <CooperationSection pairs={cooperation.data} />
             </div>
           ) : null}
+        </section>
+
+        {/* Comme la page Style de jeu du joueur : les pages voisines du clan (Cartes depuis le 2026-10-23). */}
+        <section aria-label="Aller plus loin">
+          <PlaystyleLinks
+            links={[
+              { href: `/clans/${clanId}/stats/maps`, title: 'Les cartes du clan', text: 'Top 10, place et kills carte par carte, face aux autres clans.', icon: PLAYSTYLE_LINK_ICONS.maps },
+              { href: `/clans/${clanId}/stats/weapons`, title: "L'armurerie du clan", text: 'Armes, catégories et hauts faits.', icon: Crosshair },
+              { href: `/clans/${clanId}/stats/career`, title: 'Carrière PUBG du clan', text: 'Cumuls officiels, toutes saisons.', icon: PLAYSTYLE_LINK_ICONS.career },
+            ]}
+          />
         </section>
       </div>
     </div>

@@ -92,6 +92,27 @@ describe('planNavCleanup', () => {
     ])
   })
 
+  it('ouvre la page Cartes du clan aux visiteurs, à sa nouvelle adresse (2026-10-23)', () => {
+    const rows = [
+      row('clan.heatmap-kills', {
+        label: 'Heatmap kills',
+        hrefTemplate: '/clans/:clanId/stats/heatmap-kills',
+        roleOverride: 'superuser',
+      }),
+    ]
+    const plan = planNavCleanup(rows, NAV_REGISTRY)
+    expect(plan.resets).toEqual([
+      { navKey: 'clan.heatmap-kills', section: 'clan-section', hrefTemplate: '/clans/:clanId/stats/maps', defaultRole: 'none' },
+    ])
+    expect(plan.labelUpdates).toEqual([{ navKey: 'clan.heatmap-kills', from: 'Heatmap kills', to: 'Cartes', clearOverride: false }])
+    expect(plan.hrefUpdates).toEqual([])
+    expect(plan.deletes).toEqual([])
+
+    const after = applyNavPlan(rows, plan)
+    expect(after[0]).toMatchObject({ label: 'Cartes', hrefTemplate: '/clans/:clanId/stats/maps', roleOverride: null })
+    expect(planNavCleanup(after, NAV_REGISTRY)).toEqual({ deletes: [], renames: [], creates: [], labelUpdates: [], hrefUpdates: [], resets: [] })
+  })
+
   it('est idempotent : un second passage ne trouve rien', () => {
     const rows = [
       row('primary.mortar'),

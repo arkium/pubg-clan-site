@@ -18,7 +18,7 @@ import {
   type TelemetryFailure,
   type TelemetryWindow,
 } from '@/lib/clan-telemetry-view'
-import { matchTelemetryAuditPath } from '@/lib/match-links'
+import { clanSessionDataPath } from '@/lib/match-links'
 
 /**
  * Échecs du worker de télémétrie pour un clan (« Récupérations », docs/TODO/administration.md §8) : une seule vue pour
@@ -63,10 +63,16 @@ function FailureRow({
           {dateTimeFormat.format(new Date(failure.at))} ·{' '}
           {failure.queue === 'pubg' ? (
             <>
-              partie <span className="break-all font-mono">{failure.pubgMatchId ?? failure.squadMatchId}</span> ·{' '}
-              <Link href={matchTelemetryAuditPath(clanId, failure.squadMatchId)} className="app-link font-semibold">
-                État de la partie
-              </Link>
+              partie <span className="break-all font-mono">{failure.pubgMatchId ?? failure.squadMatchId}</span>
+              {failure.sessionDate ? (
+                <>
+                  {' '}
+                  ·{' '}
+                  <Link href={clanSessionDataPath(clanId, failure.sessionDate)} className="app-link font-semibold">
+                    Voir la soirée
+                  </Link>
+                </>
+              ) : null}
             </>
           ) : (
             <>

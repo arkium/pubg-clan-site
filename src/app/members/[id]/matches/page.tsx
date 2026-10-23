@@ -11,6 +11,7 @@ import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { useAuthSession } from '@/hooks/useAuthSession'
 import { useIsSmallScreen } from '@/hooks/useIsSmallScreen'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
@@ -74,6 +75,8 @@ export default function MemberMatchesPage() {
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [now] = useState(() => new Date())
   const small = useIsSmallScreen()
+  // Télémétrie pas prête : seul le SuperUser a un lien, vers la soirée dans les données du clan.
+  const { isSuperUser } = useAuthSession()
 
   const base = memberId ? `/api/members/${memberId}` : null
   const response = usePageData(base && ready ? `${base}/matches?period=${period}&limit=all&sortBy=pubgCreatedAt&sortDirection=desc` : null, pickMatches)
@@ -227,6 +230,7 @@ export default function MemberMatchesPage() {
               small={small}
               period={period}
               emptyText={mode ? 'Aucune partie dans ce mode sur la période.' : 'Aucune partie sur la période.'}
+              showDataLink={isSuperUser}
             />
             <p className="t-meta">
               Parties suivies par le site, regroupées par soirée (de 06:00 à 06:00, heure de Paris). Mode : membres du clan dans

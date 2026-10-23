@@ -78,6 +78,8 @@ test('Récupérations : échecs des deux files et relance, sans le moteur global
   await expect(failures).toContainText('parce que le fichier a expiré chez PUBG')
 
   const pubgRow = failures.getByRole('listitem').filter({ hasText: 'PUBG a répondu 503' })
+  // La vue d'audit d'un match n'existe plus (2026-10-23) : l'échec mène à la soirée de sa partie.
+  await expect(pubgRow.getByRole('link', { name: 'Voir la soirée' })).toHaveAttribute('href', `${DATA}/sessions/2026-10-21`)
   await pubgRow.getByRole('button', { name: 'Relancer' }).click()
   await expect.poll(() => calls.enqueued).toEqual([{ squadMatchIds: ['sm-ko'] }])
   await expect(pubgRow.getByText('En file')).toBeVisible()

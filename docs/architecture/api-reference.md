@@ -121,6 +121,7 @@ Non documenté ailleurs (à ne pas confondre avec `/api/auth/password/forgot` et
 | POST | `/api/clans/[clanId]/cron-control` | `requirePlatformAdmin` (SuperUser) | ⚠️ Admin web uniquement | Déclenche une action cron manuelle — voir [Cron](../ops/cron.md) |
 | GET | `/api/clans/[clanId]/dev/runtime-status` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Infos process Node (pid, uptime, hostname) — détail ci-dessous |
 | GET | `/api/clans/[clanId]/lifetime-stats` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Carrière PUBG (lifetime) de tous les membres, sans période — détail ci-dessous |
+| GET | `/api/clans/[clanId]/map-stats` | `requireNavPermission('clan.heatmap-kills')` | ✅ Pertinent | Cartes du clan par partie d'escouade (`?period=week\|month\|all&matchType=`) : écarts à la moyenne des clans, tendance, joueur phare, verdict — voir [Cartes du clan](../features/cartes-clan.md) |
 | GET | `/api/clans/[clanId]/leaderboard` | `requireNavPermission('clan.leaderboard')` | ✅ Pertinent | Classement clan par période/tri — voir [Leaderboard](../features/leaderboard.md) |
 | GET | `/api/clans/[clanId]/awards` | `requireRole(['Owner','Admin','Member'])` | ✅ Pertinent | 11 awards fun calculés par période — voir [Awards](../features/awards.md) |
 
@@ -358,7 +359,7 @@ Correspond à la page `/settings/pubg-api-rate-limit` mentionnée dans `CLAUDE.m
 
 ## Télémétrie (clan-level) — `/api/clans/[clanId]/telemetry/*`
 
-Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/api.md). Toutes les routes de queue/monitoring/recovery sont classées ❌ (outils d'admin télémétrie, jamais appelés depuis un client final) ; les routes de lecture de stats (`weapons`, `synergies`, `playstyle`, `circles`, `positions`, `heatmap`, `loot`, `vehicles`, `drop-zones`) sont ✅ pour un futur écran mobile "stats avancées".
+Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/api.md). Toutes les routes de queue/monitoring/recovery sont classées ❌ (outils d'admin télémétrie, jamais appelés depuis un client final) ; les routes de lecture de stats (`weapons`, `synergies`, `playstyle`, `positions`, `drop-zones`) sont ✅ pour un futur écran mobile "stats avancées".
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
@@ -366,7 +367,6 @@ Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/a
 | GET | `/synergies` | `requireRole(['Owner'])` | ✅ Pertinent | Revives/co-kills/dégâts partagés par paire — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/playstyle` | `requireRole(['Owner'])` | ✅ Pertinent | Scores agressivité/soutien/discipline de zone — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/positions` | `requireNavPermission('clan.positions')` | ✅ Pertinent | Échantillons de positions sur carte — voir [Télémétrie API](../telemetry/api.md) |
-| GET | `/heatmap` | `requireNavPermission('clan.heatmap-kills')` | ✅ Pertinent | Densité de kills par cellule de carte — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/drop-zones` | `requireNavPermission('clan.drop-zones')` | ✅ Pertinent | Points d'atterrissage + heatmap 40×40 — voir [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) |
 | GET | `/item-use` | `requireNavPermission('clan.items')` | ✅ Pertinent | Objets consommés par le clan, par famille, par objet et par membre (`?period=week\|month\|all`) — voir [Objets consommés](../features/objets-consommes.md) |
 | GET | `/zone-closures` | `requireNavPermission('clan.zone-closures')` | ✅ Pertinent | Positions d'arrivée à chaque fermeture de cercle (`?period=`, `?map=`, `?memberId=`, `?phase=`) — voir [Fin de zone](../features/fin-de-zone.md) |
@@ -380,7 +380,6 @@ En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 | GET | `/sync-batch-manual` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | État de la file de retraitement de fichiers du clan (`telemetry_resync_file`) et 20 derniers jobs — Santé, Échecs, soirée |
 | GET | `/resync-files-queue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Liste des jobs de resync fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/resync-files-queue` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Enqueue des jobs de resync fichiers — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/sync-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Sync direct des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/resync-files-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Resync depuis fichiers capturés — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/clear-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Réinitialise la télémétrie des matchs sélectionnés — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/fetch-files-selected` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Télécharge/capture les fichiers CDN sans parser — voir [Télémétrie API](../telemetry/api.md) |
@@ -392,10 +391,11 @@ En dehors de `telemetry/`, le tableau de bord clan lit aussi :
 | GET | `/observability` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Totaux, p95, taux d'échec, alertes — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/recoveries` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Onglet « Récupérations » : 150 dernières lignes de télémétrie du clan, compteurs, couverture du **seul clan demandé** (`backlog`, `getClanTelemetryBacklog`). Plus d'`engineStatus` depuis le 2026-10-11 : l'état du moteur est sur `/api/settings/telemetry-recoveries/status` |
 | POST | `/recalc-aggregates-batch` | `requirePlatformAdmin` (SuperUser) | ❌ Interne/dev | Recalcule les agrégats périodiques — voir [Télémétrie API](../telemetry/api.md) |
-| POST | `/import-file` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Importe un fichier télémétrie manuel — voir [Télémétrie API](../telemetry/api.md) |
 | POST | `/backfill-null-json` | `requirePlatformAdmin` (SuperUser ; jamais délégué, 2026-10-08) | ❌ Interne/dev | Backfill des champs JSON manquants — voir [Télémétrie API](../telemetry/api.md) |
 
-> Les 4 routes `weapons`, `positions`, `heatmap` et `drop-zones` utilisent `requireNavPermission(...)`, un contrôle par rôle **configurable** via `/settings/nav-permissions` (clés `clan.stats-weapons`, `clan.positions`, `clan.heatmap-kills`, `clan.drop-zones`) — pas une restriction Owner figée. [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) ont été corrigés en conséquence (2026-07-05).
+> Les routes `weapons`, `positions` et `drop-zones` utilisent `requireNavPermission(...)`, un contrôle par rôle **configurable** via `/settings/nav-permissions` (clés `clan.stats-weapons`, `clan.positions`, `clan.drop-zones`) — pas une restriction Owner figée. [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) ont été corrigés en conséquence (2026-07-05).
+>
+> Supprimées le 2026-10-23 : `heatmap` (remplacée par `GET /api/clans/[clanId]/map-stats`, page Cartes du clan), `sync-selected` et `import-file` (outils de la vue d'audit d'un match, remplacée par le débriefing et son replay).
 
 ### Détail — `GET` / `POST /api/clans/[clanId]/telemetry/sync-selected-enqueue`
 

@@ -146,7 +146,7 @@ le libellé du registre). Surcharges de libellé en place : `clan.stats` → « 
 | admin-menu | `admin.players-roles`, `admin.login-welcome` | admin → **owner** | — |
 | clan-section | `clan.tournaments` | admin → **owner** | — |
 | clan-section | `clan.members-pending` | admin | → admin-menu |
-| clan-section | `clan.heatmap-kills` | none → **superuser** | — |
+| clan-section | `clan.heatmap-kills` | none → **superuser** ; rouverte à tous et renommée « Cartes » le 2026-10-23 (page Cartes du clan ; adresse par `scripts/cleanup-admin-nav.ts`) | — |
 | clan-section / member-section | `clan.challenges`, `clan.reports`, `member.rewards`, `member.notification-preferences`, `member.notifications` | → **hidden** | — |
 
 Conséquences :
@@ -1347,9 +1347,9 @@ supprimées le même jour, sur accord : POST `T/sync-batch-manual` (le GET reste
 
 **Écarts au §8.4** :
 
-- **Liens des échecs de récupération** : ils mènent à « État de la partie » (`matchTelemetryAuditPath`), pas à la
-  soirée. La série d'Observabilité ne donne pas la date de la partie ; la soirée aurait demandé de modifier la route.
-  Les liens de l'historique mènent bien à la soirée.
+- ~~**Liens des échecs de récupération** : ils mènent à « État de la partie » (`matchTelemetryAuditPath`), pas à la
+  soirée.~~ — **fait le 2026-10-23** : la route d'Observabilité renvoie la date de chaque partie (`matchCreatedAt`), et
+  l'échec mène à sa soirée (« Voir la soirée », `clanSessionDataPath`) ; la vue d'audit d'un match est supprimée.
 - **Fenêtre des Échecs** : 24 h, 7 j, 30 j ou Tout ; le filtre « 1 h » d'Erreurs disparaît.
 - **`MetricCard` (Récupérations) et `KpiGrid` (Santé) restent distincts** : ce sont deux densités, des tuiles dans
   une carte et des indicateurs de page.

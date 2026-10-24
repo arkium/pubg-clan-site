@@ -47,6 +47,17 @@
 | `SMTP_PASS` | `*****` | Oui |
 | `SMTP_FROM` | `PUBG Clan <no-reply@example.com>` | Oui |
 
+### Coach IA (2026-10-24)
+
+| Variable | Exemple | Requis |
+|---|---|---|
+| `GEMINI_API_KEY` | clé d'un projet Google Cloud **avec facturation** (plafond de dépense posé côté Google) | Non — absente, le Coach IA est fermé pour tous. Jamais `NEXT_PUBLIC_`, jamais côté client ([coach-ia.md](../features/coach-ia.md)) |
+| `COACH_MODEL` | `gemini-3.5-flash-lite` | Non — modèle de repli quand `AppConfig.coach_model` est absent ; le SuperUser choisit dans `/settings/coach` |
+
+Le web seul lit la clé (routes du Coach) ; le worker cron ne l'utilise que pour la purge et les avis sur le modèle,
+qui n'appellent pas Google. Un `.env` modifié après le build doit être recopié dans `.next/standalone/.env` (voir
+« Propriétaire du `.env` et du build »).
+
 ### Cron
 
 | Variable | Défaut | Requis sur |
@@ -347,6 +358,18 @@ L'application web écoute par défaut sur `127.0.0.1:3000`. En amont, Nginx gèr
 >     }
 > }
 > ```
+
+### Flux du Coach IA (SSE, 2026-10-24)
+
+`POST /api/clans/[clanId]/coach/chat` répond en `text/event-stream`, mot à mot — **premier flux SSE du site**
+([coach-ia.md](../features/coach-ia.md) §7). Nginx bufferise les réponses proxy par défaut (`proxy_buffering on`),
+ce qui rendrait la réponse d'un bloc à la fin : l'application pose `X-Accel-Buffering: no` et
+`Cache-Control: no-cache, no-transform` sur ce flux, en-têtes que Nginx respecte **sans rien changer** au bloc
+`location /` ci-dessus. À garder : `proxy_http_version 1.1` (déjà là) ; `proxy_read_timeout` (60 s par défaut) reste
+au-dessus des 30 s par tour du modèle. Ne pas ajouter de `gzip` ni de `proxy_buffering on` forcé sur `/api/clans/` ;
+si un module de compression ou un cache est posé un jour devant le site, le vérifier sur ce flux. Contrôle après
+déploiement : `/settings/coach` → « Tester » sur le modèle actif, puis une question en tant que SuperUser : le texte
+doit apparaître par morceaux, pas d'un coup.
 
 ### En-têtes de sécurité, CSP et `www` (2026-10-18)
 

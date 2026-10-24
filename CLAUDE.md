@@ -400,6 +400,15 @@ jamais un `sendDiscordWebhook` direct ; ni adresse e-mail ni donnée d'une deman
 SuperUser = une ligne dans `src/lib/admin-inbox/build.ts` (boîte « À traiter » et veille du matin) ; jamais le bilan
 complet de télémétrie (~9 s) dans une lecture de page.
 
+**Coach IA** (depuis le 2026-10-24, [coach-ia.md](docs/features/coach-ia.md)) : assistant Gemini réservé aux membres
+connectés, `src/lib/coach/`. Règles : le modèle **ne choisit jamais le clan ni le compte** — `clanId` et `memberId`
+sont liés dans la fermeture de chaque outil (`createCoachTools`) ; un visiteur ne déclenche **aucun** appel au modèle ni
+aux API du Coach (teaser seul) ; `GEMINI_API_KEY` est lue par `coach-config.ts` seulement, jamais renvoyée (`apiKeyPresent`) ;
+chaque question est réservée dans `CoachUsage` **avant** l'appel ; le flux SSE garde ses en-têtes `COACH_SSE_HEADERS`
+(`X-Accel-Buffering: no`) ; un fil étranger répond 404 ; aucune donnée d'authentification dans un résultat d'outil ;
+tout chiffre vient d'un outil (`unverified` sinon). Un nouvel outil = une fermeture sur le scope + un test d'étanchéité
+dans `coach-tools.test.ts` ; un nouveau modèle = une entrée de `coach-models.ts`.
+
 **Données personnelles d'un membre** (notifications, préférences — depuis le 2026-10-10) : `requireOwnMember`
 (`src/lib/auth/own-member-guard.ts`), le compte lié au membre ou le SuperUser. Jamais `requireSameClanAsMember`, faite
 pour les statistiques que tout le clan consulte. Une entrée de menu personnelle va dans `PERSONAL_NAV_KEYS`
@@ -484,6 +493,8 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `npm run telemetry:zone-reading:backfill` | Lecture de zone : ligne de vol et cercles de chaque partie déjà analysée (`ZoneReadingMatch`, relançable) |
 | `npx tsx scripts/coach-model-probe.ts [--list]` | Essai des modèles Gemini du Coach IA (API REST, outils bouchons, coût affiché) — docs/TODO/chatbot-ia.md §3.4 |
 | `npx tsx scripts/coach-tools-probe.ts` | Mesure des cinq outils du Coach IA sur la vraie base (lecture seule : durée, taille, tokens estimés) |
+| `npx tsx scripts/seed-coach-nav.ts`, `scripts/seed-coach-admin-nav.ts` | Entrées de menu du Coach IA (`clan.coach`, `superuser.coach`) — ÉCRIT dans la base, une fois après le déploiement |
+| `npx tsx scripts/purge-coach-history.ts --pubg-name <pseudo> [--apply]` | Demande « Purger mon historique », part Coach IA : fils, messages et usage des comptes liés au pseudo (simulation sans `--apply`) |
 
 ## Environment & Known Issues
 

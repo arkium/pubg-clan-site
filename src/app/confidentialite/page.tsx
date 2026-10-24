@@ -9,7 +9,8 @@ import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, HOSTING, LEGAL_UPDATED_AT, PR
  * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026, journal d'administration ajouté le 07/10/2026, e-mail de
  * contact des demandes d'accès sans compte le 10/10/2026 (src/lib/join-request-access.ts), notifications, préférences et
  * e-mails de notification le 10/10/2026 (docs/features/notifications.md), cookie de thème le 18/10/2026
- * (src/lib/app-theme.ts) : à revoir quand le site collecte une donnée nouvelle.
+ * (src/lib/app-theme.ts), Coach IA le 24/10/2026 (docs/features/coach-ia.md) : à revoir quand le site collecte une
+ * donnée nouvelle.
  */
 
 
@@ -33,6 +34,16 @@ const DATA_ROWS = [
     data: 'E-mail de contact d’une demande d’accès à un clan ou d’inscription d’un clan',
     source: 'Toi, sur la page d’inscription',
     usage: 'Vu par l’Owner du clan (ou le SuperUser) pour vérifier la demande ; réponse à la demande et envoi du lien de création du compte',
+  },
+  {
+    data: 'Questions au Coach IA : tes questions, les réponses, les outils consultés, tes votes « Utile » / « Inexact » et leur précision',
+    source: 'Toi, dans le Coach IA (membres connectés seulement)',
+    usage: 'Te répondre à partir des données de ton clan ; relecture par le SuperUser des réponses votées « Inexact », sans ton compte, pour améliorer le Coach',
+  },
+  {
+    data: 'Consommation du Coach IA : nombre de questions, tokens, coût',
+    source: 'Chaque question que tu poses au Coach',
+    usage: 'Limite horaire, budget du mois par compte et plafond du site',
   },
   { data: 'Commentaires sur la carte des ressources', source: 'Toi', usage: 'Validation des points' },
   { data: 'Résultats publiés sur Discord : pseudos de l’escouade, kills, dégâts, carte', source: 'Matchs et tournois du clan', usage: 'Canal Discord du clan, si un admin l’active' },
@@ -88,6 +99,14 @@ const SECTIONS: LegalSection[] = [
           Les e-mails de notification partent par la messagerie de {HOSTING.name}, l’hébergeur du site. Ils ne contiennent
           que la notification et les liens vers tes notifications, tes préférences et l’arrêt des e-mails.
         </LegalText>
+        {/* Coach IA (docs/features/coach-ia.md §Confidentialité) : transfert chez Google, signalé ; AI Act, art. 50. */}
+        <LegalText muted>
+          Pour te répondre, le Coach IA envoie ta question, le fil en cours et les données de ton clan nécessaires (parties,
+          armes, adversaires) à Google (API Gemini), au niveau payant : Google n’utilise pas ces échanges pour entraîner ses
+          modèles. Le traitement peut avoir lieu hors de l’Union européenne. Ni ton adresse e-mail ni ton compte ne lui
+          sont transmis — seulement ton pseudo PUBG et le tag de ton clan, déjà publics dans le jeu. Tu parles à une
+          intelligence artificielle, et le Coach te le dit sous chaque saisie.
+        </LegalText>
       </>
     ),
   },
@@ -120,17 +139,17 @@ const SECTIONS: LegalSection[] = [
           {
             label: 'Finalité',
             value:
-              'Afficher les statistiques de clan et de joueur, les classements et les débriefings ; te prévenir de l’activité de ton clan (notifications).',
+              'Afficher les statistiques de clan et de joueur, les classements et les débriefings ; t’expliquer tes parties avec le Coach IA (membres connectés) ; te prévenir de l’activité de ton clan (notifications).',
           },
           {
             label: 'Base légale',
             value:
-              'Intérêt légitime pour les statistiques de jeu publiques ; exécution du service pour le compte du site ; consentement pour les e-mails de notification, coupés par défaut et retirables d’un clic.',
+              'Intérêt légitime pour les statistiques de jeu publiques ; exécution du service pour le compte du site et pour le Coach IA, que tu sollicites toi-même ; consentement pour les e-mails de notification, coupés par défaut et retirables d’un clic.',
           },
           {
             label: 'Conservation',
             value:
-              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Notifications et préférences : jusqu’à ce que tu les supprimes, au plus avec la fiche du joueur. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
+              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Notifications et préférences : jusqu’à ce que tu les supprimes, au plus avec la fiche du joueur. Coach IA : un fil 12 mois après sa dernière question (tu le supprimes avant si tu veux), la consommation 13 mois. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
           },
         ]}
       />
@@ -178,6 +197,10 @@ const SECTIONS: LegalSection[] = [
         <LegalText>
           Les e-mails de notification s’arrêtent d’un clic, sans te connecter : lien « Ne plus recevoir ces e-mails » en bas
           de chaque e-mail. Tes préférences de notifications règlent le reste, type par type.
+        </LegalText>
+        <LegalText>
+          Tes fils du Coach IA se suppriment depuis le Coach, un par un ; « Purger mon historique » les efface tous, avec ta
+          consommation.
         </LegalText>
         <LegalText>
           On te répond sous un mois au plus. Tu peux aussi adresser une réclamation à l’

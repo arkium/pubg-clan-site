@@ -69,7 +69,8 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Défis](features/challenges.md) | Modèles Challenge/Participant/Reward, 5 types, cycle de vie, routes API |
 | [Rapports](features/reports.md) | Modèles Report/ReportSection, 7 types de sections, pipeline de génération, export HTML/PDF/JSON |
 | [Notifications](features/notifications.md) | 5 types, préférences, 3 canaux (in-app/email/push), NotificationBell, routes API |
-| [Notifications Discord](features/discord-notifications.md) | Webhooks par clan : alerte Top 1 automatique et diffusion manuelle des manches de tournoi, dédoublonnage, résilience réseau ; salon d'administration du SuperUser (demandes de clan, adhésions sans Owner, incidents du cycle de vie, demandes de confidentialité, carte des ressources) |
+| [Notifications Discord](features/discord-notifications.md) | Webhooks par clan : alerte Top 1 automatique et diffusion manuelle des manches de tournoi, dédoublonnage, résilience réseau ; salon d'administration du SuperUser (demandes de clan, adhésions sans Owner, incidents du cycle de vie, demandes de confidentialité, carte des ressources, plafond et erreurs du Coach IA) |
+| [Coach IA](features/coach-ia.md) | Assistant réservé aux membres connectés (tiroir, page plein écran, teaser visiteur, carte de la vitrine) : Gemini en flux côté serveur, 7 outils fermés sur le clan du joueur, quota horaire et budget de 2 € par compte et par mois, plafond global, page SuperUser `/settings/coach` (modèles avec « Tester », consommation, questions à relire), alertes Discord, conservation 12 mois, purge sur demande |
 
 ---
 
@@ -120,7 +121,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 | Document | Contenu |
 |---|---|
-| [Coach IA — spécification et plan](TODO/chatbot-ia.md) | **Document de référence du chantier** (non implémenté) : décisions du 2026-10-24 (nom, budget de 2 € par compte et par mois, Gemini au moins cher choisi dans une liste du SuperUser), données, outils, routes, interface, page `/settings/coach`, conformité, maquettes Claude Design et prompt complémentaire, tests, **plan d'implémentation à cases à cocher** (§13). Charte : [section 44 de la doc UI](ui/index.html#coach-ia) |
+| [Coach IA — spécification et plan](TODO/chatbot-ia.md) | **Document de référence du chantier** (lots 0 à 8 livrés sur `feat/coach-ia` le 2026-10-24, lot 9 = tests de bout en bout et mise en production) : décisions (nom, budget de 2 € par compte et par mois, Gemini au moins cher choisi dans une liste du SuperUser), données, outils, routes, interface, page `/settings/coach`, conformité, maquettes Claude Design, tests, **plan d'implémentation à cases à cocher** (§13). Fiche : [Coach IA](features/coach-ia.md) ; charte : [section 44 de la doc UI](ui/index.html#coach-ia) |
 | [Page « Cartes » du clan — brief](TODO/cartes-clan.md) | Refonte de la page heatmap-kills (livrée le 2026-10-23, fiche : [Cartes du clan](features/cartes-clan.md)) : constat, données par partie d'escouade (chiffres réels), règles, accès et liens, prompt Claude Design |
 | [Inventaire du reste à faire](TODO/inventaire-2026-10-20.md) | Relevé du 2026-10-20 de tous les documents `TODO/`, contrôlé contre le code : petits correctifs traités, chantiers restants, actions de production, décisions en attente, documents en retard |
 | [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3, idées de comparaison inter-clans, suggestions de stats et fonctionnalités |

@@ -7,7 +7,7 @@ et le footer marque alors « Confidentialité » (`aria-current="true"`).
 | Page | Contenu |
 |---|---|
 | `/mentions-legales` | Éditeur, hébergement, marques et affiliation KRAFTON, origine des données, conditions d'utilisation |
-| `/confidentialite` | Données traitées (dont le journal des actions d'administration, ajouté le 07/10/2026 ; notifications, préférences et e-mails de notification, ajoutés le 10/10/2026), ce qui n'est pas collecté, finalité et conservation (journal : 12 mois), cookies et stockage, droits (dont l'arrêt des e-mails d'un clic) |
+| `/confidentialite` | Données traitées (dont le journal des actions d'administration, ajouté le 07/10/2026 ; notifications, préférences et e-mails de notification, ajoutés le 10/10/2026 ; questions et consommation du Coach IA, ajoutées le 24/10/2026), ce qui n'est pas collecté, finalité et conservation (journal : 12 mois ; Coach IA : 12 et 13 mois), cookies et stockage, droits (dont l'arrêt des e-mails d'un clic et la suppression d'un fil du Coach) |
 | `/confidentialite/demande` | Formulaire « Retirer mes données » (masquer, purger, corriger, autre) |
 | `/a-propos` | Ce que le site ne fait pas, d'où viennent les données, affiliation et références ; depuis le 2026-10-20, chiffres vivants datés (ceux de la vitrine) et lien vers la méthodologie |
 | `/a-propos/methodologie` | Calcul du Power score (réglages en vigueur, lus en direct), rôles Fragger / Medic / Ghost (clan et entre clans), distinctions, soirées et périodes, limites des données — public sans session, au sitemap, `Article` daté (`METHODOLOGY_UPDATED_AT` de `legal-info.ts`, à changer à chaque modification du texte) |
@@ -47,7 +47,8 @@ en base avec alerte aux SuperUsers, adresse de contact `contact@chickendinner.fr
 | Résultats publiés sur Discord | si un admin du clan active les webhooks : alerte Top 1 (pseudos de l'escouade, kills, dégâts, survie, carte) et résultats de tournoi (clans, MVP) — [discord-notifications.md](discord-notifications.md). Transfert chez Discord Inc. (États-Unis), signalé ; marque Discord citée dans les mentions légales |
 | Notifications | `Notification` (titre, message, lu) et `NotificationPreference` ; lues et modifiées seulement par le compte lié au membre et le SuperUser (`requireOwnMember`, depuis le 2026-10-10) ; les demandes « Retirer mes données » arrivent en notification aux SuperUsers avec pseudo et e-mail — [notifications.md](notifications.md) |
 | E-mails de notification | coupés par défaut (`emailNotifications = false`) : consentement ; adresse du compte, vérifiée ; envoi par le SMTP d'OVH (`SMTP_HOST=ssl0.ovh.net`, docs/ops/deployment.md), l'hébergeur — confirmé pour la production le 2026-10-10. Chaque e-mail porte « Ne plus recevoir ces e-mails » (jeton signé, sans connexion) et les en-têtes `List-Unsubscribe` — à revoir si le SMTP change de prestataire |
-| Conservation | aucune purge automatique ; sessions 7 jours ; tracés GPS purgés à la main (`/api/superuser/database/purge-telemetry`) ; notifications et préférences supprimées avec la fiche du joueur (`onDelete: Cascade`), ou une à une par le joueur |
+| Conservation | aucune purge automatique ; sessions 7 jours ; tracés GPS purgés à la main (`/api/superuser/database/purge-telemetry`) ; notifications et préférences supprimées avec la fiche du joueur (`onDelete: Cascade`), ou une à une par le joueur ; Coach IA : fils inactifs depuis 12 mois et usage de plus de 13 mois supprimés par la maintenance de 01:15 (`src/lib/coach/coach-retention.ts`) |
+| Coach IA (2026-10-24) | `CoachConversation`, `CoachMessage`, `CoachUsage` : questions, réponses, outils appelés, votes, tokens et coût — sans e-mail. Question, fil et résultats d'outils (pseudos PUBG, tags de clan, statistiques) envoyés à l'API Gemini de Google au niveau payant (pas d'entraînement sur ces échanges), traitement possible hors UE : signalé sur la page. Réponses relues par le SuperUser sans le compte (`/settings/coach`, onglet Questions). Mention « tu parles à une IA » sous la saisie du tiroir et dans les mentions légales (AI Act, art. 50) — [coach-ia.md](coach-ia.md) §11 |
 
 Toute nouvelle donnée personnelle (champ, cookie, traceur) doit être ajoutée au tableau de `/confidentialite`.
 
@@ -73,7 +74,9 @@ la suppression d'un membre (`DELETE /api/members/[id]?hard=true`, SuperUser) lai
 administrateur applique la demande à la main ».
 
 1. Vérifier que le compte appartient au demandeur (capture du profil en jeu).
-2. Appliquer la demande, répondre par e-mail sous un mois (RGPD art. 12).
+2. Appliquer la demande, répondre par e-mail sous un mois (RGPD art. 12). Pour une purge, la part Coach IA (fils,
+   messages, usage de tous les comptes liés au pseudo) se fait par `npx tsx scripts/purge-coach-history.ts --pubg-name
+   <pseudo>` (simulation), puis `--apply` ; l'e-mail reçu le rappelle.
 3. Clore la demande dans **Plateforme › Demandes de confidentialité** (`/settings/privacy-requests`, SuperUser) :
    « Traitée » ou « Refusée » pose `status` et `handledAt`, « Rouvrir » les efface. La page affiche l'échéance d'un
    mois (`privacyRequestDeadline`) et signale les demandes en retard. Routes : `GET /api/settings/privacy-requests`

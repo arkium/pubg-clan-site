@@ -18,6 +18,7 @@ const TERMS = [
   'Tu t’engages à ne pas usurper l’identité d’un joueur ou d’un clan.',
   'Les statistiques sont fournies telles quelles, sans garantie d’exactitude ni de disponibilité : elles dépendent de l’API PUBG, dont le site ne maîtrise ni les données ni les coupures.',
   'Le site n’intervient ni dans la vente de clans, ni dans l’EXP ou les objets en jeu.',
+  'Les réponses du Coach IA sont générées automatiquement par un modèle d’intelligence artificielle : elles peuvent être inexactes, n’engagent ni l’éditeur ni KRAFTON, et ne remplacent pas les statistiques affichées.',
   `${PUBLISHER_NAME} peut modifier ces conditions. La date de mise à jour figure en haut de cette page.`,
 ]
 
@@ -98,6 +99,12 @@ const SECTIONS: LegalSection[] = [
         <LegalText>
           La télémétrie est récupérée après la fin de la partie, jamais en direct. Les réponses sont mises en cache pour
           limiter les appels aux serveurs de KRAFTON.
+        </LegalText>
+        {/* Coach IA (docs/features/coach-ia.md) : réponses générées par un modèle d'IA, signalé (AI Act, art. 50). */}
+        <LegalText>
+          Le Coach IA, réservé aux membres connectés, génère ses réponses avec un modèle d’intelligence artificielle
+          (Gemini, de Google) à partir de ces mêmes données. Une réponse générée peut se tromper : les pages de
+          statistiques font foi, et tu peux signaler une réponse « Inexact » depuis le Coach.
         </LegalText>
       </>
     ),

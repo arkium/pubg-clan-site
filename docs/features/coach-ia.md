@@ -1,0 +1,186 @@
+# Coach IA
+
+Assistant conversationnel **réservé aux membres connectés** : il explique les parties, les armes, les adversaires, les
+largages, le classement du clan et sa position en Ligue à partir de la télémétrie du site, en flux mot à mot, dans un
+tiroir ou en page plein écran. Modèle Gemini (Google) appelé côté serveur ; chaque question coûte, donc quota, budget et
+interrupteur. Spécification, décisions et plan : [docs/TODO/chatbot-ia.md](../TODO/chatbot-ia.md) ; charte des
+composants : [docs/ui/index.html#coach-ia](../ui/index.html#coach-ia) (section 44).
+
+Livré sur la branche `feat/coach-ia` le 2026-10-24 (lots 0 à 8) ; mise en production au lot 9, **Coach fermé** par
+défaut (`coach_enabled` absent de `AppConfig` = fermé), ouvert ensuite par le SuperUser depuis `/settings/coach`.
+
+---
+
+## 1. Accès
+
+| Profil | Ce qu'il voit |
+|---|---|
+| Visiteur, mode visiteur du site | Teaser : tiroir aux réponses floutées, carte « Exclusivité membres » (`/join`, `/login`). **Aucun appel au modèle, aucun appel aux API du Coach.** |
+| Compte connecté, membre actif d'un clan | Coach complet sur les données de **son** clan ; quota et budget |
+| SuperUser | Sans quota ni budget, même sans membre actif, et même Coach fermé (soirée de test) ; page `/settings/coach` |
+
+Garde serveur du flux : `requireClanAccess(request, clanId, 'member')` (`src/lib/auth/admin-guards.ts`) — 401 sans
+session, 403 hors du clan, jamais ouverte par le mode visiteur. Les fils sont des données personnelles : propriétaire
+(lecture aussi pour le SuperUser), un fil étranger répond **404** (`coach-conversation-service.ts`).
+
+**La clé `GEMINI_API_KEY` ne sort jamais du serveur** : lue par `coach-config.ts` seulement, `apiKeyPresent` (booléen)
+est tout ce que l'administration reçoit. Sans clé, le Coach est fermé pour tous, SuperUser compris.
+
+## 2. Quota et budget (`src/lib/coach/coach-quota.ts`)
+
+Réglages (`AppConfig`, clés `coach_*`, `coach-config.ts`, cache 30 s) : budget **2 € par compte et par mois** (mois
+calendaire de Paris), plafond global **50 €**, taux `1 $ = 0,86 €`, **20 questions par heure glissante**, anti-rafale
+4 s, 400 caractères par question, 10 messages d'historique, 4 tours d'outils. Par **compte** (`UserAccount`), pas par
+membre : changer de membre actif ne multiplie rien.
+
+- Ordre des refus (`decideCoachQuota`) : clé absente → Coach fermé (membres seulement) → plafond global → rafale →
+  limite horaire → budget du compte. Codes : `coach_paused` (503), `global_budget`, `too_fast`, `hourly_limit`,
+  `monthly_budget` (429, `retryAt`).
+- **Réservation** : la question est inscrite dans `CoachUsage` (`pending`) **avant** l'appel, puis complétée (tokens,
+  coût en micro-dollars, statut `ok` / `aborted` / `error`). Un onglet fermé pendant la réponse ne rend pas la question
+  gratuite ; une erreur du fournisseur ne compte pas dans l'heure ; supprimer un fil ne rend rien.
+- Côté joueur : pastille « 14 / 20 » (restant de l'heure), « Budget du mois : 82 % » à partir de 80 %, jamais de
+  montant en euros. Coût : `coach-cost.ts` (prix du catalogue à la date, réflexion facturée en sortie).
+
+## 3. Modèle et fournisseur
+
+- Catalogue pur `src/lib/coach/coach-models.ts` : `gemini-3.5-flash-lite` (défaut, recommandé — seul modèle de l'essai
+  du 2026-10-24 à ne jamais inventer de chiffre hors outil), `gemini-3.1-flash-lite` (secours ; arrêt au plus tôt le
+  7 mai 2027), `gemini-3.8-flash` et `gemini-3.6-flash` (prix doublé au 1er janvier 2027, réflexion `low`, 4 096
+  tokens de sortie). Ajouter un modèle = une entrée + un déploiement.
+- Adaptateur `coach-provider-gemini.ts` derrière l'interface `CoachModelProvider` (`coach-provider.ts`) : API REST
+  `streamGenerateContent?alt=sse` sans SDK, appels d'outils, parts du modèle réexpédiées telles quelles entre deux tours
+  (signature de réflexion), 30 s par tour, abandon par le `signal` du client. Erreurs typées `CoachProviderError`
+  (`unauthorized`, `rate_limited`, `unavailable`, `bad_request`, `timeout`, `aborted`, `network`).
+- Essais : `npx tsx scripts/coach-model-probe.ts [--list]` (outils bouchons, coût affiché) ; bouton « Tester » de
+  `/settings/coach` (question minuscule avec un outil et un code aléatoire : accès, durée, appel d'outil, chiffres
+  inventés sans outil).
+
+## 4. Données (`prisma/schema.prisma`, migration `20261024120000_coach_ia`)
+
+| Table | Rôle |
+|---|---|
+| `CoachConversation` | Fil d'un compte (`userId`), rattaché au membre et au clan du moment (`SetNull`), titre tiré de la première question, `contextLabel` (« Erangel · 22 oct. 21:47 · Top 3 ») |
+| `CoachMessage` | Question ou réponse ; `contextPath`, `toolCalls` (audit), `unverified` (chiffres sans outil), `feedbackScore` ±1, `feedbackNote`, `reviewedAt` |
+| `CoachUsage` | Une ligne par question facturée : modèle, statut, tokens, `costMicroUsd` — sans relation, survit aux fils |
+
+Aucune adresse e-mail dans ces tables. Conservation (`coach-retention.ts`, maintenance de 01:15) : fil inactif depuis
+12 mois supprimé avec ses messages, usage après 13 mois. Demande « Purger mon historique » :
+`npx tsx scripts/purge-coach-history.ts --pubg-name <pseudo>` (simulation), puis `--apply`.
+
+## 5. Outils (`src/lib/coach/coach-tools.ts`)
+
+`createCoachTools({ clanId, memberId, memberName })` : le clan et le membre sont **liés dans la fermeture**, le modèle ne
+passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matchId` d'un autre clan est refusé.
+
+| Outil | Source (la même que la page) |
+|---|---|
+| `getRecentMatches` | parties récentes du clan, soirée par `sessionDateOf`, état de la télémétrie |
+| `getMatchDebrief` | `loadMatchDebriefPayload` : phases, escouade, 60 événements au plus, clans adverses |
+| `getWeaponStats` | `MemberWeaponStats` + `aggregateMemberWeapons`, 8 armes au plus |
+| `getOpponentRecord` | `OpponentClan` → joueurs → `KillEvent`, dernière rencontre (`ClanEncounter`) — jamais `EncounteredPlayer` |
+| `getDropZones` | `DropPressureStat` des 90 derniers jours, villes par `locationForPercent` |
+| `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
+| `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
+
+Chaque outil se borne (nombre de parties, période) ; jamais le bilan complet de télémétrie. Résultats sans donnée
+d'authentification. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).
+
+## 6. Prompt et garde-fous (`coach-prompt.ts`, `coach-chat-service.ts`)
+
+Coach e-sport francophone, **tutoiement** (« vous » seulement pour l'escouade — exception déclarée dans
+`src/lib/tutoiement.test.ts`), vocabulaire du site, titre court + puces + recommandation, horloge du replay. Tout
+chiffre vient d'un outil ; hors sujet : refus en une phrase **sans chiffre**. Une réponse chiffrée sans appel d'outil
+est marquée `unverified` : bandeau « Chiffres non vérifiés par les données » dans le tiroir, remontée dans l'onglet
+Questions du SuperUser. Les pseudos et noms de clan renvoyés par les outils sont traités comme du texte, pas comme des
+consignes.
+
+Contexte de page (`coach-context.ts`, `coach-context-service.ts`) : l'adresse de la page (`contextPath`) est reconnue
+par motif puis **vérifiée** (match du clan, joueur du clan) ; elle donne l'étiquette du bandeau, trois suggestions et le
+bloc du prompt. Une adresse étrangère = « sans contexte ».
+
+## 7. Routes
+
+| Route | Garde |
+|---|---|
+| `POST /api/clans/[clanId]/coach/chat` | membre du clan + quota → flux SSE (`meta`, `tool`, `delta`, `done`, `error`) |
+| `GET /api/coach/quota` | session |
+| `GET /api/coach/conversations`, `GET · PATCH · DELETE …/[id]` | propriétaire (lecture SuperUser), 404 sinon |
+| `POST /api/coach/messages/[id]/feedback` | propriétaire |
+| `GET · PUT /api/settings/coach`, `POST …/test-model`, `GET …/usage`, `GET …/questions`, `POST …/questions/[id]/reviewed` | `requirePlatformAdmin`, écritures sous `withAdminActionLog` |
+
+Le flux est lu par `fetch` + lecteur de flux (`EventSource` ne fait pas de POST). En-têtes `X-Accel-Buffering: no` et
+`Cache-Control: no-cache, no-transform` (`COACH_SSE_HEADERS`) : Nginx ne bufferise pas, rien à configurer
+([deployment.md](../ops/deployment.md), « Flux du Coach IA »). `request.signal` interrompt le modèle quand le tiroir
+se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compte.
+
+## 8. Interface (`src/components/coach/`, `src/app/clans/[clanId]/coach/page.tsx`)
+
+- **Déclencheurs** : bouton « Coach IA » dans l'en-tête (`CoachTrigger`, masqué sous 640 px — le header ne grandit
+  jamais), entrée de la palette `Ctrl+K`, bouton « Débriefer ce match avec le Coach » du débriefing
+  (`CoachContextButton`), entrée de menu `clan.coach` (rôle `member`, seed `scripts/seed-coach-nav.ts`).
+- **Tiroir** (`CoachDrawer`, `CoachPanel` en variante `drawer`) : 440 px à droite, monté à la première ouverture puis
+  gardé caché (le fil reste) ; panneau à 85 % de la hauteur sur mobile. En-tête (icône bouclier, tag du clan, « En
+  ligne », pastille de quota, Fils · Agrandir · Fermer), bandeau de contexte détachable, suggestions, bulles, votes
+  Utile · Inexact (+ précision) · Copier, saisie de 400 caractères, mention « Coach IA expérimental · Données de l'API
+  PUBG » (AI Act, art. 50).
+- **Plein écran** `/clans/[clanId]/coach` (`CoachPanel` en variante `page`) : fil de 760 px et liste des fils (nouveau,
+  renommer, supprimer). `noindex` (`CLAN_PAGES`, `src/lib/seo/page-seo.ts`).
+- **Teaser** visiteur et **carte de la vitrine** (`CoachRow` de `HomeShowcase.tsx`, rendue seulement quand le Coach est
+  ouvert — `src/app/page.tsx`). Image provisoire `/cartographie-tactique.jpg` (`public/vitrine-coach-ia.jpg` à fournir).
+- Hooks : `useCoachQuota`, `useCoachConversations`, `useCoachChat` (`src/hooks/`) ; contexte `CoachProvider`
+  (`src/components/coach/CoachContext.tsx`) posé dans le layout racine. Aucun appel API tant que le tiroir n'est pas
+  ouvert ; aucun `localStorage` au premier rendu. Styles : classes `.coach-*` de `globals.css`, jetons seulement.
+
+## 9. Administration `/settings/coach` (SuperUser)
+
+`AdminAccessGate` (platform) dans `src/app/settings/coach/layout.tsx`, onglets `SettingsTabsShell`, entrée
+`superuser.coach` du registre (seed `scripts/seed-coach-admin-nav.ts`), carte du hub Plateforme (groupe « Site »).
+
+| Onglet | Contenu |
+|---|---|
+| Réglages | Interrupteur (enregistré tout de suite), clé présente ou absente, tuiles radio des modèles (prix, coût estimé par question au taux courant, plafond de sortie, pastilles recommandé / prix doublé / arrêt, note de l'essai, **Tester** avec résultat sous la tuile), budgets et limites en brouillon + « Enregistrer » |
+| Consommation | Mois de Paris : coût, questions répondues, comptes actifs, coût par question, erreurs, interrompues ; jauge du plafond global (repère 80 %) ; par modèle ; comptes au-delà de 80 % de leur budget ; erreurs des 24 h |
+| Questions | Votes Utile / Inexact / à relire ; questions fréquentes sur 30 jours regroupées par texte normalisé ; chaque vote « Inexact » avec question, précision du joueur, réponse, outils, bouton « Relu » — **jamais le compte** |
+
+Rapports purs dans `coach-admin-report.ts` (tests `coach-admin-report.test.ts`), lectures dans
+`coach-admin-service.ts`, routes testées par `coach-admin-routes.test.ts`.
+
+## 10. Alertes et boîte « À traiter »
+
+Entrées de `src/lib/admin-alerts/catalog.ts`, envoi par `src/lib/coach/coach-alerts.ts` (mémoire dans `AppConfig`,
+jamais deux fois) : `coach_budget` (plafond global à 80 %, puis atteint — une fois par niveau et par mois),
+`coach_provider_errors` (5 réponses en erreur en 15 min, puis silence 6 h), `coach_model_notice` (arrêt ou changement
+de prix du modèle actif dans les 30 jours, vérifié chaque matin avec la veille). Ligne « Réponses du Coach IA signalées
+« Inexact » à relire » dans la boîte « À traiter » (`src/lib/admin-inbox/build.ts`, ton `info`).
+
+## 11. Confidentialité et mentions
+
+- `/confidentialite` : lignes « Questions au Coach IA » et « Consommation du Coach IA », transfert chez Google (API
+  Gemini, niveau payant, pas d'entraînement, traitement possible hors UE), finalité, base légale (exécution du service),
+  conservation 12 / 13 mois, suppression d'un fil par le joueur, purge sur demande.
+- `/mentions-legales` : réponses générées par un modèle d'IA (origine des données, condition d'utilisation).
+- Ce qui part chez Google : la question, le fil en cours, les résultats d'outils (pseudos PUBG et tags de clan, déjà
+  publics dans le jeu, statistiques de parties). Jamais l'adresse e-mail ni l'identifiant du compte.
+- Marque : « Données de l'API PUBG », jamais « Données officielles » (`KRAFTON_DISCLAIMER`).
+
+## 12. Mise en production (lot 9)
+
+1. `npx prisma migrate deploy` (migration `20261024120000_coach_ia`).
+2. `GEMINI_API_KEY` dans le `.env` du serveur (propriétaire `smk`, puis recopie dans `.next/standalone/.env` ou
+   rebuild — [deployment.md](../ops/deployment.md)). Projet Google Cloud **avec facturation** et plafond de dépense
+   posé côté Google.
+3. Déployer ; le Coach reste **fermé** (`coach_enabled` absent). `npx tsx scripts/seed-coach-nav.ts` et
+   `npx tsx scripts/seed-coach-admin-nav.ts` (entrées de menu, idempotents).
+4. Vérifier derrière Nginx que le flux arrive mot à mot (`/settings/coach` → « Tester », puis une question en tant que
+   SuperUser, qui passe outre la pause).
+5. Interrupteur ouvert depuis `/settings/coach` ; la carte de la vitrine apparaît avec lui.
+6. Bilan après une semaine (onglet Consommation) : coût réel par question, votes « Inexact », questions hors sujet.
+
+## 13. Tests
+
+Vitest (`src/lib/coach/*.test.ts`) : réglages et bornes, quota (fenêtre glissante, mois de Paris, plafond global,
+SuperUser), coût et catalogue, contexte, outils (étanchéité, parties compressées), fournisseur (flux simulé), routes
+(session, clan, 404 d'un fil étranger, flux SSE sans crédit consommé), rapports d'administration, alertes, routes
+d'administration, conservation et purge ; `admin-action-log-routes.test.ts` (écritures journalisées),
+`tutoiement.test.ts`, `ui-conformance.test.ts`. Playwright `e2e/coach.spec.ts` : lot 9.

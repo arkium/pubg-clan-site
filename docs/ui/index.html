@@ -3063,6 +3063,9 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
         <a class="docs-sidebar-link" href="#tournois" onclick="setActive(this)">
           <span class="num">36</span> Tournois
         </a>
+        <a class="docs-sidebar-link" href="#coach-ia" onclick="setActive(this)">
+          <span class="num">44</span> Coach IA
+        </a>
       </div>
       <div class="docs-sidebar-group">
         <div class="docs-sidebar-group-title">Télémétrie</div>
@@ -3089,12 +3092,6 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
         </a>
         <a class="docs-sidebar-link" href="#leaderboards" onclick="setActive(this)">
           <span class="num">43</span> Listes Leaderboard
-        </a>
-      </div>
-      <div class="docs-sidebar-group">
-        <div class="docs-sidebar-group-title">Fonctionnalités à venir</div>
-        <a class="docs-sidebar-link" href="#coach-ia" onclick="setActive(this)">
-          <span class="num">44</span> Coach IA
         </a>
       </div>
     </aside>
@@ -10214,12 +10211,12 @@ const totals = summarizeBodyZones(squadBodyZones.dealt)
         <h2 class="docs-section-title">
           <span class="docs-section-num">44</span>
           Coach IA
-          <span class="sync-tag sync-tag--gap" style="margin-left:auto;">À implémenter</span>
+          <span class="sync-tag sync-tag--ok" style="margin-left:auto;">Charte · implémenté le 24/10/2026</span>
         </h2>
-        <div class="sync-note"><b>Source :</b> maquettes Claude Design « Coach IA - Fait » et « Coach IA - Compléments » (24/10/2026), traduites dans la charte ; icône bouclier (choix par défaut de la maquette, proposition P7). Spécification et plan : <code>docs/TODO/chatbot-ia.md</code>. Le tiroir vit dans <code>.charte.game-ui</code> ; les classes <code>.coach-*</code> du bloc <code>&lt;style id="coach-ia-css"&gt;</code> ci-dessous se reportent telles quelles dans <code>src/app/globals.css</code> (lot 5). <b>Écarts volontaires à la maquette :</b><ul><li>ambre <code>#F59E0B</code> → <code>--theme-ui-accent</code> ; un seul bouton rempli par écran : Envoyer (§03) ;</li><li>titres de réponse en couleur de texte, bulle du joueur sans liseré jaune, suggestions neutres à icône d'accent — le jaune reste à l'accent ;</li><li>contexte sans numéro de match (un match a un identifiant PUBG), tutoiement, « Données de l'API PUBG » ;</li><li>thème clair et sombre (la maquette ne dessine que le sombre) : basculer le thème de cette page pour vérifier.</li></ul></div>
+        <div class="sync-note"><b>Source :</b> maquettes Claude Design « Coach IA - Fait » et « Coach IA - Compléments » (24/10/2026), traduites dans la charte ; icône bouclier (choix par défaut de la maquette, proposition P7). Spécification et plan : <code>docs/TODO/chatbot-ia.md</code>. Le tiroir vit dans <code>.charte.game-ui</code> ; les classes <code>.coach-*</code> du bloc <code>&lt;style id="coach-ia-css"&gt;</code> ci-dessous sont reportées dans <code>src/app/globals.css</code> (lots 5 et 7, 24/10/2026) — le code fait foi, cette section en est la copie de référence ; composants : <code>src/components/coach/</code>, <code>src/components/settings/coach/</code>, fiche <code>docs/features/coach-ia.md</code>. <b>Écarts volontaires à la maquette :</b><ul><li>ambre <code>#F59E0B</code> → <code>--theme-ui-accent</code> ; un seul bouton rempli par écran : Envoyer (§03) ;</li><li>titres de réponse en couleur de texte, bulle du joueur sans liseré jaune, suggestions neutres à icône d'accent — le jaune reste à l'accent ;</li><li>contexte sans numéro de match (un match a un identifiant PUBG), tutoiement, « Données de l'API PUBG » ;</li><li>thème clair et sombre (la maquette ne dessine que le sombre) : basculer le thème de cette page pour vérifier.</li></ul></div>
 
         <style id="coach-ia-css">
-          /* Coach IA — à reporter dans src/app/globals.css (docs/TODO/chatbot-ia.md, lot 5). Jetons seulement. */
+          /* Coach IA — reporté dans src/app/globals.css (lots 5 et 7, 24/10/2026) ; copie de référence de la charte. Jetons seulement. */
           .coach-ico { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
           .coach-trigger[aria-expanded="true"] { border-color: transparent; background: var(--theme-ui-accent-soft); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); color: var(--theme-ui-accent-text); }
           .coach-drawer { width: 440px; max-width: 100%; display: flex; flex-direction: column; border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); overflow: hidden; box-shadow: 0 20px 40px -16px rgb(2 6 23 / 0.35); animation: coachDrawerIn 220ms cubic-bezier(0.22, 1, 0.36, 1); }

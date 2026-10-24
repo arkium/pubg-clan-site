@@ -80,6 +80,25 @@ données).
 
 ---
 
+## `/settings/coach` — Coach IA (2026-10-24)
+
+Trois onglets (`SettingsTabsShell`, garde `AdminAccessGate` platform dans `src/app/settings/coach/layout.tsx`) :
+**Réglages** (interrupteur enregistré tout de suite, présence de la clé `GEMINI_API_KEY`, tuiles radio des modèles
+Gemini avec prix, coût estimé par question, pastilles de statut et bouton « Tester » — résultat sous la tuile —, budgets
+et limites en brouillon + « Enregistrer »), **Consommation** (`usage/` : mois de Paris, jauge du plafond global avec
+repère 80 %, par modèle, comptes au-delà de 80 % de leur budget, erreurs des 24 h) et **Questions** (`questions/` :
+votes, questions fréquentes sur 30 jours, votes « Inexact » à relire avec « Relu » — jamais le compte).
+
+- **Code** : `src/lib/coach/coach-admin-report.ts` (pur), `coach-admin-service.ts` (lectures, test de modèle),
+  `src/components/settings/coach/*` ; routes `GET · PUT /api/settings/coach`, `POST …/test-model`, `GET …/usage`,
+  `GET …/questions`, `POST …/questions/[id]/reviewed` (`requirePlatformAdmin`, écritures journalisées).
+- **Coût** : « Tester » pose une vraie question au modèle, facturée au SuperUser et comptée dans le plafond global.
+- **Entrée de menu** : `superuser.coach` (`scripts/seed-coach-admin-nav.ts` après déploiement) ; carte du hub
+  Plateforme, groupe « Site ». Fiche : [coach-ia.md](../features/coach-ia.md) §9.
+- **Tests** : `src/lib/coach/coach-admin-report.test.ts`, `coach-admin-routes.test.ts`, `coach-alerts.test.ts`.
+
+---
+
 ## `/settings/clans/lifecycle` — Cycle de vie des clans
 
 Accès : SuperUser (`superuser.clan-lifecycle`).

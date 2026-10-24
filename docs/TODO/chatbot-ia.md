@@ -3,12 +3,14 @@
 > **Document de référence du chantier « Coach IA »** : toute décision nouvelle s'inscrit au §0, toute case cochée du
 > plan (§13) porte sa date et son commit. Destiné à l'équipe de développement, au SuperUser et à Claude Design.
 >
-> - **Statut (2026-10-24) :** spécifié, **non implémenté**. Maquettes « Coach IA - Fait » et « Coach IA - Compléments »
->   livrées et relues (§11). Branche de travail : **`feat/coach-ia`** (créée le 2026-10-24) — `main` reste la
->   production, rien n'y est fusionné avant le lot 9.
+> - **Statut (2026-10-24) :** **lots 0 à 8 livrés** sur la branche **`feat/coach-ia`** (commits par lot, §13) ;
+>   reste le lot 9 (tests de bout en bout, build, mise en production avec le Coach fermé). Maquettes « Coach IA - Fait »
+>   et « Coach IA - Compléments » relues (§11). `main` reste la production, rien n'y est fusionné avant le lot 9.
 > - **Charte :** [docs/ui/index.html#coach-ia](../ui/index.html#coach-ia) (section 44) — composants du Coach traduits
->   dans les jetons du site. Elle fait foi sur la maquette pour les couleurs, rayons, tailles et animations.
-> - **Fiche de la fonctionnalité** (à créer au lot 8) : `docs/features/coach-ia.md`.
+>   dans les jetons du site, reportés dans `globals.css`. Elle fait foi sur la maquette pour les couleurs, rayons,
+>   tailles et animations.
+> - **Fiche de la fonctionnalité** (ce que le code fait, à jour) : [docs/features/coach-ia.md](../features/coach-ia.md).
+>   Ce document garde l'historique des décisions et le plan.
 
 **Objectif :** un assistant conversationnel réservé aux membres connectés, qui répond à partir de la télémétrie PUBG
 du site (débriefing, armes, adversaires, largages). Mis en avant sur la vitrine publique comme raison de rejoindre ou
@@ -824,10 +826,14 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 8 — Conformité et documentation
 
-- [ ] `/confidentialite`, mentions légales (§10) ; demande `purge` étendue au Coach (+ test)
-- [ ] `docs/features/coach-ia.md` ; `docs/sommaire.md` ; section 44 de `docs/ui/index.html` passée de « À
-      implémenter » à « charte » ; `docs/ops/deployment.md` (en-tête SSE, clé)
-- **Contrôle :** relecture de `/confidentialite` en clair et en sombre
+- [x] `/confidentialite` (deux lignes du tableau, transfert chez Google, finalité, base légale, conservation, droits),
+      mentions légales (origine des données, condition d'utilisation), `LEGAL_UPDATED_AT` au 24 octobre 2026 ; demande
+      `purge` étendue au Coach : `purgeCoachHistoryForPubgName` (`coach-retention.ts`, test), script
+      `scripts/purge-coach-history.ts` (simulation puis `--apply`), rappel dans l'e-mail de la demande et le formulaire
+- [x] `docs/features/coach-ia.md` ; `docs/sommaire.md` ; `docs/features/pages-legales.md` ; section 44 de
+      `docs/ui/index.html` passée de « À implémenter » à « charte » ; `docs/ops/deployment.md` (variables, flux SSE
+      derrière Nginx) ; `docs/ops/settings.md` (`/settings/coach`) ; CLAUDE.md (règles du Coach, scripts)
+- **Contrôle :** relecture de `/confidentialite` en clair et en sombre — faite le 2026-10-24 (captures Playwright)
 
 ### Lot 9 — Tests de bout en bout et mise en production
 

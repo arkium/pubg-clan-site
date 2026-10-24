@@ -174,6 +174,9 @@ export function privacyRequestEmail(request: StoredPrivacyRequest) {
       '',
       'Avant d’agir, vérifier que le compte appartient au demandeur (capture de son profil en jeu).',
       'Le traitement est manuel : docs/features/pages-legales.md.',
+      ...(request.kind === 'purge'
+        ? ['Coach IA : npx tsx scripts/purge-coach-history.ts --pubg-name <pseudo> (simulation), puis --apply.']
+        : []),
     ].join('\n'),
   }
 }

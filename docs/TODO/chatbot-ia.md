@@ -84,6 +84,10 @@ visiteur**. Aucun contrôle écrit à la main.
   complétée (tokens, coût, statut). Un onglet fermé pendant la réponse ne rend pas la question gratuite.
 - **Erreur du fournisseur :** la question ne compte pas dans la limite horaire ; son coût éventuel compte au budget.
 - **Supprimer un fil ne rend rien** : le décompte lit `CoachUsage`, qui survit aux fils.
+- **Ordre des refus** (`decideCoachQuota`, `src/lib/coach/coach-quota.ts`) : clé d'API absente (ferme tout, SuperUser
+  compris) → Coach fermé par le SuperUser (les membres seulement : le SuperUser passe, pour la soirée de test du
+  lot 9) → plafond global → rafale → limite horaire → budget du compte. Un budget à **0 €** ne laisse passer aucune
+  question. Le SuperUser n'a ni limite ni budget, mais ses questions sont comptées dans le coût du mois.
 
 ### 2.2 Ce que voit le joueur
 
@@ -690,11 +694,12 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 2 — Quota et budget
 
-- [ ] `src/lib/coach/coach-quota.ts` : limite horaire glissante, anti-rafale, budget par compte, plafond global,
-      réservation `pending`, SuperUser exempté
-- [ ] `GET /api/coach/quota`
-- [ ] `coach-quota.test.ts` (§12)
-- **Contrôle :** requête de décompte sur `CoachUsage(userId, createdAt)` mesurée (`EXPLAIN`) en base de dev
+- [x] `src/lib/coach/coach-quota.ts` : limite horaire glissante, anti-rafale, budget par compte, plafond global,
+      réservation `pending`, SuperUser exempté (et libre pendant la pause, pour la soirée de test du lot 9 ; seule
+      l'absence de clé ferme tout) — 2026-10-24
+- [x] `GET /api/coach/quota` (`{ authenticated: false }` en 200 sans cookie, 401 jeton périmé, comme `/api/auth/session`) — 2026-10-24
+- [x] `coach-quota.test.ts` (décision pure + lecture simulée, mois de Paris à cheval sur l'heure d'été) et `coach-quota-route.test.ts` — 2026-10-24
+- [ ] **Contrôle :** requête de décompte sur `CoachUsage(userId, createdAt)` mesurée (`EXPLAIN`) — après application de la migration
 
 ### Lot 3 — Fournisseur, outils, prompt
 

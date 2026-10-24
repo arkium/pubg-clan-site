@@ -63,6 +63,8 @@ async function main() {
   results.push(await measure('getWeaponStats', () => tools.run({ name: 'getWeaponStats', args: {} })))
   results.push(await measure('getOpponentRecord', () => tools.run({ name: 'getOpponentRecord', args: { clanTag: opponentTag } })))
   results.push(await measure('getDropZones', () => tools.run({ name: 'getDropZones', args: { mapName: scope.mapName } })))
+  results.push(await measure('getClanLeaderboard', () => tools.run({ name: 'getClanLeaderboard', args: { period: 'week' } })))
+  results.push(await measure('getLeagueStanding', () => tools.run({ name: 'getLeagueStanding', args: { period: 'week' } })))
   console.log('\n═══ Bilan ═══')
   for (const entry of results) console.log(`${entry.label.padEnd(34)} ${String(entry.ms).padStart(6)} ms  ${String(entry.chars).padStart(7)} car.`)
   const slow = results.filter((entry) => entry.ms > 1000)

@@ -1,8 +1,11 @@
 import { locationForPercent } from '@/lib/city-insights'
+import { getClanLeague, type LeagueEntry } from '@/lib/clan-league-service'
 import type { CoachToolCall, CoachToolDeclaration } from '@/lib/coach/coach-provider'
 import { DEFAULT_MAP_LABELS, getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { getMapLocations } from '@/lib/map-location-service'
 import { sessionDateOf } from '@/lib/match-sessions'
+import type { StandardPeriod } from '@/lib/period'
+import { statsPeriodKeys } from '@/lib/player-dashboard'
 import { prisma } from '@/lib/prisma'
 import { formatClock, phaseStartTimes } from '@/lib/pubg-telemetry/debrief-view'
 import { loadMatchDebriefPayload } from '@/lib/pubg-telemetry/match-debrief-payload'
@@ -40,6 +43,16 @@ const OPPONENT_PLAYERS_MAX = 200
 const DROP_ROWS_MAX = 2000
 const DROP_DAYS = 90
 const DROP_ZONES_MAX = 8
+const LEADERBOARD_MAX = 15
+
+const PERIOD_PARAMETER = {
+  type: 'string',
+  enum: ['week', 'month', 'all'],
+  description: '« week » (cette semaine, défaut), « month » (ce mois) ou « all » (depuis toujours).',
+}
+const PERIOD_LABELS: Record<StandardPeriod, string> = { week: 'cette semaine', month: 'ce mois', all: 'depuis toujours' }
+const LEADERBOARD_SORTS = ['kills', 'damage', 'winRate', 'kpm', 'matches'] as const
+type LeaderboardSort = (typeof LEADERBOARD_SORTS)[number]
 
 export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
@@ -92,6 +105,27 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       required: ['mapName'],
     },
   },
+  {
+    name: 'getClanLeaderboard',
+    description:
+      "Classement des membres du clan sur la période (parties officielles, agrégats recalculés chaque nuit) : parties, kills, dégâts, K/M, win rate, temps de jeu, jours actifs, badge. Pour comparer les membres, repérer qui porte l'escouade ou qui décroche, et situer le joueur.",
+    parameters: {
+      type: 'object',
+      properties: {
+        period: PERIOD_PARAMETER,
+        sortBy: { type: 'string', enum: [...LEADERBOARD_SORTS], description: 'Critère de tri : kills (défaut), damage, winRate, kpm (kills par partie), matches.' },
+      },
+    },
+  },
+  {
+    name: 'getLeagueStanding',
+    description:
+      "Position du clan dans la Ligue des clans (Power score, parties officielles) : rang, score, rang précédent, clans juste devant et juste derrière, moyennes de la ligue — ou les parties manquantes pour être classé.",
+    parameters: {
+      type: 'object',
+      properties: { period: PERIOD_PARAMETER },
+    },
+  },
 ]
 
 type ToolArgs = Record<string, unknown>
@@ -116,6 +150,28 @@ function resolveMapNames(requested: string, labels: Record<string, string>): str
   if (!wanted) return []
   const rawNames = new Set([...Object.keys(DEFAULT_MAP_LABELS), ...Object.keys(labels)])
   return [...rawNames].filter((raw) => mapKeyword(mapDisplayName(raw, labels)) === wanted || normalizeText(raw) === wanted)
+}
+
+const parsePeriod = (value: unknown): StandardPeriod => (value === 'month' || value === 'all' ? value : 'week')
+
+/**
+ * La Ligue se recalcule pour tous les clans à chaque lecture (~1,4 s mesuré) et ne change qu'à l'import des parties :
+ * cinq minutes de cache par période, partagées par toutes les questions.
+ */
+const LEAGUE_CACHE_TTL_MS = 5 * 60_000
+const leagueCache = new Map<StandardPeriod, { at: number; payload: Awaited<ReturnType<typeof getClanLeague>> }>()
+
+async function cachedLeague(period: StandardPeriod, now = Date.now()) {
+  const cached = leagueCache.get(period)
+  if (cached && now - cached.at < LEAGUE_CACHE_TTL_MS) return cached.payload
+  const payload = await getClanLeague(period, 'official')
+  leagueCache.set(period, { at: now, payload })
+  return payload
+}
+
+/** Tests : repart d'un cache vide. */
+export function resetCoachLeagueCache() {
+  leagueCache.clear()
 }
 
 function monthPeriodKey(now = new Date()) {
@@ -384,12 +440,123 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  async function getClanLeaderboard(args: ToolArgs) {
+    const period = parsePeriod(args.period)
+    const requestedSort = text(args.sortBy) as LeaderboardSort
+    const sortBy: LeaderboardSort = LEADERBOARD_SORTS.includes(requestedSort) ? requestedSort : 'kills'
+    const { current } = statsPeriodKeys(period, new Date())
+    const rows = await prisma.playerStats.findMany({
+      where: { period: current, member: { clanId: scope.clanId, isActive: true } },
+      select: {
+        memberId: true,
+        totalKills: true,
+        totalKnockouts: true,
+        totalDamage: true,
+        totalAssists: true,
+        totalRevives: true,
+        matchesPlayed: true,
+        matchesWon: true,
+        avgKillsPerGame: true,
+        avgDamagePerGame: true,
+        timePlayedSeconds: true,
+        activeDays: true,
+        badgeType: true,
+        updatedAt: true,
+        member: { select: { displayName: true } },
+      },
+    })
+    const entries = rows
+      .filter((row) => row.matchesPlayed > 0)
+      .map((row) => ({
+        memberId: row.memberId,
+        player: row.member.displayName,
+        matches: row.matchesPlayed,
+        wins: row.matchesWon,
+        winRatePercent: Math.round((row.matchesWon / row.matchesPlayed) * 100),
+        kills: row.totalKills,
+        knockouts: row.totalKnockouts,
+        assists: row.totalAssists,
+        revives: row.totalRevives,
+        damage: Math.round(row.totalDamage),
+        killsPerMatch: Math.round(row.avgKillsPerGame * 100) / 100,
+        damagePerMatch: Math.round(row.avgDamagePerGame),
+        timePlayedHours: Math.round((row.timePlayedSeconds / 3600) * 10) / 10,
+        activeDays: row.activeDays,
+        badge: row.badgeType,
+      }))
+    const value = (entry: (typeof entries)[number]) =>
+      sortBy === 'damage' ? entry.damage : sortBy === 'winRate' ? entry.winRatePercent : sortBy === 'kpm' ? entry.killsPerMatch : sortBy === 'matches' ? entry.matches : entry.kills
+    entries.sort((a, b) => value(b) - value(a) || b.matches - a.matches)
+    const ranked = entries.map((entry, index) => ({ rank: index + 1, ...entry }))
+    const you = ranked.find((entry) => entry.memberId === scope.memberId) ?? null
+    // L'identifiant interne sert à retrouver le joueur, pas au modèle.
+    const strip = (entry: (typeof ranked)[number]) => {
+      const { memberId, ...rest } = entry
+      void memberId
+      return rest
+    }
+    const updatedAt = rows.reduce<Date | null>((latest, row) => (!latest || row.updatedAt > latest ? row.updatedAt : latest), null)
+    return {
+      period: PERIOD_LABELS[period],
+      sortBy,
+      membersRanked: ranked.length,
+      members: ranked.slice(0, LEADERBOARD_MAX).map(strip),
+      membersTruncated: ranked.length > LEADERBOARD_MAX,
+      you: you ? strip(you) : null,
+      updatedAt: updatedAt?.toISOString() ?? null,
+      note: 'Parties officielles ; agrégats recalculés chaque nuit, la soirée en cours peut manquer.',
+    }
+  }
+
+  async function getLeagueStanding(args: ToolArgs) {
+    const period = parsePeriod(args.period)
+    const league = await cachedLeague(period)
+    const summarize = (entry: LeagueEntry) => ({
+      rank: entry.rank,
+      tag: entry.tag,
+      name: entry.name,
+      powerScore: Math.round(entry.powerScore * 10) / 10,
+      matches: entry.matches,
+      wins: entry.wins,
+      winRatePercent: entry.matches > 0 ? Math.round((entry.wins / entry.matches) * 100) : 0,
+      avgPlacementPoints: Math.round(entry.avgPlacementPoints * 10) / 10,
+      avgDamage: Math.round(entry.avgDamage),
+      avgKills: Math.round(entry.avgKills * 100) / 100,
+      avgKnocks: Math.round(entry.avgKnocks * 100) / 100,
+    })
+    const index = league.standings.findIndex((entry) => entry.clanId === scope.clanId)
+    const base = { period: PERIOD_LABELS[period], clansRanked: league.standings.length, minMatches: league.scoring.minMatches }
+    if (index === -1) {
+      const qualifying = league.qualifying.find((entry) => entry.clanId === scope.clanId)
+      if (qualifying) {
+        return { ...base, ranked: false, matches: qualifying.matches, required: qualifying.required, message: `Encore ${qualifying.required - qualifying.matches} partie(s) officielle(s) pour être classé.` }
+      }
+      return { ...base, ranked: false, matches: 0, message: 'Aucune partie officielle du clan sur la période.' }
+    }
+    const own = league.standings[index]
+    return {
+      ...base,
+      ranked: true,
+      clan: { ...summarize(own), previousRank: own.previousRank, activeMembers: own.activeMembers },
+      above: index > 0 ? summarize(league.standings[index - 1]) : null,
+      below: index < league.standings.length - 1 ? summarize(league.standings[index + 1]) : null,
+      leagueAverage: {
+        avgPlacementPoints: Math.round(league.scoring.league.avgPlacementPoints * 10) / 10,
+        avgDamage: Math.round(league.scoring.league.avgDamage),
+        avgKills: Math.round(league.scoring.league.avgKills * 100) / 100,
+        avgKnocks: Math.round(league.scoring.league.avgKnocks * 100) / 100,
+      },
+    }
+  }
+
   const handlers: Record<string, (args: ToolArgs) => Promise<unknown>> = {
     getRecentMatches,
     getMatchDebrief,
     getWeaponStats,
     getOpponentRecord,
     getDropZones,
+    getClanLeaderboard,
+    getLeagueStanding,
   }
 
   return {

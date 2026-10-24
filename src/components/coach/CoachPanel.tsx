@@ -35,7 +35,9 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
   const session = useAuthSession()
   const { clanId: selectedClanId } = useSelectedClan()
   const clanId = pageClanId(pathname) ?? selectedClanId
-  const visitor = session.authDisabled || (!session.loading && !session.authenticated)
+  // Teaser pour un compte sans session seulement : le mode visiteur (DISABLE_AUTH_PERMISSIONS) ouvre la lecture des
+  // pages, pas le Coach, mais un membre connecté sous ce mode reste un membre.
+  const visitor = !session.loading && !session.authenticated
   const member = session.members.find((entry) => entry.memberId === session.activeMemberId) ?? null
   const playerName = member?.displayName ?? (session.isSuperUser ? 'SuperUser' : null)
   const clanTag = member?.clan?.tag ?? null

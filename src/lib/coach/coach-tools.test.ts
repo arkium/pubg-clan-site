@@ -15,7 +15,9 @@ const mocks = vi.hoisted(() => ({
   killFindMany: vi.fn(),
   encounterAggregate: vi.fn(),
   dropFindMany: vi.fn(),
+  statsFindMany: vi.fn(),
   loadDebrief: vi.fn(),
+  getClanLeague: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -27,8 +29,10 @@ vi.mock('@/lib/prisma', () => ({
     killEvent: { count: mocks.killCount, groupBy: mocks.killGroupBy, findMany: mocks.killFindMany },
     clanEncounter: { aggregate: mocks.encounterAggregate },
     dropPressureStat: { findMany: mocks.dropFindMany },
+    playerStats: { findMany: mocks.statsFindMany },
   },
 }))
+vi.mock('@/lib/clan-league-service', () => ({ getClanLeague: mocks.getClanLeague }))
 vi.mock('@/lib/map-label-service', () => {
   const DEFAULT_MAP_LABELS: Record<string, string> = { Baltic_Main: 'Erangel (Remastered)', Desert_Main: 'Miramar' }
   return {
@@ -51,7 +55,7 @@ vi.mock('@/lib/weapon-label-service', () => {
 })
 vi.mock('@/lib/pubg-telemetry/match-debrief-payload', () => ({ loadMatchDebriefPayload: mocks.loadDebrief }))
 
-import { COACH_TOOL_DECLARATIONS, createCoachTools } from '@/lib/coach/coach-tools'
+import { COACH_TOOL_DECLARATIONS, createCoachTools, resetCoachLeagueCache } from '@/lib/coach/coach-tools'
 
 const scope = { clanId: 292, memberId: 100, memberName: 'NovakTV' }
 const tools = createCoachTools(scope)
@@ -59,11 +63,20 @@ const run = (name: string, args: Record<string, unknown> = {}) => tools.run({ na
 
 beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset()
+  resetCoachLeagueCache()
 })
 
 describe('déclarations', () => {
   it('expose les cinq outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
-    expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual(['getRecentMatches', 'getMatchDebrief', 'getWeaponStats', 'getOpponentRecord', 'getDropZones'])
+    expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
+      'getRecentMatches',
+      'getMatchDebrief',
+      'getWeaponStats',
+      'getOpponentRecord',
+      'getDropZones',
+      'getClanLeaderboard',
+      'getLeagueStanding',
+    ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
       const properties = (tool.parameters as { properties: Record<string, unknown> }).properties
@@ -255,5 +268,91 @@ describe('getDropZones', () => {
   it('exige une carte connue', async () => {
     expect(await run('getDropZones', {})).toMatchObject({ error: 'map_not_found' })
     expect(mocks.dropFindMany).not.toHaveBeenCalled()
+  })
+})
+
+describe('getClanLeaderboard', () => {
+  const row = (memberId: number, displayName: string, kills: number, matches: number, wins: number, damage: number) => ({
+    memberId,
+    totalKills: kills,
+    totalKnockouts: kills + 2,
+    totalDamage: damage,
+    totalAssists: 1,
+    totalRevives: 2,
+    matchesPlayed: matches,
+    matchesWon: wins,
+    avgKillsPerGame: matches > 0 ? kills / matches : 0,
+    avgDamagePerGame: matches > 0 ? damage / matches : 0,
+    timePlayedSeconds: 7200,
+    activeDays: 3,
+    badgeType: null,
+    updatedAt: new Date('2026-10-24T03:00:00Z'),
+    member: { displayName },
+  })
+
+  it('classe les membres actifs du clan sur la semaine en cours, situe le joueur, cache les identifiants', async () => {
+    mocks.statsFindMany.mockResolvedValue([row(100, 'NovakTV', 10, 8, 1, 2400.4), row(101, 'Menez69', 25, 10, 2, 5100), row(102, 'Kr4ken', 0, 0, 0, 0)])
+    const result = (await run('getClanLeaderboard')) as { members: Array<Record<string, unknown>>; you: Record<string, unknown> | null; period: string; membersRanked: number }
+    const where = mocks.statsFindMany.mock.calls[0][0].where
+    expect(where.member).toEqual({ clanId: 292, isActive: true })
+    expect(where.period).toMatch(/^week-\d{4}-\d{2}$/)
+    expect(result.period).toBe('cette semaine')
+    expect(result.membersRanked).toBe(2)
+    expect(result.members[0]).toMatchObject({ rank: 1, player: 'Menez69', kills: 25, matches: 10, winRatePercent: 20, killsPerMatch: 2.5, damage: 5100 })
+    expect(result.members[0]).not.toHaveProperty('memberId')
+    expect(result.you).toMatchObject({ rank: 2, player: 'NovakTV', winRatePercent: 13, damage: 2400 })
+  })
+
+  it('trie selon le critère demandé et lit « depuis toujours »', async () => {
+    mocks.statsFindMany.mockResolvedValue([row(100, 'NovakTV', 10, 8, 4, 2400), row(101, 'Menez69', 25, 10, 2, 5100)])
+    const result = (await run('getClanLeaderboard', { period: 'all', sortBy: 'winRate' })) as { members: Array<{ player: string }>; sortBy: string }
+    expect(mocks.statsFindMany.mock.calls[0][0].where.period).toBe('all-time')
+    expect(result.sortBy).toBe('winRate')
+    expect(result.members.map((member) => member.player)).toEqual(['NovakTV', 'Menez69'])
+    expect(((await run('getClanLeaderboard', { sortBy: 'inconnu' })) as { sortBy: string }).sortBy).toBe('kills')
+  })
+})
+
+describe('getLeagueStanding', () => {
+  const standing = (clanId: number, rank: number, tag: string) => ({
+    clanId, name: `Clan ${tag}`, tag, imageUrl: null, matches: 40, wins: 6, winRate: 15, avgPlacementPoints: 4.2, avgDamage: 1234.6, avgKills: 2.345, avgKnocks: 3.1, rawScore: 10, powerScore: 61.26, rank, previousRank: rank + 1, activeMembers: 9,
+  })
+  const league = (standings: ReturnType<typeof standing>[], qualifying: Array<{ clanId: number; matches: number; required: number }> = []) => ({
+    period: 'week', matchType: 'official', generatedAt: '', lastMatchAt: null,
+    standings, qualifying: qualifying.map((entry) => ({ ...entry, name: 'x', tag: 'x', imageUrl: null })), withoutMatch: [], feed: [], titles: {},
+    scoring: { minMatches: 10, settings: {}, league: { matches: 400, avgPlacementPoints: 3.9, avgDamage: 1100.2, avgKills: 2.1, avgKnocks: 2.8, rawScore: 9 } },
+  })
+
+  it('donne le rang du clan, ses voisins et les moyennes de la ligue', async () => {
+    mocks.getClanLeague.mockResolvedValue(league([standing(1, 1, 'TOP'), standing(292, 2, '47R'), standing(3, 3, 'BOT')]))
+    const result = await run('getLeagueStanding', { period: 'month' })
+    expect(mocks.getClanLeague).toHaveBeenCalledWith('month', 'official')
+    expect(result).toMatchObject({
+      period: 'ce mois',
+      ranked: true,
+      clansRanked: 3,
+      minMatches: 10,
+      clan: { rank: 2, tag: '47R', powerScore: 61.3, winRatePercent: 15, avgDamage: 1235, avgKills: 2.35, previousRank: 3, activeMembers: 9 },
+      above: { rank: 1, tag: 'TOP' },
+      below: { rank: 3, tag: 'BOT' },
+      leagueAverage: { avgPlacementPoints: 3.9, avgDamage: 1100, avgKills: 2.1, avgKnocks: 2.8 },
+    })
+  })
+
+  it('garde la Ligue en cache cinq minutes, période par période', async () => {
+    mocks.getClanLeague.mockResolvedValue(league([standing(292, 1, '47R')]))
+    await run('getLeagueStanding', { period: 'week' })
+    await run('getLeagueStanding', { period: 'week' })
+    expect(mocks.getClanLeague).toHaveBeenCalledTimes(1)
+    await run('getLeagueStanding', { period: 'month' })
+    expect(mocks.getClanLeague).toHaveBeenCalledTimes(2)
+  })
+
+  it('dit combien de parties manquent à un clan pas encore classé', async () => {
+    mocks.getClanLeague.mockResolvedValue(league([standing(1, 1, 'TOP')], [{ clanId: 292, matches: 7, required: 10 }]))
+    expect(await run('getLeagueStanding')).toMatchObject({ ranked: false, matches: 7, required: 10, message: 'Encore 3 partie(s) officielle(s) pour être classé.' })
+    resetCoachLeagueCache()
+    mocks.getClanLeague.mockResolvedValue(league([standing(1, 1, 'TOP')]))
+    expect(await run('getLeagueStanding')).toMatchObject({ ranked: false, matches: 0 })
   })
 })

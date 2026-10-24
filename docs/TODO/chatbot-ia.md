@@ -318,6 +318,11 @@ affiché dans `/settings/configuration` (section « Coach IA »).
    échangés, matchs avec combat, tueurs et armes adverses, dernière rencontre (`ClanEncounter`).
 5. `getDropZones({ mapName })` — `DropPressureStat` des 90 derniers jours (une ligne par partie), ville par
    `locationForPercent`, pression, placement moyen, Top 10 et Top 1 par ville.
+6. `getClanLeaderboard({ period?, sortBy? })` — `PlayerStats` de la période (`statsPeriodKeys`, agrégats de 03:00) :
+   15 membres au plus, le joueur situé, sans identifiant. Ajouté le 2026-10-24 après l'essai connecté : « quels
+   membres freinent le clan en ligue ? » restait sans réponse.
+7. `getLeagueStanding({ period? })` — `getClanLeague` (même calcul que la page Ligue) : rang, Power score, rang
+   précédent, clans voisins, moyennes de la ligue, ou parties manquantes pour être classé.
 
 Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, memberName })`), tests
 `coach-tools.test.ts`. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).

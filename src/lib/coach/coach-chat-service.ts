@@ -52,6 +52,8 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getWeaponStats: 'Je regarde tes armes…',
   getOpponentRecord: 'Je cherche les rencontres du clan…',
   getDropZones: 'Je compte les largages du clan…',
+  getClanLeaderboard: 'Je lis le classement du clan…',
+  getLeagueStanding: 'Je consulte la Ligue des clans…',
 }
 
 /** Lecture stricte du corps d'une question : rien d'autre n'entre. */

@@ -51,7 +51,8 @@ Où le clan gagne, où il perd des places et qui porte l'escouade, carte par car
 ## 4. Accès, liens et menu
 
 - Page publique : visiteurs compris.
-- `/clans/[clanId]/stats/heatmap-kills` redirige vers la nouvelle adresse.
+- `/clans/[clanId]/stats/heatmap-kills` redirige vers la nouvelle adresse : redirection HTTP 307 de `next.config.ts`
+  depuis le 2026-10-24 (avant, une page qui répondait 200 puis rafraîchissait).
 - Lien depuis « Style de jeu du clan » : section « Aller plus loin » (Cartes, Armurerie, Carrière).
 - SEO : `CLAN_PAGES`, chemin `/stats/maps`.
 - Vue d'ensemble : groupe « Progresser ».

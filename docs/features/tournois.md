@@ -503,6 +503,11 @@ données puis redirigeaient côté navigateur. Supprimées le 2026-09-27 : **red
 `/tournaments/[tournamentId]` (`next.config.ts`). La route `GET /api/clans/[clanId]/tournaments/[tournamentId]/standings`
 n'a plus d'appelant (conservée). Anciennes pages : `archive/refonte-ui/tournois/` (ignoré par git).
 
+`/tournaments/[tournamentId]/matches/[matchId]/telemetry`, ancienne page de télémétrie d'une manche remplacée par le
+débriefing le 2026-09-16, reste citée par des résultats déjà diffusés sur Discord : **redirection HTTP 307** vers
+`/tournaments/[tournamentId]/matches/[matchId]` (`next.config.ts`) depuis le 2026-10-24 ; avant, une page répondait
+200 puis rafraîchissait. Le `?clanId=` de ces liens suit avec la requête, sans effet.
+
 ## Diffusion Discord
 
 L'embed de résultats de manche suit le mode du tournoi (`src/lib/discord/discord-tournament-embed.ts`) :

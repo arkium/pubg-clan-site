@@ -30,6 +30,42 @@ describe('next.config.ts — redirections', () => {
     expect(hasAppPage('/mortier/guide')).toBe(true)
   })
 
+  it('pages refondues le 2026-10-23 : vraie redirection HTTP, plus de page qui répond 200 puis rafraîchit', async () => {
+    const rules = await nextConfig.redirects!()
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ source: '/clans/:clanId/stats/heatmap-kills', destination: '/clans/:clanId/stats/maps', permanent: false }),
+        expect.objectContaining({
+          source: '/clans/:clanId/telemetry/matches/:matchId/telemetry',
+          destination: '/clans/:clanId/telemetry/matches/:matchId/debrief',
+          permanent: false,
+        }),
+      ])
+    )
+    expect(hasAppPage('/clans/:clanId/stats/heatmap-kills')).toBe(false)
+    expect(hasAppPage('/clans/:clanId/telemetry/matches/:matchId/telemetry')).toBe(false)
+  })
+
+  it('anciennes pages de télémétrie d’un match et d’une manche (liens Discord publiés) : redirection HTTP vers le débriefing', async () => {
+    const rules = await nextConfig.redirects!()
+    expect(rules).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          source: '/clans/:clanId/matches/:matchId/telemetry',
+          destination: '/clans/:clanId/telemetry/matches/:matchId/debrief',
+          permanent: false,
+        }),
+        expect.objectContaining({
+          source: '/tournaments/:tournamentId/matches/:matchId/telemetry',
+          destination: '/tournaments/:tournamentId/matches/:matchId',
+          permanent: false,
+        }),
+      ])
+    )
+    expect(hasAppPage('/clans/:clanId/matches/:matchId/telemetry')).toBe(false)
+    expect(hasAppPage('/tournaments/:tournamentId/matches/:matchId/telemetry')).toBe(false)
+  })
+
   it('les anciennes pages de tournoi par clan mènent aux pages globales, identifiant compris', async () => {
     const rules = await nextConfig.redirects!()
     expect(rules).toEqual(

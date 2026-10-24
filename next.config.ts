@@ -48,12 +48,20 @@ const nextConfig: NextConfig = {
       // Écran « Alias catégories armes » supprimé le 2026-09-27 (liste unique : src/lib/weapons/weapon-categories.ts) :
       // un ancien lien ou l'entrée de menu restée en base mène à l'écran d'administration des armes qui subsiste.
       { source: '/settings/weapon-categories', destination: '/settings/weapon-labels', permanent: false },
+      // Anciennes pages de télémétrie d'un match et d'une manche de tournoi, remplacées par le débriefing le 2026-09-16 ;
+      // des messages Discord déjà publiés (Top 1, résultats de tournoi) y pointent encore. Redirection HTTP depuis le
+      // 2026-10-24 (avant, une page qui répondait 200 puis rafraîchissait) ; le `?clanId=` des anciens liens de tournoi
+      // suit avec la requête, sans effet.
+      { source: '/clans/:clanId/matches/:matchId/telemetry', destination: '/clans/:clanId/telemetry/matches/:matchId/debrief', permanent: false },
+      { source: '/tournaments/:tournamentId/matches/:matchId/telemetry', destination: '/tournaments/:tournamentId/matches/:matchId', permanent: false },
       // Anciennes pages de tournoi par clan (supprimées le 2026-09-27) : elles chargeaient tout avant de rediriger
       // côté navigateur. Les tournois sont globaux, la redirection se fait maintenant avant tout rendu.
       { source: '/clans/:clanId/tournaments', destination: '/tournaments', permanent: false },
       { source: '/clans/:clanId/tournaments/:tournamentId', destination: '/tournaments/:tournamentId', permanent: false },
       // « Objets consommés » fondu dans « Style de jeu du clan » (2026-09-27) : même période, section `#sec-items`.
       { source: '/clans/:clanId/stats/items', destination: '/clans/:clanId/stats#sec-items', permanent: false },
+      // « Heatmap kills » refondue en page Cartes du clan (2026-10-23, docs/features/cartes-clan.md).
+      { source: '/clans/:clanId/stats/heatmap-kills', destination: '/clans/:clanId/stats/maps', permanent: false },
       // Quatre profils (docs/TODO/administration.md §5.3, lot 2) : plus de profil Admin, son accueil mène à celui du clan.
       { source: '/settings/admin', destination: '/settings/owner', permanent: false },
       // Guide du mortier sur sa propre adresse (2026-10-18, référencement) : l'ancien onglet `?tab=guide` y mène.
@@ -85,9 +93,12 @@ const nextConfig: NextConfig = {
       // « Adversaires rencontrés » rejoint les statistiques du clan (Q5).
       { source: '/clans/:clanId/telemetry/opponents', destination: '/clans/:clanId/stats/opponents', permanent: false },
       // Soirées de télémétrie : les pages joueur font foi, le panneau d'exploitation devient l'onglet « Soirées » des
-      // Données du clan. Le débriefing et la page « État » d'un match gardent leur adresse sous telemetry/matches/.
+      // Données du clan. Le débriefing d'un match garde son adresse sous telemetry/matches/.
       { source: '/clans/:clanId/telemetry/matches', destination: '/clans/:clanId/matches', permanent: false },
       { source: '/clans/:clanId/telemetry/matches/session/:date', destination: '/clans/:clanId/matches/session/:date', permanent: false },
+      // Vue d'audit d'un match supprimée le 2026-10-23 (docs/features/debriefing.md) : le débriefing la remplace ;
+      // `period` et `fromDate` de la liste d'origine suivent avec la requête.
+      { source: '/clans/:clanId/telemetry/matches/:matchId/telemetry', destination: '/clans/:clanId/telemetry/matches/:matchId/debrief', permanent: false },
     ]
   },
   //allowedDevOrigins: ['smk.arkium.group', 'localhost', '127.0.0.1', '10.1.0.248'],

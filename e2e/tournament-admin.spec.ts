@@ -9,6 +9,7 @@ import {
   ACTIVE_TOURNAMENT_ID,
   ADMIN_PATH,
   DRAFT_TOURNAMENT_ID,
+  mockDiscordWithoutWebhook,
   mockTournamentAdmin,
   signInAsOrganizer,
   signInWithoutRights,
@@ -282,6 +283,32 @@ test.describe('organisateur (manage_settings)', () => {
     expect(calls.syncs).toHaveLength(3)
   })
 
+  test('terminer un tournoi : bouton principal une fois la fenêtre passée, seul le statut envoyé, puis « Rouvrir »', async ({ page }) => {
+    const finish = card(page, 'Coupe d’automne').getByRole('button', { name: 'Terminer le tournoi' })
+    // Fenêtre en cours (fin dans deux jours) : action discrète, sans explication.
+    await expect(finish).toHaveClass(/\bapp-btn--secondary\b/)
+    await expect(page.getByTestId('tournament-window-over')).toHaveCount(0)
+
+    // Trois jours plus tard, la fenêtre est passée : bouton principal à l'accent et explication.
+    await page.clock.install({ time: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000) })
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+    await expect(finish).toHaveClass(/\bapp-btn--primary\b/)
+    await expect(card(page, 'Coupe d’automne').getByTestId('tournament-window-over')).toContainText('Tu pourras le rouvrir')
+
+    await finish.click()
+    await expect(page.getByTestId('tournament-admin-success')).toContainText('« Coupe d’automne » est terminé')
+    expect(calls.updates).toEqual([{ id: ACTIVE_TOURNAMENT_ID, body: { status: 'finished' } }])
+    await expect(page.getByRole('region', { name: 'Tournois actifs' })).toHaveCount(0)
+
+    // Réversible : depuis les archives, « Rouvrir » le remet actif.
+    await openArchives(page)
+    await card(page, 'Coupe d’automne').getByRole('button', { name: 'Rouvrir' }).click()
+    await expect(page.getByTestId('tournament-admin-success')).toContainText('« Coupe d’automne » est de nouveau actif.')
+    expect(calls.updates.at(-1)).toEqual({ id: ACTIVE_TOURNAMENT_ID, body: { status: 'active' } })
+    await expect(page.getByRole('region', { name: 'Tournois actifs' })).toContainText('1 tournoi')
+  })
+
   test('diffusion Discord : dernière manche par défaut, aperçu, manche déjà diffusée, envoi simulé', async ({ api, page }) => {
     await card(page, 'Coupe d’automne').getByRole('button', { name: 'Diffuser sur Discord' }).click()
     const dialog = page.getByRole('dialog', { name: 'Diffuser sur Discord' })
@@ -320,6 +347,88 @@ test.describe('organisateur (manage_settings)', () => {
     await expect(dialog).toHaveCount(0)
     expect(calls.broadcasts).toEqual([{ id: ACTIVE_TOURNAMENT_ID, body: { view: 'squads' } }])
     await expect(page.getByTestId('tournament-admin-toast')).toContainText('Classement par squad publié sur Discord.')
+  })
+
+  test('résumé du tournoi : après les manches, provisoire pendant le tournoi, envoi simulé', async ({ page }) => {
+    await card(page, 'Coupe d’automne').getByRole('button', { name: 'Diffuser sur Discord' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Diffuser sur Discord' })
+    // Tournoi en cours : la dernière manche reste le choix par défaut.
+    await expect(dialog.getByRole('button', { name: /^Message à diffuser : Manche #3/ })).toBeVisible()
+    await dialog.getByRole('button', { name: /^Message à diffuser/ }).click()
+    await expect(dialog.getByRole('menuitemradio')).toHaveText([
+      /Manche #1/,
+      /Manche #2/,
+      /Manche #3/,
+      'Classement final par squad',
+      'Résumé du tournoi (provisoire)',
+    ])
+    await dialog.getByRole('menuitemradio', { name: 'Résumé du tournoi (provisoire)' }).click()
+    const preview = dialog.getByTestId('discord-embed-preview')
+    await expect(preview).toContainText('Coupe d’automne — Résumé provisoire')
+    await expect(preview).toContainText('Classement provisoire')
+    await expect(preview).toContainText('MVP du tournoi')
+    await expect(preview).toContainText('M2 · Erangel · Squad (partie perso) — 🐔 [DEMO] Clan Démo')
+    await expectNoHorizontalScroll(page)
+
+    await dialog.getByRole('button', { name: 'Confirmer et envoyer sur Discord' }).click()
+    await expect(dialog).toHaveCount(0)
+    expect(calls.broadcasts).toEqual([{ id: ACTIVE_TOURNAMENT_ID, body: { view: 'summary' } }])
+    await expect(page.getByTestId('tournament-admin-toast')).toContainText('Résumé provisoire publié sur Discord.')
+  })
+
+  test('tournoi terminé : le résumé (résultat final) est proposé par défaut', async ({ page }) => {
+    await openArchives(page)
+    await card(page, 'Solo Showdown').getByRole('button', { name: 'Diffuser sur Discord' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Diffuser sur Discord' })
+    await expect(dialog.getByRole('button', { name: /^Message à diffuser : Résumé du tournoi$/ })).toBeVisible()
+    await expect(dialog.getByTestId('discord-embed-preview')).toContainText('Solo Showdown — Résultat final')
+    await expect(dialog.getByTestId('discord-embed-preview')).toContainText('Vainqueur')
+  })
+
+  test('sans webhook Discord : aperçu servi, message à copier pour le coller dans Discord, rien n’est envoyé', async ({ api, page }) => {
+    mockDiscordWithoutWebhook(api)
+    // Presse-papiers simulé : le texte copié est relevé dans la page.
+    await page.evaluate(() => {
+      const copiedTexts: string[] = []
+      ;(window as unknown as { copiedTexts: string[] }).copiedTexts = copiedTexts
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async (text: string) => void copiedTexts.push(text) },
+      })
+    })
+    await card(page, 'Coupe d’automne').getByRole('button', { name: 'Diffuser sur Discord' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Diffuser sur Discord' })
+    await expect(dialog.getByTestId('discord-embed-preview')).toContainText('Résultats Manche #3')
+    await expect(dialog.getByTestId('tournament-broadcast-no-webhook')).toContainText('copie le message, puis colle-le')
+    await expect(dialog.getByRole('link', { name: 'paramètres Discord du clan' })).toHaveAttribute(
+      'href',
+      `/clans/${CLAN_ID}/settings/discord`
+    )
+    // Pas d'envoi possible : la copie devient l'action principale.
+    await expect(dialog.getByRole('button', { name: /Confirmer/ })).toHaveCount(0)
+    const copy = dialog.getByRole('button', { name: 'Copier le message' })
+    await expect(copy).toHaveClass(/\bapp-btn--primary\b/)
+    await copy.click()
+    await expect(dialog.getByRole('button', { name: 'Copié' })).toBeVisible()
+    const [copiedText] = await page.evaluate(() => (window as unknown as { copiedTexts: string[] }).copiedTexts)
+    // Mention en tête, titre en `##` (sans lien ici : l'identifiant simulé n'a pas le format des liens courts).
+    expect(copiedText.startsWith('@here\n\n## 🏆 Tournoi : Coupe d’automne — Résultats Manche #3\n')).toBe(true)
+    expect(copiedText).toContain('**Scores de la manche**')
+    expect(copiedText.length).toBeLessThanOrEqual(2000)
+
+    // Presse-papiers refusé : le texte s'affiche, prêt à être sélectionné.
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, 'clipboard', {
+        configurable: true,
+        value: { writeText: async () => Promise.reject(new Error('refusé')) },
+      })
+    })
+    await dialog.getByRole('button', { name: /^Message à diffuser/ }).click()
+    await dialog.getByRole('menuitemradio', { name: 'Résumé du tournoi (provisoire)' }).click()
+    await expect(dialog.getByTestId('discord-embed-preview')).toContainText('Résumé provisoire')
+    await dialog.getByRole('button', { name: 'Copier le message' }).click()
+    await expect(dialog.getByTestId('tournament-broadcast-copy-fallback')).toHaveValue(/Résumé provisoire/)
+    expect(calls.broadcasts).toEqual([])
   })
 
   test('joueurs non suivis : liste, destination de chacun, ajout puis message à la fermeture', async ({ page }) => {

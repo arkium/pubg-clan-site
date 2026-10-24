@@ -13,7 +13,7 @@ vi.mock('@/lib/prisma', () => ({
   },
 }))
 
-vi.mock('@/lib/pubg', () => ({ fetchMatchDetails: vi.fn() }))
+vi.mock('@/lib/pubg', () => ({ fetchMatchDetails: vi.fn(), fetchMatchOverview: vi.fn() }))
 
 vi.mock('@/lib/discord/discord-client', () => ({ sendDiscordWebhook: vi.fn() }))
 
@@ -35,9 +35,12 @@ import { DEFAULT_DISCORD_SETTINGS } from '@/lib/discord/discord-config'
 import {
   broadcastTournamentRound,
   broadcastTournamentSquadStandings,
+  broadcastTournamentSummary,
   DiscordTournamentError,
+  listTournamentRounds,
   prepareTournamentRoundBroadcast,
   prepareTournamentSquadStandingsBroadcast,
+  prepareTournamentSummaryBroadcast,
 } from '@/lib/discord/discord-tournament-service'
 import { prisma } from '@/lib/prisma'
 import { getTournamentForClan, getTournamentMatches } from '@/lib/tournament-service'
@@ -76,7 +79,13 @@ const ROUND_TWO = {
 }
 
 function arrange(
-  options: { tournamentWebhookUrl?: string | null; clanWebhookUrl?: string; rules?: Record<string, unknown> } = {}
+  options: {
+    tournamentWebhookUrl?: string | null
+    clanWebhookUrl?: string
+    rules?: Record<string, unknown>
+    /** Statut et dates du tournoi (résumé final ou provisoire). */
+    tournament?: Record<string, unknown>
+  } = {}
 ) {
   vi.mocked(prisma.clanConfig.findUnique).mockResolvedValue({
     value: JSON.stringify({
@@ -101,6 +110,7 @@ function arrange(
       bestOfRounds: null,
       ...(options.rules ?? {}),
     },
+    ...(options.tournament ?? {}),
   } as never)
 
   vi.mocked(getTournamentMatches).mockResolvedValue([ROUND_TWO, ROUND_ONE] as never)
@@ -173,12 +183,18 @@ describe('prepareTournamentRoundBroadcast', () => {
     expect(prepared.usesTournamentOverride).toBe(false)
   })
 
-  it('refuse la diffusion sans webhook exploitable', async () => {
+  it('sans webhook exploitable : l’aperçu reste servi (à copier), seul l’envoi est refusé', async () => {
     arrange({ clanWebhookUrl: '' })
 
-    await expect(
-      prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
-    ).rejects.toBeInstanceOf(DiscordTournamentError)
+    const prepared = await prepareTournamentRoundBroadcast(CLAN_ID, TOURNAMENT_ID, 'match-recent')
+    expect(prepared.webhookUrl).toBeNull()
+    expect(prepared.payload.embeds[0].title).toContain('Résultats Manche #2')
+
+    await expect(broadcastTournamentRound(CLAN_ID, TOURNAMENT_ID, 'match-recent')).rejects.toBeInstanceOf(
+      DiscordTournamentError
+    )
+    expect(sendDiscordWebhook).not.toHaveBeenCalled()
+    expect(prisma.discordNotificationLog.upsert).not.toHaveBeenCalled()
   })
 
   it('refuse une manche etrangere au tournoi', async () => {
@@ -320,6 +336,68 @@ describe('classement par escouade', () => {
     await expect(broadcastTournamentSquadStandings(CLAN_ID, TOURNAMENT_ID)).resolves.toEqual({ totalRounds: 2 })
     expect(prisma.discordNotificationLog.upsert).toHaveBeenCalledWith(
       expect.objectContaining({ create: { clanId: CLAN_ID, kind: 'tournament_squads', refId: TOURNAMENT_ID } })
+    )
+  })
+})
+
+describe('résumé du tournoi (2026-10-24)', () => {
+  const FINISHED = {
+    status: 'finished',
+    startDate: new Date('2026-09-10T17:00:00Z'),
+    endDate: new Date('2026-09-13T21:00:00Z'),
+  }
+
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('tournoi terminé : résultat final, mêmes chiffres que le classement, vainqueur de chaque manche', async () => {
+    arrange({ tournament: FINISHED })
+
+    const { payload, final, totalRounds } = await prepareTournamentSummaryBroadcast(CLAN_ID, TOURNAMENT_ID)
+    const [embed] = payload.embeds
+
+    expect(final).toBe(true)
+    expect(totalRounds).toBe(2)
+    expect(embed.title).toBe('🏆 Tournoi : Coupe inter-clans — Résultat final')
+    expect(embed.description).toContain('organisé par **[ALP] Alpha**')
+    expect(embed.description).toContain('🎮 Inter-clans · 2 manche(s) · 2 clan(s) classé(s)')
+    // 25 points chacun : Alpha devant aux kills (9 contre 7), comme sur la page du tournoi.
+    expect(embed.fields![0]).toMatchObject({ name: 'Classement final' })
+    expect(embed.fields![0].value).toMatch(/^🥇 \*\*\[ALP\] Alpha\*\* — 25 pts · 9 kills · 1 Top 1/)
+    // MVP du tournoi : le plus de kills (Alpha 9, Bravo 7).
+    expect(embed.fields![1].name).toBe('⭐ MVP du tournoi')
+    expect(embed.fields![1].value).toContain('[ALP] Alpha')
+    expect(embed.fields![2].value).toBe('M1 · Miramar · Squad FPP — 🐔 [BRV] Bravo\nM2 · Miramar · Squad FPP — 🐔 [ALP] Alpha')
+  })
+
+  it('tournoi en cours : résumé provisoire', async () => {
+    arrange({ tournament: { ...FINISHED, status: 'active', endDate: new Date(Date.now() + 86_400_000) } })
+    const { payload, final } = await prepareTournamentSummaryBroadcast(CLAN_ID, TOURNAMENT_ID)
+    expect(final).toBe(false)
+    expect(payload.embeds[0].title).toContain('Résumé provisoire')
+  })
+
+  it('aucune manche : rien à résumer', async () => {
+    arrange({ tournament: FINISHED })
+    vi.mocked(getTournamentMatches).mockResolvedValue([] as never)
+    await expect(prepareTournamentSummaryBroadcast(CLAN_ID, TOURNAMENT_ID)).rejects.toBeInstanceOf(DiscordTournamentError)
+  })
+
+  it('la liste propose le résumé, marqué final quand le tournoi est terminé', async () => {
+    arrange({ tournament: FINISHED })
+    vi.mocked(prisma.discordNotificationLog.findMany).mockResolvedValue([] as never)
+    const list = await listTournamentRounds(CLAN_ID, TOURNAMENT_ID)
+    expect(list.summary).toEqual({ available: true, final: true, sentAt: null })
+    expect(list.rounds).toHaveLength(2)
+  })
+
+  it('publie puis enregistre la diffusion, une par tournoi', async () => {
+    arrange({ tournament: FINISHED })
+    await expect(broadcastTournamentSummary(CLAN_ID, TOURNAMENT_ID)).resolves.toEqual({ final: true })
+    expect(sendDiscordWebhook).toHaveBeenCalledWith(CLAN_WEBHOOK, expect.objectContaining({ embeds: expect.any(Array) }))
+    expect(prisma.discordNotificationLog.upsert).toHaveBeenCalledWith(
+      expect.objectContaining({ create: { clanId: CLAN_ID, kind: 'tournament_summary', refId: TOURNAMENT_ID } })
     )
   })
 })

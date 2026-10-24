@@ -16,6 +16,7 @@ import {
   PencilLine,
   Plus,
   RefreshCw,
+  RotateCcw,
   Scale,
   Trash2,
   UserPlus,
@@ -33,6 +34,7 @@ import {
   type StatusFilter,
 } from '@/components/tournament-admin/tournament-form'
 import { tournamentGameModeLabel, tournamentMapLabel } from '@/lib/tournament-filters'
+import { tournamentWindowEnd } from '@/lib/tournament-schedule'
 import { TOURNAMENT_SYNC_HINT } from '@/lib/tournament-sync-summary'
 
 /**
@@ -265,11 +267,25 @@ export type TournamentCardActions = {
   onDelete: (tournament: AdminTournament) => void
   /** Joueurs des manches que le site ne suit pas (2026-10-11). */
   onUntracked: (tournament: AdminTournament) => void
+  /** Terminer un tournoi actif, ou rouvrir un tournoi terminé (2026-10-24). */
+  statusChangingId: string | null
+  onSetStatus: (tournament: AdminTournament, status: 'active' | 'finished') => void
 }
 
-export function TournamentAdminCard({ tournament, actions }: { tournament: AdminTournament; actions: TournamentCardActions }) {
+export function TournamentAdminCard({
+  tournament,
+  actions,
+  windowOver,
+}: {
+  tournament: AdminTournament
+  actions: TournamentCardActions
+  /** La fenêtre du tournoi est passée : « Terminer le tournoi » devient l'action principale de la carte. */
+  windowOver: boolean
+}) {
   const rules = getRulesForm(tournament.rules)
   const syncing = actions.syncingId === tournament.id
+  const changingStatus = actions.statusChangingId === tournament.id
+  const finishHighlighted = tournament.status === 'active' && windowOver
   return (
     <article className="app-panel flex flex-col gap-3 p-4" aria-label={tournament.title} data-testid="tournament-admin-card">
       <div className="flex items-start justify-between gap-3">
@@ -320,11 +336,47 @@ export function TournamentAdminCard({ tournament, actions }: { tournament: Admin
           <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
           Modifier
         </button>
+        {/*
+          Clôture à côté de la suppression : le 23/10, un tournoi dont la synchronisation avait échoué a été supprimé
+          faute d'autre issue visible. Fenêtre passée : bouton principal à l'accent (charte §5b). Réversible (« Rouvrir »).
+        */}
+        {tournament.status === 'active' ? (
+          <button
+            type="button"
+            onClick={() => actions.onSetStatus(tournament, 'finished')}
+            disabled={changingStatus}
+            className={`app-btn app-btn--xs gap-1.5 sm:ml-auto ${finishHighlighted ? 'app-btn--primary' : 'app-btn--secondary'}`}
+          >
+            <Flag className="h-3.5 w-3.5" aria-hidden="true" />
+            Terminer le tournoi
+          </button>
+        ) : null}
+        {tournament.status === 'finished' ? (
+          <button
+            type="button"
+            onClick={() => actions.onSetStatus(tournament, 'active')}
+            disabled={changingStatus}
+            className="app-btn app-btn--xs app-btn--secondary gap-1.5 sm:ml-auto"
+          >
+            <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+            Rouvrir
+          </button>
+        ) : null}
         {/* Seule action destructive de la carte : bouton négatif teinté (charte, Boutons), écarté des autres. */}
-        <button type="button" onClick={() => actions.onDelete(tournament)} className="app-btn app-btn--xs app-btn--danger gap-1.5 sm:ml-auto">
+        <button
+          type="button"
+          onClick={() => actions.onDelete(tournament)}
+          className={`app-btn app-btn--xs app-btn--danger gap-1.5 ${tournament.status === 'draft' ? 'sm:ml-auto' : ''}`}
+        >
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           Supprimer
         </button>
+        {finishHighlighted ? (
+          <p className="t-meta basis-full" data-testid="tournament-window-over">
+            La fenêtre du tournoi est passée : « Terminer le tournoi » le range dans les archives et l’affiche terminé
+            partout. Tu pourras le rouvrir.
+          </p>
+        ) : null}
         <p className="t-meta basis-full">{TOURNAMENT_SYNC_HINT}</p>
       </div>
     </article>
@@ -354,6 +406,13 @@ export function TournamentAdminList({
 }) {
   const active = tournaments.filter((tournament) => tournament.status === 'active')
   const others = tournaments.filter((tournament) => tournament.status !== 'active')
+  // Relu chaque minute : une fenêtre qui se ferme pendant la soirée met « Terminer le tournoi » en avant sans recharger.
+  const [now, setNow] = useState(() => new Date())
+  useEffect(() => {
+    const timer = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(timer)
+  }, [])
+  const windowOver = (tournament: AdminTournament) => now > tournamentWindowEnd(tournament.endDate)
 
   if (tournaments.length === 0) {
     return (
@@ -380,7 +439,7 @@ export function TournamentAdminList({
           </div>
           <div className="flex flex-col gap-3">
             {active.map((tournament) => (
-              <TournamentAdminCard key={tournament.id} tournament={tournament} actions={actions} />
+              <TournamentAdminCard key={tournament.id} tournament={tournament} actions={actions} windowOver={windowOver(tournament)} />
             ))}
           </div>
         </section>
@@ -409,7 +468,7 @@ export function TournamentAdminList({
           {archivesOpen ? (
             <div id="tournament-admin-archives-list" className="flex flex-col gap-3">
               {others.map((tournament) => (
-                <TournamentAdminCard key={tournament.id} tournament={tournament} actions={actions} />
+                <TournamentAdminCard key={tournament.id} tournament={tournament} actions={actions} windowOver={windowOver(tournament)} />
               ))}
             </div>
           ) : null}

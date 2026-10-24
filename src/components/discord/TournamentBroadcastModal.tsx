@@ -1,10 +1,12 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
-import { AlertTriangle, ChevronDown, Megaphone, Send, X } from 'lucide-react'
+import Link from 'next/link'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { AlertTriangle, Check, ChevronDown, Copy, Megaphone, Send, X } from 'lucide-react'
 
 import DiscordEmbedPreview from '@/components/discord/DiscordEmbedPreview'
 import type { DiscordWebhookPayload } from '@/lib/discord/discord-client'
+import { DISCORD_MESSAGE_LIMIT, discordPayloadToText, splitDiscordMessage } from '@/lib/discord/discord-payload-text'
 
 type Round = {
   squadMatchId: string
@@ -17,11 +19,13 @@ type Round = {
 
 type Preview = {
   preview: DiscordWebhookPayload
-  /** Absent pour le classement par escouade. */
+  /** Absent pour le classement par escouade et le résumé. */
   roundNumber?: number
   totalRounds: number
   usesTournamentOverride: boolean
   alreadySentAt: string | null
+  /** Un webhook valide existe ; sinon, le message se copie et se colle à la main (2026-10-24). */
+  canSend?: boolean
 }
 
 type Props = {
@@ -38,11 +42,14 @@ function formatDateTime(value: string) {
 
 const roundLabel = (round: Round) => `Manche #${round.roundNumber} — ${formatDateTime(round.playedAt)}`
 
-/** Choix « Classement par escouade » du menu, à la place d'une manche (demande du 2026-10-11). */
+/** Choix du menu autres qu'une manche : le classement par escouade (2026-10-11) et le résumé du tournoi (2026-10-24). */
 const SQUADS = 'squads'
+const SUMMARY = 'summary'
 const SQUADS_LABEL = 'Classement final par squad'
 
-type SquadStandingsOption = { available: boolean; sentAt: string | null }
+type ExtraAvailability = { available: boolean; sentAt: string | null }
+type SummaryAvailability = ExtraAvailability & { final: boolean }
+type ExtraOption = { value: string; label: string; sentAt: string | null }
 
 /** Pastille « déjà diffusée » : orange d'attente (charte §1.3), jamais jaune. */
 function SentBadge({ label = 'Déjà diffusée' }: { label?: string }) {
@@ -54,17 +61,18 @@ function SentBadge({ label = 'Déjà diffusée' }: { label?: string }) {
 }
 
 /**
- * Choix du message : une manche, ou le classement par escouade. Menu de la charte (`app-menu-trigger` / `app-menu`),
- * intitulé au-dessus — jamais de `<select>` natif. Le nombre de manches n'est pas borné : la liste défile dans le menu.
+ * Choix du message : une manche, puis les messages de tout le tournoi (classement par escouade, résumé). Menu de la
+ * charte (`app-menu-trigger` / `app-menu`), intitulé au-dessus — jamais de `<select>` natif. Le nombre de manches n'est
+ * pas borné : la liste défile dans le menu.
  */
 function RoundMenu({
   rounds,
-  squads,
+  extras,
   value,
   onChange,
 }: {
   rounds: Round[]
-  squads: SquadStandingsOption | null
+  extras: ExtraOption[]
   value: string | null
   onChange: (selection: string) => void
 }) {
@@ -82,10 +90,10 @@ function RoundMenu({
       document.removeEventListener('keydown', close)
     }
   }, [open])
-  const squadsSelected = value === SQUADS && !!squads?.available
+  const extra = extras.find((option) => option.value === value) ?? null
   const current = rounds.find((round) => round.squadMatchId === value) ?? rounds[rounds.length - 1]
-  const currentLabel = squadsSelected ? SQUADS_LABEL : roundLabel(current)
-  const currentSentAt = squadsSelected ? squads?.sentAt : current.sentAt
+  const currentLabel = extra ? extra.label : roundLabel(current)
+  const currentSentAt = extra ? extra.sentAt : current.sentAt
   return (
     <div className="flex flex-col gap-1">
       <span id="broadcast-round-label" className="text-[13px] font-semibold text-gray-700">
@@ -103,7 +111,7 @@ function RoundMenu({
         >
           <span className="t-num truncate">{currentLabel}</span>
           <span className="flex shrink-0 items-center gap-2">
-            {currentSentAt ? <SentBadge label={squadsSelected ? 'Déjà diffusé' : undefined} /> : null}
+            {currentSentAt ? <SentBadge label={extra ? 'Déjà diffusé' : undefined} /> : null}
             <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform duration-150 motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
           </span>
         </button>
@@ -114,32 +122,33 @@ function RoundMenu({
                 key={round.squadMatchId}
                 type="button"
                 role="menuitemradio"
-                aria-checked={!squadsSelected && round.squadMatchId === current.squadMatchId}
+                aria-checked={!extra && round.squadMatchId === current.squadMatchId}
                 onClick={() => {
                   onChange(round.squadMatchId)
                   setOpen(false)
                 }}
-                className={`app-menu__item ${!squadsSelected && round.squadMatchId === current.squadMatchId ? 'app-menu__item--active' : ''}`}
+                className={`app-menu__item ${!extra && round.squadMatchId === current.squadMatchId ? 'app-menu__item--active' : ''}`}
               >
                 <span className="t-num truncate">{roundLabel(round)}</span>
                 {round.sentAt ? <SentBadge /> : null}
               </button>
             ))}
-            {squads?.available ? (
+            {extras.map((option, index) => (
               <button
+                key={option.value}
                 type="button"
                 role="menuitemradio"
-                aria-checked={squadsSelected}
+                aria-checked={extra?.value === option.value}
                 onClick={() => {
-                  onChange(SQUADS)
+                  onChange(option.value)
                   setOpen(false)
                 }}
-                className={`app-menu__item border-t border-gray-200 ${squadsSelected ? 'app-menu__item--active' : ''}`}
+                className={`app-menu__item ${index === 0 ? 'border-t border-gray-200' : ''} ${extra?.value === option.value ? 'app-menu__item--active' : ''}`}
               >
-                <span className="truncate">{SQUADS_LABEL}</span>
-                {squads.sentAt ? <SentBadge label="Déjà diffusé" /> : null}
+                <span className="truncate">{option.label}</span>
+                {option.sentAt ? <SentBadge label="Déjà diffusé" /> : null}
               </button>
-            ) : null}
+            ))}
           </div>
         ) : null}
       </div>
@@ -148,12 +157,14 @@ function RoundMenu({
 }
 
 /**
- * Diffusion d'une manche de tournoi sur Discord : choix de la manche, aperçu exact du message, envoi sur confirmation.
- * Ouverte depuis l'administration des tournois et depuis la page d'un tournoi (API de props inchangée).
+ * Diffusion d'un tournoi sur Discord : une manche, le classement par escouade ou le résumé du tournoi ; aperçu exact du
+ * message, envoi sur confirmation. Sans webhook configuré, le message se copie (en parties de 2 000 caractères au besoin)
+ * pour être collé à la main dans Discord. Ouverte depuis l'administration des tournois et depuis la page d'un tournoi
+ * (API de props inchangée).
  *
  * Modale de la charte UI (docs/ui/index.html#modales) : voile `app-modal-backdrop`, carte `app-panel`, tuile d'icône
  * teintée à l'accent, titre de section, Annuler en secondaire et confirmation en principal. Alertes aux jetons :
- * manche déjà diffusée en orange d'attente (`--game-warn`), erreur au jeton négatif.
+ * message déjà diffusé et webhook absent en orange d'attente (`--game-warn`), erreur au jeton négatif.
  */
 export default function TournamentBroadcastModal({
   clanId,
@@ -163,17 +174,26 @@ export default function TournamentBroadcastModal({
   onBroadcast,
 }: Props) {
   const [rounds, setRounds] = useState<Round[]>([])
-  const [squadStandings, setSquadStandings] = useState<SquadStandingsOption | null>(null)
-  // Identifiant de la manche choisie, ou `SQUADS` pour le classement par escouade.
+  const [squadStandings, setSquadStandings] = useState<ExtraAvailability | null>(null)
+  const [summary, setSummary] = useState<SummaryAvailability | null>(null)
+  // Identifiant de la manche choisie, `SQUADS` (classement par escouade) ou `SUMMARY` (résumé du tournoi).
   const [selectedMatchId, setSelectedMatchId] = useState<string | null>(null)
-  const squadsSelected = selectedMatchId === SQUADS
   const [preview, setPreview] = useState<Preview | null>(null)
   const [loadingRounds, setLoadingRounds] = useState(true)
   const [loadingPreview, setLoadingPreview] = useState(false)
   const [sending, setSending] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // Copie rattachée à l'aperçu copié : changer de message efface d'elle-même la confirmation.
+  const [copied, setCopied] = useState<{ preview: Preview; index: number } | null>(null)
+  const [copyFallback, setCopyFallback] = useState<{ preview: Preview; text: string } | null>(null)
 
   const baseUrl = `/api/clans/${clanId}/tournaments/${tournamentId}/discord`
+  const extras: ExtraOption[] = [
+    ...(squadStandings?.available ? [{ value: SQUADS, label: SQUADS_LABEL, sentAt: squadStandings.sentAt }] : []),
+    ...(summary?.available
+      ? [{ value: SUMMARY, label: summary.final ? 'Résumé du tournoi' : 'Résumé du tournoi (provisoire)', sentAt: summary.sentAt }]
+      : []),
+  ]
 
   useEffect(() => {
     let cancelled = false
@@ -182,7 +202,7 @@ export default function TournamentBroadcastModal({
       try {
         const response = await fetch(baseUrl, { cache: 'no-store' })
         const payload = (await response.json().catch(() => null)) as
-          | { rounds?: Round[]; squadStandings?: SquadStandingsOption; error?: string }
+          | { rounds?: Round[]; squadStandings?: ExtraAvailability; summary?: SummaryAvailability; error?: string }
           | null
 
         if (!response.ok) throw new Error(payload?.error ?? 'Impossible de charger les manches.')
@@ -191,8 +211,11 @@ export default function TournamentBroadcastModal({
           const loaded = payload?.rounds ?? []
           setRounds(loaded)
           setSquadStandings(payload?.squadStandings ?? null)
-          // La derniere manche jouee est celle qu'on diffuse presque toujours.
-          setSelectedMatchId(loaded[loaded.length - 1]?.squadMatchId ?? null)
+          setSummary(payload?.summary ?? null)
+          // Tournoi terminé : le résumé. Sinon, la dernière manche jouée, celle qu'on diffuse presque toujours.
+          setSelectedMatchId(
+            payload?.summary?.available && payload.summary.final ? SUMMARY : (loaded[loaded.length - 1]?.squadMatchId ?? null)
+          )
         }
       } catch (caught) {
         if (!cancelled) {
@@ -220,7 +243,10 @@ export default function TournamentBroadcastModal({
       setError(null)
 
       try {
-        const query = selectedMatchId === SQUADS ? 'view=squads' : `matchId=${encodeURIComponent(selectedMatchId!)}`
+        const query =
+          selectedMatchId === SQUADS || selectedMatchId === SUMMARY
+            ? `view=${selectedMatchId}`
+            : `matchId=${encodeURIComponent(selectedMatchId!)}`
         const response = await fetch(`${baseUrl}?${query}`, { cache: 'no-store' })
         const payload = (await response.json().catch(() => null)) as (Preview & { error?: string }) | null
 
@@ -244,6 +270,29 @@ export default function TournamentBroadcastModal({
     }
   }, [baseUrl, selectedMatchId])
 
+  // Webhook inconnu tant que l'aperçu n'est pas arrivé : le bouton d'envoi reste en place, désactivé.
+  const canSend = preview?.canSend ?? true
+  const copyParts = useMemo(() => (preview ? splitDiscordMessage(discordPayloadToText(preview.preview)) : []), [preview])
+  const copiedIndex = copied && copied.preview === preview ? copied.index : null
+  const fallbackText = copyFallback && copyFallback.preview === preview ? copyFallback.text : null
+
+  const handleCopy = useCallback(
+    async (index: number) => {
+      if (!preview) return
+      const text = copyParts[index]
+      try {
+        await navigator.clipboard.writeText(text)
+        setCopyFallback(null)
+        setCopied({ preview, index })
+        window.setTimeout(() => setCopied((current) => (current?.preview === preview && current.index === index ? null : current)), 2500)
+      } catch {
+        // Presse-papiers refusé (navigateur, permissions) : le texte s'affiche, prêt à être sélectionné.
+        setCopyFallback({ preview, text })
+      }
+    },
+    [copyParts, preview]
+  )
+
   const handleBroadcast = useCallback(async () => {
     if (!selectedMatchId) return
 
@@ -254,7 +303,9 @@ export default function TournamentBroadcastModal({
       const response = await fetch(baseUrl, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
-        body: JSON.stringify(selectedMatchId === SQUADS ? { view: SQUADS } : { matchId: selectedMatchId }),
+        body: JSON.stringify(
+          selectedMatchId === SQUADS || selectedMatchId === SUMMARY ? { view: selectedMatchId } : { matchId: selectedMatchId }
+        ),
       })
       const payload = (await response.json().catch(() => null)) as
         | { message?: string; error?: string }
@@ -262,7 +313,14 @@ export default function TournamentBroadcastModal({
 
       if (!response.ok) throw new Error(payload?.error ?? 'Diffusion impossible.')
 
-      onBroadcast(payload?.message ?? (selectedMatchId === SQUADS ? 'Classement publié sur Discord.' : 'Manche publiée sur Discord.'))
+      onBroadcast(
+        payload?.message ??
+          (selectedMatchId === SQUADS
+            ? 'Classement publié sur Discord.'
+            : selectedMatchId === SUMMARY
+              ? 'Résumé publié sur Discord.'
+              : 'Manche publiée sur Discord.')
+      )
       onClose()
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : 'Diffusion impossible.')
@@ -281,6 +339,19 @@ export default function TournamentBroadcastModal({
     document.addEventListener('keydown', onKeyDown)
     return () => document.removeEventListener('keydown', onKeyDown)
   }, [onClose, sending])
+
+  const alreadySentLabel =
+    selectedMatchId === SQUADS
+      ? 'Ce classement a déjà été diffusé'
+      : selectedMatchId === SUMMARY
+        ? 'Ce résumé a déjà été diffusé'
+        : 'Cette manche a déjà été diffusée'
+  const loadingLabel =
+    selectedMatchId === SQUADS
+      ? 'Calcul du classement par squad…'
+      : selectedMatchId === SUMMARY
+        ? 'Calcul du résumé du tournoi…'
+        : 'Calcul des scores de la manche…'
 
   return (
     <div
@@ -330,7 +401,29 @@ export default function TournamentBroadcastModal({
             </div>
           ) : (
             <div className="flex flex-col gap-4">
-              <RoundMenu rounds={rounds} squads={squadStandings} value={selectedMatchId} onChange={setSelectedMatchId} />
+              <RoundMenu rounds={rounds} extras={extras} value={selectedMatchId} onChange={setSelectedMatchId} />
+
+              {preview && !preview.canSend ? (
+                <div
+                  role="status"
+                  data-testid="tournament-broadcast-no-webhook"
+                  className="flex items-start gap-2.5 rounded-[14px] border border-[color-mix(in_srgb,var(--game-warn)_45%,transparent)] bg-[var(--game-warn-soft)] px-3.5 py-3"
+                >
+                  <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--game-warn)]" aria-hidden="true" />
+                  <p className="t-body text-gray-700">
+                    Aucun webhook Discord pour les tournois : copie le message, puis colle-le dans ton salon Discord
+                    (Ctrl+V).
+                    {copyParts.length > 1
+                      ? ` Il dépasse ${DISCORD_MESSAGE_LIMIT.toLocaleString('fr-FR')} caractères : colle les ${copyParts.length} parties à la suite.`
+                      : ''}{' '}
+                    Pour l&apos;envoyer d&apos;un clic, renseigne un webhook dans les{' '}
+                    <Link href={`/clans/${clanId}/settings/discord`} className="app-link font-semibold">
+                      paramètres Discord du clan
+                    </Link>{' '}
+                    ou sur ce tournoi.
+                  </p>
+                </div>
+              ) : null}
 
               {preview?.alreadySentAt ? (
                 <div
@@ -339,8 +432,8 @@ export default function TournamentBroadcastModal({
                 >
                   <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0 text-[var(--game-warn)]" aria-hidden="true" />
                   <p className="t-body text-gray-700">
-                    {squadsSelected ? 'Ce classement a déjà été diffusé' : 'Cette manche a déjà été diffusée'} le{' '}
-                    <span className="t-num">{formatDateTime(preview.alreadySentAt)}</span>. La confirmer publiera un second message.
+                    {alreadySentLabel} le <span className="t-num">{formatDateTime(preview.alreadySentAt)}</span>. La
+                    confirmer publiera un second message.
                   </p>
                 </div>
               ) : null}
@@ -350,7 +443,7 @@ export default function TournamentBroadcastModal({
                   <span className="t-label">Aperçu du message</span>
                   {preview?.usesTournamentOverride ? <span className="t-meta">Envoi via le webhook spécifique de ce tournoi.</span> : null}
                 </div>
-                {/* Pendant le calcul d'une autre manche, l'aperçu précédent reste affiché, estompé. */}
+                {/* Pendant le calcul d'un autre message, l'aperçu précédent reste affiché, estompé. */}
                 <div
                   className={`app-panel-muted p-3 transition-opacity sm:p-4 ${loadingPreview && preview ? 'opacity-60' : ''}`}
                   aria-busy={loadingPreview}
@@ -359,12 +452,29 @@ export default function TournamentBroadcastModal({
                   {preview ? (
                     <DiscordEmbedPreview payload={preview.preview} />
                   ) : loadingPreview ? (
-                    <p className="t-meta">{squadsSelected ? 'Calcul du classement par squad…' : 'Calcul des scores de la manche…'}</p>
+                    <p className="t-meta">{loadingLabel}</p>
                   ) : (
                     <p className="t-meta">Aucun aperçu disponible.</p>
                   )}
                 </div>
               </div>
+
+              {fallbackText ? (
+                <label className="flex flex-col gap-1.5">
+                  <span className="t-meta">
+                    Copie automatique impossible : sélectionne le texte ci-dessous, copie-le (Ctrl+C) puis colle-le dans
+                    Discord.
+                  </span>
+                  <textarea
+                    readOnly
+                    value={fallbackText}
+                    onFocus={(event) => event.currentTarget.select()}
+                    rows={8}
+                    className="app-input h-auto py-2 font-mono text-[12px]"
+                    data-testid="tournament-broadcast-copy-fallback"
+                  />
+                </label>
+              ) : null}
             </div>
           )}
 
@@ -383,19 +493,40 @@ export default function TournamentBroadcastModal({
           <button type="button" onClick={onClose} className="app-btn app-btn--md app-btn--secondary">
             Annuler
           </button>
-          <button
-            type="button"
-            onClick={handleBroadcast}
-            disabled={sending || loadingPreview || !preview}
-            className="app-btn app-btn--md app-btn--primary gap-1.5"
-          >
-            <Send className="h-4 w-4" aria-hidden="true" />
-            {sending
-              ? 'Envoi en cours…'
-              : preview?.alreadySentAt
-                ? 'Confirmer et rediffuser'
-                : 'Confirmer et envoyer sur Discord'}
-          </button>
+          {/* Copier : action principale sans webhook, secondaire sinon (pour coller le message ailleurs). */}
+          {copyParts.map((_, index) => (
+            <button
+              key={index}
+              type="button"
+              onClick={() => void handleCopy(index)}
+              disabled={loadingPreview}
+              className={`app-btn app-btn--md gap-1.5 ${canSend ? 'app-btn--secondary' : 'app-btn--primary'}`}
+            >
+              {copiedIndex === index ? <Check className="h-4 w-4" aria-hidden="true" /> : <Copy className="h-4 w-4" aria-hidden="true" />}
+              {copiedIndex === index
+                ? 'Copié'
+                : copyParts.length > 1
+                  ? `Copier la partie ${index + 1}/${copyParts.length}`
+                  : canSend
+                    ? 'Copier le texte'
+                    : 'Copier le message'}
+            </button>
+          ))}
+          {canSend ? (
+            <button
+              type="button"
+              onClick={handleBroadcast}
+              disabled={sending || loadingPreview || !preview}
+              className="app-btn app-btn--md app-btn--primary gap-1.5"
+            >
+              <Send className="h-4 w-4" aria-hidden="true" />
+              {sending
+                ? 'Envoi en cours…'
+                : preview?.alreadySentAt
+                  ? 'Confirmer et rediffuser'
+                  : 'Confirmer et envoyer sur Discord'}
+            </button>
+          ) : null}
         </div>
       </div>
     </div>

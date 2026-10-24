@@ -161,7 +161,8 @@ erreur. Détail des modes : [Tournois](tournois.md).
 
 Entièrement **manuel**. Aucun cron, aucun envoi automatique. Sur `/clans/[clanId]/settings/tournaments`, le bouton « Diffuser sur Discord » de chaque tournoi ouvre [`TournamentBroadcastModal`](../../src/components/discord/TournamentBroadcastModal.tsx) :
 
-1. la modale liste les manches comptabilisées, la plus récente présélectionnée ;
+1. la modale liste les manches comptabilisées, puis le classement par squad (inter-clans) et le résumé du tournoi ; la
+   plus récente manche est présélectionnée, ou le résumé une fois le tournoi terminé (2026-10-24) ;
 2. sélectionner une manche déclenche un `GET` de prévisualisation, rendu par le même composant d'aperçu que la page de configuration ;
 3. « Confirmer et envoyer sur Discord » poste réellement le message.
 
@@ -183,7 +184,7 @@ Le MVP est le joueur des clans participants ayant infligé le plus de dégâts, 
 
 ### Résolution du webhook
 
-`Tournament.discordWebhookUrl` s'il est valide, sinon `tournament.webhookUrl` de la configuration du clan. Si aucun des deux n'est exploitable, la prévisualisation échoue en 400 avec un message explicite. La modale indique quand la surcharge de tournoi s'applique.
+`Tournament.discordWebhookUrl` s'il est valide, sinon `tournament.webhookUrl` de la configuration du clan. Si aucun des deux n'est exploitable, la prévisualisation reste servie (`canSend: false`, depuis le 2026-10-24) et seul l'envoi échoue en 400 avec un message explicite : la modale propose alors de **copier le message** (Markdown Discord, parties de 2 000 caractères) pour le coller à la main — [Tournois](tournois.md), « Diffusion Discord ». La modale indique quand la surcharge de tournoi s'applique.
 
 ### Contenu du message
 

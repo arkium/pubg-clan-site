@@ -188,6 +188,119 @@ export function buildTournamentSquadStandingsWebhookPayload(
   }
 }
 
+/** Intitulé du classement dans le résumé : final une fois le tournoi terminé, provisoire avant. */
+const SUMMARY_STANDINGS_FIELD: Record<TournamentMode, { final: string; provisional: string }> = {
+  inter_clan: { final: 'Classement final', provisional: 'Classement provisoire' },
+  custom_teams: { final: 'Classement final des équipes', provisional: 'Classement provisoire des équipes' },
+  solo_ffa: { final: 'Classement final individuel', provisional: 'Classement individuel provisoire' },
+  intra_clan: { final: 'Classement interne final', provisional: 'Classement interne provisoire' },
+}
+
+export type TournamentSummaryEmbedInput = {
+  tournamentId: string
+  tournamentTitle: string
+  /** Tournoi terminé : « Résultat final » ; sinon « Résumé provisoire ». */
+  final: boolean
+  mode: TournamentMode
+  mixedSquadRule: MixedSquadRule
+  /** « Inter-clans », « Solo »… (TOURNAMENT_MODE_DESCRIPTIONS). */
+  modeLabel: string
+  /** « 23 oct. 21:50 → 23:40 » (formatTournamentPeriod). */
+  periodLabel: string
+  organizerLabel: string
+  standings: Array<TournamentStandingLine & { wins: number }>
+  mvp: { memberId?: number | null; label: string; kills: number; damage: number } | null
+  rounds: Array<{ index: number; mapLabel: string; gameModeLabel: string; winnerLabel: string | null }>
+  /** Date de la dernière manche. */
+  lastPlayedAt: Date
+  mention: string
+  siteUrl: string
+}
+
+/**
+ * Résumé d'un tournoi (2026-10-24) : classement selon le mode, MVP du tournoi, vainqueur de chaque manche. Pendant le
+ * tournoi, un résumé provisoire ; une fois terminé, le résultat final, que la modale propose alors par défaut.
+ */
+export function buildTournamentSummaryWebhookPayload(input: TournamentSummaryEmbedInput): DiscordWebhookPayload {
+  const siteUrl = input.siteUrl.replace(/\/+$/, '')
+  const tournamentUrl = tournamentShortUrl({ siteUrl }, input.tournamentId)
+  const wording = MODE_WORDING[input.mode] ?? MODE_WORDING.inter_clan
+  const standingsField = SUMMARY_STANDINGS_FIELD[input.mode] ?? SUMMARY_STANDINGS_FIELD.inter_clan
+  const leader = input.standings[0]
+
+  const descriptionLines = [
+    `🗓️ ${input.periodLabel} · organisé par **${input.organizerLabel}**`,
+    `🎮 ${input.modeLabel} · ${input.rounds.length} manche(s) · ${input.standings.length} ${wording.participants}`,
+  ]
+  if (input.final && leader) {
+    descriptionLines.push(`🏆 Vainqueur : **${leader.label}** — ${formatPoints(leader.totalPoints)} pts`)
+  }
+  // Le prorata produit des points décimaux : sans cette note, un lecteur croirait à une erreur de calcul.
+  if (input.mode === 'inter_clan' && input.mixedSquadRule === 'prorata') {
+    descriptionLines.push('⚖️ Squads mixtes : placement et bonus partagés au prorata de l’effectif de chaque clan.')
+  }
+  if (tournamentUrl) descriptionLines.push(`[📊 Classement complet sur le site](${tournamentUrl})`)
+
+  const fields: DiscordEmbedField[] = [
+    {
+      name: input.final ? standingsField.final : standingsField.provisional,
+      value: joinBoundedLines(
+        input.standings.map(
+          (line, index) =>
+            `${rankPrefix(index)} **${line.label}** — ${formatPoints(line.totalPoints)} pts · ${line.totalKills} kills` +
+            (line.wins > 0 ? ` · ${line.wins} Top 1` : '')
+        ),
+        MAX_FIELD_VALUE_LENGTH
+      ),
+    },
+  ]
+
+  if (input.mvp) {
+    const mvp = input.mvp
+    const line = (url: string | null) => `${boldName(mvp.label, url)} — ${mvp.kills} kills · ${Math.round(mvp.damage)} dégâts`
+    const linked = line(playerShortUrl({ siteUrl }, mvp.memberId))
+    fields.push({
+      name: '⭐ MVP du tournoi',
+      value: truncate(linked.length <= MAX_FIELD_VALUE_LENGTH ? linked : line(null), MAX_FIELD_VALUE_LENGTH),
+    })
+  }
+
+  fields.push({
+    name: 'Manches',
+    value: joinBoundedLines(
+      input.rounds.map(
+        (round) =>
+          `M${round.index} · ${round.mapLabel} · ${round.gameModeLabel}` +
+          (round.winnerLabel ? ` — 🐔 ${round.winnerLabel}` : '')
+      ),
+      MAX_FIELD_VALUE_LENGTH
+    ),
+  })
+
+  return {
+    ...(input.mention ? { content: input.mention } : {}),
+    embeds: [
+      {
+        title: truncate(
+          `🏆 Tournoi : ${input.tournamentTitle} — ${input.final ? 'Résultat final' : 'Résumé provisoire'}`,
+          MAX_TITLE_LENGTH
+        ),
+        ...(tournamentUrl ? { url: tournamentUrl } : {}),
+        color: TOURNAMENT_COLOR,
+        description: truncate(descriptionLines.join('\n'), MAX_DESCRIPTION_LENGTH),
+        fields,
+        footer: {
+          text: truncate(
+            `${input.rounds.length} manche(s) · ${input.standings.length} ${wording.participants}${input.final ? '' : ' · résumé provisoire'}`,
+            MAX_FOOTER_LENGTH
+          ),
+        },
+        timestamp: input.lastPlayedAt.toISOString(),
+      },
+    ],
+  }
+}
+
 export function buildTournamentRoundWebhookPayload(
   input: TournamentRoundEmbedInput
 ): DiscordWebhookPayload {

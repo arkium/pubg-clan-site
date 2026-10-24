@@ -3,6 +3,7 @@ import { describe, expect, it } from 'vitest'
 import {
   buildTournamentRoundWebhookPayload,
   buildTournamentSquadStandingsWebhookPayload,
+  buildTournamentSummaryWebhookPayload,
   formatPlacement,
   formatPoints,
   TOURNAMENT_COLOR,
@@ -325,5 +326,79 @@ describe('buildTournamentSquadStandingsWebhookPayload', () => {
     expect(embed.description!.length).toBeLessThanOrEqual(4096)
     expect(embed.description).toContain('… et ')
     expect(embed.description).toContain('Classement complet sur le site')
+  })
+})
+
+describe('buildTournamentSummaryWebhookPayload — résumé du tournoi (2026-10-24)', () => {
+  const summaryInput = {
+    tournamentId: TOURNAMENT_ID,
+    tournamentTitle: 'L’observateur des FUN',
+    final: true,
+    mode: 'inter_clan' as const,
+    mixedSquadRule: 'prorata' as const,
+    modeLabel: 'Inter-clans',
+    periodLabel: '23 oct. 21:50 → 23:40',
+    organizerLabel: '[FUN] FunsNRoses',
+    standings: [
+      { label: '[FR] FR-Alliance-BE', totalPoints: 61.5, totalKills: 30, wins: 2 },
+      { label: '[FUN] FunsNRoses', totalPoints: 48, totalKills: 22, wins: 1 },
+      { label: '[SRTY] SERENITY321', totalPoints: 20, totalKills: 4, wins: 0 },
+    ],
+    mvp: { memberId: 1, label: '[FR] raphtaliahum', kills: 13, damage: 1203.4 },
+    rounds: [
+      { index: 1, mapLabel: 'Haven', gameModeLabel: 'Solo', winnerLabel: '[FUN] FunsNRoses' },
+      { index: 2, mapLabel: 'Haven', gameModeLabel: 'Solo', winnerLabel: null },
+      { index: 3, mapLabel: 'Erangel', gameModeLabel: 'Squad', winnerLabel: '[FR] FR-Alliance-BE' },
+    ],
+    lastPlayedAt: new Date('2026-10-23T21:11:44.000Z'),
+    mention: '',
+    siteUrl: 'https://chickendinner.fr/',
+  }
+
+  it('tournoi terminé : résultat final, vainqueur, classement, MVP lié et vainqueur de chaque manche', () => {
+    const [embed] = buildTournamentSummaryWebhookPayload(summaryInput).embeds
+    expect(embed.title).toBe('🏆 Tournoi : L’observateur des FUN — Résultat final')
+    expect(embed.url).toBe(`https://chickendinner.fr/t/${TOURNAMENT_ID}`)
+    expect(embed.description).toContain('🗓️ 23 oct. 21:50 → 23:40 · organisé par **[FUN] FunsNRoses**')
+    expect(embed.description).toContain('🎮 Inter-clans · 3 manche(s) · 3 clan(s) classé(s)')
+    expect(embed.description).toContain('🏆 Vainqueur : **[FR] FR-Alliance-BE** — 61.5 pts')
+    expect(embed.description).toContain('au prorata')
+    const [standings, mvp, rounds] = embed.fields!
+    expect(standings.name).toBe('Classement final')
+    expect(standings.value).toContain('🥇 **[FR] FR-Alliance-BE** — 61.5 pts · 30 kills · 2 Top 1')
+    expect(standings.value).toContain('🥉 **[SRTY] SERENITY321** — 20 pts · 4 kills')
+    expect(standings.value).not.toContain('0 Top 1')
+    expect(mvp).toEqual({
+      name: '⭐ MVP du tournoi',
+      value: '[**\\[FR\\] raphtaliahum**](https://chickendinner.fr/j/1) — 13 kills · 1203 dégâts',
+    })
+    expect(rounds.name).toBe('Manches')
+    expect(rounds.value).toBe(
+      ['M1 · Haven · Solo — 🐔 [FUN] FunsNRoses', 'M2 · Haven · Solo', 'M3 · Erangel · Squad — 🐔 [FR] FR-Alliance-BE'].join('\n')
+    )
+    expect(embed.footer?.text).toBe('3 manche(s) · 3 clan(s) classé(s)')
+  })
+
+  it('tournoi en cours : résumé provisoire, sans vainqueur annoncé', () => {
+    const [embed] = buildTournamentSummaryWebhookPayload({ ...summaryInput, final: false }).embeds
+    expect(embed.title).toBe('🏆 Tournoi : L’observateur des FUN — Résumé provisoire')
+    expect(embed.description).not.toContain('Vainqueur')
+    expect(embed.fields![0].name).toBe('Classement provisoire')
+    expect(embed.footer?.text).toContain('résumé provisoire')
+  })
+
+  it('intitulés selon le mode : joueurs en solo', () => {
+    const [embed] = buildTournamentSummaryWebhookPayload({ ...summaryInput, mode: 'solo_ffa', modeLabel: 'Solo' }).embeds
+    expect(embed.fields![0].name).toBe('Classement final individuel')
+    expect(embed.description).toContain('joueur(s) classé(s)')
+    expect(embed.description).not.toContain('prorata')
+  })
+
+  it('reste dans les limites Discord avec beaucoup de participants et de manches', () => {
+    const standings = Array.from({ length: 80 }, (_, index) => ({ label: `[C${index}] Clan au nom assez long`, totalPoints: 80 - index, totalKills: 3, wins: 0 }))
+    const rounds = Array.from({ length: 40 }, (_, index) => ({ index: index + 1, mapLabel: 'Erangel', gameModeLabel: 'Squad', winnerLabel: '[C1] Clan au nom assez long' }))
+    const [embed] = buildTournamentSummaryWebhookPayload({ ...summaryInput, standings, rounds }).embeds
+    for (const field of embed.fields!) expect(field.value.length).toBeLessThanOrEqual(1024)
+    expect(embed.fields![0].value).toContain('… et ')
   })
 })

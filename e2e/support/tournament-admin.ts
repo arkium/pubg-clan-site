@@ -3,7 +3,11 @@ import type { Page } from '@playwright/test'
 import type { ApiMock } from './api'
 import { CLAN_ID } from './data'
 
-import { buildTournamentRoundWebhookPayload, buildTournamentSquadStandingsWebhookPayload } from '@/lib/discord/discord-tournament-embed'
+import {
+  buildTournamentRoundWebhookPayload,
+  buildTournamentSquadStandingsWebhookPayload,
+  buildTournamentSummaryWebhookPayload,
+} from '@/lib/discord/discord-tournament-embed'
 
 /**
  * Administration des tournois d'un clan (e2e/tournament-admin.spec.ts) : organisateur connecté (`manage_settings`),
@@ -162,6 +166,43 @@ function roundPreview(matchId: string) {
     totalRounds: ROUNDS.length,
     usesTournamentOverride: false,
     alreadySentAt: round.sentAt,
+    canSend: true,
+  }
+}
+
+/** Résumé du tournoi (2026-10-24), calculé par le vrai générateur d'embed : final une fois le tournoi terminé. */
+function summaryPreview(final: boolean) {
+  return {
+    preview: buildTournamentSummaryWebhookPayload({
+      tournamentId: ACTIVE_TOURNAMENT_ID,
+      tournamentTitle: final ? 'Solo Showdown' : 'Coupe d’automne',
+      final,
+      mode: 'inter_clan',
+      mixedSquadRule: 'prorata',
+      modeLabel: 'Inter-clans',
+      periodLabel: '21 oct. → 26 oct.',
+      organizerLabel: '[DEMO] Clan Démo',
+      standings: [
+        { label: '[LMT] La Meute', totalPoints: 58, totalKills: 18, wins: 2 },
+        { label: '[DEMO] Clan Démo', totalPoints: 52.5, totalKills: 21, wins: 1 },
+        { label: '[RATZ] Les Ratz', totalPoints: 41, totalKills: 12, wins: 0 },
+      ],
+      mvp: { memberId: null, label: '[LMT] Wolfy', kills: 14, damage: 1860 },
+      rounds: ROUNDS.map((round) => ({
+        index: round.roundNumber,
+        mapLabel: 'Erangel',
+        gameModeLabel: 'Squad (partie perso)',
+        winnerLabel: round.roundNumber === 2 ? '[DEMO] Clan Démo' : '[LMT] La Meute',
+      })),
+      lastPlayedAt: new Date(ROUNDS[ROUNDS.length - 1].playedAt),
+      mention: '@here',
+      siteUrl: 'https://chickendinner.example',
+    }),
+    totalRounds: ROUNDS.length,
+    usesTournamentOverride: false,
+    alreadySentAt: null,
+    canSend: true,
+    final,
   }
 }
 
@@ -185,7 +226,32 @@ function squadStandingsPreview() {
     totalRounds: ROUNDS.length,
     usesTournamentOverride: false,
     alreadySentAt: null,
+    canSend: true,
   }
+}
+
+/** Réponses de `GET …/discord` : liste des messages, ou aperçu d'une manche, du classement par squad, du résumé. */
+function discordResponse(url: URL, final: boolean) {
+  const matchId = url.searchParams.get('matchId')
+  if (url.searchParams.get('view') === 'squads') return squadStandingsPreview()
+  if (url.searchParams.get('view') === 'summary') return summaryPreview(final)
+  if (matchId) return roundPreview(matchId)
+  return {
+    rounds: ROUNDS,
+    squadStandings: { available: true, sentAt: null },
+    summary: { available: true, final, sentAt: null },
+  }
+}
+
+/**
+ * Aucun webhook Discord pour le tournoi actif (2026-10-24) : les aperçus restent servis, `canSend: false` ; la modale
+ * propose de copier le message.
+ */
+export function mockDiscordWithoutWebhook(api: ApiMock) {
+  api.on('GET', `/api/clans/${CLAN_ID}/tournaments/${ACTIVE_TOURNAMENT_ID}/discord`, (url) => {
+    const response = discordResponse(url, false)
+    return { body: 'preview' in response ? { ...response, canSend: false } : response }
+  })
 }
 
 // ── Mock complet ────────────────────────────────────────────────────────────────────────────────────
@@ -280,15 +346,15 @@ export async function mockTournamentAdmin(api: ApiMock, page: Page): Promise<Tou
         calls.untrackedAdds.push({ id: tournament.id, body })
         return { body: { ok: true, message: 'gurugun ajouté à [DEMO] Clan Démo et rattaché à 3 manches.' } }
       })
-      .on('GET', `${path}/discord`, (url) => {
-        const matchId = url.searchParams.get('matchId')
-        if (url.searchParams.get('view') === 'squads') return { body: squadStandingsPreview() }
-        return { body: matchId ? roundPreview(matchId) : { rounds: ROUNDS, squadStandings: { available: true, sentAt: null } } }
-      })
+      .on('GET', `${path}/discord`, (url) => ({ body: discordResponse(url, tournament.status === 'finished') }))
       .on('POST', `${path}/discord`, (_url, request) => {
         const body = request.postDataJSON() as Record<string, unknown>
         calls.broadcasts.push({ id: tournament.id, body })
         if (body.view === 'squads') return { body: { success: true, message: 'Classement par squad publié sur Discord.' } }
+        if (body.view === 'summary') {
+          const message = tournament.status === 'finished' ? 'Résultat final publié sur Discord.' : 'Résumé provisoire publié sur Discord.'
+          return { body: { success: true, message } }
+        }
         const round = ROUNDS.find((entry) => entry.squadMatchId === body.matchId)
         return { body: { success: true, message: `Manche #${round?.roundNumber ?? '?'} publiée sur Discord.` } }
       })

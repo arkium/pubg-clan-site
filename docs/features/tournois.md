@@ -66,7 +66,8 @@ manche, sans aucun message.**
 d'ensemble du clan), organisée en trois onglets :
 
 1. **Tournois** — recherche, filtre de statut, tournois actifs en cartes, brouillons et tournois terminés en
-   accordéon. Actions par tournoi : synchroniser PUBG, diffuser sur Discord, voir le classement, modifier, supprimer.
+   accordéon. Actions par tournoi : synchroniser PUBG, diffuser sur Discord, voir le classement, modifier, terminer (ou
+   rouvrir), supprimer.
 2. **Créer** (ou **Modifier** quand un tournoi est en cours d'édition) — formulaire en cinq blocs : informations
    générales (dont les heures facultatives), mode de tournoi et attribution des points, format et filtres PUBG, barème,
    diffusion Discord ; puis l'**aperçu de la vitrine** (voir « Horaires et aperçu de la vitrine »).
@@ -90,6 +91,11 @@ défaut, contrôles et corps envoyé, repris tels quels de l'ancienne page).
   (`AdminAlert tone="warn"`, texte de `tournamentFilterWarning`, `src/lib/tournament-filters.ts`) dit ce qui est gardé et
   qu'une manche hors filtre sera ignorée, même pendant le tournoi, sans récupération de télémétrie — et qu'un tournoi qui
   mélange les formats (une manche solo puis des squads) doit rester sur « Tous les modes ».
+- **Terminer / Rouvrir** (2026-10-24) : « Terminer le tournoi » sur un tournoi actif, à côté de « Supprimer » (le
+  23/10, un tournoi a été supprimé faute d'autre issue visible). Il envoie le seul statut (`PATCH { status: 'finished' }`) :
+  phase « terminé » partout, carte rangée dans les archives, IndexNow. **Une fois la fenêtre passée**, il devient le
+  bouton principal à l'accent, avec une phrase d'explication (horloge relue chaque minute). Réversible : « Rouvrir » sur
+  un tournoi terminé (`status: 'active'`), d'où l'absence de modale. La synchronisation reste possible après la clôture.
 - **Sous les boutons de chaque carte** : le rappel de la synchronisation (attendre la fin de la manche, relance
   automatique), voir « Synchronisation PUBG ».
 - **Formulaire** : champs `app-input` (36 px, focus à l'accent), intitulé au-dessus, aide en `t-meta`. Les contrôles
@@ -514,6 +520,22 @@ points, kills, Top 1 et place à chaque manche — dans la description de l'embe
 autre(s) squad(s) »). Journal `DiscordNotificationLog` : `kind = 'tournament_squads'`, `refId` = identifiant du tournoi ;
 une rediffusion est signalée comme pour une manche.
 
+**Résumé du tournoi** (tous modes, 2026-10-24) : dernier choix du menu, après les manches et le classement par squad
+(`GET …/discord?view=summary`, `POST { view: 'summary' }`, `prepareTournamentSummaryBroadcast`). Titre « Résultat
+final » une fois le tournoi terminé (`resolveTournamentPhase`), « Résumé provisoire » avant ; dates, organisateur,
+mode, nombre de manches et de participants, vainqueur (final seulement), classement selon le mode (Top 1 compris),
+**MVP du tournoi** (`pickMvp` : le plus de kills, départagé par les dégâts ; clan organisateur seul en scrims internes)
+et une ligne par manche avec son vainqueur. **Tournoi terminé : le résumé est choisi par défaut** ; sinon la dernière
+manche. Journal : `kind = 'tournament_summary'`, `refId` = identifiant du tournoi.
+
+**Sans webhook** (2026-10-24) : l'aperçu est toujours servi (`webhookUrl: null`, `canSend: false` dans la réponse) ;
+seul l'envoi est refusé (400, message explicite). La modale le dit en orange d'attente, avec un lien vers les
+paramètres Discord du clan, et fait de **« Copier le message »** l'action principale : le texte de l'embed en Markdown
+Discord (`discordPayloadToText`, `src/lib/discord/discord-payload-text.ts` : titre `##` lié, gras, champs, pied de page
+`-#`), découpé en parties de 2 000 caractères au besoin (« Copier la partie 1/2 »…, limite d'un message sans Nitro).
+Presse-papiers refusé : le texte s'affiche dans une zone prête à sélectionner. Avec un webhook, « Copier le texte » reste
+proposé en secondaire. Une copie n'est pas journalisée : rien ne garantit qu'elle a été collée.
+
 Le classement général joint à l'embed suit le même mode. Quand le partage au prorata est actif, une ligne l'annonce :
 sans elle, les points décimaux passeraient pour une erreur de calcul.
 
@@ -576,11 +598,12 @@ moteur n'y est pas décrit.
 | `tournament-mode-display.test.ts` | Unités par mode, repérage du lecteur (clan, joueur, équipe), phrase « Ton clan est 2e… », forme par manche, comptes à rebours, barème et règles, top 5 + ligne du lecteur, format des awards (durées, km, singulier) |
 | `next-redirects.test.ts` | Chaque redirection de `next.config.ts` mène à une page existante et ne masque aucune page ; anciennes adresses de tournoi par clan |
 | `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections ; charte du détail (2026-10-04) : « en direct » à l'accent sans couleur en dur, `.tournament-place` ≥ 11 px, aucun défilement horizontal, bandeau docké sur une ligne à 375 px, 12 manches (puces paginées, forme bornée), tournoi à venir ; statistiques (2026-10-11) : podium en marches, top killers / scorers (MVP, ligne du lecteur, liste dépliable), moyenne par clan, awards (fun facts, chevrons, pause, « Tout voir », glisser à la souris et au doigt), armes, ancre « Stats » docké ; synchronisation (2026-10-24) : rappel sous le bouton, SuperUser d'un autre clan qui synchronise, essais automatiques arrêtables, « Gérer les tournois de mon clan » à l'accent |
-| `e2e/tournament-admin.spec.ts` | Administration (2026-10-04) : liste et archives, recherche et statut, création et modification (corps vérifiés), suppression en modale, synchronisation avec relance automatique (horloge simulée : essai suivant après 60 s, arrêt), bandeau d'avertissement des filtres, diffusion Discord simulée, guide, refus sans droit, aucun défilement horizontal ni select natif |
+| `e2e/tournament-admin.spec.ts` | Administration (2026-10-04) : liste et archives, recherche et statut, création et modification (corps vérifiés), suppression en modale, synchronisation avec relance automatique (horloge simulée : essai suivant après 60 s, arrêt), bandeau d'avertissement des filtres, terminer (bouton principal fenêtre passée, statut seul envoyé) puis rouvrir, diffusion Discord simulée (résumé provisoire puis final par défaut, copie sans webhook et repli sans presse-papiers), guide, refus sans droit, aucun défilement horizontal ni select natif |
 | `tournament-standings-view.test.ts` | Libellés des participants, rangs, MVP, manches numérotées, trophée des clans, détail par escouade, détail par player limité au clan organisateur |
 | `tournament-stats.test.ts` | Moyenne par clan (formule du tableur, clan à un player, égalités), top killers (règle du MVP) et scorers, awards (total, meilleure manche, télémétrie absente, premier sang), fun facts, armes (variantes, véhicules exclus, 3 tireurs, 8 armes) |
-| `discord/discord-tournament-embed.test.ts` | Intitulés par mode, note de prorata, format des lignes, limites Discord |
-| `discord/discord-tournament-service.test.ts` | Diffusion dans les 4 modes, MVP restreint en scrims internes, webhooks, journalisation |
+| `discord/discord-tournament-embed.test.ts` | Intitulés par mode, note de prorata, format des lignes, limites Discord, résumé du tournoi (final, provisoire, solo) |
+| `discord/discord-tournament-service.test.ts` | Diffusion dans les 4 modes, MVP restreint en scrims internes, webhooks (aperçu servi sans webhook, envoi refusé), journalisation, résumé du tournoi (final, provisoire, liste) |
+| `discord/discord-payload-text.test.ts` | Message à copier : Markdown Discord, mention en tête, découpe en parties de 2 000 caractères |
 | `tournament-guide.test.ts` | Couverture des modes par le guide, cohérence avec le moteur, fiches non vides, pièges rappelés, résumé en quatre lignes |
 | `tournament-schedule.test.ts` | Heures de Paris (été, hiver), soirée 21 h → 3 h, journée entière conservée, minuit UTC décalé d'1 ms, relecture pour le formulaire, affichage, phase après l'heure de fin ; titre (liens, balises, longueur) |
 

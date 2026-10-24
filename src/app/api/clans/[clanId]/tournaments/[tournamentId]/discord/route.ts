@@ -4,17 +4,20 @@ import { withAdminActionLog } from '@/lib/admin-action-log'
 import {
   broadcastTournamentRound,
   broadcastTournamentSquadStandings,
+  broadcastTournamentSummary,
   DiscordTournamentError,
   listTournamentRounds,
   prepareTournamentRoundBroadcast,
   prepareTournamentSquadStandingsBroadcast,
+  prepareTournamentSummaryBroadcast,
 } from '@/lib/discord/discord-tournament-service'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 
-// Une manche (`matchId`), ou le classement par escouade du tournoi (`view: 'squads'`, demande du 2026-10-11).
+// Une manche (`matchId`), le classement par escouade (`view: 'squads'`, 2026-10-11) ou le résumé du tournoi
+// (`view: 'summary'`, 2026-10-24).
 const BroadcastSchema = z.union([
   z.object({ matchId: z.string().trim().min(1).max(191) }),
-  z.object({ view: z.literal('squads') }),
+  z.object({ view: z.enum(['squads', 'summary']) }),
 ])
 
 function parseClanId(value: string) {
@@ -52,6 +55,7 @@ export async function GET(
   const matchId = searchParams.get('matchId')
 
   try {
+    // `canSend` : un webhook valide existe. Sans lui, l'aperçu reste servi et la modale propose de copier le message.
     if (searchParams.get('view') === 'squads') {
       const prepared = await prepareTournamentSquadStandingsBroadcast(clanId, tournamentId)
       return Response.json({
@@ -59,6 +63,19 @@ export async function GET(
         totalRounds: prepared.totalRounds,
         usesTournamentOverride: prepared.usesTournamentOverride,
         alreadySentAt: prepared.alreadySentAt,
+        canSend: prepared.webhookUrl !== null,
+      })
+    }
+
+    if (searchParams.get('view') === 'summary') {
+      const prepared = await prepareTournamentSummaryBroadcast(clanId, tournamentId)
+      return Response.json({
+        preview: prepared.payload,
+        totalRounds: prepared.totalRounds,
+        usesTournamentOverride: prepared.usesTournamentOverride,
+        alreadySentAt: prepared.alreadySentAt,
+        canSend: prepared.webhookUrl !== null,
+        final: prepared.final,
       })
     }
 
@@ -74,6 +91,7 @@ export async function GET(
       totalRounds: prepared.totalRounds,
       usesTournamentOverride: prepared.usesTournamentOverride,
       alreadySentAt: prepared.alreadySentAt,
+      canSend: prepared.webhookUrl !== null,
     })
   } catch (error) {
     return toErrorResponse(error, 'Prévisualisation de la manche impossible')
@@ -102,6 +120,14 @@ async function handlePost(
   }
 
   try {
+    if ('view' in validated.data && validated.data.view === 'summary') {
+      const result = await broadcastTournamentSummary(clanId, tournamentId)
+      return Response.json({
+        success: true,
+        message: result.final ? 'Résultat final publié sur Discord.' : 'Résumé provisoire publié sur Discord.',
+      })
+    }
+
     if ('view' in validated.data) {
       await broadcastTournamentSquadStandings(clanId, tournamentId)
       return Response.json({ success: true, message: 'Classement par squad publié sur Discord.' })

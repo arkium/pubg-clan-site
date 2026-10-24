@@ -8,12 +8,16 @@ import {
   getTrackedTournamentClanIds,
   normalizeTournamentRules,
 } from '@/lib/tournament-service'
-import { participantForm } from '@/lib/tournament-mode-display'
+import { TOURNAMENT_MODE_DESCRIPTIONS } from '@/lib/tournament-guide'
+import { participantForm, resolveTournamentPhase } from '@/lib/tournament-mode-display'
+import { formatTournamentPeriod } from '@/lib/tournament-schedule'
 import {
   buildRoundViews,
   buildSquadBreakdown,
   buildSquadRounds,
   buildStandingViews,
+  clanLabel as standingClanLabel,
+  pickMvp,
   type ClanDirectory,
   type MemberDirectory,
 } from '@/lib/tournament-standings-view'
@@ -25,12 +29,18 @@ import { getPublicSiteBaseUrl } from '@/lib/public-base-url'
 import {
   buildTournamentRoundWebhookPayload,
   buildTournamentSquadStandingsWebhookPayload,
+  buildTournamentSummaryWebhookPayload,
   type TournamentRoundMvp,
 } from '@/lib/discord/discord-tournament-embed'
 
 const TOURNAMENT_ROUND_KIND = 'tournament_round'
 /** Classement par escouade d'un tournoi : une entrée par tournoi (`refId` = identifiant du tournoi). */
 const TOURNAMENT_SQUADS_KIND = 'tournament_squads'
+/** Résumé du tournoi (2026-10-24) : une entrée par tournoi (`refId` = identifiant du tournoi). */
+const TOURNAMENT_SUMMARY_KIND = 'tournament_summary'
+
+const NO_WEBHOOK_MESSAGE =
+  'Aucun webhook Discord valide pour les tournois : renseigne-le dans les paramètres Discord du clan ou sur ce tournoi.'
 
 export class DiscordTournamentError extends Error {
   status: number
@@ -43,7 +53,11 @@ export class DiscordTournamentError extends Error {
 
 export type TournamentRoundBroadcast = {
   payload: DiscordWebhookPayload
-  webhookUrl: string
+  /**
+   * `null` sans webhook valide : l'aperçu reste servi, pour que l'organisateur copie le message et le colle lui-même
+   * dans Discord (2026-10-24) ; seul l'envoi est refusé.
+   */
+  webhookUrl: string | null
   roundNumber: number
   totalRounds: number
   usesTournamentOverride: boolean
@@ -85,14 +99,48 @@ function findMvp(
 function resolveWebhookUrl(
   tournamentWebhookUrl: string | null,
   clanWebhookUrl: string
-): { webhookUrl: string; usesTournamentOverride: boolean } {
+): { webhookUrl: string | null; usesTournamentOverride: boolean } {
   const override = (tournamentWebhookUrl ?? '').trim()
 
   if (isValidDiscordWebhookUrl(override)) {
     return { webhookUrl: override, usesTournamentOverride: true }
   }
 
-  return { webhookUrl: clanWebhookUrl, usesTournamentOverride: false }
+  return { webhookUrl: isValidDiscordWebhookUrl(clanWebhookUrl) ? clanWebhookUrl : null, usesTournamentOverride: false }
+}
+
+/**
+ * Envoie un message préparé puis note sa diffusion. Une rediffusion volontaire est autorisée : la date est mise à jour
+ * au lieu de bloquer sur l'unique.
+ */
+async function sendAndRecord(
+  clanId: number,
+  kind: string,
+  refId: string,
+  prepared: { webhookUrl: string | null; payload: DiscordWebhookPayload }
+) {
+  if (!prepared.webhookUrl) throw new DiscordTournamentError(NO_WEBHOOK_MESSAGE)
+  const result = await sendDiscordWebhook(prepared.webhookUrl, prepared.payload)
+
+  if (!result.ok) {
+    throw new DiscordTournamentError(
+      `Discord a refusé l'envoi${result.status ? ` (${result.status})` : ''} : ${result.error}`,
+      502
+    )
+  }
+
+  await prisma.discordNotificationLog.upsert({
+    where: { clanId_kind_refId: { clanId, kind, refId } },
+    update: { sentAt: new Date() },
+    create: { clanId, kind, refId },
+  })
+}
+
+/** Manches du tournoi dans l'ordre chronologique : la manche #1 est la plus ancienne. */
+async function chronologicalMatches(tournamentId: string) {
+  return [...(await getTournamentMatches(tournamentId))].sort(
+    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
+  )
 }
 
 /**
@@ -115,16 +163,7 @@ export async function prepareTournamentRoundBroadcast(
     tournamentSettings.webhookUrl
   )
 
-  if (!isValidDiscordWebhookUrl(webhookUrl)) {
-    throw new DiscordTournamentError(
-      'Aucun webhook Discord valide pour les tournois : renseigne-le dans les paramètres Discord du clan ou sur ce tournoi.'
-    )
-  }
-
-  // Ordre chronologique : la manche #1 est la plus ancienne du tournoi.
-  const matches = [...(await getTournamentMatches(tournamentId))].sort(
-    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-  )
+  const matches = await chronologicalMatches(tournamentId)
   const roundIndex = matches.findIndex((match) => match.id === squadMatchId)
 
   if (roundIndex === -1) {
@@ -242,22 +281,20 @@ export async function prepareTournamentRoundBroadcast(
 export async function listTournamentRounds(clanId: number, tournamentId: string) {
   const tournament = await getTournamentForClan(clanId, tournamentId)
 
-  const matches = [...(await getTournamentMatches(tournamentId))].sort(
-    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-  )
+  const matches = await chronologicalMatches(tournamentId)
 
   const logs = await prisma.discordNotificationLog.findMany({
     where: {
       clanId,
       OR: [
         { kind: TOURNAMENT_ROUND_KIND, refId: { in: matches.map((match) => `${tournamentId}:${match.id}`) } },
-        { kind: TOURNAMENT_SQUADS_KIND, refId: tournamentId },
+        { kind: { in: [TOURNAMENT_SQUADS_KIND, TOURNAMENT_SUMMARY_KIND] }, refId: tournamentId },
       ],
     },
     select: { kind: true, refId: true, sentAt: true },
   })
   const sentByRefId = new Map(
-    logs.filter((log) => log.kind !== TOURNAMENT_SQUADS_KIND).map((log) => [log.refId, log.sentAt])
+    logs.filter((log) => log.kind === TOURNAMENT_ROUND_KIND).map((log) => [log.refId, log.sentAt])
   )
   const rules = normalizeTournamentRules(tournament.rules as Record<string, unknown>)
 
@@ -274,6 +311,12 @@ export async function listTournamentRounds(clanId: number, tournamentId: string)
     squadStandings: {
       available: rules.mode === 'inter_clan' && matches.length > 0,
       sentAt: logs.find((log) => log.kind === TOURNAMENT_SQUADS_KIND)?.sentAt ?? null,
+    },
+    // Résumé du tournoi : provisoire pendant le tournoi, résultat final une fois terminé (proposé par défaut alors).
+    summary: {
+      available: matches.length > 0,
+      final: resolveTournamentPhase(tournament) === 'finished',
+      sentAt: logs.find((log) => log.kind === TOURNAMENT_SUMMARY_KIND)?.sentAt ?? null,
     },
   }
 }
@@ -295,20 +338,13 @@ export async function prepareTournamentSquadStandingsBroadcast(
     tournament.discordWebhookUrl,
     tournamentSettings.webhookUrl
   )
-  if (!isValidDiscordWebhookUrl(webhookUrl)) {
-    throw new DiscordTournamentError(
-      'Aucun webhook Discord valide pour les tournois : renseigne-le dans les paramètres Discord du clan ou sur ce tournoi.'
-    )
-  }
 
   const rules = normalizeTournamentRules(tournament.rules as Record<string, unknown>)
   if (rules.mode !== 'inter_clan') {
     throw new DiscordTournamentError('Le classement par squad n’existe que pour un tournoi inter-clans.')
   }
 
-  const matches = [...(await getTournamentMatches(tournamentId))].sort(
-    (left, right) => new Date(left.createdAt).getTime() - new Date(right.createdAt).getTime()
-  )
+  const matches = await chronologicalMatches(tournamentId)
   if (matches.length === 0) {
     throw new DiscordTournamentError('Aucune manche comptabilisée : rien à classer pour l’instant.')
   }
@@ -366,22 +402,7 @@ export async function prepareTournamentSquadStandingsBroadcast(
 
 export async function broadcastTournamentSquadStandings(clanId: number, tournamentId: string) {
   const prepared = await prepareTournamentSquadStandingsBroadcast(clanId, tournamentId)
-  const result = await sendDiscordWebhook(prepared.webhookUrl, prepared.payload)
-
-  if (!result.ok) {
-    throw new DiscordTournamentError(
-      `Discord a refusé l'envoi${result.status ? ` (${result.status})` : ''} : ${result.error}`,
-      502
-    )
-  }
-
-  // Rediffusion volontaire autorisée, comme pour une manche : la date est mise à jour.
-  await prisma.discordNotificationLog.upsert({
-    where: { clanId_kind_refId: { clanId, kind: TOURNAMENT_SQUADS_KIND, refId: tournamentId } },
-    update: { sentAt: new Date() },
-    create: { clanId, kind: TOURNAMENT_SQUADS_KIND, refId: tournamentId },
-  })
-
+  await sendAndRecord(clanId, TOURNAMENT_SQUADS_KIND, tournamentId, prepared)
   return { totalRounds: prepared.totalRounds }
 }
 
@@ -391,25 +412,118 @@ export async function broadcastTournamentRound(
   squadMatchId: string
 ) {
   const prepared = await prepareTournamentRoundBroadcast(clanId, tournamentId, squadMatchId)
-  const result = await sendDiscordWebhook(prepared.webhookUrl, prepared.payload)
+  // Diffusion manuelle et confirmée par l'organisateur.
+  await sendAndRecord(clanId, TOURNAMENT_ROUND_KIND, `${tournamentId}:${squadMatchId}`, prepared)
+  return { roundNumber: prepared.roundNumber, totalRounds: prepared.totalRounds }
+}
 
-  if (!result.ok) {
-    throw new DiscordTournamentError(
-      `Discord a refusé l'envoi${result.status ? ` (${result.status})` : ''} : ${result.error}`,
-      502
-    )
+export type TournamentSummaryBroadcast = Omit<TournamentRoundBroadcast, 'roundNumber'> & {
+  /** Tournoi terminé : « Résultat final » plutôt que « Résumé provisoire ». */
+  final: boolean
+}
+
+/**
+ * Résumé du tournoi, prêt à diffuser (2026-10-24) : classement selon le mode, MVP, vainqueur de chaque manche. Mêmes
+ * chiffres que la page du tournoi (`computeTournamentModeStandings`, `buildRoundViews`, `pickMvp`).
+ */
+export async function prepareTournamentSummaryBroadcast(
+  clanId: number,
+  tournamentId: string
+): Promise<TournamentSummaryBroadcast> {
+  const [{ tournament: tournamentSettings }, tournament] = await Promise.all([
+    getDiscordSettings(clanId),
+    getTournamentForClan(clanId, tournamentId),
+  ])
+  const { webhookUrl, usesTournamentOverride } = resolveWebhookUrl(
+    tournament.discordWebhookUrl,
+    tournamentSettings.webhookUrl
+  )
+
+  const matches = await chronologicalMatches(tournamentId)
+  if (matches.length === 0) {
+    throw new DiscordTournamentError('Aucune manche comptabilisée : rien à résumer pour l’instant.')
   }
 
-  // Diffusion manuelle et confirmee par l'owner : une rediffusion volontaire
-  // est autorisee, on met donc la date a jour au lieu de bloquer sur l'unique.
-  const refId = `${tournamentId}:${squadMatchId}`
-  await prisma.discordNotificationLog.upsert({
-    where: { clanId_kind_refId: { clanId, kind: TOURNAMENT_ROUND_KIND, refId } },
-    update: { sentAt: new Date() },
-    create: { clanId, kind: TOURNAMENT_ROUND_KIND, refId },
+  const rules = normalizeTournamentRules(tournament.rules as Record<string, unknown>)
+  const participatingClanIds = getTrackedTournamentClanIds(matches)
+  const memberIds = [...new Set(matches.flatMap((entry) => entry.members.map((row) => row.memberId)))]
+  const [clans, clanMembers, mapLabels, sentLog] = await Promise.all([
+    prisma.clan.findMany({
+      where: { id: { in: [...new Set([...participatingClanIds, tournament.organizerClanId])] } },
+      select: { id: true, name: true, tag: true },
+    }),
+    prisma.clanMember.findMany({
+      where: { id: { in: memberIds } },
+      select: { id: true, displayName: true, clanId: true },
+    }),
+    getMapLabels(),
+    prisma.discordNotificationLog.findUnique({
+      where: { clanId_kind_refId: { clanId, kind: TOURNAMENT_SUMMARY_KIND, refId: tournamentId } },
+      select: { sentAt: true },
+    }),
+  ])
+
+  const clanDirectory: ClanDirectory = Object.fromEntries(clans.map((clan) => [clan.id, { name: clan.name, tag: clan.tag }]))
+  const memberDirectory: MemberDirectory = Object.fromEntries(
+    clanMembers.map((member) => [member.id, { displayName: member.displayName, clanId: member.clanId }])
+  )
+  const standings = buildStandingViews(
+    computeTournamentModeStandings(matches, participatingClanIds, rules, tournament.organizerClanId),
+    clanDirectory,
+    memberDirectory
+  )
+  const rounds = buildRoundViews(matches, participatingClanIds, rules, clanDirectory, memberDirectory, tournament.organizerClanId)
+  // En scrims internes, le MVP ne peut venir que du clan organisateur.
+  const mvpMatches =
+    rules.mode === 'intra_clan'
+      ? matches.map((match) => ({
+          ...match,
+          members: match.members.filter((row) => row.member.clanId === tournament.organizerClanId),
+        }))
+      : matches
+  const final = resolveTournamentPhase(tournament) === 'finished'
+
+  const payload = buildTournamentSummaryWebhookPayload({
+    tournamentId,
+    tournamentTitle: tournament.title,
+    final,
+    mode: rules.mode,
+    mixedSquadRule: rules.mixedSquadRule,
+    modeLabel: TOURNAMENT_MODE_DESCRIPTIONS.find((entry) => entry.value === rules.mode)?.shortLabel ?? rules.mode,
+    periodLabel: formatTournamentPeriod(tournament.startDate, tournament.endDate),
+    organizerLabel: standingClanLabel(tournament.organizerClanId, clanDirectory),
+    standings: standings.map((standing) => ({
+      label: standing.label,
+      totalPoints: standing.totalPoints,
+      totalKills: standing.totalKills,
+      wins: standing.wins,
+    })),
+    mvp: pickMvp(mvpMatches, memberDirectory, clanDirectory),
+    rounds: rounds.map((round) => ({
+      index: round.index,
+      mapLabel: round.mapName ? mapDisplayName(round.mapName, mapLabels) : 'Carte inconnue',
+      gameModeLabel: round.gameMode ? gameModeDisplayName(round.gameMode) : 'Mode inconnu',
+      winnerLabel: round.winnerLabel,
+    })),
+    lastPlayedAt: new Date(matches[matches.length - 1].createdAt),
+    mention: renderDiscordMention(tournamentSettings.mention),
+    siteUrl: getPublicSiteBaseUrl(),
   })
 
-  return { roundNumber: prepared.roundNumber, totalRounds: prepared.totalRounds }
+  return {
+    payload,
+    webhookUrl,
+    totalRounds: matches.length,
+    usesTournamentOverride,
+    alreadySentAt: sentLog?.sentAt ?? null,
+    final,
+  }
+}
+
+export async function broadcastTournamentSummary(clanId: number, tournamentId: string) {
+  const prepared = await prepareTournamentSummaryBroadcast(clanId, tournamentId)
+  await sendAndRecord(clanId, TOURNAMENT_SUMMARY_KIND, tournamentId, prepared)
+  return { final: prepared.final }
 }
 
 export async function sendDiscordTournamentTestMessage(clanId: number, webhookUrl: string) {

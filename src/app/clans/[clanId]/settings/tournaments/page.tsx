@@ -91,6 +91,7 @@ export default function ClanTournamentSettingsPage() {
   const [broadcastTournament, setBroadcastTournament] = useState<AdminTournament | null>(null)
   const [deleteTournament, setDeleteTournament] = useState<AdminTournament | null>(null)
   const [untrackedTournament, setUntrackedTournament] = useState<AdminTournament | null>(null)
+  const [statusChangingId, setStatusChangingId] = useState<string | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [success, setSuccess] = useState<string | null>(null)
 
@@ -238,6 +239,33 @@ export default function ClanTournamentSettingsPage() {
     autoSync.start({ clanId, tournamentId: tournament.id, target: tournament, label: tournament.title })
   }
 
+  /** Terminer un tournoi actif ou rouvrir un tournoi terminé : le seul statut change (PATCH partiel). */
+  async function setTournamentStatus(tournament: AdminTournament, status: 'active' | 'finished') {
+    if (!clanId) return
+    setStatusChangingId(tournament.id)
+    setError(null)
+    setSuccess(null)
+    try {
+      const response = await fetch(`/api/clans/${clanId}/tournaments/${tournament.id}`, {
+        method: 'PATCH',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ status }),
+      })
+      const payload = (await response.json().catch(() => null)) as { error?: string } | null
+      if (!response.ok) throw new Error(payload?.error ?? 'Impossible de changer le statut du tournoi.')
+      setSuccess(
+        status === 'finished'
+          ? `« ${tournament.title} » est terminé : il passe dans « Brouillons et tournois terminés », d’où tu peux le rouvrir.`
+          : `« ${tournament.title} » est de nouveau actif.`
+      )
+      await refreshTournaments(false)
+    } catch (caught) {
+      setError(caught instanceof Error ? caught.message : 'Impossible de changer le statut du tournoi.')
+    } finally {
+      setStatusChangingId(null)
+    }
+  }
+
   // Un message de diffusion ou d'ajout, plus récent, passe devant celui de la synchronisation, qui revient à sa fermeture.
   const toastNotice = syncNotice ?? autoSync.notice
 
@@ -337,6 +365,8 @@ export default function ClanTournamentSettingsPage() {
                 onEdit: editTournament,
                 onDelete: setDeleteTournament,
                 onUntracked: setUntrackedTournament,
+                statusChangingId,
+                onSetStatus: (tournament, status) => void setTournamentStatus(tournament, status),
               }}
             />
           )

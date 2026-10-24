@@ -239,7 +239,7 @@ export function ClanBriefing({ clanId, showcase }: { clanId: number; showcase: C
               ...(win.mvp ? [{ icon: Award, text: `${win.mvp.name} ×${win.mvp.kills}`, color: 'var(--game-gold)' }] : []),
               { icon: Users, text: win.squadSize >= 4 ? 'Squad' : win.squadSize === 3 ? 'Trio' : 'Duo', color: 'var(--game-pos)' },
             ]}
-            cta={{ href: win.debriefPath, label: 'Voir le débriefing' }}
+            cta={win.debriefAvailable ? { href: win.debriefPath, label: 'Voir le débriefing' } : { href: matchesHref, label: 'Voir les soirées' }}
             accent="var(--game-gold)"
             image={winMap ?? '/5ec73c01-216b-4991-99cf-5ac7fdbaff30.jpg'}
             overlay={<span className="app-stamp absolute bottom-2.5 left-3">Winner winner #1</span>}

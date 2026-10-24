@@ -104,6 +104,9 @@ test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async (
   await expect(card).toContainText('[ALFA] Clan ALFA')
   await expect(card).toContainText('Miramar')
   await expect(card).toContainText('31 min 42')
+  // Le replay 2D est mis en avant : le bouton ouvre directement l'onglet Replay du débrief.
+  await expect(card.getByTestId('home-dinner-replay')).toHaveAttribute('href', '/clans/1/telemetry/matches/match-1/debrief?tab=replay')
+  await expect(card.getByRole('link', { name: /Revoir en replay 2D/ })).toBeVisible()
   await expect(card).toContainText('/ 26')
   await expect(card.getByRole('img', { name: 'MVP' })).toHaveCount(1)
 
@@ -116,9 +119,9 @@ test('le carrousel passe d’un Top 1 à l’autre, dans les deux sens', async (
   await expect(page.getByText('3 / 3')).toBeVisible()
   await expect(card).toContainText('Taego')
   await expect(card).not.toContainText('/ 26') // partie sans télémétrie : « #1 » seul
-  // Le replay 2D est mis en avant : le bouton ouvre directement l'onglet Replay du débrief.
-  await expect(card.getByTestId('home-dinner-replay')).toHaveAttribute('href', '/clans/1/telemetry/matches/match-3/debrief?tab=replay')
-  await expect(card.getByRole('link', { name: /Revoir en replay 2D/ })).toBeVisible()
+  // Télémétrie pas encore analysée (2026-10-24) : pas de bouton qui mènerait à un débrief vide, une phrase à la place.
+  await expect(card.getByTestId('home-dinner-replay')).toHaveCount(0)
+  await expect(card.getByTestId('home-dinner-replay-pending')).toHaveText('Replay 2D disponible dès que la partie aura été analysée.')
 })
 
 test('le kill feed nomme le tueur, jamais la victime', async ({ page }) => {

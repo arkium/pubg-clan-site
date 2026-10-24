@@ -1,5 +1,5 @@
 import { expect, test } from './support/api'
-import { CLAN_ID, clanOverview } from './support/data'
+import { CLAN_ID, clanOverview, clanShowcase } from './support/data'
 import { mockClanOverview } from './support/pages'
 
 /**
@@ -48,6 +48,17 @@ test('briefing : trois faits illustrés, chacun avec son lien', async ({ page })
   await expect(briefing.getByRole('link', { name: /Top 1 sur Erangel/ })).toHaveAttribute('href', `/clans/${CLAN_ID}/telemetry/matches/win-1/debrief`)
   await expect(briefing.getByRole('link', { name: /431 m au Kar98k, tête/ })).toHaveAttribute('href', /tab=replay/)
   await expect(briefing.getByRole('link', { name: /3 soirées de suite avec un top 1/ })).toHaveAttribute('href', `/clans/${CLAN_ID}/matches`)
+})
+
+test('briefing : Top 1 pas encore analysé, la carte mène aux soirées plutôt qu’à un débrief vide', async ({ api, page }) => {
+  const showcase = clanShowcase()
+  api.on('GET', `/api/clans/${CLAN_ID}/overview/showcase`, {
+    body: { ...showcase, briefing: { ...showcase.briefing, win: { ...showcase.briefing.win, debriefAvailable: false } } },
+  })
+  await page.reload()
+  const card = page.getByRole('region', { name: 'Briefing de la semaine' }).getByRole('link', { name: /Top 1 sur Erangel/ })
+  await expect(card).toHaveAttribute('href', `/clans/${CLAN_ID}/matches`)
+  await expect(card).toContainText('Voir les soirées')
 })
 
 test('chiffres clés avec « aller plus loin », duo et synergies', async ({ page }) => {

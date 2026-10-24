@@ -139,6 +139,7 @@ beforeEach(() => {
   mocks.telemetryFindMany.mockResolvedValue([
     {
       squadMatchId: 'w1',
+      status: 'success',
       phaseSnapshots: [
         { isGame: 0.1, numAliveTeams: 29 },
         { isGame: 1, numAliveTeams: 25 },
@@ -175,8 +176,10 @@ describe('GET /api/home/showcase', () => {
     expect(first.squad[0]).toMatchObject({ memberId: 1, kills: 6, weapons: ['Kar98k'], mvp: true })
     expect(first.squad.filter((member: { mvp: boolean }) => member.mvp)).toHaveLength(1)
     expect(body.dinners[1].durationSeconds).toBeNull()
-    // Pas de télémétrie : pas de nombre d'équipes (« #1 » seul).
+    // Pas de télémétrie : pas de nombre d'équipes (« #1 » seul), pas de bouton Replay.
     expect(body.dinners[1].teamCount).toBeNull()
+    expect(first.replayAvailable).toBe(true)
+    expect(body.dinners[1].replayAvailable).toBe(false)
     // La télémétrie n'est lue que pour les Top 1 affichés.
     expect(mocks.telemetryFindMany).toHaveBeenCalledWith(
       expect.objectContaining({ where: { squadMatchId: { in: ['w1', 'w3'] } } })

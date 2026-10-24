@@ -100,6 +100,10 @@ async function loadClanShowcase(clanId: number, now: Date): Promise<ClanShowcase
 
   // Fait n°1 : le dernier top 1 de la semaine.
   const lastWin = weekMatches.find((match) => match.placement === 1)
+  // Une partie est importée avant que sa télémétrie soit analysée (une heure et plus) : pas de débrief vide entre-temps.
+  const lastWinTelemetry = lastWin
+    ? await prisma.squadMatchTelemetry.findUnique({ where: { squadMatchId: lastWin.id }, select: { status: true } })
+    : null
   const win: ClanShowcaseWin | null = lastWin
     ? {
         squadMatchId: lastWin.id,
@@ -110,6 +114,7 @@ async function loadClanShowcase(clanId: number, now: Date): Promise<ClanShowcase
         squadSize: lastWin.members.length,
         mvp: pickMvp(lastWin.members),
         debriefPath: matchDebriefPath(clanId, lastWin.id),
+        debriefAvailable: lastWinTelemetry?.status === 'success',
       }
     : null
 

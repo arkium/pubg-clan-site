@@ -282,32 +282,39 @@ function DinnerCard({ dinner }: { dinner: ShowcaseDinner }) {
 
         {/* Le replay 2D mis en avant plutôt que les statistiques du débrief (décision du 2026-10-10) : l'onglet Replay s'ouvre
             directement, lisible sans compte (route `replay`, rôle de menu `clan.matches`). */}
-        <Link
-          href={replayPath(dinner.debriefPath)}
-          className="group relative flex items-center gap-3 overflow-hidden rounded-xl border border-amber-400/60 bg-[linear-gradient(110deg,#020617_0%,#1c1305_100%)] px-3.5 py-3 text-white shadow-[0_14px_32px_-14px_rgba(251,191,36,0.55)] transition-[border-color,box-shadow] duration-200 hover:border-amber-300 hover:shadow-[0_16px_38px_-12px_rgba(251,191,36,0.8)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
-          data-testid="home-dinner-replay"
-        >
-          {/* Reflet qui balaie le bouton au survol (désactivé si l'utilisateur réduit les animations). */}
-          <span
-            aria-hidden="true"
-            className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/4 -skew-x-12 bg-white/10 transition-transform duration-700 ease-out group-hover:translate-x-[520%] motion-reduce:hidden"
-          />
-          <span
-            aria-hidden="true"
-            className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-amber-400 text-amber-950 shadow-[0_0_20px_rgba(251,191,36,0.55)]"
+        {dinner.replayAvailable ? (
+          <Link
+            href={replayPath(dinner.debriefPath)}
+            className="group relative flex items-center gap-3 overflow-hidden rounded-xl border border-amber-400/60 bg-[linear-gradient(110deg,#020617_0%,#1c1305_100%)] px-3.5 py-3 text-white shadow-[0_14px_32px_-14px_rgba(251,191,36,0.55)] transition-[border-color,box-shadow] duration-200 hover:border-amber-300 hover:shadow-[0_16px_38px_-12px_rgba(251,191,36,0.8)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-400"
+            data-testid="home-dinner-replay"
           >
-            <Play className="ml-0.5 h-5 w-5 fill-current" />
-          </span>
-          <span className="relative flex min-w-0 flex-col gap-1">
-            <span className="home-display text-[24px] font-semibold uppercase leading-none tracking-[0.03em]">Revoir en replay{' '}2D</span>
-            {/* Pas de `truncate` : une ligne insécable imposerait sa largeur à la carte et la ferait déborder sur mobile. */}
-            <span className="text-xs leading-snug text-white/70">Trajectoires de l’escouade, kills et zone, en accéléré</span>
-          </span>
-          <ArrowRight
-            className="relative ml-auto h-5 w-5 shrink-0 text-amber-300 transition-transform duration-200 group-hover:translate-x-1"
-            aria-hidden="true"
-          />
-        </Link>
+            {/* Reflet qui balaie le bouton au survol (désactivé si l'utilisateur réduit les animations). */}
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-y-0 -left-1/3 w-1/4 -skew-x-12 bg-white/10 transition-transform duration-700 ease-out group-hover:translate-x-[520%] motion-reduce:hidden"
+            />
+            <span
+              aria-hidden="true"
+              className="relative grid h-11 w-11 shrink-0 place-items-center rounded-full bg-amber-400 text-amber-950 shadow-[0_0_20px_rgba(251,191,36,0.55)]"
+            >
+              <Play className="ml-0.5 h-5 w-5 fill-current" />
+            </span>
+            <span className="relative flex min-w-0 flex-col gap-1">
+              <span className="home-display text-[24px] font-semibold uppercase leading-none tracking-[0.03em]">Revoir en replay{' '}2D</span>
+              {/* Pas de `truncate` : une ligne insécable imposerait sa largeur à la carte et la ferait déborder sur mobile. */}
+              <span className="text-xs leading-snug text-white/70">Trajectoires de l’escouade, kills et zone, en accéléré</span>
+            </span>
+            <ArrowRight
+              className="relative ml-auto h-5 w-5 shrink-0 text-amber-300 transition-transform duration-200 group-hover:translate-x-1"
+              aria-hidden="true"
+            />
+          </Link>
+        ) : (
+          // Partie importée, télémétrie pas encore analysée : le débrief n'aurait rien à montrer.
+          <p className="text-xs text-gray-500" data-testid="home-dinner-replay-pending">
+            Replay 2D disponible dès que la partie aura été analysée.
+          </p>
+        )}
       </div>
     </div>
   )

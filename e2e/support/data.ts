@@ -367,6 +367,8 @@ export function homeShowcase(): HomeShowcasePayload {
     damage: 2087,
     longestKillMeters: 312,
     debriefPath: `/clans/${CLAN_ID}/telemetry/matches/${id}/debrief`,
+    // Troisième partie pas encore analysée : pas de bouton Replay.
+    replayAvailable: id !== 'match-3',
     squad: squad(names),
   })
   return {
@@ -587,6 +589,7 @@ export function clanShowcase() {
         squadSize: 4,
         mvp: { name: PLAYERS[0].displayName, kills: 6 },
         debriefPath: `/clans/${CLAN_ID}/telemetry/matches/win-1/debrief`,
+        debriefAvailable: true,
       },
       longestKill: {
         killer: PLAYERS[0].displayName,

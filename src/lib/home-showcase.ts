@@ -37,6 +37,12 @@ export interface ShowcaseDinner {
   damage: number
   longestKillMeters: number
   debriefPath: string
+  /**
+   * Télémétrie analysée (`status = 'success'`) : sans elle, le débrief et son replay n'ont rien à montrer. Un Top 1 est
+   * affiché dès l'import de la partie, sa télémétrie arrive plus tard (1 h 26 après le début de la partie le
+   * 2026-10-24) : pas de bouton entre-temps.
+   */
+  replayAvailable: boolean
   squad: ShowcaseSquadMember[]
 }
 

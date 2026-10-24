@@ -14,6 +14,8 @@ export interface ClanShowcaseWin {
   squadSize: number
   mvp: { name: string; kills: number } | null
   debriefPath: string
+  /** Télémétrie analysée : sinon le débrief serait vide, la carte mène aux soirées (2026-10-24). */
+  debriefAvailable: boolean
 }
 
 export interface ClanShowcaseLongestKill {

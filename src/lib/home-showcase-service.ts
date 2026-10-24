@@ -209,10 +209,11 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
       where: { pubgMatchId: { in: dinnerWins.map(({ win }) => win.pubgMatchId) } },
       select: { pubgMatchId: true, duration: true },
     }),
-    // Nombre d'équipes : instantanés de phase de la télémétrie (compressés, lus par decodeTelemetryRow).
+    // Nombre d'équipes : instantanés de phase de la télémétrie (compressés, lus par decodeTelemetryRow) ; replay
+    // proposé seulement si la télémétrie est analysée.
     prisma.squadMatchTelemetry.findMany({
       where: { squadMatchId: { in: dinnerWins.map(({ win }) => win.id) } },
-      select: { squadMatchId: true, phaseSnapshots: true, phaseSnapshotsGz: true },
+      select: { squadMatchId: true, status: true, phaseSnapshots: true, phaseSnapshotsGz: true },
     }),
     prisma.killEvent.findMany({
       where: { squadMatchId: { in: winIds }, killerMemberId: { not: null } },
@@ -249,9 +250,11 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
   }
 
   const teamCountByMatch = new Map<string, number | null>()
+  const analyzedMatchIds = new Set<string>()
   for (const row of telemetryRows) {
     decodeTelemetryRow(row)
     teamCountByMatch.set(row.squadMatchId, teamCountFromPhaseSnapshots(row.phaseSnapshots))
+    if (row.status === 'success') analyzedMatchIds.add(row.squadMatchId)
   }
 
   const durationByMatch = new Map<string, number>()
@@ -291,6 +294,7 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
       damage: Math.round(win.totalDamage),
       longestKillMeters: Math.round(Math.max(0, ...win.members.map((member) => member.longestKill))),
       debriefPath: matchDebriefPath(clan.clanId, win.id),
+      replayAvailable: analyzedMatchIds.has(win.id),
       squad,
     }
   })

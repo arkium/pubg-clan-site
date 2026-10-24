@@ -16,6 +16,7 @@ describe('reconnaissance du chemin de page', () => {
     expect(parseCoachContextPath('/clans/292/matches/session/2026-10-22')).toEqual({ kind: 'session', clanId: 292, date: '2026-10-22' })
     expect(parseCoachContextPath('/clans/292/matches')).toEqual({ kind: 'clan', clanId: 292, page: 'matches' })
     expect(parseCoachContextPath('/clans/292/stats/weapons')).toEqual({ kind: 'clan', clanId: 292, page: 'weapons' })
+    expect(parseCoachContextPath('/clans/292/stats/maps')).toEqual({ kind: 'clan', clanId: 292, page: 'maps' })
     expect(parseCoachContextPath('/clans/292/stats/opponents')).toEqual({ kind: 'clan', clanId: 292, page: 'opponents' })
     expect(parseCoachContextPath('/clans/292/drop-zones')).toEqual({ kind: 'clan', clanId: 292, page: 'drop-zones' })
     expect(parseCoachContextPath('/clans/292/overview')).toEqual({ kind: 'clan', clanId: 292, page: 'other' })
@@ -85,6 +86,7 @@ describe('étiquette, suggestions et bloc de prompt', () => {
       { kind: 'items', memberId: 7, memberName: 'NovakTV' },
       { kind: 'opponents' },
       { kind: 'drop-zones' },
+      { kind: 'maps' },
       tournament,
       { ...tournament, phase: 'live' },
       { ...tournament, phase: 'upcoming' },
@@ -102,6 +104,8 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextPromptBlock({ ...match, telemetryAnalyzed: false })).toContain('pas encore analysée')
     expect(coachContextPromptBlock({ kind: 'weapons', memberId: 7, memberName: 'NovakTV' })).toContain('getWeaponStats')
     expect(coachContextLabel({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toBe('Objets de NovakTV')
+    expect(coachContextLabel({ kind: 'maps' })).toBe('Cartes du clan')
+    expect(coachContextPromptBlock({ kind: 'maps' })).toContain('getMapPerformance')
     expect(coachContextPromptBlock({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toContain('getItemUsage')
     expect(coachContextPromptBlock(tournament)).toContain('getTournamentResults avec tournamentId « ctour1 »')
     expect(coachContextPromptBlock(tournament)).toContain('terminé')

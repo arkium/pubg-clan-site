@@ -81,6 +81,7 @@ passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matc
 | `getItemUsage` | `loadItemUseStats` (la page « Objets consommés », sans la famille `None`) + `MemberThrowableStat` : soins, boosts, carburant, gadgets par famille et par objet, par partie, comparé au clan ; grenades lancées. C'est ce que le joueur appelle son « loot » ou son sac — le site ne connaît ni le contenu du sac ni les munitions ramassées, l'outil le dit |
 | `getOpponentRecord` | `OpponentClan` → joueurs → `KillEvent`, dernière rencontre (`ClanEncounter`) — jamais `EncounteredPlayer` |
 | `getDropZones` | `DropPressureStat` des 90 derniers jours, villes par `locationForPercent` |
+| `getMapPerformance` | `loadClanMapStats` (la page « Cartes » : parties d'escouade, moyenne des clans en cache 5 min) : verdict, puis chaque carte — parties, Top 1, win rate, Top 10, place, kills et dégâts par partie, écart aux clans, tendance, joueur phare ; une carte seule par `mapName` |
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
 | `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
 | `getTournaments` | `listTournamentOverviews` (cache 5 min) : tournois publiés du site, filtres statut / titre, vainqueur ou leader, podium, place du clan quand elle est connue |
@@ -96,7 +97,9 @@ d'authentification. Mesure sur la vraie base : `npx tsx scripts/coach-tools-prob
 ## 6. Prompt et garde-fous (`coach-prompt.ts`, `coach-chat-service.ts`)
 
 Coach e-sport francophone, **tutoiement** (« vous » seulement pour l'escouade — exception déclarée dans
-`src/lib/tutoiement.test.ts`), vocabulaire du site, titre court + puces + recommandation, horloge du replay. Tout
+`src/lib/tutoiement.test.ts`), vocabulaire du site, **lexique des joueurs** (« loot » / « stuff » = armes et
+consommables, « drop » = largage, « knock », « wipe », « smokes », « nades », « la M4 », « le Kar », « chicken »,
+« soirée ») traduit vers le bon outil sans demander de précision, titre court + puces + recommandation, horloge du replay. Tout
 chiffre vient d'un outil ; hors sujet : refus en une phrase **sans chiffre**. Une réponse chiffrée sans appel d'outil
 est marquée `unverified` : bandeau « Chiffres non vérifiés par les données » dans le tiroir, remontée dans l'onglet
 Questions du SuperUser. Les pseudos et noms de clan renvoyés par les outils sont traités comme du texte, pas comme des

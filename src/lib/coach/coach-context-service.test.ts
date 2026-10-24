@@ -47,6 +47,11 @@ describe('vérification du contexte de page', () => {
     expect(await resolveCoachContext('/tournaments/ctour1/matches/cmatch1', scope)).toMatchObject({ kind: 'match', telemetryAnalyzed: false })
   })
 
+  it('reconnaît la page des cartes du clan de la session seulement', async () => {
+    expect(await resolveCoachContext('/clans/292/stats/maps', scope)).toEqual({ kind: 'maps' })
+    expect(await resolveCoachContext('/clans/7/stats/maps', scope)).toEqual({ kind: 'none' })
+  })
+
   it('reconnaît la page des objets consommés d’un membre du clan', async () => {
     mocks.memberFindFirst.mockResolvedValue({ id: 77, displayName: 'Menez69' })
     expect(await resolveCoachContext('/members/77/items', scope)).toEqual({ kind: 'items', memberId: 77, memberName: 'Menez69' })

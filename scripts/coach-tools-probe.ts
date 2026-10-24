@@ -9,10 +9,12 @@ import { prisma } from '../src/lib/prisma'
  * Lecture seule : aucune écriture, aucun appel au modèle. Pour chaque outil : durée, taille du résultat et tokens
  * estimés (≈ 4 caractères par token), aperçu du JSON.
  *
- *   npx tsx scripts/coach-tools-probe.ts                       # dernier match analysé, son clan, son premier membre
- *   npx tsx scripts/coach-tools-probe.ts --clan 1 --member 12 --match <id> --opponent VPR --map Miramar --tournament <id>
+ *   npx tsx --conditions=react-server scripts/coach-tools-probe.ts
+ *   npx tsx --conditions=react-server scripts/coach-tools-probe.ts --clan 1 --member 12 --match <id> --opponent VPR --map Miramar --tournament <id>
  *
- * Sans `--tournament`, le détail porte sur le tournoi le plus récent renvoyé par getTournaments.
+ * Sans argument : dernier match analysé, son clan, son premier membre. Sans `--tournament`, le détail porte sur le
+ * tournoi le plus récent renvoyé par getTournaments. `--conditions=react-server` : le service des cartes du clan
+ * importe `server-only`, qui refuse de charger hors d'un composant serveur sans cette condition (depuis le 2026-10-24).
  */
 
 function argument(flag: string) {
@@ -64,6 +66,7 @@ async function main() {
   results.push(await measure('getMatchDebrief', () => tools.run({ name: 'getMatchDebrief', args: { matchId: scope.matchId } })))
   results.push(await measure('getWeaponStats', () => tools.run({ name: 'getWeaponStats', args: {} })))
   results.push(await measure('getItemUsage', () => tools.run({ name: 'getItemUsage', args: {} })))
+  results.push(await measure('getMapPerformance', () => tools.run({ name: 'getMapPerformance', args: {} })))
   results.push(await measure('getOpponentRecord', () => tools.run({ name: 'getOpponentRecord', args: { clanTag: opponentTag } })))
   results.push(await measure('getDropZones', () => tools.run({ name: 'getDropZones', args: { mapName: scope.mapName } })))
   results.push(await measure('getClanLeaderboard', () => tools.run({ name: 'getClanLeaderboard', args: { period: 'week' } })))

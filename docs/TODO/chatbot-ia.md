@@ -33,6 +33,8 @@ d'inscrire son clan.
 
 | 2026-10-24 | P1 à P7 | **Confirmées** telles quelles (tableau ci-dessous) | Utilisateur |
 | 2026-10-24 | Clé Gemini | Projet Google Cloud et clé créés par l'utilisateur, `GEMINI_API_KEY` dans le `.env` local (jamais dans le dépôt) | Utilisateur |
+| 2026-10-24 | Lexique | Six lignes de jargon dans le prompt système (§6 : loot / stuff / sac, drop, knock, wipe, smokes, nades, M4 / Beryl / Kar / Mini, snipe / pompe, chicken / Top 1, soirée, map), traduites vers le bon outil sans demander de précision — pas de dictionnaire long, qui coûterait des tokens à chaque question | Analyse externe, validée par l'utilisateur |
+| 2026-10-24 | Cartes | Outil `getMapPerformance` (§5.2) pour la page « Cartes » ; panoplie bornée à 11 outils pour éviter la fatigue de sélection du modèle | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Loot | « Mon loot » = les objets consommés et lancés (soins, boosts, grenades), pas les largages : outil `getItemUsage` (§5.2) et vocabulaire dans le prompt ; le site ne connaît pas le contenu du sac et l'outil le dit | Utilisateur |
 | 2026-10-24 | Tournois | Deux outils **publics** (`getTournaments`, `getTournamentResults`, §5.2) et le contexte `/tournaments/[id]` : les tournois sont des pages publiques, le clan du joueur ne sert qu'à le situer ; demandé après l'essai connecté (« qui a gagné le tournoi ? » refusé) | Utilisateur |
 
@@ -340,6 +342,11 @@ affiché dans `/settings/configuration` (section « Coach IA »).
     (moyenne par joueur et par partie, rang, plus gros consommateur) ; grenades lancées. Ajouté le 2026-10-24 après
     l'essai connecté : « et mon loot ? » déclenchait `getDropZones` — le prompt nomme désormais « loot » et « sac ».
     Contexte `/members/[id]/items` reconnu.
+11. `getMapPerformance({ period?, matchType?, mapName? })` — `loadClanMapStats` (page « Cartes », docs/features/cartes-clan.md) :
+    verdict (carte forte, à travailler, la plus jouée) et chaque carte avec écart aux clans, tendance et joueur phare.
+    Ajouté le 2026-10-24 sur la recommandation d'une analyse externe (seule page de données sans outil : « quelle est
+    notre pire carte ? » n'avait que `getRecentMatches`, borné à 10 parties). Contexte `/clans/[id]/stats/maps` reconnu.
+    La panoplie reste serrée (11 outils) : « Style de jeu » (rôles, synergies) n'a pas d'outil, à juger à l'usage.
 
 Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, memberName })`), tests
 `coach-tools.test.ts`. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).

@@ -25,6 +25,7 @@ export function coachProvisionalContext(path: string | null | undefined): { labe
       if (parsed.page === 'weapons') return { label: 'Armes', suggestions: ['Quelle est ma meilleure arme ?', 'Beryl ou M416 ?', 'Je suis plus précis à quelle distance ?'] }
       if (parsed.page === 'opponents') return { label: 'Adversaires', suggestions: ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?'] }
       if (parsed.page === 'drop-zones') return { label: 'Largages', suggestions: ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?'] }
+      if (parsed.page === 'maps') return { label: 'Cartes', suggestions: ['Quelle est notre pire carte ?', 'Où est-on les plus forts ?', 'Qui porte l’escouade sur Erangel ?'] }
       break
     case 'member':
       if (parsed.page === 'weapons') return { label: 'Armes', suggestions: ['Quelle est ma meilleure arme ?', 'Beryl ou M416 ?', 'Je suis plus précis à quelle distance ?'] }

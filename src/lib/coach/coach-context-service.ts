@@ -60,6 +60,7 @@ export async function resolveCoachContext(path: string | null | undefined, scope
       if (parsed.page === 'weapons') return { kind: 'weapons', memberId: scope.memberId, memberName: scope.memberName }
       if (parsed.page === 'opponents') return { kind: 'opponents' }
       if (parsed.page === 'drop-zones') return { kind: 'drop-zones' }
+      if (parsed.page === 'maps') return { kind: 'maps' }
       return NONE
     }
     case 'member': {

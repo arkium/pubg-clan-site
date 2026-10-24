@@ -24,7 +24,10 @@ const mocks = vi.hoisted(() => ({
   listOverviews: vi.fn(),
   loadItemUse: vi.fn(),
   throwGroupBy: vi.fn(),
+  loadMapStats: vi.fn(),
 }))
+
+vi.mock('@/lib/clan-map-stats-service', () => ({ loadClanMapStats: mocks.loadMapStats }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -90,7 +93,7 @@ beforeEach(() => {
 })
 
 describe('déclarations', () => {
-  it('expose les dix outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
+  it('expose les onze outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
     expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
       'getRecentMatches',
       'getMatchDebrief',
@@ -102,6 +105,7 @@ describe('déclarations', () => {
       'getTournaments',
       'getTournamentResults',
       'getItemUsage',
+      'getMapPerformance',
     ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
@@ -457,6 +461,90 @@ describe('getItemUsage', () => {
 
     mocks.memberFindFirst.mockResolvedValue(null)
     expect(await run('getItemUsage', { playerName: 'Inconnu' })).toEqual({ error: 'player_not_found', message: "Aucun membre du clan ne s'appelle Inconnu." })
+  })
+})
+
+describe('getMapPerformance', () => {
+  const row = (mapName: string, mapLabel: string, matches: number, wins: number, top10Rate: number, overrides: Record<string, unknown> = {}) => ({
+    mapName,
+    mapLabel,
+    matches,
+    wins,
+    winRate: wins / matches,
+    top10Rate,
+    avgPlacement: 9.44,
+    killsPerMatch: 2.46,
+    damagePerMatch: 412.7,
+    lowSample: false,
+    vsClans: { top10Pts: 10.44, avgPlacement: -1.2, killsPerMatch: 0.3 },
+    top10TrendPts: 5.2,
+    starPlayer: { memberId: 5, displayName: 'maladus7', matches: 20, killsPerMatch: 1.25 },
+    ...overrides,
+  })
+  const payload = {
+    clan: { id: 292, name: 'Clan', tag: '47R' },
+    period: 'month',
+    matchType: 'official',
+    minSample: 10,
+    comparedClans: 36,
+    totals: { matches: 63, maps: 3 },
+    maps: [
+      row('Desert_Main', 'Miramar', 20, 1, 0.4),
+      row('Baltic_Main', 'Erangel', 40, 4, 0.55),
+      row('Neon_Main', 'Rondo', 3, 0, 0.33, { lowSample: true, vsClans: { top10Pts: null, avgPlacement: null, killsPerMatch: null }, top10TrendPts: null, starPlayer: null }),
+    ],
+    verdict: {
+      strongest: { mapName: 'Baltic_Main', mapLabel: 'Erangel', top10Rate: 0.55, vsClansPts: 10.44 },
+      weakest: { mapName: 'Desert_Main', mapLabel: 'Miramar', top10Rate: 0.4, vsClansPts: -6.1, trendPts: null },
+      mostPlayed: { mapName: 'Baltic_Main', mapLabel: 'Erangel', matches: 40, share: 0.667 },
+    },
+  }
+
+  beforeEach(() => {
+    mocks.loadMapStats.mockResolvedValue(payload)
+  })
+
+  it('rend le verdict et chaque carte comme la page, la plus jouée d’abord, sans identifiant', async () => {
+    const result = (await run('getMapPerformance')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.loadMapStats).toHaveBeenCalledWith({ clanId: 292, period: 'month', matchType: 'official' })
+    expect(result).toMatchObject({
+      period: 'ce mois',
+      matchType: 'Normal',
+      comparedClans: 36,
+      minSample: 10,
+      totals: { matches: 63, maps: 3 },
+      verdict: {
+        strongest: { map: 'Erangel', top10Percent: 55, vsClansPts: 10.4 },
+        weakest: { map: 'Miramar', top10Percent: 40, vsClansPts: -6.1, trendPts: null },
+        mostPlayed: { map: 'Erangel', matches: 40, sharePercent: 67 },
+      },
+    })
+    expect(result.maps.map((map: { map: string }) => map.map)).toEqual(['Erangel', 'Miramar', 'Rondo'])
+    expect(result.maps[0]).toMatchObject({
+      matches: 40,
+      wins: 4,
+      winRatePercent: 10,
+      top10Percent: 55,
+      avgPlacement: 9.4,
+      killsPerMatch: 2.5,
+      damagePerMatch: 413,
+      lowSample: false,
+      vsClans: { top10Pts: 10.4, avgPlacement: -1.2, killsPerMatch: 0.3 },
+      top10TrendPts: 5.2,
+      starPlayer: { player: 'maladus7', killsPerMatch: 1.3, matches: 20 },
+    })
+    expect(result.maps[2]).toMatchObject({ map: 'Rondo', lowSample: true, vsClans: null, top10TrendPts: null, starPlayer: null })
+    expect(JSON.stringify(result)).not.toMatch(/memberId/)
+  })
+
+  it('cible une carte par son nom, borne période et type, refuse une carte inconnue', async () => {
+    const result = (await run('getMapPerformance', { mapName: 'erangel', period: 'all', matchType: 'competitive' })) as { matchType: string; period: string; maps: unknown[] }
+    expect(mocks.loadMapStats).toHaveBeenCalledWith({ clanId: 292, period: 'all', matchType: 'competitive' })
+    expect(result).toMatchObject({ period: 'depuis toujours', matchType: 'Ranked' })
+    expect(result.maps).toHaveLength(1)
+    expect(await run('getMapPerformance', { mapName: 'Atlantide' })).toEqual({ error: 'map_not_found', message: 'Carte inconnue : Atlantide.' })
+    await run('getMapPerformance', { period: 'never', matchType: 'bots' })
+    expect(mocks.loadMapStats).toHaveBeenLastCalledWith({ clanId: 292, period: 'month', matchType: 'official' })
   })
 })
 

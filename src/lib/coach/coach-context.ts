@@ -9,7 +9,7 @@ export type CoachPageContext =
   | { kind: 'tournament'; tournamentId: string }
   | { kind: 'tournament-match'; tournamentId: string; matchId: string }
   | { kind: 'session'; clanId: number; date: string }
-  | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'other' }
+  | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'maps' | 'other' }
   | { kind: 'member'; memberId: number; page: 'weapons' | 'nemesis' | 'drop-zones' | 'items' | 'other' }
   | { kind: 'none' }
 
@@ -43,6 +43,7 @@ export function parseCoachContextPath(path: string | null | undefined): CoachPag
     }
     if (rest[0] === 'matches') return { kind: 'clan', clanId, page: 'matches' }
     if (rest[0] === 'stats' && rest[1] === 'weapons') return { kind: 'clan', clanId, page: 'weapons' }
+    if (rest[0] === 'stats' && rest[1] === 'maps') return { kind: 'clan', clanId, page: 'maps' }
     if (rest[0] === 'stats' && rest[1] === 'opponents') return { kind: 'clan', clanId, page: 'opponents' }
     if (rest[0] === 'drop-zones') return { kind: 'clan', clanId, page: 'drop-zones' }
     return { kind: 'clan', clanId, page: 'other' }
@@ -83,6 +84,7 @@ export type CoachResolvedContext =
   | { kind: 'items'; memberId: number; memberName: string }
   | { kind: 'opponents' }
   | { kind: 'drop-zones' }
+  | { kind: 'maps' }
   | { kind: 'tournament'; tournamentId: string; title: string; phase: 'upcoming' | 'live' | 'finished' }
   | { kind: 'none' }
 
@@ -118,6 +120,8 @@ export function coachContextLabel(context: CoachResolvedContext): string | null 
       return 'Adversaires du clan'
     case 'drop-zones':
       return 'Zones de largage'
+    case 'maps':
+      return 'Cartes du clan'
     case 'tournament':
       return `Tournoi · ${shortTitle(context.title)}`
     case 'none':
@@ -142,6 +146,8 @@ export function coachSuggestions(context: CoachResolvedContext): string[] {
       return ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?']
     case 'drop-zones':
       return ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?']
+    case 'maps':
+      return ['Quelle est notre pire carte ?', 'Où est-on les plus forts ?', 'Qui porte l’escouade sur Erangel ?']
     case 'tournament':
       if (context.phase === 'finished') return ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Quelle manche a fait la différence ?']
       if (context.phase === 'live') return ['Qui est en tête ?', 'Où en est notre clan ?', 'Qui est le MVP pour l’instant ?']
@@ -170,6 +176,8 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
       return 'Page consultée : adversaires du clan. Appelle getOpponentRecord avec le tag du clan adverse demandé.'
     case 'drop-zones':
       return 'Page consultée : zones de largage du clan. Appelle getDropZones avec la carte demandée.'
+    case 'maps':
+      return 'Page consultée : cartes du clan (performance carte par carte). Appelle getMapPerformance, avec mapName si la question vise une carte.'
     case 'tournament':
       return `Page consultée : tournoi « ${shortTitle(context.title)} » (identifiant ${context.tournamentId}, ${TOURNAMENT_PHASE_LABELS[context.phase]}). Pour toute question sur ce tournoi (vainqueur, classement, manches, barème, place du clan), appelle getTournamentResults avec tournamentId « ${context.tournamentId} ».`
     case 'none':

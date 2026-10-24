@@ -1,5 +1,7 @@
 import { locationForPercent } from '@/lib/city-insights'
+import { LEAGUE_MATCH_TYPE_OPTIONS, leagueMatchTypeOption, parseLeagueMatchType } from '@/lib/clan-league'
 import { getClanLeague, type LeagueEntry } from '@/lib/clan-league-service'
+import { loadClanMapStats } from '@/lib/clan-map-stats-service'
 import type { CoachToolCall, CoachToolDeclaration } from '@/lib/coach/coach-provider'
 import { DEFAULT_MAP_LABELS, getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { getMapLocations } from '@/lib/map-location-service'
@@ -107,7 +109,7 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       type: 'object',
       properties: {
         playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
-        weaponCategory: { type: 'string', description: 'Catégorie : AR, DMR, SR, SMG, LMG, SHOTGUN, PISTOL, facultatif.' },
+        weaponCategory: { type: 'string', description: 'Catégorie : AR, DMR, SR, SMG, LMG, SG (fusils à pompe), PISTOL, THROWABLE, MELEE, SPECIAL — facultatif.' },
         period: { type: 'string', enum: ['all', 'month'], description: '« all » (défaut) ou « month » (mois en cours).' },
       },
     },
@@ -183,6 +185,23 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       properties: {
         playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
         period: PERIOD_PARAMETER,
+      },
+    },
+  },
+  {
+    name: 'getMapPerformance',
+    description:
+      "Performance du clan carte par carte (parties d'escouade, mêmes règles que la page « Cartes ») : parties, Top 1, win rate, Top 10, place moyenne, kills et dégâts par partie, écart à la moyenne des clans, tendance depuis la période précédente, joueur phare ; verdict (carte forte, carte à travailler, carte la plus jouée). Pour « notre pire carte ? », « pourquoi on perd sur Rondo ? », « on est meilleurs où ? ».",
+    parameters: {
+      type: 'object',
+      properties: {
+        period: { type: 'string', enum: ['week', 'month', 'all'], description: '« month » (ce mois, défaut), « week » (cette semaine) ou « all » (depuis toujours).' },
+        matchType: {
+          type: 'string',
+          enum: LEAGUE_MATCH_TYPE_OPTIONS.map((option) => option.value),
+          description: LEAGUE_MATCH_TYPE_OPTIONS.map((option) => `« ${option.value} » : ${option.hint}`).join(' ; ') + ' ; défaut official.',
+        },
+        mapName: { type: 'string', description: 'Une seule carte (Erangel, Miramar, Rondo…), facultatif.' },
       },
     },
   },
@@ -682,6 +701,56 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  async function getMapPerformance(args: ToolArgs) {
+    const requested = text(args.period)
+    const period: StandardPeriod = requested === 'week' || requested === 'all' ? requested : 'month'
+    const matchType = parseLeagueMatchType(text(args.matchType) || null)
+    const requestedMap = text(args.mapName)
+    const [payload, labels] = await Promise.all([loadClanMapStats({ clanId: scope.clanId, period, matchType }), getMapLabels()])
+    if (!payload) return { error: 'clan_not_found', message: 'Clan introuvable.' }
+    const rawMaps = requestedMap ? resolveMapNames(requestedMap, labels) : []
+    if (requestedMap && rawMaps.length === 0) return { error: 'map_not_found', message: `Carte inconnue : ${requestedMap}.` }
+
+    const pct = (rate: number) => Math.round(rate * 100)
+    const nullable = (value: number | null) => (value === null ? null : round1(value))
+    const maps = payload.maps
+      .filter((row) => rawMaps.length === 0 || rawMaps.includes(row.mapName))
+      .sort((a, b) => b.matches - a.matches)
+      .map((row) => ({
+        map: row.mapLabel,
+        matches: row.matches,
+        wins: row.wins,
+        winRatePercent: pct(row.winRate),
+        top10Percent: pct(row.top10Rate),
+        avgPlacement: round1(row.avgPlacement),
+        killsPerMatch: round1(row.killsPerMatch),
+        damagePerMatch: Math.round(row.damagePerMatch),
+        lowSample: row.lowSample,
+        vsClans: row.lowSample
+          ? null
+          : { top10Pts: nullable(row.vsClans.top10Pts), avgPlacement: nullable(row.vsClans.avgPlacement), killsPerMatch: nullable(row.vsClans.killsPerMatch) },
+        top10TrendPts: nullable(row.top10TrendPts),
+        starPlayer: row.starPlayer ? { player: row.starPlayer.displayName, killsPerMatch: round1(row.starPlayer.killsPerMatch), matches: row.starPlayer.matches } : null,
+      }))
+    const { verdict } = payload
+    return {
+      period: PERIOD_LABELS[period],
+      matchType: leagueMatchTypeOption(matchType).label,
+      comparedClans: payload.comparedClans,
+      minSample: payload.minSample,
+      totals: payload.totals,
+      verdict: {
+        strongest: verdict.strongest ? { map: verdict.strongest.mapLabel, top10Percent: pct(verdict.strongest.top10Rate), vsClansPts: round1(verdict.strongest.vsClansPts) } : null,
+        weakest: verdict.weakest
+          ? { map: verdict.weakest.mapLabel, top10Percent: pct(verdict.weakest.top10Rate), vsClansPts: round1(verdict.weakest.vsClansPts), trendPts: nullable(verdict.weakest.trendPts) }
+          : null,
+        mostPlayed: verdict.mostPlayed ? { map: verdict.mostPlayed.mapLabel, matches: verdict.mostPlayed.matches, sharePercent: pct(verdict.mostPlayed.share) } : null,
+      },
+      maps,
+      note: `Une partie = une partie d'escouade du clan ; « vsClans » = écart à la moyenne des ${payload.comparedClans} clans suivis (Top 10 en points, place et kills dans leur unité) ; sous ${payload.minSample} parties sur une carte, ni écart, ni tendance, ni joueur phare.`,
+    }
+  }
+
   // Tournois : pages publiques, quel que soit le clan organisateur. Le clan du joueur sert seulement à le situer.
   const isMine = (participant: TournamentStandingSummary['participant']) => participantClanIds(participant).includes(scope.clanId)
   const podiumLine = (entry: TournamentStandingSummary, rank: number) => ({ rank, label: entry.label, points: round1(entry.totalPoints), kills: entry.totalKills, wins: entry.wins })
@@ -811,6 +880,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     getTournaments,
     getTournamentResults,
     getItemUsage,
+    getMapPerformance,
   }
 
   return {

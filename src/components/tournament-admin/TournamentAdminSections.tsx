@@ -33,6 +33,7 @@ import {
   type StatusFilter,
 } from '@/components/tournament-admin/tournament-form'
 import { tournamentGameModeLabel, tournamentMapLabel } from '@/lib/tournament-filters'
+import { TOURNAMENT_SYNC_HINT } from '@/lib/tournament-sync-summary'
 
 /**
  * Blocs de la page d'administration des tournois d'un clan (/clans/[clanId]/settings/tournaments,
@@ -153,11 +154,17 @@ const ALERT_TONES = {
     box: 'border-[color-mix(in_srgb,var(--theme-ui-negative)_45%,transparent)] bg-[var(--game-neg-soft)]',
     ink: 't-neg',
   },
+  warn: {
+    icon: AlertTriangle,
+    box: 'border-[color-mix(in_srgb,var(--game-warn)_45%,transparent)] bg-[var(--game-warn-soft)]',
+    ink: 't-warn',
+  },
 } as const
 
 /**
  * Alerte en ligne de la charte (États › alertes inline) : contour du jeton à 45 %, fond doux, icône lucide colorée,
- * texte secondaire. `pos` pour un enregistrement réussi, `neg` pour une erreur.
+ * texte secondaire. `pos` pour un enregistrement réussi, `neg` pour une erreur, `warn` pour un réglage qui peut écarter
+ * des données (filtres d'un tournoi).
  */
 export function AdminAlert({ tone, children, testId }: { tone: keyof typeof ALERT_TONES; children: ReactNode; testId?: string }) {
   const { icon: Icon, box, ink } = ALERT_TONES[tone]
@@ -185,9 +192,10 @@ const TOAST_TONES: Record<SyncNotice['tone'], { icon: LucideIcon; ring: string; 
 
 /**
  * Toast de la charte (Modales › Toasts) : en bas à droite, centré en bas sur mobile ; contour du jeton à 50 %, icône
- * lucide 16 px. Synchronisation en cours (ciel, icône qui tourne), réussie (positif) ou en échec (négatif).
+ * lucide 16 px. Synchronisation en cours (ciel, icône qui tourne), réussie (positif), en attente d'un nouvel essai
+ * automatique (orange, avec « Arrêter les essais » quand `onStop` est fourni) ou en échec (négatif).
  */
-export function SyncToast({ notice, onClose }: { notice: SyncNotice; onClose: () => void }) {
+export function SyncToast({ notice, onClose, onStop }: { notice: SyncNotice; onClose: () => void; onStop?: () => void }) {
   const { icon: Icon, ring, ink } = TOAST_TONES[notice.tone]
   return (
     <div
@@ -196,7 +204,14 @@ export function SyncToast({ notice, onClose }: { notice: SyncNotice; onClose: ()
       className={`fixed inset-x-4 bottom-4 z-50 flex items-start gap-2.5 rounded-[10px] border bg-[var(--theme-ui-surface)] px-3 py-2.5 shadow-[0_20px_40px_-16px_rgb(0_0_0/0.5)] sm:inset-x-auto sm:bottom-5 sm:right-5 sm:max-w-md ${ring}`}
     >
       <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${ink}`} aria-hidden="true" />
-      <p className="t-body min-w-0 flex-1 text-gray-900">{notice.message}</p>
+      <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+        <p className="t-body text-gray-900">{notice.message}</p>
+        {onStop ? (
+          <button type="button" onClick={onStop} className="app-btn app-btn--xs app-btn--secondary">
+            Arrêter les essais
+          </button>
+        ) : null}
+      </div>
       <button
         type="button"
         onClick={onClose}
@@ -310,6 +325,7 @@ export function TournamentAdminCard({ tournament, actions }: { tournament: Admin
           <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
           Supprimer
         </button>
+        <p className="t-meta basis-full">{TOURNAMENT_SYNC_HINT}</p>
       </div>
     </article>
   )

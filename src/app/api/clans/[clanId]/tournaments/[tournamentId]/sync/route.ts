@@ -1,10 +1,11 @@
 import { withAdminActionLog } from '@/lib/admin-action-log'
-import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/internal-api'
 import {
   getTournamentForClan,
   getTournamentMatches,
   materializeTournamentCustomMatches,
 } from '@/lib/tournament-service'
+import { discoverTournamentRounds } from '@/lib/tournament-round-discovery'
+import { tournamentWindowEnd } from '@/lib/tournament-schedule'
 import { enqueueTelemetryForSelectedSquadMatches } from '@/lib/pubg-telemetry/manual-sync'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { prisma } from '@/lib/prisma'
@@ -15,12 +16,14 @@ function parseClanId(value: string) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-type MatchSyncResult = {
-  clanId: number
-  importedMatches: number
-  error?: string
-}
-
+/**
+ * Synchronisation d'un tournoi — docs/features/tournois.md, « Synchronisation PUBG ».
+ *
+ * Ouverte au SuperUser (quel que soit son clan) et à l'Owner du clan organisateur. Les manches se découvrent dans les
+ * parties PUBG des joueurs du clan organisateur, pas seulement de celui qui clique : un organisateur observateur, ou un
+ * SuperUser d'un autre clan, retrouve ainsi la manche jouée par les autres. Le client relance la synchronisation chaque
+ * minute tant qu'aucune manche n'arrive (10 essais, src/lib/tournament-sync-summary.ts).
+ */
 async function handlePost(
   request: Request,
   { params }: { params: Promise<{ clanId: string; tournamentId: string }> }
@@ -41,87 +44,50 @@ async function handlePost(
       return Response.json({ error: 'Only the organizer can synchronize this tournament' }, { status: 403 })
     }
 
-    const headers = {
-      'content-type': 'application/json',
-      ...getInternalCronAuthHeaders(),
-      ...(request.headers.get('cookie') ? { cookie: request.headers.get('cookie')! } : {}),
-    }
     const actorMemberId = await getActorMemberId(request)
-    // La synchronisation part des propres parties PUBG du joueur actif (`sync-matches` avec son `memberId`) : hors du
-    // clan organisateur, elle échouerait plus loin avec un message PUBG incompréhensible. 403, pas 401 : la session est
-    // valide, le client ne doit pas déconnecter.
-    const actor = actorMemberId
-      ? await prisma.clanMember.findUnique({ where: { id: actorMemberId }, select: { clanId: true, isActive: true } })
-      : null
-    if (!actor || !actor.isActive || actor.clanId !== organizerClanId) {
-      return Response.json(
-        {
-          error:
-            'Seul un joueur du clan organisateur peut synchroniser : la synchronisation part de ses propres parties PUBG. Passe sur ton joueur de ce clan, ou demande à l’Owner qui a joué la manche de cliquer.',
-        },
-        { status: 403 }
-      )
-    }
 
     // Manches déjà au classement : la réponse dit combien ce clic en a ajouté.
-    const roundsBefore = (await getTournamentMatches(tournamentId)).length
+    const roundsBefore = await getTournamentMatches(tournamentId)
 
-    const matchSyncs: MatchSyncResult[] = []
-    for (const participantClanId of [organizerClanId]) {
-      const response = await fetch(`${getInternalApiBaseUrl()}/api/clans/${participantClanId}/sync-matches`, {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ memberId: actorMemberId }),
-      })
-      const payload = (await response.json().catch(() => null)) as {
-        importedMatches?: number
-        importedCount?: number
-        error?: string
-      } | null
-
-      matchSyncs.push({
-        clanId: participantClanId,
-        importedMatches: payload?.importedMatches ?? payload?.importedCount ?? 0,
-        ...(response.ok ? {} : { error: payload?.error ?? 'Match synchronization failed' }),
-      })
-    }
-
-    const syncErrors = matchSyncs.filter((result) => result.error)
-    if (syncErrors.length > 0) {
-      return Response.json(
-        { error: `La récupération PUBG a échoué : ${syncErrors.map((result) => `clan ${result.clanId}: ${result.error}`).join('; ')}` },
-        { status: 502 }
-      )
-    }
-
-    const materialization = await materializeTournamentCustomMatches(tournamentId)
-    const matches = await getTournamentMatches(tournamentId)
-    const telemetry = []
-
-    const enqueue = await enqueueTelemetryForSelectedSquadMatches(
+    const discovery = await discoverTournamentRounds({
       organizerClanId,
-      matches.map((match) => match.id),
+      startAt: tournament.startDate,
+      endAt: tournamentWindowEnd(tournament.endDate),
+      actorMemberId,
+      roundMemberIds: new Set(roundsBefore.flatMap((match) => match.members.map((member) => member.memberId))),
+    })
+
+    const materialization = await materializeTournamentCustomMatches(tournamentId, { discovered: discovery.rounds })
+    const matches = await getTournamentMatches(tournamentId)
+
+    // Télémétrie des seules manches qui ne l'ont pas encore : la relance automatique ne retélécharge rien.
+    const parsed = await prisma.squadMatchTelemetry.findMany({
+      where: { squadMatchId: { in: matches.map((match) => match.id) }, status: 'success' },
+      select: { squadMatchId: true },
+    })
+    const parsedIds = new Set(parsed.map((row) => row.squadMatchId))
+    const telemetry = await enqueueTelemetryForSelectedSquadMatches(
+      organizerClanId,
+      matches.filter((match) => !parsedIds.has(match.id)).map((match) => match.id),
       actorMemberId
     )
-    telemetry.push({ clanId: organizerClanId, ...enqueue })
-
-    const importedMatches = matchSyncs.reduce((total, item) => total + item.importedMatches, 0)
-    const telemetryQueued = telemetry.reduce((total, item) => total + item.queuedCount, 0)
 
     return Response.json({
       ok: true,
       tournamentId,
-      importedMatches,
+      membersRead: discovery.membersRead,
+      matchesRead: discovery.matchesRead,
+      discoveredRounds: discovery.rounds.length,
+      discoveryTruncated: discovery.truncated,
+      discoveryErrors: discovery.errors.slice(0, 3),
       materializedMatches: materialization.materializedCount,
       sourceCustomRows: materialization.sourceRowCount,
       sourceCustomMatches: materialization.sourceMatchCount,
       materializationErrors: materialization.errors.slice(0, 3),
       eligibleMatches: matches.length,
-      newRounds: Math.max(0, matches.length - roundsBefore),
-      telemetryQueued,
-      matchSyncs,
-      telemetry,
-      message: `Synchronisation terminée : ${importedMatches} match(s) importé(s), ${materialization.materializedCount} match(s) projeté(s), ${telemetryQueued} télémétrie(s) en file. Les agrégats seront recalculés par le worker après chaque import.`,
+      newRounds: Math.max(0, matches.length - roundsBefore.length),
+      telemetryQueued: telemetry.queuedCount,
+      telemetryReady: parsedIds.size,
     })
   } catch (error) {
     console.error('Tournament manual sync failed:', error)

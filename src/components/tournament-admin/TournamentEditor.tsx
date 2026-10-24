@@ -13,7 +13,7 @@ import {
 } from '@/components/tournament-admin/tournament-form'
 import { TOURNAMENT_MODE_ICONS, tournamentModeClass } from '@/components/tournaments/TournamentModeBadge'
 import SegmentedControl from '@/components/ui/SegmentedControl'
-import { TOURNAMENT_GAME_MODE_OPTIONS, TOURNAMENT_MAP_OPTIONS } from '@/lib/tournament-filters'
+import { TOURNAMENT_GAME_MODE_OPTIONS, TOURNAMENT_MAP_OPTIONS, tournamentFilterWarning } from '@/lib/tournament-filters'
 import { MIXED_SQUAD_RULE_DESCRIPTIONS, TOURNAMENT_MODE_DESCRIPTIONS } from '@/lib/tournament-guide'
 import { TOURNAMENT_TITLE_MAX_LENGTH } from '@/lib/tournament-title'
 
@@ -298,6 +298,8 @@ export function TournamentEditor({
 }) {
   const statusLabelId = useId()
   const set = (patch: Partial<TournamentFormState>) => onChange({ ...form, ...patch })
+  // Un filtre écarte sans message toute manche hors format ou hors carte : le dire dès qu'il est posé.
+  const filterWarning = tournamentFilterWarning(form.gameMode, form.mapName)
 
   return (
     // `noValidate` : les erreurs s'affichent sous leur champ, aux couleurs de la charte, plutôt qu'en bulle du navigateur.
@@ -425,6 +427,11 @@ export function TournamentEditor({
             Les parties personnalisées utilisent des modes dédiés (« Squad (partie perso) »). Laisse « Tous les modes » si tu
             n’es pas sûr : un filtre trop strict ne retiendrait aucune manche.
           </p>
+          {filterWarning ? (
+            <AdminAlert tone="warn" testId="tournament-filter-warning">
+              {filterWarning}
+            </AdminAlert>
+          ) : null}
         </div>
       </FormCard>
 

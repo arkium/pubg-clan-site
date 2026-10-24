@@ -364,7 +364,7 @@ export function mockTournaments(api: ApiMock) {
 /** Owner du clan organisateur : joueur actif du clan démo, permissions `*`. */
 export const ORGANIZER_OWNER_SESSION = { ...SIGNED_IN_MEMBER_SESSION, permissions: ['*'] }
 
-/** SuperUser dont le seul joueur est aux Ratz : gère le tournoi du clan démo, mais ne peut pas le synchroniser. */
+/** SuperUser dont le seul joueur est aux Ratz : gère et synchronise le tournoi du clan démo (depuis le 2026-10-24). */
 export const OUTSIDE_SUPERUSER_SESSION = {
   ...SIGNED_IN_MEMBER_SESSION,
   user: { email: 'admin@example.com', isSuperUser: true },

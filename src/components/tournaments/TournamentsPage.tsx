@@ -151,7 +151,8 @@ export default function TournamentsPage({
               </div>
             </div>
             {canManage && clanId ? (
-              <Link href={`/clans/${clanId}/settings/tournaments`} className="app-btn app-btn--sm app-btn--secondary shrink-0">
+              // Action principale de la page pour qui organise : bouton à l'accent de la charte (§5b, encre sombre).
+              <Link href={`/clans/${clanId}/settings/tournaments`} className="app-btn app-btn--sm app-btn--primary shrink-0">
                 <Settings className="mr-1.5 h-4 w-4" aria-hidden="true" />
                 Gérer les tournois de mon clan
               </Link>

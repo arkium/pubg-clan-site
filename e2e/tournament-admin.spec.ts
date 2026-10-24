@@ -144,10 +144,16 @@ test.describe('organisateur (manage_settings)', () => {
     await expect(page.getByRole('radiogroup', { name: 'Squads mixtes' })).toBeVisible()
     await chooseTile(page, /^Solo \(chacun pour soi\)/)
     await expect(page.getByRole('radiogroup', { name: 'Squads mixtes' })).toHaveCount(0)
+    // Sans filtre, pas d'avertissement ; un filtre posé dit qu'une manche hors filtre sera ignorée (2026-10-24).
+    const filterWarning = page.getByTestId('tournament-filter-warning')
+    await expect(filterWarning).toHaveCount(0)
     await chooseTile(page, 'Duo (partie perso)')
+    await expect(filterWarning).toContainText('seules les manches en Duo (partie perso) entreront au classement')
+    await expect(filterWarning).toContainText('sa télémétrie ne sera pas récupérée')
     await page.getByRole('button', { name: 'Carte : Toutes les cartes' }).click()
     await page.getByRole('menuitemradio', { name: 'Miramar' }).click()
     await expect(page.getByRole('button', { name: 'Carte : Miramar' })).toBeVisible()
+    await expect(filterWarning).toContainText('seules les manches en Duo (partie perso) sur Miramar')
     await page.getByLabel('Top 1', { exact: true }).fill('20')
     await page.getByLabel('Points par kill').fill('2')
     await page.getByLabel('Meilleures manches retenues').fill('3')
@@ -242,21 +248,38 @@ test.describe('organisateur (manage_settings)', () => {
     await expect(page.getByRole('region', { name: 'Tournois actifs' })).toHaveCount(0)
   })
 
-  test('synchronisation PUBG : appel du tournoi et toast du résultat, puis « rien de nouveau, reclique »', async ({ page }) => {
-    const syncButton = card(page, 'Coupe d’automne').getByRole('button', { name: 'Synchroniser PUBG' })
+  test('synchronisation PUBG : manche arrivée, puis relance automatique chaque minute tant que rien n’arrive, arrêtable', async ({ page }) => {
+    // Horloge simulée : la relance part 60 s après un essai sans nouvelle manche.
+    await page.clock.install()
+    await page.reload()
+    await page.waitForLoadState('networkidle')
+    const syncCard = card(page, 'Coupe d’automne')
+    // Sous les boutons : attendre la fin de la manche, le site réessaie seul.
+    await expect(syncCard).toContainText('PUBG publie une manche 2 à 3 minutes après sa fin')
+    const syncButton = syncCard.getByRole('button', { name: 'Synchroniser PUBG' })
     await syncButton.click()
     const toast = page.getByTestId('tournament-admin-toast')
     await expect(toast).toContainText('1 nouvelle manche ajoutée — 3 manches au total.')
     await expect(toast).toContainText('le replay de la manche suit dans quelques secondes')
+    await expect(toast.getByRole('button', { name: 'Arrêter les essais' })).toHaveCount(0)
     expect(calls.syncs).toEqual([ACTIVE_TOURNAMENT_ID])
     await toast.getByRole('button', { name: 'Fermer la notification' }).click()
     await expect(toast).toHaveCount(0)
 
-    // Second clic, rien de publié depuis : le message dit d'attendre et de recliquer, sans risque.
+    // Second clic, rien de publié depuis : le site réessaie seul, avec le compte à rebours du prochain essai.
     await syncButton.click()
-    await expect(toast).toContainText('Aucune nouvelle manche — 3 manches déjà au classement.')
+    await expect(toast).toContainText('Aucune nouvelle manche pour l’instant — 3 manches déjà au classement.')
+    await expect(toast).toContainText(/Prochain essai dans \d+ s \(essai 2 sur 10\)\./)
+    await page.clock.runFor(61_000)
+    await expect.poll(() => calls.syncs.length).toBe(3)
+    await expect(toast).toContainText('(essai 3 sur 10)')
+
+    // L'organisateur arrête : plus aucun appel, et le message dit quoi vérifier avant de recliquer.
+    await toast.getByRole('button', { name: 'Arrêter les essais' }).click()
+    await expect(toast).toContainText('Essais automatiques arrêtés.')
     await expect(toast).toContainText('recliquer est sans risque')
-    expect(calls.syncs).toEqual([ACTIVE_TOURNAMENT_ID, ACTIVE_TOURNAMENT_ID])
+    await page.clock.runFor(180_000)
+    expect(calls.syncs).toHaveLength(3)
   })
 
   test('diffusion Discord : dernière manche par défaut, aperçu, manche déjà diffusée, envoi simulé', async ({ api, page }) => {

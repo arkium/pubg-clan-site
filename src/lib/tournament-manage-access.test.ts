@@ -16,22 +16,14 @@ function session(overrides: Partial<TournamentManagerSession> = {}): TournamentM
   }
 }
 
-describe('tournamentManageAccess — même règle que requireClanFeature et la synchronisation', () => {
+describe('tournamentManageAccess — même règle que requireClanFeature', () => {
   it('visiteur ou membre sans droit : aucun bouton', () => {
-    expect(tournamentManageAccess(session({ activeMemberId: null, members: [] }), FR)).toEqual({
-      canManage: false,
-      canSync: false,
-      syncBlockedReason: null,
-    })
+    expect(tournamentManageAccess(session({ activeMemberId: null, members: [] }), FR)).toEqual({ canManage: false })
     expect(tournamentManageAccess(session(), FR).canManage).toBe(false)
   })
 
   it('Owner du clan organisateur : tout, synchronisation comprise', () => {
-    expect(tournamentManageAccess(session({ permissions: ['*'] }), FR)).toEqual({
-      canManage: true,
-      canSync: true,
-      syncBlockedReason: null,
-    })
+    expect(tournamentManageAccess(session({ permissions: ['*'] }), FR)).toEqual({ canManage: true })
   })
 
   it('« manage_settings » sans être Owner : pas de bouton, le serveur refuserait', () => {
@@ -49,21 +41,12 @@ describe('tournamentManageAccess — même règle que requireClanFeature et la s
   })
 
   it('SuperUser joueur actif du clan organisateur : tout', () => {
-    expect(tournamentManageAccess(session({ isSuperUser: true }), FR)).toMatchObject({ canManage: true, canSync: true })
+    expect(tournamentManageAccess(session({ isSuperUser: true }), FR).canManage).toBe(true)
   })
 
-  it('SuperUser hors du clan : gère, mais ne synchronise pas, et sait pourquoi', () => {
+  it('SuperUser d’un autre clan : tout, synchronisation comprise (elle lit les parties du clan organisateur)', () => {
     const access = tournamentManageAccess(session({ isSuperUser: true, members: [{ memberId: 10, clanId: 2 }] }), FR)
-    expect(access).toMatchObject({ canManage: true, canSync: false })
-    expect(access.syncBlockedReason).toContain('réservé à un joueur de [FR] qui a joué la manche')
-  })
-
-  it('SuperUser avec un joueur [FR] qui n’est pas le joueur actif : lui dit de passer dessus', () => {
-    const access = tournamentManageAccess(
-      session({ isSuperUser: true, members: [{ memberId: 10, clanId: 2 }, { memberId: 11, clanId: 1 }] }),
-      FR
-    )
-    expect(access.syncBlockedReason).toContain('passe sur ton joueur de [FR]')
+    expect(access.canManage).toBe(true)
   })
 
   it('tournoi sans organisateur connu : aucun bouton', () => {

@@ -1,5 +1,5 @@
 import { prisma } from '@/lib/prisma'
-import { fetchMatchDetails } from '@/lib/pubg'
+import { fetchMatchOverview } from '@/lib/pubg'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { normalizeTournamentGameMode, normalizeTournamentMapName } from '@/lib/tournament-filters'
 import { TournamentInputError, tournamentInstant, tournamentWindowEnd } from '@/lib/tournament-schedule'
@@ -750,7 +750,16 @@ export async function loadTournamentRoundContext(
   }
 }
 
-export async function materializeTournamentCustomMatches(tournamentId: string) {
+/**
+ * Range chaque partie personnalisée de la fenêtre sous une ligne `SquadMatch` qui porte tous les joueurs suivis du lobby.
+ * Sources : les parties déjà importées des joueurs du clan organisateur (`Match`) et celles que la synchronisation vient
+ * de découvrir dans leurs listes PUBG (`discovered`, src/lib/tournament-round-discovery.ts) — une manche regardée en
+ * observateur par l'organisateur est ainsi trouvée par ses coéquipiers qui l'ont jouée.
+ */
+export async function materializeTournamentCustomMatches(
+  tournamentId: string,
+  options: { discovered?: Array<{ pubgMatchId: string; shard: string }> } = {}
+) {
   const tournament = await prisma.tournament.findUnique({
     where: { id: tournamentId },
     select: {
@@ -762,51 +771,26 @@ export async function materializeTournamentCustomMatches(tournamentId: string) {
 
   if (!tournament) throw new Error('Tournament not found')
 
-  const allCustomMatches = await prisma.match.findMany({
+  const startAt = tournament.startDate.getTime()
+  const endAt = tournamentWindowEnd(tournament.endDate).getTime()
+  const sourceMatches = await prisma.match.findMany({
     where: {
       matchType: 'custom',
       member: { clanId: tournament.organizerClanId },
+      pubgCreatedAt: { gte: tournament.startDate, lte: new Date(endAt) },
     },
-    select: {
-      pubgMatchId: true,
-      pubgCreatedAt: true,
-      gameMode: true,
-      matchType: true,
-      mapName: true,
-      kills: true,
-      damageDealt: true,
-      assists: true,
-      revives: true,
-      placement: true,
-      knockouts: true,
-      headshotKills: true,
-      duration: true,
-      member: {
-        select: {
-          id: true,
-          clanId: true,
-          pubgAccountId: true,
-          platformShard: true,
-        },
-      },
-    },
+    select: { pubgMatchId: true, member: { select: { platformShard: true } } },
   })
-  const startAt = tournament.startDate.getTime()
-  const endAt = tournamentWindowEnd(tournament.endDate).getTime()
-  const sourceMatches = allCustomMatches.filter((match) =>
-    match.pubgCreatedAt.getTime() >= startAt &&
-    match.pubgCreatedAt.getTime() <= endAt
-  )
 
-  const matchesByPubgId = new Map<string, typeof sourceMatches>()
-  for (const match of sourceMatches) {
-    const grouped = matchesByPubgId.get(match.pubgMatchId) ?? []
-    grouped.push(match)
-    matchesByPubgId.set(match.pubgMatchId, grouped)
+  // Une partie par identifiant PUBG, avec le shard où la lire.
+  const shardByPubgId = new Map<string, string>()
+  for (const match of sourceMatches) shardByPubgId.set(match.pubgMatchId, match.member.platformShard)
+  for (const round of options.discovered ?? []) {
+    if (!shardByPubgId.has(round.pubgMatchId)) shardByPubgId.set(round.pubgMatchId, round.shard)
   }
 
   const existing = await prisma.squadMatch.findMany({
-    where: { pubgMatchId: { in: [...matchesByPubgId.keys()] } },
+    where: { pubgMatchId: { in: [...shardByPubgId.keys()] } },
     select: { pubgMatchId: true },
   })
   const existingIds = new Set(existing.map((match) => match.pubgMatchId))
@@ -822,16 +806,13 @@ export async function materializeTournamentCustomMatches(tournamentId: string) {
   )
   const membersByName = new Map(trackedMembers.map((member) => [member.pubgPlayerName.trim().toLowerCase(), member]))
 
-  for (const [pubgMatchId, matchRows] of matchesByPubgId) {
+  for (const [pubgMatchId, shard] of shardByPubgId) {
 
     try {
-      const reference = matchRows[0]
-      if (!reference) continue
-      if (!reference.member.pubgAccountId) {
-        errors.push(`${pubgMatchId}: organizer account id is missing`)
-        continue
-      }
-      const details = await fetchMatchDetails(pubgMatchId, reference.member.pubgAccountId ?? '', reference.member.platformShard)
+      const details = await fetchMatchOverview(pubgMatchId, shard, { clanId: tournament.organizerClanId, source: 'tournament-sync' })
+      // Une partie découverte est déjà filtrée ; ce contrôle garde la règle en un seul endroit.
+      const createdAt = new Date(details.createdAt).getTime()
+      if (details.matchType !== 'custom' || createdAt < startAt || createdAt > endAt) continue
       const trackedParticipants = new Map<number, { memberId: number; kills: number; damage: number; assists: number; revives: number; placement: number; knockouts: number; headshotKills: number; timeSurvived: number; rideDistance: number; walkDistance: number; swimDistance: number; boosts: number; heals: number; vehicleDestroys: number; roadKills: number; longestKill: number; teamKills: number; weaponsAcquired: number }>()
 
       for (const roster of details.rosters) {
@@ -881,7 +862,7 @@ export async function materializeTournamentCustomMatches(tournamentId: string) {
 
   return {
     sourceRowCount: sourceMatches.length,
-    sourceMatchCount: matchesByPubgId.size,
+    sourceMatchCount: shardByPubgId.size,
     materializedCount,
     alreadyMaterializedCount: existingIds.size,
     errors,

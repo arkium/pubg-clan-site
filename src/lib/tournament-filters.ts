@@ -102,3 +102,21 @@ export function tournamentGameModeLabel(value: string | null | undefined) {
   if (!normalized) return 'Tous les modes'
   return TOURNAMENT_GAME_MODE_OPTIONS.find((option) => option.value === normalized)?.label ?? normalized
 }
+
+/**
+ * Bandeau d'avertissement du formulaire dès qu'un filtre est posé (demande du 2026-10-24) : une manche hors filtre est
+ * ignorée sans message, même jouée pendant le tournoi. `null` sans filtre.
+ */
+export function tournamentFilterWarning(gameMode: string | null | undefined, mapName: string | null | undefined) {
+  const mode = normalizeTournamentGameMode(gameMode)
+  const map = normalizeTournamentMapName(mapName)
+  if (!mode && !map) return null
+  const kept = [mode ? `en ${tournamentGameModeLabel(mode)}` : null, map ? `sur ${tournamentMapLabel(map)}` : null]
+  const ignored = [mode ? 'dans un autre mode' : null, map ? 'sur une autre carte' : null]
+  return (
+    `Filtre actif : seules les manches ${kept.filter(Boolean).join(' ')} entreront au classement. Une manche jouée ` +
+    `${ignored.filter(Boolean).join(' ou ')} sera ignorée, même pendant le tournoi, et sa télémétrie ne sera pas ` +
+    'récupérée. Si le tournoi mélange les formats (une manche solo puis des squads, par exemple), laisse « Tous les ' +
+    'modes » et « Toutes les cartes ».'
+  )
+}

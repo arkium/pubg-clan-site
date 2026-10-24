@@ -482,29 +482,52 @@ test('Owner organisateur : boutons « réservés à l’organisation », synchro
     })
     .on('POST', `/api/clans/${CLAN_ID}/tournaments/${LIVE_TOURNAMENT_ID}/sync`, () => {
       syncs += 1
-      return { body: { ok: true, eligibleMatches: 4, newRounds: 0, materializationErrors: [] } }
+      return { body: { ok: true, eligibleMatches: 5, newRounds: 1, materializationErrors: [] } }
     })
   await page.goto(`/tournaments/${LIVE_TOURNAMENT_ID}`)
   await expect(page.getByText('Réservé à l’organisation — les joueurs ne voient pas ces boutons.')).toBeVisible()
   await page.waitForLoadState('networkidle')
   const loadsBefore = standingsLoads
 
-  await page.getByRole('button', { name: 'Synchroniser PUBG' }).click()
+  const sync = page.getByRole('button', { name: 'Synchroniser PUBG' })
+  // Sous le bouton : attendre la fin de la manche, le site réessaie seul.
+  await expect(sync).toHaveAccessibleDescription(/PUBG publie une manche 2 à 3 minutes après sa fin/)
+  await sync.click()
   const notice = page.getByTestId('tournament-sync-notice')
-  await expect(notice).toContainText('Aucune nouvelle manche — 4 manches déjà au classement.')
-  await expect(notice).toContainText('recliquer est sans risque')
+  await expect(notice).toContainText('1 nouvelle manche ajoutée — 5 manches au total.')
   expect(syncs).toBe(1)
-  // Le classement se recharge seul : plus de « Rechargez la page ».
+  // Une manche arrivée : le classement se recharge seul, plus de « Rechargez la page ».
   await expect.poll(() => standingsLoads).toBeGreaterThan(loadsBefore)
 })
 
-test('SuperUser hors du clan organisateur : synchronisation désactivée, avec la raison', async ({ api, page }) => {
+test('SuperUser d’un autre clan : synchronise aussi ; sans nouvelle manche, essais automatiques arrêtables', async ({ api, page }) => {
   signInAsMember(api, OUTSIDE_SUPERUSER_SESSION)
+  let syncs = 0
+  api.on('POST', `/api/clans/${CLAN_ID}/tournaments/${LIVE_TOURNAMENT_ID}/sync`, () => {
+    syncs += 1
+    return { body: { ok: true, eligibleMatches: 4, newRounds: 0, materializationErrors: [] } }
+  })
   await page.goto(`/tournaments/${LIVE_TOURNAMENT_ID}`)
-  await expect(page.getByRole('button', { name: 'Diffuser sur Discord' })).toBeVisible()
+  await page.waitForLoadState('networkidle')
   const sync = page.getByRole('button', { name: 'Synchroniser PUBG' })
-  await expect(sync).toBeDisabled()
-  await expect(sync).toHaveAccessibleDescription(/réservé à un joueur de \[DEMO\] qui a joué la manche/)
+  await expect(sync).toBeEnabled()
+  await sync.click()
+  const notice = page.getByTestId('tournament-sync-notice')
+  await expect(notice).toContainText('Aucune nouvelle manche pour l’instant — 4 manches déjà au classement.')
+  await expect(notice).toContainText(/Prochain essai dans \d+ s \(essai 2 sur 10\)\./)
+  expect(syncs).toBe(1)
+  await notice.getByRole('button', { name: 'Arrêter les essais' }).click()
+  await expect(notice).toContainText('Essais automatiques arrêtés.')
+  await expect(notice.getByRole('button', { name: 'Arrêter les essais' })).toHaveCount(0)
+})
+
+test('Owner : « Gérer les tournois de mon clan » en bouton principal, à l’accent de la charte', async ({ api, page }) => {
+  signInAsMember(api, ORGANIZER_OWNER_SESSION)
+  await page.goto('/tournaments')
+  const manage = page.getByRole('link', { name: 'Gérer les tournois de mon clan' })
+  await expect(manage).toHaveAttribute('href', `/clans/${CLAN_ID}/settings/tournaments`)
+  const { background, accent } = await backgroundAndAccent(manage)
+  expect(background).toBe(accent)
 })
 
 test('visiteur : aucune ligne « Ton clan », aucune invitation à synchroniser', async ({ page }) => {

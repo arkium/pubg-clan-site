@@ -289,6 +289,9 @@ export type ResolvedPubgMatchWithTelemetry = ResolvedPubgMatch & {
   telemetryGeneratedAt: string | null
 }
 
+/** Une partie et ses équipes, sans les statistiques d'un joueur en particulier. */
+export type ResolvedPubgMatchOverview = Omit<ResolvedPubgMatch, 'stats'>
+
 function resolveRosterParticipants(
   included: PubgIncludedItem[],
   participants: MatchReference[]
@@ -1228,18 +1231,16 @@ export async function fetchMatchResponse(matchId: string, shard: string, context
   }
 }
 
-function resolveMatchDetails(
+function resolveMatchOverview(
   match: NonNullable<PubgMatchResponse['data']>,
-  included: PubgIncludedItem[],
-  playerId: string
-): ResolvedPubgMatch {
+  included: PubgIncludedItem[]
+): ResolvedPubgMatchOverview {
   const rosters = match.relationships?.rosters?.data
 
   if (!Array.isArray(rosters)) {
     throw new Error('Invalid match data from PUBG API')
   }
 
-  let playerStats: ParticipantStats | undefined
   const resolvedRosters: ResolvedPubgMatch['rosters'] = []
 
   for (const rosterRef of rosters) {
@@ -1260,28 +1261,6 @@ function resolveMatchDetails(
       id: rosterRef.id,
       participants: resolveRosterParticipants(included, participants),
     })
-
-    for (const participantRef of participants) {
-      if (!participantRef.id) {
-        continue
-      }
-
-      const participant = included.find(
-        (item) =>
-          item.id === participantRef.id &&
-          item.type === 'participant' &&
-          item.attributes?.stats?.playerId === playerId
-      )
-
-      if (participant?.attributes?.stats) {
-        playerStats = participant.attributes.stats
-        break
-      }
-    }
-  }
-
-  if (!playerStats) {
-    throw new Error('Player not found in match')
   }
 
   return {
@@ -1292,6 +1271,27 @@ function resolveMatchDetails(
     createdAt: match.attributes?.createdAt ?? new Date().toISOString(),
     durationSeconds: match.attributes?.durationSeconds ?? match.attributes?.duration ?? 0,
     rosters: resolvedRosters,
+  }
+}
+
+function resolveMatchDetails(
+  match: NonNullable<PubgMatchResponse['data']>,
+  included: PubgIncludedItem[],
+  playerId: string
+): ResolvedPubgMatch {
+  const overview = resolveMatchOverview(match, included)
+  // Le joueur doit figurer dans une équipe de la partie : un hôte ou un observateur n'y est pas.
+  const inRoster = overview.rosters.some((roster) => roster.participants.some((participant) => participant.playerId === playerId))
+  const playerStats: ParticipantStats | undefined = inRoster
+    ? included.find((item) => item.type === 'participant' && item.attributes?.stats?.playerId === playerId)?.attributes?.stats
+    : undefined
+
+  if (!playerStats) {
+    throw new Error('Player not found in match')
+  }
+
+  return {
+    ...overview,
     stats: {
       kills: playerStats.kills ?? 0,
       knockouts: playerStats.DBNOs ?? 0,
@@ -1317,6 +1317,91 @@ export async function fetchMatchDetails(
   }
 
   return resolveMatchDetails(match, included, playerId)
+}
+
+// Une partie publiée par PUBG ne change plus : son résumé reste en mémoire, pour que la synchronisation d'un tournoi,
+// relancée chaque minute, ne relise pas les mêmes manches (chaque lecture prend une place dans la file PUBG).
+const MATCH_OVERVIEW_CACHE_LIMIT = 100
+
+const globalForMatchOverviews = globalThis as typeof globalThis & {
+  pubgMatchOverviews?: Map<string, ResolvedPubgMatchOverview>
+}
+
+/** Résumé d'une partie (mode, carte, date, équipes et statistiques de chaque participant), gardé en mémoire. */
+export async function fetchMatchOverview(
+  matchId: string,
+  shard: string = 'steam',
+  context?: PubgApiCallContext
+): Promise<ResolvedPubgMatchOverview> {
+  const cache = (globalForMatchOverviews.pubgMatchOverviews ??= new Map())
+  const key = `${shard}:${matchId}`
+  const cached = cache.get(key)
+  if (cached) return cached
+
+  const { match, included } = await fetchMatchResponse(matchId, shard, context)
+  if (!match) {
+    throw new Error('Invalid match data from PUBG API')
+  }
+
+  const overview = resolveMatchOverview(match, included)
+  cache.set(key, overview)
+  if (cache.size > MATCH_OVERVIEW_CACHE_LIMIT) {
+    const oldest = cache.keys().next().value
+    if (oldest !== undefined) cache.delete(oldest)
+  }
+  return overview
+}
+
+const PLAYERS_PER_LOOKUP = 10
+
+type PubgPlayersMatchesResponse = {
+  data?: Array<{
+    id?: string
+    relationships?: { matches?: { data?: MatchReference[] } }
+  }>
+}
+
+/**
+ * Parties des 14 derniers jours (personnalisées comprises) de plusieurs joueurs, 10 par appel (`filter[playerIds]`) :
+ * la synchronisation d'un tournoi lit le clan organisateur sans épuiser la file PUBG. Chaque liste garde l'ordre de
+ * PUBG, de la plus récente à la plus ancienne (vérifié le 2026-10-24). Un joueur inconnu de PUBG est absent du résultat.
+ */
+export async function fetchRecentMatchIdsForPlayers(
+  accountIds: string[],
+  shard: string = 'steam',
+  context?: PubgApiCallContext
+): Promise<Map<string, string[]>> {
+  ensurePubgApiKey()
+  const unique = Array.from(new Set(accountIds.filter((accountId) => accountId.length > 0)))
+  const matchIdsByAccount = new Map<string, string[]>()
+
+  for (let index = 0; index < unique.length; index += PLAYERS_PER_LOOKUP) {
+    const chunk = unique.slice(index, index + PLAYERS_PER_LOOKUP)
+    let players: NonNullable<PubgPlayersMatchesResponse['data']>
+    try {
+      const response = await queuedPubgGet<PubgPlayersMatchesResponse>(
+        `/shards/${shard}/players`,
+        { params: { 'filter[playerIds]': chunk.join(',') } },
+        context
+      )
+      players = response.data.data ?? []
+    } catch (error: unknown) {
+      // 404 : aucun des joueurs du lot n'existe plus chez PUBG.
+      if ((error as { status?: number }).status === 404) continue
+      throw error
+    }
+
+    for (const player of players) {
+      if (!player.id) continue
+      const refs = player.relationships?.matches?.data
+      const matchIds = Array.isArray(refs)
+        ? refs.map((ref) => ref.id).filter((id): id is string => typeof id === 'string' && id.length > 0)
+        : []
+      matchIdsByAccount.set(player.id, Array.from(new Set(matchIds)))
+    }
+  }
+
+  return matchIdsByAccount
 }
 
 export async function fetchMatchDetailsWithTelemetryAsset(

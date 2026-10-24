@@ -36,12 +36,7 @@ import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import ToolbarGroup from '@/components/ui/ToolbarGroup'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
-import {
-  TOURNAMENT_SYNC_PROGRESS_MESSAGE,
-  summarizeTournamentSync,
-  tournamentSyncFailureMessage,
-  type TournamentSyncPayload,
-} from '@/lib/tournament-sync-summary'
+import { useTournamentAutoSync } from '@/hooks/useTournamentAutoSync'
 
 /** Onglets ; celui du formulaire dit ce qu'il contient : « Créer », ou « Modifier » quand un tournoi est en cours d'édition. */
 function tabOptions(editing: boolean): Array<{ value: AdminTab; label: string; icon: React.ReactNode }> {
@@ -91,7 +86,7 @@ export default function ClanTournamentSettingsPage() {
   const [editingTournamentId, setEditingTournamentId] = useState<string | null>(null)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
-  const [syncingTournamentId, setSyncingTournamentId] = useState<string | null>(null)
+  // Diffusion Discord et joueurs non suivis ; la synchronisation a son propre message (`autoSync.notice`).
   const [syncNotice, setSyncNotice] = useState<SyncNotice | null>(null)
   const [broadcastTournament, setBroadcastTournament] = useState<AdminTournament | null>(null)
   const [deleteTournament, setDeleteTournament] = useState<AdminTournament | null>(null)
@@ -224,39 +219,27 @@ export default function ClanTournamentSettingsPage() {
     }
   }
 
-  async function syncTournament(tournament: AdminTournament) {
-    if (!clanId) return
+  // Synchronisation avec relance automatique chaque minute tant qu'aucune manche n'arrive (10 essais) ; un message pour
+  // l'organisateur, pas un rapport technique (src/lib/tournament-sync-summary.ts).
+  const autoSync = useTournamentAutoSync((_job, outcome) => {
+    if (outcome.kind === 'failed') {
+      setError(outcome.message)
+    } else if (outcome.summary.tone === 'success') {
+      setSuccess(outcome.summary.message)
+      void refreshTournaments(false)
+    }
+  })
 
-    setSyncingTournamentId(tournament.id)
+  function syncTournament(tournament: AdminTournament) {
+    if (!clanId) return
     setError(null)
     setSuccess(null)
-    setSyncNotice({ tone: 'progress', message: `« ${tournament.title} » : ${TOURNAMENT_SYNC_PROGRESS_MESSAGE}` })
-
-    let response: Response
-    try {
-      response = await fetch(`/api/clans/${clanId}/tournaments/${tournament.id}/sync`, { method: 'POST' })
-    } catch {
-      const message = tournamentSyncFailureMessage(null, null)
-      setError(message)
-      setSyncNotice({ tone: 'error', message })
-      setSyncingTournamentId(null)
-      return
-    }
-
-    const payload = (await response.json().catch(() => null)) as TournamentSyncPayload | null
-    if (response.ok) {
-      // Un message pour l'organisateur, pas un rapport technique (src/lib/tournament-sync-summary.ts).
-      const summary = summarizeTournamentSync(payload, tournament)
-      if (summary.tone === 'success') setSuccess(summary.message)
-      setSyncNotice(summary)
-      await refreshTournaments(false)
-    } else {
-      const message = tournamentSyncFailureMessage(response.status, payload)
-      setError(message)
-      setSyncNotice({ tone: 'error', message })
-    }
-    setSyncingTournamentId(null)
+    setSyncNotice(null)
+    autoSync.start({ clanId, tournamentId: tournament.id, target: tournament, label: tournament.title })
   }
+
+  // Un message de diffusion ou d'ajout, plus récent, passe devant celui de la synchronisation, qui revient à sa fermeture.
+  const toastNotice = syncNotice ?? autoSync.notice
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase()
@@ -348,8 +331,8 @@ export default function ClanTournamentSettingsPage() {
               onToggleArchives={() => setArchivesOpen((open) => !open)}
               onCreate={startCreation}
               actions={{
-                syncingId: syncingTournamentId,
-                onSync: (tournament) => void syncTournament(tournament),
+                syncingId: autoSync.syncingTournamentId,
+                onSync: syncTournament,
                 onBroadcast: setBroadcastTournament,
                 onEdit: editTournament,
                 onDelete: setDeleteTournament,
@@ -383,7 +366,13 @@ export default function ClanTournamentSettingsPage() {
         ) : null}
       </div>
 
-      {syncNotice ? <SyncToast notice={syncNotice} onClose={() => setSyncNotice(null)} /> : null}
+      {toastNotice ? (
+        <SyncToast
+          notice={toastNotice}
+          onClose={syncNotice ? () => setSyncNotice(null) : autoSync.dismiss}
+          onStop={!syncNotice && autoSync.waiting ? autoSync.stop : undefined}
+        />
+      ) : null}
 
       {broadcastTournament ? (
         <TournamentBroadcastModal

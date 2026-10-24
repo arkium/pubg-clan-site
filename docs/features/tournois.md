@@ -86,6 +86,12 @@ défaut, contrôles et corps envoyé, repris tels quels de l'ancienne page).
 - **Cartes** `app-panel` : mode par `TournamentModeBadge`, statut en pastille (actif teinté à l'accent, brouillon et
   terminé neutres), format, carte et dates (avec l'année) en `app-meta-pill`, « Tous formats » quand le format est
   libre ; « Supprimer » en `app-btn--danger`, écarté à droite. État vide : bordure tiretée, rayon 14.
+- **Filtres de format et de carte** (2026-10-24) : dès qu'un filtre est posé, un **bandeau d'avertissement**
+  (`AdminAlert tone="warn"`, texte de `tournamentFilterWarning`, `src/lib/tournament-filters.ts`) dit ce qui est gardé et
+  qu'une manche hors filtre sera ignorée, même pendant le tournoi, sans récupération de télémétrie — et qu'un tournoi qui
+  mélange les formats (une manche solo puis des squads) doit rester sur « Tous les modes ».
+- **Sous les boutons de chaque carte** : le rappel de la synchronisation (attendre la fin de la manche, relance
+  automatique), voir « Synchronisation PUBG ».
 - **Formulaire** : champs `app-input` (36 px, focus à l'accent), intitulé au-dessus, aide en `t-meta`. Les contrôles
   sont les mêmes qu'avant (titre, dates, fin après début) mais l'erreur s'affiche **sous le champ** au jeton négatif
   (`aria-invalid`, formulaire `noValidate`) ; l'erreur du serveur s'affiche sous le formulaire, à côté du bouton.
@@ -132,27 +138,61 @@ l'aperçu avant l'envoi. L'aperçu est **inerte** (`inert`) : ses liens ne mène
 partir des matchs du tournoi (pas besoin de télémétrie). La vitrine l'affiche dans le cadre « en direct » et les
 résultats dès la première manche (« 42 joueurs »), rien avant.
 
-### Synchronisation PUBG : ce que dit le bouton (2026-10-10)
+### Synchronisation PUBG : ce que dit le bouton (2026-10-10, refondue le 2026-10-24)
 
-`POST /api/clans/[clanId]/tournaments/[tournamentId]/sync` part des **propres parties PUBG du joueur actif** de la
-session (`sync-matches` avec son `memberId`) : seule la partie qu'il a jouée est retrouvée aussitôt, avec tous les
-joueurs suivis. Un joueur hors du clan organisateur reçoit un **403 expliqué** (avant : un 502 « Active member not
-found in this clan »). La réponse porte `newRounds`, les manches que ce clic a fait entrer au classement.
+**Pourquoi la refonte** : au tournoi [FUN] du 23/10, l'Owner organisateur a regardé la 1ʳᵉ manche (solo) en
+**observateur**. PUBG ne liste une partie que chez ses participants : elle n'était pas dans ses parties, la
+synchronisation (qui ne lisait que les parties de qui clique) ne l'a jamais trouvée, alors que 8 joueurs [FUN] l'avaient
+jouée. Un SuperUser d'un autre clan ne pouvait pas synchroniser du tout.
 
-Les deux pages (administration et page d'un tournoi) affichent le même message, écrit pour l'organisateur et non plus
-un rapport technique — `src/lib/tournament-sync-summary.ts`, testé :
+`POST /api/clans/[clanId]/tournaments/[tournamentId]/sync` (garde `requireClanFeature(organisateur,
+'clan-competition')` : le SuperUser **quel que soit son clan**, ou l'Owner du clan organisateur) :
+
+1. **Découverte** (`src/lib/tournament-round-discovery.ts`) : lit les listes PUBG de **20 joueurs du clan organisateur**
+   au plus — celui qui clique, ceux déjà vus dans une manche du tournoi, puis les plus récemment actifs (`lastMatchAt`) —
+   par `fetchRecentMatchIdsForPlayers` (`/players?filter[playerIds]`, **10 joueurs par appel**). Chaque liste va de la
+   partie la plus récente à la plus ancienne (vérifié le 2026-10-24) : le parcours s'arrête à la première partie
+   antérieure au début, et une partie de date inconnue n'est lue que si elle peut tomber dans la fenêtre (12 lectures au
+   plus par clic, la suivante reprend). Dates connues : `Match`, `SquadMatch`, et un cache mémoire des parties déjà lues.
+   Rien avant le début du tournoi ni plus de 14 jours après sa fin (PUBG ne liste plus les parties).
+2. **Projection** (`materializeTournamentCustomMatches(id, { discovered })`) : les parties personnalisées de la fenêtre,
+   **tous formats** (solo, duo, squad), trouvées dans ces listes ou déjà importées (`Match` du clan organisateur), sous
+   une ligne `SquadMatch` portant tous les joueurs suivis du lobby. Chaque partie est lue par `fetchMatchOverview`
+   (résumé gardé en mémoire : une partie publiée ne change plus), sans dépendre du compte de qui clique.
+3. **Télémétrie** : mise en file pour les seules manches **sans télémétrie réussie** (avant, chaque clic retéléchargeait
+   toutes les manches).
+
+La règle d'or ne change pas : une manche compte si **au moins un joueur actif du clan organisateur l'a jouée**
+(`getTournamentMatches`). Un organisateur observateur la retrouve donc par ses coéquipiers ; si **aucun** joueur du clan
+ne la joue, elle reste introuvable (l'hôte n'est lisible que dans la télémétrie, `LogMatchDefinition` — piste écartée
+le 2026-10-24 : il faudrait le conserver en base).
+
+La réponse porte `newRounds` (manches entrées au classement grâce à ce clic), `membersRead`, `matchesRead`,
+`discoveredRounds`, `telemetryQueued` et `telemetryReady`.
+
+**Relance automatique** (`useTournamentAutoSync`, `src/hooks/`) : tant qu'un clic n'apporte aucune manche alors que le
+tournoi a commencé, un nouvel essai part **chaque minute, 10 au plus**, avec le compte à rebours dans le message et un
+bouton « Arrêter les essais ». Une manche arrivée, une erreur ou un tournoi pas commencé arrêtent les essais ; fermer le
+message aussi. Sous le bouton, sur les deux pages : « PUBG publie une manche 2 à 3 minutes après sa fin : clique une fois
+la manche terminée, le site réessaie seul chaque minute (10 essais). »
+
+Les deux pages affichent le même message, écrit pour l'organisateur — `src/lib/tournament-sync-summary.ts`, testé :
 
 | Cas | Message (résumé) |
 |---|---|
 | Nouvelle manche | « 1 nouvelle manche ajoutée — 3 manches au total. » Le classement est à jour, le replay suit en quelques secondes |
-| 0 manche au total | PUBG publie une partie quelques minutes après sa fin : attendre deux ou trois minutes, puis **recliquer — sans risque**, une manche n'est jamais comptée deux fois ; rappel de la fenêtre et des filtres du tournoi |
-| Rien de nouveau | « Aucune nouvelle manche — N déjà au classement », même invitation à recliquer |
-| Avant le début | « Le tournoi n'a pas commencé (dates) » |
+| 0 manche au total | « Aucune manche trouvée pour l'instant », rappel de la règle (un joueur du clan organisateur), de la fenêtre et des filtres, puis le prochain essai |
+| Rien de nouveau | « Aucune nouvelle manche pour l'instant — N déjà au classement », puis « Prochain essai dans 42 s (essai 2 sur 10) » |
+| Après 10 essais ou arrêt | Quoi vérifier (manche terminée, jouée par un joueur du clan — un observateur seul n'apparaît pas chez PUBG), puis recliquer sans risque |
+| Avant le début | « Le tournoi n'a pas commencé (dates) », sans relance |
 | Délai du proxy dépassé (réponse non JSON) | La synchronisation continue peut-être : recharger dans une minute avant de recliquer |
-| Échec PUBG (502) | La raison, puis « Réessayez dans une minute », sans risque |
+| Échec PUBG (502) | La raison, puis « Réessaie dans une minute », sans risque |
 
-Sur la page d'un tournoi, le classement **se recharge seul** après la synchronisation (plus de « Rechargez la page »).
+Sur la page d'un tournoi, le classement **se recharge seul** quand une manche arrive (plus de « Rechargez la page »).
 Le replay vit dans le débrief de la manche, lu à l'ouverture : rien à recharger pour lui.
+
+**Coût PUBG** (file à 10 requêtes par minute) : 2 appels groupés par clic, plus une lecture par partie de date inconnue
+dans la fenêtre — le plus souvent 0 à 2. Les essais automatiques d'une soirée restent bien sous le quart du quota.
 
 ### Suppression
 
@@ -201,7 +241,8 @@ montage, sans repli. Hors mode visiteur, la liste reste chargée par le client (
 « Comment ça marche ? » est toujours dans le HTML, replié par `hidden`.
 
 - **Bandeau d'image** : « Tournois », compteurs en direct / à venir / terminés ; « Gérer les tournois de mon clan »
-  seulement pour qui a `manage_settings` (ou SuperUser).
+  seulement pour qui a `manage_settings` (ou SuperUser), en **bouton principal à l'accent** (`app-btn--primary` sous
+  `.charte`, encre sombre — 2026-10-24).
 - **Bandeau collant** : recherche (« Tournoi ou clan » : titre, description, organisateur, vainqueur) et statut
   (Tous / En direct / À venir / Terminés, sans émoji). Il docke **aussi sur mobile** : exception à sticky.md §2.
 - **Cartes de mode** : légende et filtre à la fois, avec le nombre de tournois (compté sur la recherche et le statut) ;
@@ -328,8 +369,8 @@ bandeau d'image de la liste inchangée ; « Tous formats » (et non « Tous les 
   (`src/lib/tournament-manage-access.ts`, 2026-10-10) : le SuperUser, ou l'**Owner** du clan organisateur — son joueur
   **actif** (pas le clan sélectionné), tant que la compétition est ouverte aux Owners. Avant, `manage_settings` et le
   clan sélectionné suffisaient : le bouton s'affichait puis le serveur répondait « Forbidden ». Une mention « Réservé à
-  l'organisation — les joueurs ne voient pas ces boutons » les précède. Un SuperUser hors du clan organisateur voit
-  « Synchroniser PUBG » **désactivé**, avec la raison (passer sur son joueur du clan, ou laisser l'Owner cliquer).
+  l'organisation — les joueurs ne voient pas ces boutons » les précède. Depuis le 2026-10-24, un SuperUser d'un autre
+  clan **synchronise aussi** : la synchronisation lit les parties du clan organisateur, plus celles de qui clique.
 - **Pas d'avatars** : l'avatar vit sur `UserAccount` via `MemberIdentity`, hors du périmètre du classement.
   `PodiumCards` affiche l'initiale du nom, tag de clan ignoré.
 - **Le mode intra-clan exige le clan organisateur** : sans lui, le moteur ne renvoie aucune entrée plutôt qu'un
@@ -503,11 +544,12 @@ Sept fiches, définies une seule fois dans `src/lib/tournament-guide.ts` et rend
 `src/components/tournaments/TournamentGuide.tsx` :
 
 1. comment les matchs sont capturés (parties personnalisées, dans la fenêtre de dates) ;
-2. la règle d'or de l'organisateur (un de ses membres doit être dans la partie) ;
+2. la règle d'or de l'organisateur (un de ses membres doit **jouer** la partie ; un organisateur observateur la retrouve
+   par ses coéquipiers) ;
 3. les quatre modes ;
 4. les escouades mixtes et le partage des points ;
-5. la synchronisation PUBG (cliquer après chaque manche ; « 0 manche » = pas encore publiée, recliquer sans risque ;
-   qui voit les boutons) ;
+5. la synchronisation PUBG (cliquer après chaque manche ; « 0 manche » = pas encore publiée, le site réessaie seul chaque
+   minute, 10 fois ; recliquer sans risque ; qui voit les boutons, SuperUser de tout clan compris) ;
 6. le calcul des scores, avec les deux pièges qui font croire à un bug (filtre trop strict, points décimaux) ;
 7. la diffusion Discord.
 
@@ -522,14 +564,19 @@ moteur n'y est pas décrit.
 |---|---|
 | `tournament-service.test.ts` | Regroupement par clan, barème, `bestOfRounds`, scores de manche |
 | `tournament-modes.test.ts` | Normalisation du mode, partage intégral vs prorata, découpe par mode, classements |
-| `tournament-filters.test.ts` | Traduction des cartes et modes hérités, listes proposées |
+| `tournament-filters.test.ts` | Traduction des cartes et modes hérités, listes proposées, bandeau d'avertissement des filtres |
+| `tournament-round-discovery.test.ts` | Parcours d'une liste PUBG (arrêt avant le début, parties trop récentes non lues, budget), ordre de lecture des joueurs, organisateur observateur retrouvé par un coéquipier (23/10), cache d'une synchronisation à l'autre |
+| `tournament-sync-route.test.ts` | Synchronisation par un SuperUser d'un autre clan, manches découvertes projetées, télémétrie remise en file pour les seules manches qui ne l'ont pas |
+| `tournament-sync-summary.test.ts` | Messages du bouton, relance automatique (compte à rebours, 10 essais, arrêt) |
+| `tournament-manage-access.test.ts` | Qui voit les actions d'organisateur (SuperUser de tout clan compris) |
+| `pubg-tournament-match-discovery.test.ts` | Listes de parties de 10 joueurs par appel (ordre conservé, lot 404), résumé d'une partie lu une seule fois |
 | `tournament-route-contracts.test.ts` | Passage du mode à la création et à la modification, suppression et son refus hors clan |
 | `tournament-list-filters.test.ts` | Recherche (vainqueur compris), statut (brouillons avec « à venir »), filtre de mode, compteurs, répartition direct / à venir / palmarès |
 | `tournament-overview.test.ts` | Liste publique : vainqueur et participants selon le mode (joueur en solo, escouade en intra-clan), dernière manche, classement détaillé seulement en direct, noms en deux requêtes |
 | `tournament-mode-display.test.ts` | Unités par mode, repérage du lecteur (clan, joueur, équipe), phrase « Ton clan est 2e… », forme par manche, comptes à rebours, barème et règles, top 5 + ligne du lecteur, format des awards (durées, km, singulier) |
 | `next-redirects.test.ts` | Chaque redirection de `next.config.ts` mène à une page existante et ne masque aucune page ; anciennes adresses de tournoi par clan |
-| `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections ; charte du détail (2026-10-04) : « en direct » à l'accent sans couleur en dur, `.tournament-place` ≥ 11 px, aucun défilement horizontal, bandeau docké sur une ligne à 375 px, 12 manches (puces paginées, forme bornée), tournoi à venir ; statistiques (2026-10-11) : podium en marches, top killers / scorers (MVP, ligne du lecteur, liste dépliable), moyenne par clan, awards (fun facts, chevrons, pause, « Tout voir », glisser à la souris et au doigt), armes, ancre « Stats » docké |
-| `e2e/tournament-admin.spec.ts` | Administration (2026-10-04) : liste et archives, recherche et statut, création et modification (corps vérifiés), suppression en modale, synchronisation, diffusion Discord simulée, guide, refus sans droit, aucun défilement horizontal ni select natif |
+| `e2e/tournaments.spec.ts` | Liste et détail rendus : cartes de mode, direct, palmarès par mode, recherche et statut, guide, bandeau collant (mobile compris), lecteur, forme, escouades, manches, barème, visiteur, redirections ; charte du détail (2026-10-04) : « en direct » à l'accent sans couleur en dur, `.tournament-place` ≥ 11 px, aucun défilement horizontal, bandeau docké sur une ligne à 375 px, 12 manches (puces paginées, forme bornée), tournoi à venir ; statistiques (2026-10-11) : podium en marches, top killers / scorers (MVP, ligne du lecteur, liste dépliable), moyenne par clan, awards (fun facts, chevrons, pause, « Tout voir », glisser à la souris et au doigt), armes, ancre « Stats » docké ; synchronisation (2026-10-24) : rappel sous le bouton, SuperUser d'un autre clan qui synchronise, essais automatiques arrêtables, « Gérer les tournois de mon clan » à l'accent |
+| `e2e/tournament-admin.spec.ts` | Administration (2026-10-04) : liste et archives, recherche et statut, création et modification (corps vérifiés), suppression en modale, synchronisation avec relance automatique (horloge simulée : essai suivant après 60 s, arrêt), bandeau d'avertissement des filtres, diffusion Discord simulée, guide, refus sans droit, aucun défilement horizontal ni select natif |
 | `tournament-standings-view.test.ts` | Libellés des participants, rangs, MVP, manches numérotées, trophée des clans, détail par escouade, détail par player limité au clan organisateur |
 | `tournament-stats.test.ts` | Moyenne par clan (formule du tableur, clan à un player, égalités), top killers (règle du MVP) et scorers, awards (total, meilleure manche, télémétrie absente, premier sang), fun facts, armes (variantes, véhicules exclus, 3 tireurs, 8 armes) |
 | `discord/discord-tournament-embed.test.ts` | Intitulés par mode, note de prorata, format des lignes, limites Discord |

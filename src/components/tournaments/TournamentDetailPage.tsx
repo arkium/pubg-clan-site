@@ -32,14 +32,10 @@ import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/Sec
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { useTournamentAutoSync } from '@/hooks/useTournamentAutoSync'
 import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
 import { tournamentManageAccess } from '@/lib/tournament-manage-access'
-import {
-  TOURNAMENT_SYNC_PROGRESS_MESSAGE,
-  summarizeTournamentSync,
-  tournamentSyncFailureMessage,
-  type TournamentSyncPayload,
-} from '@/lib/tournament-sync-summary'
+import { TOURNAMENT_SYNC_HINT, type TournamentSyncNotice } from '@/lib/tournament-sync-summary'
 import {
   TOURNAMENT_MODE_DISPLAY,
   participantClanIds,
@@ -122,9 +118,7 @@ function dockedSections(present: SectionAnchorNavItem[], compact: boolean): Sect
   return merged
 }
 
-type Notice = { tone: 'progress' | 'success' | 'waiting' | 'error'; message: string }
-
-const NOTICE_ICONS: Record<Notice['tone'], { icon: LucideIcon; ink: string }> = {
+const NOTICE_ICONS: Record<TournamentSyncNotice['tone'], { icon: LucideIcon; ink: string }> = {
   progress: { icon: RefreshCw, ink: 't-sky animate-spin motion-reduce:animate-none' },
   success: { icon: CheckCircle2, ink: 't-pos' },
   waiting: { icon: Clock, ink: 't-warn' },
@@ -154,10 +148,14 @@ export default function TournamentDetailPage({ findings }: { findings?: React.Re
   // Filtre « Clan » des détails par squad et par player (`null` = tous).
   const [clanFilter, setClanFilter] = useState<number | null>(null)
   const [broadcastOpen, setBroadcastOpen] = useState(false)
-  const [syncing, setSyncing] = useState(false)
-  const [notice, setNotice] = useState<Notice | null>(null)
-  // Incrémenté après une synchronisation : le classement se recharge sans que l'organisateur recharge la page.
+  // Message de la diffusion Discord ; la synchronisation a le sien (`autoSync.notice`).
+  const [notice, setNotice] = useState<TournamentSyncNotice | null>(null)
+  // Incrémenté quand une manche arrive : le classement se recharge sans que l'organisateur recharge la page.
   const [reloadToken, setReloadToken] = useState(0)
+  // Synchronisation avec relance automatique chaque minute tant qu'aucune manche n'arrive (10 essais).
+  const autoSync = useTournamentAutoSync((_job, outcome) => {
+    if (outcome.kind === 'synced' && outcome.summary.tone === 'success') setReloadToken((token) => token + 1)
+  })
 
   const now = useMemo(() => new Date(), [])
 
@@ -239,27 +237,14 @@ export default function TournamentDetailPage({ findings }: { findings?: React.Re
     return { rest: present, docked: dockedSections(present, false), compact: dockedSections(present, true) }
   }, [hasPodium, hasRounds, hasAwards, hasWeapons])
 
-  async function syncTournament() {
+  function syncTournament() {
     if (!organizerClanId || !tournamentId || !tournament) return
-    setSyncing(true)
-    setNotice({ tone: 'progress', message: TOURNAMENT_SYNC_PROGRESS_MESSAGE })
-    let response: Response
-    try {
-      response = await fetch(`/api/clans/${organizerClanId}/tournaments/${tournamentId}/sync`, { method: 'POST' })
-    } catch {
-      setNotice({ tone: 'error', message: tournamentSyncFailureMessage(null, null) })
-      setSyncing(false)
-      return
-    }
-    const data = (await response.json().catch(() => null)) as TournamentSyncPayload | null
-    if (response.ok) {
-      setNotice(summarizeTournamentSync(data, tournament))
-      setReloadToken((token) => token + 1)
-    } else {
-      setNotice({ tone: 'error', message: tournamentSyncFailureMessage(response.status, data) })
-    }
-    setSyncing(false)
+    setNotice(null)
+    autoSync.start({ clanId: organizerClanId, tournamentId, target: tournament })
   }
+  const syncing = autoSync.syncingTournamentId !== null
+  // Un message de diffusion, plus récent, passe devant celui de la synchronisation.
+  const shownNotice = notice ?? autoSync.notice
 
   if (!tournamentId) {
     return (
@@ -318,8 +303,8 @@ export default function TournamentDetailPage({ findings }: { findings?: React.Re
       <button
         type="button"
         onClick={syncTournament}
-        disabled={syncing || !access.canSync}
-        aria-describedby={access.syncBlockedReason ? 'tournament-sync-blocked' : undefined}
+        disabled={syncing}
+        aria-describedby="tournament-sync-hint"
         className="app-btn app-btn--sm app-btn--secondary"
       >
         <RefreshCw className={`mr-1.5 h-4 w-4 ${syncing ? 'animate-spin motion-reduce:animate-none' : ''}`} aria-hidden />
@@ -335,14 +320,12 @@ export default function TournamentDetailPage({ findings }: { findings?: React.Re
           Paramètres
         </Link>
       ) : null}
-      {access.syncBlockedReason ? (
-        <p id="tournament-sync-blocked" className="basis-full text-[12px] text-white/70">
-          {access.syncBlockedReason}
-        </p>
-      ) : null}
+      <p id="tournament-sync-hint" className="basis-full text-[12px] text-white/70">
+        {TOURNAMENT_SYNC_HINT}
+      </p>
     </>
   ) : null
-  const NoticeIcon = notice ? NOTICE_ICONS[notice.tone] : null
+  const NoticeIcon = shownNotice ? NOTICE_ICONS[shownNotice.tone] : null
 
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
@@ -413,10 +396,17 @@ export default function TournamentDetailPage({ findings }: { findings?: React.Re
           </DockingToolbar>
 
           <div className="app-container app-gutter flex flex-col gap-4 pb-8 sm:gap-5">
-            {notice && NoticeIcon ? (
+            {shownNotice && NoticeIcon ? (
               <div className="app-panel-muted flex items-start gap-2.5 p-3" role="status" data-testid="tournament-sync-notice">
                 <NoticeIcon.icon className={`mt-0.5 h-4 w-4 shrink-0 ${NoticeIcon.ink}`} aria-hidden />
-                <p className="t-body min-w-0 flex-1 text-gray-700">{notice.message}</p>
+                <div className="flex min-w-0 flex-1 flex-col items-start gap-2">
+                  <p className="t-body text-gray-700">{shownNotice.message}</p>
+                  {!notice && autoSync.waiting ? (
+                    <button type="button" onClick={autoSync.stop} className="app-btn app-btn--xs app-btn--secondary">
+                      Arrêter les essais
+                    </button>
+                  ) : null}
+                </div>
               </div>
             ) : null}
 

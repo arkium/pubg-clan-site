@@ -5,6 +5,7 @@ import {
   TOURNAMENT_MAP_OPTIONS,
   normalizeTournamentGameMode,
   normalizeTournamentMapName,
+  tournamentFilterWarning,
   tournamentGameModeLabel,
   tournamentMapLabel,
 } from './tournament-filters'
@@ -67,5 +68,32 @@ describe('libellés', () => {
     expect(tournamentMapLabel(null)).toBe('Toutes les cartes')
     expect(tournamentGameModeLabel('squad')).toBe('Squad (partie perso)')
     expect(tournamentGameModeLabel(null)).toBe('Tous les modes')
+  })
+})
+
+describe('tournamentFilterWarning — bandeau du formulaire (2026-10-24)', () => {
+  it('sans filtre : aucun bandeau', () => {
+    expect(tournamentFilterWarning('', '')).toBeNull()
+    expect(tournamentFilterWarning(null, null)).toBeNull()
+  })
+
+  it('mode seul : dit ce qui est gardé et qu’une autre manche est ignorée, télémétrie comprise', () => {
+    const warning = tournamentFilterWarning('normal-squad', '')
+    expect(warning).toContain('seules les manches en Squad (partie perso) entreront au classement')
+    expect(warning).toContain('Une manche jouée dans un autre mode sera ignorée, même pendant le tournoi')
+    expect(warning).toContain('sa télémétrie ne sera pas récupérée')
+    expect(warning).toContain('laisse « Tous les modes » et « Toutes les cartes »')
+  })
+
+  it('carte seule', () => {
+    const warning = tournamentFilterWarning('', 'Baltic_Main')
+    expect(warning).toContain('seules les manches sur Erangel entreront au classement')
+    expect(warning).toContain('Une manche jouée sur une autre carte sera ignorée')
+  })
+
+  it('mode et carte, valeurs héritées comprises', () => {
+    const warning = tournamentFilterWarning('squad', 'Erangel')
+    expect(warning).toContain('seules les manches en Squad (partie perso) sur Erangel entreront au classement')
+    expect(warning).toContain('dans un autre mode ou sur une autre carte')
   })
 })

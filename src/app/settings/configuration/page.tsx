@@ -6,6 +6,7 @@ import { useEffect, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
+  Bot,
   CalendarClock,
   CheckCircle2,
   Database,
@@ -37,6 +38,7 @@ const SECTION_ICONS: Record<SiteConfigSectionId, LucideIcon> = {
   security: ShieldCheck,
   email: Mail,
   pubg: Plug,
+  coach: Bot,
   tasks: CalendarClock,
   telemetry: Activity,
   database: Database,

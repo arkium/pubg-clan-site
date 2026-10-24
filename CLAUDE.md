@@ -461,7 +461,7 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 0 18 * * *  →  Send online reminders (if enabled)
 */30 * * * *  →  Encountered players PUBG clan resolution (one `Player` row per identity, priority index) — kill feed names first (« Joueur inconnu »)
 45 1 * * *  →  Clan membership sync (per-player clan check — observe mode by default)
-15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h ; only deletion: admin action log rows > 12 months)
+15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h ; only deletions: admin action log rows > 12 months, Coach IA conversations idle > 12 months and usage rows > 13 months)
 0 6 * * *  →  Geo-purge count (volume purgeable des tracés GPS, tous seuils, lecture seule — ~247 s)
 30 6 * * *  →  Resource map vehicle spots (véhicules observés de la Carte des ressources, 90 derniers jours — docs/features/carte-ressources.md)
 0 9 * * *  →  Admin daily digest (boîte « À traiter » vers le Discord d'administration, seulement si une action attend)
@@ -482,6 +482,7 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `npm run scores:recalc` | Manually recalculate leaderboard positions & badges |
 | `npm run sync:pubg-assets` | Fetch weapon/map/phase labels from PUBG API (seeds `Label` table) |
 | `npm run telemetry:zone-reading:backfill` | Lecture de zone : ligne de vol et cercles de chaque partie déjà analysée (`ZoneReadingMatch`, relançable) |
+| `npx tsx scripts/coach-model-probe.ts [--list]` | Essai des modèles Gemini du Coach IA (API REST, outils bouchons, coût affiché) — docs/TODO/chatbot-ia.md §3.4 |
 
 ## Environment & Known Issues
 
@@ -497,6 +498,8 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `CLAN_SUBDOMAIN_ROOT` (optional) | Sous-domaines de clan (`chickendinner.fr`) ; absente = redirection désactivée | `.env` |
 | `SITE_NAME` (optional) | Nom du site dans les e-mails (`src/lib/site-name.ts`) ; défaut `chickendinner.fr`. Serveur seulement, jamais dans un composant client | `.env` |
 | `NOTIFICATION_LINK_SECRET` (optional) | Signe le lien « Ne plus recevoir ces e-mails » des notifications ; à défaut `AUTH_BOOTSTRAP_SECRET` | `.env` |
+| `GEMINI_API_KEY` (optional) | Clé de l'API Gemini du Coach IA (projet Google Cloud **avec facturation**) ; absente = Coach fermé. Lue par `src/lib/coach/coach-config.ts` seulement, jamais côté client | `.env` |
+| `COACH_MODEL` (optional) | Modèle Gemini de repli quand `AppConfig.coach_model` est absent ; défaut `gemini-3.5-flash-lite` (catalogue `src/lib/coach/coach-models.ts`) | `.env` |
 
 **Note:** Prisma CLI commands read `.env`, not `.env.local`. Keep `DATABASE_URL` in `.env` for migrations.
 

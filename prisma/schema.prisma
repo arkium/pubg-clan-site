@@ -56,10 +56,11 @@ model Clan {
   matchesCache              ClanMatchesCache[]
   comparatorCache           ClanComparatorCache[]
   clanEncounters            ClanEncounter[]
-  organizedTournaments      Tournament[]      @relation("TournamentOrganizer")
+  organizedTournaments      Tournament[]                @relation("TournamentOrganizer")
   discordNotifications      DiscordNotificationLog[]
   clanChangesAsPrevious     PlayerClanChange[]          @relation("PlayerClanChangePrevious")
   clanChangesAsNew          PlayerClanChange[]          @relation("PlayerClanChangeNew")
+  coachConversations        CoachConversation[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -68,18 +69,18 @@ model Clan {
 }
 
 model ClanMember {
-  id             Int      @id @default(autoincrement())
+  id             Int       @id @default(autoincrement())
   displayName    String
   pubgPlayerName String
   pubgAccountId  String?
-  platformShard  String   @default("steam")
-  isActive       Boolean  @default(true)
-  joinStatus     String   @default("active")
+  platformShard  String    @default("steam")
+  isActive       Boolean   @default(true)
+  joinStatus     String    @default("active")
   lastMatchAt    DateTime?
   clanId         Int?
-  clan           Clan?    @relation(fields: [clanId], references: [id], onDelete: SetNull)
+  clan           Clan?     @relation(fields: [clanId], references: [id], onDelete: SetNull)
   playerId       String?
-  player         Player?  @relation(fields: [playerId], references: [id], onDelete: SetNull)
+  player         Player?   @relation(fields: [playerId], references: [id], onDelete: SetNull)
   // Archivage d'un membre du clan technique reste trop longtemps sans jouer
   // (chantier 5). Distingue une purge d'un arret de suivi ordinaire : isActive
   // vaut false dans les deux cas, seul archivedReason dit pourquoi.
@@ -91,8 +92,8 @@ model ClanMember {
   // encore (passwordHash non nullable) et Clan perdrait le lien avec le joueur.
   // Repris comme UserAccount.email a l'activation du compte.
   contactEmail   String?
-  createdAt      DateTime @default(now())
-  updatedAt      DateTime @updatedAt
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
 
   matches                   Match[]
   lifetimeStats             MemberLifetimeStats?
@@ -123,6 +124,7 @@ model ClanMember {
   clanChanges               PlayerClanChange[]
   mortarSeries              MortarSeries[]
   zoneReadingSeries         ZoneReadingSeries[]
+  coachConversations        CoachConversation[]
 
   @@unique([pubgPlayerName, platformShard])
   @@index([clanId, lastMatchAt])
@@ -392,17 +394,17 @@ model ClanLifecycleRun {
   // running | success | failed | aborted
   status String @default("running")
   // observe | apply — mode effectif au moment du passage
-  mode String @default("observe")
+  mode   String @default("observe")
 
   startedAt  DateTime  @default(now())
   finishedAt DateTime?
   durationMs Int?
 
-  membersScanned   Int @default(0)
-  apiCalls         Int @default(0)
-  statesHasClan    Int @default(0)
-  statesNoClan     Int @default(0)
-  statesUnknown    Int @default(0)
+  membersScanned Int @default(0)
+  apiCalls       Int @default(0)
+  statesHasClan  Int @default(0)
+  statesNoClan   Int @default(0)
+  statesUnknown  Int @default(0)
 
   discrepanciesFound   Int @default(0)
   // Ecarts vus mais pas encore confirmes N fois — ils n'ont produit aucun mouvement.
@@ -502,7 +504,7 @@ model ClanMatchesCache {
   clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
 
   period     String // 'week' | 'month' | 'all'
-  matchType  String @default("all") // 'official' | 'casual' | 'custom' | 'all'
+  matchType  String   @default("all") // 'official' | 'casual' | 'custom' | 'all'
   periodKey  String
   payload    Json
   computedAt DateTime @default(now())
@@ -576,16 +578,17 @@ model UserAccount {
   createdAt       DateTime  @default(now())
   updatedAt       DateTime  @updatedAt
 
-  identities          MemberIdentity[]
-  sessions            UserSession[]
-  invites             MemberInvite[]
-  passwordResetTokens PasswordResetToken[]
+  identities              MemberIdentity[]
+  sessions                UserSession[]
+  invites                 MemberInvite[]
+  passwordResetTokens     PasswordResetToken[]
   resourcePointsCreated   ResourcePoint[]        @relation("ResourcePointCreatedBy")
   resourcePointsValidated ResourcePoint[]        @relation("ResourcePointValidatedBy")
   resourceReports         ResourceReport[]       @relation("ResourceReportAuthor")
   resourceReportsResolved ResourceReport[]       @relation("ResourceReportResolvedBy")
   resourceConfirmations   ResourceConfirmation[]
   resourceActions         ResourceAction[]       @relation("ResourceActionActor")
+  coachConversations      CoachConversation[]
 
   @@map("UserAccount")
 }
@@ -806,7 +809,7 @@ model Match {
   placement    Int
   playersAlive Int
 
-  duration Int
+  duration      Int
   // Le DEFAULT CURRENT_TIMESTAMP(3) existe en base mais n'est jamais utilise :
   // la date vient toujours de l'API PUBG cote applicatif. Declare uniquement
   // pour aligner le schema sur la base — ne jamais compter dessus, un match
@@ -834,16 +837,16 @@ model SquadMatch {
   placement   Int
   createdAt   DateTime
 
-  members             SquadMember[]
-  telemetry           SquadMatchTelemetry?
-  dropPressureStats   DropPressureStat[]
-  positionMetricCells PositionMetricCell[]
-  safeZonePhaseStats  SafeZonePhaseStat[]
-  itemUseStats        MemberItemUseStat[]
+  members              SquadMember[]
+  telemetry            SquadMatchTelemetry?
+  dropPressureStats    DropPressureStat[]
+  positionMetricCells  PositionMetricCell[]
+  safeZonePhaseStats   SafeZonePhaseStat[]
+  itemUseStats         MemberItemUseStat[]
   zoneClosurePositions ZoneClosurePosition[]
-  zoneReadingMatch    ZoneReadingMatch?
-  killEvents          KillEvent[]
-  throwableStats      MemberThrowableStat[]
+  zoneReadingMatch     ZoneReadingMatch?
+  killEvents           KillEvent[]
+  throwableStats       MemberThrowableStat[]
 
   totalKills   Int
   totalDamage  Float
@@ -889,24 +892,24 @@ model SquadMatchTelemetry {
   squadMatchId String     @unique
   squadMatch   SquadMatch @relation(fields: [squadMatchId], references: [id], onDelete: Cascade)
 
-  status             String
-  attemptCount       Int       @default(0)
-  lastAttemptAt      DateTime?
-  nextRetryAt        DateTime?
-  parserVersion      String
-  parsedAt           DateTime
-  sourceGeneratedAt  DateTime?
-  contentLength      Int?
-  bytesDownloaded    Int?
-  summary            Json?
-  weaponStats        Json?
-  memberStats        Json?
+  status               String
+  attemptCount         Int       @default(0)
+  lastAttemptAt        DateTime?
+  nextRetryAt          DateTime?
+  parserVersion        String
+  parsedAt             DateTime
+  sourceGeneratedAt    DateTime?
+  contentLength        Int?
+  bytesDownloaded      Int?
+  summary              Json?
+  weaponStats          Json?
+  memberStats          Json?
   /// Géolocalisation compressée (gzip du JSON, ~8x). Colonnes ajoutées le 2026-09-24 en
   /// `ALGORITHM=INSTANT` : aucune reconstruction, donc aucun besoin d'espace disque temporaire.
   /// Les colonnes `positionSamples` / `trajectorySegments` en clair sont conservées le temps du
   /// rattrapage. Toute lecture passe par `decodeGeoColumn` (src/lib/pubg-telemetry/geo-codec.ts).
-  positionSamples    Json?
-  trajectorySegments Json?
+  positionSamples      Json?
+  trajectorySegments   Json?
   positionSamplesGz    Bytes?
   trajectorySegmentsGz Bytes?
   /// Reste des colonnes JSON, compressees le 2026-09-25 (gzip, ~7,3x). `summary` reste en clair :
@@ -924,22 +927,22 @@ model SquadMatchTelemetry {
   vehicleSamplesGz     Bytes?
   killFeedSamplesGz    Bytes?
   carePackageSamplesGz Bytes?
-  deathSamples       Json?
-  landingSamples     Json?
-  phaseSnapshots     Json?
-  killSamples        Json?
-  shotSamples        Json?
-  damageSamples      Json?
-  knockoutSamples    Json?
-  reviveSamples      Json?
-  vehicleSamples     Json?
+  deathSamples         Json?
+  landingSamples       Json?
+  phaseSnapshots       Json?
+  killSamples          Json?
+  shotSamples          Json?
+  damageSamples        Json?
+  knockoutSamples      Json?
+  reviveSamples        Json?
+  vehicleSamples       Json?
   /// Kill-feed complet du lobby (tueur, victime, arme, distance, headshot). `KillEvent` n'en
   /// retient que les frags d'un clan ayant synchronisé le match. Ajouté le 2026-09-14.
-  killFeedSamples    Json?
+  killFeedSamples      Json?
   /// Caisses de largage : largage, atterrissage, contenu notable, pillages. Ajouté le 2026-09-14.
-  carePackageSamples Json?
-  errorCode          String?
-  errorMessage       String?   @db.Text
+  carePackageSamples   Json?
+  errorCode            String?
+  errorMessage         String?   @db.Text
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -1757,4 +1760,62 @@ model AdminActionLog {
   @@index([createdAt])
   @@index([clanId, createdAt])
   @@index([userId, createdAt])
+}
+
+/// Coach IA (docs/TODO/chatbot-ia.md §4.1) : fil de conversation d'un compte. Seul ce compte (et le SuperUser) le lit.
+/// `memberId` et `clanId` sont figés à la création (membre actif et clan du contexte) : un membre archivé ou un
+/// changement de clan ne font pas disparaître le fil. Purgé 12 mois après sa dernière activité (maintenance de 01:15).
+model CoachConversation {
+  id        Int            @id @default(autoincrement())
+  userId    Int
+  memberId  Int?
+  clanId    Int?
+  title     String         @db.VarChar(120) // tiré de la première question
+  createdAt DateTime       @default(now())
+  updatedAt DateTime       @updatedAt
+  user      UserAccount    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member    ClanMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  clan      Clan?          @relation(fields: [clanId], references: [id], onDelete: SetNull)
+  messages  CoachMessage[]
+
+  @@index([userId, updatedAt])
+  @@index([memberId])
+  @@index([clanId])
+}
+
+/// Message d'un fil du Coach IA : question du joueur ou réponse du modèle (le prompt système n'est pas stocké).
+model CoachMessage {
+  id             Int               @id @default(autoincrement())
+  conversationId Int
+  role           String            @db.VarChar(16) // "user" | "assistant"
+  content        String            @db.Text
+  contextPath    String?           @db.VarChar(191) // page d'où part la question, après validation serveur
+  toolCalls      Json? // outils appelés et leurs paramètres (audit) ; null = réponse sans outil
+  unverified     Boolean           @default(false) // chiffres dans la réponse sans appel d'outil (§6)
+  feedbackScore  Int? // +1 Utile · -1 Inexact
+  feedbackNote   String?           @db.VarChar(280) // précision facultative d'un « Inexact »
+  reviewedAt     DateTime? // vote « Inexact » relu par le SuperUser
+  createdAt      DateTime          @default(now())
+  conversation   CoachConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+
+  @@index([conversationId, createdAt])
+  @@index([feedbackScore, reviewedAt])
+}
+
+/// Une ligne par question facturée au Coach IA : limite horaire glissante, budget du compte, coût du mois (§2).
+/// Sans relation et jamais supprimée avec un fil, sinon supprimer un fil rendrait la question. Purgée après 13 mois.
+model CoachUsage {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  clanId         Int?
+  conversationId Int?
+  model          String   @db.VarChar(64)
+  status         String   @db.VarChar(16) // "pending" | "ok" | "error" | "aborted" | "refused"
+  tokensIn       Int      @default(0)
+  tokensOut      Int      @default(0) // réflexion comprise
+  costMicroUsd   Int      @default(0)
+  createdAt      DateTime @default(now())
+
+  @@index([userId, createdAt])
+  @@index([createdAt])
 }

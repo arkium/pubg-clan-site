@@ -32,6 +32,7 @@ import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/interna
 import { prisma } from '@/lib/prisma'
 import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
 import { purgeExpiredAdminActions } from '@/lib/admin-action-log'
+import { purgeExpiredCoachHistory } from '@/lib/coach/coach-retention'
 import { refreshGeoPurgeCounts } from '@/lib/telemetry-geo-purge'
 import { computeResourceVehicleSpots, formatResourceVehicleMapSummary } from '@/lib/resources/resource-vehicle-spots'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
@@ -1138,13 +1139,24 @@ async function runDbMaintenance() {
     console.error('[Cron] DB maintenance failed', error)
   }
 
-  // Seule suppression de la maintenance : le journal des actions d'administration au-delà de sa durée de
-  // conservation (12 mois, docs/TODO/administration.md Q10). À part, pour qu'un échec n'empêche pas le reste.
+  // Suppressions de la maintenance, chacune à part pour qu'un échec n'empêche pas le reste : le journal des actions
+  // d'administration au-delà de sa durée de conservation (12 mois, docs/TODO/administration.md Q10)…
   try {
     const purgedAdminActions = await purgeExpiredAdminActions()
     console.info(`[Cron] DB maintenance — admin action log purged: ${purgedAdminActions} row(s) older than 12 months`)
   } catch (error) {
     console.error('[Cron] DB maintenance — admin action log purge failed', error)
+  }
+
+  // … et l'historique du Coach IA (docs/TODO/chatbot-ia.md §4.3) : fils inactifs depuis 12 mois, messages en cascade,
+  // lignes d'usage de plus de 13 mois.
+  try {
+    const purgedCoach = await purgeExpiredCoachHistory()
+    console.info(
+      `[Cron] DB maintenance — coach history purged: ${purgedCoach.conversations} conversation(s), ${purgedCoach.usages} usage row(s)`
+    )
+  } catch (error) {
+    console.error('[Cron] DB maintenance — coach history purge failed', error)
   }
 }
 

@@ -1,6 +1,8 @@
 import { isAbsolute as isAbsolutePath } from 'node:path'
 
 import { secretState, usableSecret, type SecretState } from '@/lib/auth/secrets'
+import { hasCoachApiKey } from '@/lib/coach/coach-config'
+import { COACH_DEFAULT_MODEL_ID, isCoachModelId } from '@/lib/coach/coach-models'
 import { describeCronExpression, isValidCron } from '@/lib/cron-observability'
 import { getEmailDeliveryStatus } from '@/lib/email-delivery-config-service'
 import { SITE_DOMAIN } from '@/lib/legal/legal-info'
@@ -32,7 +34,7 @@ export type SiteConfigItem = {
   fix?: string
 }
 
-export type SiteConfigSectionId = 'identity' | 'security' | 'email' | 'pubg' | 'tasks' | 'telemetry' | 'database' | 'obsolete'
+export type SiteConfigSectionId = 'identity' | 'security' | 'email' | 'pubg' | 'coach' | 'tasks' | 'telemetry' | 'database' | 'obsolete'
 
 export type SiteConfigSection = {
   id: SiteConfigSectionId
@@ -586,6 +588,54 @@ function obsoleteSection(env: SiteConfigFacts['env']): SiteConfigSection | null 
   }
 }
 
+/**
+ * Coach IA (docs/TODO/chatbot-ia.md §4.2) : la clé d'API ne vient que du `.env` ; les autres réglages vivent en base
+ * (`src/lib/coach/coach-config.ts`) et auront leur page au lot 7.
+ */
+function coachSection(env: SiteConfigFacts['env']): SiteConfigSection {
+  const hasKey = hasCoachApiKey(env)
+  const model = trimmed(env.COACH_MODEL)
+  const modelItem: SiteConfigItem = !model
+    ? {
+        key: 'coach_model',
+        label: 'Modèle de repli',
+        variable: 'COACH_MODEL',
+        status: 'info',
+        value: `absente : ${COACH_DEFAULT_MODEL_ID}`,
+        effect: 'Modèle utilisé quand le réglage en base est absent ; le catalogue est dans src/lib/coach/coach-models.ts.',
+      }
+    : isCoachModelId(model)
+      ? { key: 'coach_model', label: 'Modèle de repli', variable: 'COACH_MODEL', status: 'ok', value: model, effect: 'Modèle utilisé quand le réglage en base est absent.' }
+      : {
+          key: 'coach_model',
+          label: 'Modèle de repli',
+          variable: 'COACH_MODEL',
+          status: 'warning',
+          value: `inconnue : ${model}`,
+          effect: `Ignorée : le Coach part sur ${COACH_DEFAULT_MODEL_ID}.`,
+          fix: 'Un identifiant du catalogue (src/lib/coach/coach-models.ts), ou retirer la variable.',
+        }
+  return {
+    id: 'coach',
+    title: 'Coach IA',
+    description: 'Assistant des membres connectés, appuyé sur la télémétrie ; appels payants à l’API Gemini.',
+    items: [
+      {
+        key: 'coach_api_key',
+        label: 'Clé de l’API Gemini',
+        variable: 'GEMINI_API_KEY',
+        status: hasKey ? 'ok' : 'info',
+        value: hasKey ? 'définie' : 'absente : Coach fermé',
+        effect: hasKey
+          ? 'Les questions des membres partent vers l’API Gemini (projet Google Cloud avec facturation).'
+          : 'Sans clé, le Coach reste fermé pour tout le monde, quel que soit le réglage en base.',
+        ...(hasKey ? {} : { fix: 'Clé d’un projet Google Cloud AVEC facturation (au niveau gratuit, Google réutilise les questions des joueurs).' }),
+      },
+      modelItem,
+    ],
+  }
+}
+
 export function buildSiteConfiguration(facts: SiteConfigFacts, now = new Date()): SiteConfiguration {
   const env = facts.env
   const production = env.NODE_ENV === 'production'
@@ -594,6 +644,7 @@ export function buildSiteConfiguration(facts: SiteConfigFacts, now = new Date())
     securitySection(env),
     emailSection(env, facts.email),
     pubgSection(env, facts),
+    coachSection(env),
     tasksSection(env),
     telemetrySection(env, facts.standaloneRuntime),
     databaseSection(env),

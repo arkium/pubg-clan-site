@@ -223,7 +223,8 @@ model CoachMessage {
   role           String    @db.VarChar(16)  // "user" | "assistant" — le prompt système n'est pas stocké
   content        String    @db.Text
   contextPath    String?   @db.VarChar(191) // page d'où part la question, après validation (§7.2)
-  toolCalls      String?   @db.Text         // JSON des outils appelés et de leurs paramètres (audit)
+  toolCalls      Json?                      // outils appelés et leurs paramètres (audit) ; null = réponse sans outil
+  unverified     Boolean   @default(false)  // chiffres dans la réponse sans appel d'outil (§6)
   feedbackScore  Int?                       // +1 Utile · -1 Inexact
   feedbackNote   String?   @db.VarChar(280) // précision facultative d'un « Inexact »
   reviewedAt     DateTime?                  // vote « Inexact » relu par le SuperUser
@@ -261,12 +262,15 @@ Pourquoi pas le modèle d'origine (`AiConversation` / `AiMessage` / `AiUsageQuot
 Sur le modèle de `pubg_api_rate_limit_rpm` (`src/lib/pubg-rate-limit-config-service.ts`) : valeur en base, page
 d'administration, repli sur la variable d'environnement puis sur la valeur par défaut.
 
-`coach_enabled` · `coach_model` · `coach_budget_per_account_eur` (2) · `coach_global_budget_eur` (50) ·
-`coach_usd_eur_rate` (0,86) · `coach_hourly_limit` (20) · `coach_min_interval_seconds` (4) · `coach_max_input_chars`
-(400) · `coach_history_messages` (10) · `coach_max_tool_rounds` (4) · `coach_max_output_tokens` (1 024).
+`coach_enabled` (**faux par défaut** : le SuperUser ouvre) · `coach_model` · `coach_budget_per_account_eur` (2) ·
+`coach_global_budget_eur` (50) · `coach_usd_eur_rate` (0,86) · `coach_hourly_limit` (20) · `coach_min_interval_seconds`
+(4) · `coach_max_input_chars` (400) · `coach_history_messages` (10) · `coach_max_tool_rounds` (4). Le plafond de sortie
+et le niveau de réflexion viennent du catalogue, par modèle (§3.2). Module : `src/lib/coach/coach-config.ts`
+(`getCoachSettings`, `setCoachSettings`, `sanitizeCoachSettingsPatch`, bornes `COACH_SETTING_BOUNDS`).
 
-Variables d'environnement : `GEMINI_API_KEY` (obligatoire), `COACH_MODEL` (repli). Une ligne chacune dans le tableau
-« Environment Variables » de CLAUDE.md et dans `.env.example`.
+Variables d'environnement : `GEMINI_API_KEY` (obligatoire, lue par `hasCoachApiKey()` seulement), `COACH_MODEL`
+(repli). Une ligne chacune dans le tableau « Environment Variables » de CLAUDE.md et dans `.env.example` ; état
+affiché dans `/settings/configuration` (section « Coach IA »).
 
 ### 4.3 Conservation et effacement
 
@@ -662,26 +666,27 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 0 — Préparation
 
-- [x] Prompt du §11.4 envoyé à Claude Design ; « Coach IA - Compléments » relu, écarts notés au §11.5 — 2026-10-24, non committé
-- [x] Branche `feat/coach-ia` créée — 2026-10-24 (premier commit : ce document, la section 44 de la charte, le sommaire)
+- [x] Prompt du §11.4 envoyé à Claude Design ; « Coach IA - Compléments » relu, écarts notés au §11.5 — 2026-10-24, dd7250f
+- [x] Branche `feat/coach-ia` créée — 2026-10-24, premier commit dd7250f (ce document, la section 44 de la charte, le sommaire, le script d'essai)
 - [ ] Les deux maquettes exportées dans `docs/ui/refonte/maquettes/` (ignoré par git) **avant le 14 décembre 2026**, fermeture de Claude Design autonome
 - [x] Projet Google Cloud **avec facturation**, plafond de dépense posé côté Google, clé `GEMINI_API_KEY` créée — 2026-10-24, déposée dans le `.env` local par l'utilisateur
 - [x] Essai `scripts/coach-model-probe.ts` (lecture seule) sur `gemini-3.1-flash-lite` et `gemini-3.5-flash-lite` :
       appels d'outils, flux, français, quatre questions types — 2026-10-24, §3.4 (outils bouchons ; `2.5-flash-lite` et
-      `3.8-flash` essayés aussi), non committé
+      `3.8-flash` essayés aussi), dd7250f
 - [x] Tokens réels par question mesurés ; tableau du §2.3 corrigé — 2026-10-24 (bouchons ; à remesurer au lot 9 avec les vrais outils)
 - [x] Modèle par défaut confirmé au §0 ; propositions P1 à P7 confirmées — 2026-10-24 : `gemini-3.5-flash-lite`
 - [x] **Contrôle :** coût moyen mesuré par question noté au §2.3 — 0,0008 $ (bouchons)
 
 ### Lot 1 — Données et réglages
 
-- [ ] Modèles `CoachConversation`, `CoachMessage`, `CoachUsage` (+ relations inverses sur `UserAccount`, `ClanMember`, `Clan`)
-- [ ] `migrate diff` lu, migration `coach_ia` créée, appliquée en local
-- [ ] `src/lib/coach/coach-config.ts` : réglages `AppConfig`, replis environnement et défauts (§4.2)
-- [ ] `src/lib/coach/coach-models.ts` : catalogue (§3.2) ; `coach-cost.ts` + tests
-- [ ] Purge des fils de plus de 12 mois et des usages de plus de 13 mois dans la maintenance de 01:15
-- [ ] `GEMINI_API_KEY`, `COACH_MODEL` dans `.env.example` et le tableau de CLAUDE.md
-- **Contrôles :** `migrate diff` vide après migration ; tests `coach-cost` verts
+- [x] Modèles `CoachConversation`, `CoachMessage`, `CoachUsage` (+ relations inverses sur `UserAccount`, `ClanMember`, `Clan`) — 2026-10-24
+- [x] `migrate diff` lu (vide avant, les trois tables après), migration `20261024120000_coach_ia` écrite, client régénéré — 2026-10-24
+- [ ] Migration **appliquée** (`npx prisma migrate deploy`, additive : trois tables vides) — sur feu vert, `DATABASE_URL` étant la production
+- [x] `src/lib/coach/coach-config.ts` : réglages `AppConfig`, replis environnement et défauts (§4.2), fermé par défaut — 2026-10-24
+- [x] `src/lib/coach/coach-models.ts` : catalogue (§3.2) ; `coach-cost.ts` ; tests (`coach-models`, `coach-cost`, `coach-config`) — 2026-10-24
+- [x] Purge des fils de plus de 12 mois et des usages de plus de 13 mois dans la maintenance de 01:15 (`coach-retention.ts`, test, docs/ops/cron.md) — 2026-10-24
+- [x] `GEMINI_API_KEY`, `COACH_MODEL` dans `.env.example` et le tableau de CLAUDE.md ; section « Coach IA » de `/settings/configuration` — 2026-10-24
+- [x] **Contrôles :** `migrate diff` vide après migration — à refaire une fois appliquée ; tests `coach-*` verts (18), eslint et tsc OK — 2026-10-24
 
 ### Lot 2 — Quota et budget
 

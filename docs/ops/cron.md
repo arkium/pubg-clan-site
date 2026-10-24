@@ -23,7 +23,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `challenge_processing` | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges expirés |
 | `encountered_player_clan_resolution` | `ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON` | `*/30 * * * *` | Résolution du clan PUBG des joueurs croisés (lot configurable) ; **en priorité**, nom et clan des adversaires du kill feed sans nom (« Joueur inconnu ») |
 | `clan_lifecycle_membership_sync` | `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON` | `45 1 * * *` | Vérifie l'appartenance de clan de chaque membre suivi, joueur par joueur |
-| `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h — ne supprime rien |
+| `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h ; purges : journal des actions > 12 mois, historique du Coach IA (fils inactifs > 12 mois, usage > 13 mois) |
 | `telemetry_geo_purge_count` | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Compte ce que la purge de géolocalisation retirerait, tous seuils confondus — lecture seule |
 | `resource_vehicle_spots` | `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Recalcule les emplacements des véhicules observés de la carte des ressources (90 derniers jours) |
 | `admin_daily_digest` | `ADMIN_DAILY_DIGEST_CRON` | `0 9 * * *` | Veille du matin : envoie la boîte « À traiter » au salon Discord d'administration, seulement si une décision ou un incident attend |
@@ -127,7 +127,7 @@ Compare, pour chaque `ClanMember` actif, le clan enregistré sur le site au clan
 
 ### `db_maintenance` — Maintenance nocturne
 
-À 01:15, avant `daily_sync`. Clôt en `failed` les lignes `CronExecution` et `EncounteredPlayerResolutionRun` restées `running` depuis plus de 6 h (processus arrêté en cours d'exécution), pour que les tableaux de bord ne les affichent plus « en cours ». **Ne supprime aucune donnée** : ni jobs échoués (dead letter), ni jobs en attente, ni captures de télémétrie — voir [database-performance.md](database-performance.md#34-ce-qui-nest-volontairement-pas-automatisé). Journal : `[Cron] DB maintenance — orphaned runs finalized: …`.
+À 01:15, avant `daily_sync`. Clôt en `failed` les lignes `CronExecution` et `EncounteredPlayerResolutionRun` restées `running` depuis plus de 6 h (processus arrêté en cours d'exécution), pour que les tableaux de bord ne les affichent plus « en cours ». **Ne supprime aucune donnée de jeu** : ni jobs échoués (dead letter), ni jobs en attente, ni captures de télémétrie — voir [database-performance.md](database-performance.md#34-ce-qui-nest-volontairement-pas-automatisé). Seules purges, chacune isolée : le journal des actions d'administration au-delà de 12 mois (`purgeExpiredAdminActions`) et l'historique du Coach IA — fils inactifs depuis 12 mois (messages en cascade) et lignes d'usage de plus de 13 mois (`purgeExpiredCoachHistory`, [docs/TODO/chatbot-ia.md](../TODO/chatbot-ia.md) §4.3). Journal : `[Cron] DB maintenance — orphaned runs finalized: …`, `… admin action log purged: …`, `… coach history purged: …`.
 
 ### `telemetry_geo_purge_count` — Volume purgeable des tracés GPS
 

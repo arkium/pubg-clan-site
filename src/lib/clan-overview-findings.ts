@@ -62,6 +62,7 @@ export function clanOverviewFindings(clan: ClanInput, activity: ClanActivity | n
   return {
     title: `En bref : ${label}, clan PUBG suivi sur chickendinner.fr`,
     facts: [...facts, `Chiffres du ${longDate.format(now)}.`],
-    links: CLAN_PAGES.filter((page) => page.path !== '/overview').map((page) => ({ href: `/clans/${clan.id}${page.path}`, label: page.label })),
+    // Pages publiques du clan seulement : une page hors index (Coach IA, réservée aux membres) n'est pas une porte d'entrée.
+    links: CLAN_PAGES.filter((page) => page.path !== '/overview' && !page.noindex).map((page) => ({ href: `/clans/${clan.id}${page.path}`, label: page.label })),
   }
 }

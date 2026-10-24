@@ -135,11 +135,15 @@ describe('sitemapEntries', () => {
     expect(urls).toContain('https://chickendinner.fr/tournaments/ckt1')
   })
 
-  it('garde indexables les pages de clan absentes du sitemap', () => {
+  it('garde indexables les pages de clan absentes du sitemap, sauf celles déclarées hors index', () => {
     expect(urls).not.toContain('https://chickendinner.fr/clans/7/leaderboard')
     for (const page of CLAN_PAGES) {
-      expect(pageSeo(`/clans/7${page.path}`, { clan: CLAN }).index, page.path).toBe(true)
+      expect(pageSeo(`/clans/7${page.path}`, { clan: CLAN }).index, page.path).toBe(!page.noindex)
     }
+    // Coach IA : page personnelle d'un membre, titrée mais jamais indexée (docs/TODO/chatbot-ia.md §8.3).
+    const coach = pageSeo('/clans/7/coach', { clan: CLAN })
+    expect(coach.index).toBe(false)
+    expect(coach.title).toContain('Coach IA')
   })
 
   it('n’a aucune adresse en double', () => {

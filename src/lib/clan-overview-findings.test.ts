@@ -31,8 +31,9 @@ describe('clanOverviewFindings', () => {
     ])
   })
 
-  it('un lien vers chaque autre page du clan', () => {
-    expect(result.links).toHaveLength(CLAN_PAGES.length - 1)
+  it('un lien vers chaque autre page publique du clan', () => {
+    expect(result.links).toHaveLength(CLAN_PAGES.filter((page) => !page.noindex).length - 1)
+    expect(result.links.map((link) => link.href)).not.toContain('/clans/7/coach')
     expect(result.links[0]).toEqual({ href: '/clans/7/leaderboard', label: 'Classement' })
     expect(result.links.map((link) => link.href)).not.toContain('/clans/7/overview')
   })

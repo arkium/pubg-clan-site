@@ -175,7 +175,14 @@ export const STATIC_PAGES: Record<string, StaticPage> = {
  * atteintes par les liens ; elles rejoindront le sitemap avec un contenu rendu côté serveur
  * (docs/TODO/geo-seo-propositions.md §0).
  */
-export const CLAN_PAGES: Array<{ path: string; label: string; describe: (clan: string) => string; sitemap?: boolean }> = [
+export const CLAN_PAGES: Array<{ path: string; label: string; describe: (clan: string) => string; sitemap?: boolean; noindex?: boolean }> = [
+  {
+    path: '/coach',
+    label: 'Coach IA',
+    describe: (clan) => `Le Coach IA du clan PUBG ${clan} : débriefings, armes et adversaires expliqués à partir de la télémétrie, pour les membres connectés.`,
+    // Page personnelle d'un membre : titrée, jamais indexée (docs/TODO/chatbot-ia.md §8.3).
+    noindex: true,
+  },
   {
     path: '/overview',
     label: 'clan PUBG',
@@ -281,7 +288,7 @@ export function pageSeo(pathname: string, refs: { clan?: ClanRef | null; tournam
     return {
       title: page.path === '/overview' ? `${label} — clan PUBG` : `${label} — ${page.label}`,
       description: page.describe(label),
-      index: clan.indexable,
+      index: clan.indexable && !page.noindex,
     }
   }
 

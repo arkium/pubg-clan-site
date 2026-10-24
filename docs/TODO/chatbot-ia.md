@@ -409,9 +409,12 @@ respecté, hauteur du header inchangée, aucun `localStorage` lu au premier rend
 
 ### 8.1 Déclencheurs (P1)
 
-- Bouton « Coach IA » dans l'en-tête du shell, à côté de l'avatar ; teinté quand le tiroir est ouvert.
+- Bouton « Coach IA » dans l'en-tête du shell, à droite ; teinté quand le tiroir est ouvert. **Masqué sous 640 px**
+  (il passerait à la ligne et grandirait le header) : sur mobile, le Coach s'ouvre par l'entrée « Coach IA » du menu
+  (page plein écran) et par les boutons contextuels.
 - Entrée « Coach IA » de la palette `Ctrl+K` (`GlobalCommandPalette`).
-- Bouton contextuel « Débriefer ce match avec le Coach » à côté des onglets du débriefing.
+- Bouton contextuel « Débriefer ce match avec le Coach » à côté des onglets du débriefing (`CoachContextButton`).
+- Le tiroir est monté à sa première ouverture puis gardé caché : fermer et rouvrir retrouve le fil en cours.
 
 ### 8.2 Tiroir desktop (maquette 1a)
 
@@ -705,12 +708,15 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 - [x] Modèles `CoachConversation`, `CoachMessage`, `CoachUsage` (+ relations inverses sur `UserAccount`, `ClanMember`, `Clan`) — 2026-10-24
 - [x] `migrate diff` lu (vide avant, les trois tables après), migration `20261024120000_coach_ia` écrite, client régénéré — 2026-10-24
-- [ ] Migration **appliquée** (`npx prisma migrate deploy`, additive : trois tables vides) — sur feu vert, `DATABASE_URL` étant la production
+- [x] Migration **appliquée** par l'utilisateur (`npx prisma migrate deploy` depuis son poste, base de production,
+      « All migrations have been successfully applied ») — 2026-10-24 ; `migrate diff` vide et `migrate status` à jour
+      vérifiés ensuite
 - [x] `src/lib/coach/coach-config.ts` : réglages `AppConfig`, replis environnement et défauts (§4.2), fermé par défaut — 2026-10-24
 - [x] `src/lib/coach/coach-models.ts` : catalogue (§3.2) ; `coach-cost.ts` ; tests (`coach-models`, `coach-cost`, `coach-config`) — 2026-10-24
 - [x] Purge des fils de plus de 12 mois et des usages de plus de 13 mois dans la maintenance de 01:15 (`coach-retention.ts`, test, docs/ops/cron.md) — 2026-10-24
 - [x] `GEMINI_API_KEY`, `COACH_MODEL` dans `.env.example` et le tableau de CLAUDE.md ; section « Coach IA » de `/settings/configuration` — 2026-10-24
-- [x] **Contrôles :** `migrate diff` vide après migration — à refaire une fois appliquée ; tests `coach-*` verts (18), eslint et tsc OK — 2026-10-24
+- [x] **Contrôles :** `migrate diff` vide après migration (« This is an empty migration », 75 migrations, base à jour) ;
+      tests `coach-*` verts, eslint et tsc OK — 2026-10-24
 
 ### Lot 2 — Quota et budget
 
@@ -719,7 +725,8 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
       l'absence de clé ferme tout) — 2026-10-24
 - [x] `GET /api/coach/quota` (`{ authenticated: false }` en 200 sans cookie, 401 jeton périmé, comme `/api/auth/session`) — 2026-10-24
 - [x] `coach-quota.test.ts` (décision pure + lecture simulée, mois de Paris à cheval sur l'heure d'été) et `coach-quota-route.test.ts` — 2026-10-24
-- [ ] **Contrôle :** requête de décompte sur `CoachUsage(userId, createdAt)` mesurée (`EXPLAIN`) — après application de la migration
+- [x] **Contrôle :** `EXPLAIN` des cinq requêtes de quota et de la liste des fils sur la base migrée — toutes par index
+      (`CoachUsage_createdAt_idx` / `CoachUsage_userId_createdAt_idx`, `CoachConversation_userId_updatedAt_idx`, `Using index`) — 2026-10-24
 
 ### Lot 3 — Fournisseur, outils, prompt
 
@@ -754,16 +761,32 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 5 — Interface membre
 
-- [ ] Classes `.coach-*` reportées de `docs/ui/index.html#coach-ia` dans `src/app/globals.css`
-- [ ] `src/components/coach/` : `CoachProvider` (état du tiroir, contexte par `usePathname`), `CoachTrigger`,
-      `CoachDrawer`, `CoachThread`, `CoachMessage`, `CoachComposer`, `CoachQuotaPill`, `CoachContextChip`,
-      `CoachConversationList` ; hooks `useCoachChat`, `useCoachConversations`, `useCoachQuota`
-- [ ] Déclencheurs (§8.1) : en-tête du shell, palette `Ctrl+K`, bouton du débriefing
-- [ ] Plein écran `/clans/[clanId]/coach` ; `CLAN_PAGES` (`noindex`) ; `PERSONAL_NAV_KEYS` ; registre du menu
-- [ ] Panneau mobile (§8.4) ; états du §8.5
-- [ ] Accessibilité : `role="dialog"`, Échap ferme, focus rendu au déclencheur, réponse annoncée à la fin (pas mot à mot)
-- **Contrôles :** captures clair et sombre à 375, 768, 1 280 et 1 440 px ; aucun `#[0-9a-f]{6}` dans les fichiers
-  du Coach ; hauteur du header inchangée ; aucun `localStorage` au premier rendu ; `prefers-reduced-motion`
+- [x] Classes `.coach-*` reportées de `docs/ui/index.html#coach-ia` dans `src/app/globals.css` (+ tiroir fixe,
+      panneau montant sous 768 px, grille de la page plein écran) — 2026-10-24
+- [x] `src/components/coach/` : `CoachContext` (`CoachProvider`, `useCoach`), `CoachTrigger`, `CoachDrawer`,
+      `CoachPanel` (en-tête, contexte, fil, saisie, liste des fils, teaser), `CoachMarkdown`, `CoachContextButton` ;
+      hooks `useCoachChat` (flux SSE, arrêt, votes, reprise d'un fil), `useCoachConversations`, `useCoachQuota` ;
+      `coach-client.ts` (constantes et aides côté navigateur), `coach-markdown.ts` (+ test) — 2026-10-24
+- [x] Déclencheurs (§8.1) : en-tête du shell (**masqué sous 640 px** : il passait à la ligne et grandissait le header ;
+      entrée mobile = menu « Coach IA » et boutons contextuels), palette `Ctrl+K`, bouton « Débriefer ce match avec le
+      Coach » dans le bandeau du débriefing — 2026-10-24
+- [x] Plein écran `/clans/[clanId]/coach` (`NavigationTrail`, liste des fils à gauche dès 1 024 px) ; `CLAN_PAGES`
+      avec `noindex` (titre « … — Coach IA », `robots: noindex`) et exclue des liens de la vue d'ensemble ; entrée
+      `clan.coach` du registre (rôle `member`) + `scripts/seed-coach-nav.ts` **à lancer après déploiement** (la
+      table `NavItem` fait foi) — pas de `PERSONAL_NAV_KEYS` (réservé aux pages joueur) — 2026-10-24
+- [x] Panneau mobile (§8.4 : 85 % de la hauteur, poignée, cibles 44 px) ; états du §8.5 (réponse en cours avec
+      l'outil appelé, erreur + Réessayer, limite horaire / budget / pause avec l'heure ou la date de retour, sans
+      contexte, non vérifié, interrompu, vote avec précision, contexte détaché / rattaché) — 2026-10-24
+- [x] Accessibilité : `role="dialog"` nommé, Échap ferme, focus à la saisie puis rendu au déclencheur, `aria-live`
+      « Réponse du Coach terminée », votes en `aria-pressed`, teaser flouté en `aria-hidden` — 2026-10-24
+- [ ] **P2** (tiroir qui pousse la page au-delà de 1 600 px) : non fait, le tiroir recouvre à toutes les largeurs —
+      à juger à l'usage
+- [x] **Contrôles :** captures sur le serveur de dev en **mode visiteur** (teaser), clair et sombre, 1 280 et 375 px :
+      tiroir 440 × 900 px à droite, panneau 375 × 765 px (85 %) en bas, page plein écran titrée et `noindex`, bandeau
+      du débriefing avec le bouton (header 71 / 73 px inchangé), aucun débordement ; aucun hex en dur dans
+      `src/components/coach` ; aucun `localStorage` ; `prefers-reduced-motion` dans le CSS — 2026-10-24
+- [ ] **Contrôle restant :** parcours **connecté** sur le serveur de dev (question réelle, flux mot à mot, fils,
+      votes) — à faire dans un navigateur avec une session (lot 9 avec le build)
 
 ### Lot 6 — Visiteur et vitrine
 

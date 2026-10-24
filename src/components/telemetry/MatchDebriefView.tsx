@@ -31,6 +31,7 @@ import TeamModeBadge, { type TeamMode } from '@/components/ui/TeamModeBadge'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { CombatantName } from '@/components/telemetry/NpcBadge'
+import CoachContextButton from '@/components/coach/CoachContextButton'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
 import { rosterRole, type RosterRoleId } from '@/lib/member-roster'
@@ -1073,6 +1074,8 @@ export function MatchDebriefView({
             )
           })}
         </div>
+        {/* Coach IA (docs/TODO/chatbot-ia.md §8.1) : ouvre le tiroir avec ce match en contexte ; teaser pour un visiteur. */}
+        <CoachContextButton label="Débriefer ce match avec le Coach" className="shrink-0 max-sm:w-full" />
       </DockingToolbar>
 
       {/* Sous les onglets : l'escouade analysée, qui pilote tous les onglets, puis le contenu de l'onglet. */}

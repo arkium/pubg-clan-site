@@ -17,6 +17,7 @@ import {
   Target,
   Medal
 } from 'lucide-react'
+import { useCoach } from '@/components/coach/CoachContext'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -25,6 +26,7 @@ export function GlobalCommandPalette() {
   const router = useRouter()
   const { clanId } = useSelectedClan()
   const { isSuperUser } = useAuthSession()
+  const coach = useCoach()
 
   React.useEffect(() => {
     const down = (e: KeyboardEvent) => {
@@ -78,6 +80,10 @@ export function GlobalCommandPalette() {
           </Command.Item>
           <Command.Item onSelect={() => runCommand(() => router.push('/account'))}>
             <Settings className="mr-2 h-4 w-4" /> Mon compte
+          </Command.Item>
+          {/* Coach IA (docs/TODO/chatbot-ia.md §8.1) : le tiroir, pas de raccourci propre (Ctrl+J est pris par le navigateur). */}
+          <Command.Item onSelect={() => runCommand(() => coach.open())}>
+            <Shield className="mr-2 h-4 w-4" /> Coach IA
           </Command.Item>
         </Command.Group>
 

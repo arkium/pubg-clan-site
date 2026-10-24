@@ -3,6 +3,8 @@ import { cookies, headers } from 'next/headers'
 import { Inter, Teko } from 'next/font/google'
 
 import ClanNavigation from '@/components/ClanNavigation'
+import { CoachProvider } from '@/components/coach/CoachContext'
+import CoachDrawer from '@/components/coach/CoachDrawer'
 import DatabaseUnavailable from '@/components/DatabaseUnavailable'
 import { ShellBootstrapProvider } from '@/components/ShellBootstrap'
 import SiteFooter from '@/components/SiteFooter'
@@ -105,11 +107,15 @@ export default async function RootLayout({
         <JsonLd json={structuredData} />
         <ShellBootstrapProvider value={bootstrap}>
           {showAppShell ? (
-            <ClanNavigation>
-              <div className="flex-1">{children}</div>
-              {footer}
-              <GlobalCommandPalette />
-            </ClanNavigation>
+            <CoachProvider>
+              <ClanNavigation>
+                <div className="flex-1">{children}</div>
+                {footer}
+                <GlobalCommandPalette />
+              </ClanNavigation>
+              {/* Tiroir du Coach IA : monté à la première ouverture, gardé ensuite (docs/TODO/chatbot-ia.md §8.2). */}
+              <CoachDrawer />
+            </CoachProvider>
           ) : (
             <div className="flex min-h-full flex-col">
               <div className="flex-1">{children}</div>

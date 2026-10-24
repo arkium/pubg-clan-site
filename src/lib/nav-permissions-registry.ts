@@ -247,6 +247,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Zones de drop préférées — API /telemetry/drop-zones.',
   },
   {
+    navKey: 'clan.coach',
+    section: 'clan-section',
+    label: 'Coach IA',
+    hrefTemplate: '/clans/:clanId/coach',
+    defaultRole: 'member',
+    description: 'Coach IA du clan : débriefings, armes et adversaires expliqués à partir de la télémétrie, pour les membres connectés (docs/TODO/chatbot-ia.md).',
+  },
+  {
     navKey: 'clan.awards',
     section: 'clan-section',
     label: 'Awards',

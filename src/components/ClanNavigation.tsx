@@ -18,6 +18,7 @@ import { usePageData } from '@/hooks/usePageData'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
 import { DEFAULT_APP_THEME, persistAppTheme, readStoredAppTheme, type AppTheme } from '@/lib/app-theme'
 import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
+import CoachTrigger from '@/components/coach/CoachTrigger'
 import { getItemRole, PERSONAL_NAV_KEYS, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
 import { isVisitorState } from '@/lib/shell-bootstrap'
 
@@ -1111,6 +1112,8 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                 </div>
 
                 <div className="flex flex-wrap items-center justify-end gap-2">
+                  {/* Coach IA (docs/TODO/chatbot-ia.md §8.1) : même hauteur que les cartes, le header ne bouge pas. */}
+                  <CoachTrigger />
                 </div>
               </div>
 

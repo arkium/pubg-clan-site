@@ -61,6 +61,8 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getMapPerformance: 'Je compare les cartes du clan…',
   getPlaySchedule: 'Je regarde quand tu joues…',
   getPlayerBenchmark: 'Je te situe parmi les joueurs du site…',
+  getCareerStats: 'Je lis ta carrière PUBG…',
+  getClanPlaystyle: 'Je regarde le style de jeu du clan…',
 }
 
 /** Lecture stricte du corps d'une question : rien d'autre n'entre. */

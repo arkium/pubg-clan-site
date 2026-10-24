@@ -84,6 +84,8 @@ passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matc
 | `getDropZones` | `DropPressureStat` des 90 derniers jours, villes par `locationForPercent` |
 | `getMapPerformance` | `loadClanMapStats` (la page « Cartes » : parties d'escouade, moyenne des clans en cache 5 min) : verdict, puis chaque carte — parties, Top 1, win rate, Top 10, place, kills et dégâts par partie, écart aux clans, tendance, joueur phare ; une carte seule par `mapName` |
 | `getPlaySchedule` | la page « Calendrier d'activité » (`Match` du joueur, ou `SquadMatch` du clan avec `scope: 'clan'`), **heure de Paris**, soirée commençant à 06:00 (`sessionDateOf`) : parties et Top 1 par jour de la semaine, trois créneaux favoris, plage habituelle en semaine et le week-end (20e–80e centile des heures), soirées actives, temps de jeu, parties et heures par soirée — `buildPlaySchedule`, pur |
+| `getCareerStats` | la page « Carrière PUBG » (`MemberLifetimeStats`, `MemberSeasonStats` — le cache synchronisé chaque nuit, **jamais un appel à l'API PUBG** depuis le Coach) : parties, Top 1, win rate, K/D, kills, headshots, knocks, dégâts, réanimations, soins, temps de jeu, jours joués, records, distances ; par mode (`squad`, `duo`, `solo`) ; médailles au podium du clan (`clanMedalRanks`, tous modes) ; saisons (palier Ranked, points, parties normales) |
+| `getClanPlaystyle` | la page « Style de jeu du clan » (`MemberTelemetryStats`, `ClanSynergyTelemetryStats` de la période) : rôles Fragger / Medic / Ghost (moyenne du clan, top 3), mobilité, cercle, survie (`playstyleRoles`, `playstyleThemes`), coopération (`cooperationSummary`, meilleurs binômes) et le joueur face au clan (`playerRoleComparison`, `cooperationPartners`). Ces scores sont **relatifs au meilleur du clan**, pas des centiles entre clans |
 | `getPlayerBenchmark` | le classement inter-clans `/players` (`getPlayersRanking`, cache 5 min, parties officielles de clan) : rang et part des joueurs dépassés pour chaque critère (dégâts, kills, knocks, réanimations, survie, quatre rôles), joueur juste devant et écart, rang de la période précédente, scores de rôle sur 100 (**centiles entre clans**, pas le style de jeu relatif au clan), moyennes ; en qualification : parties manquantes |
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
 | `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
@@ -99,11 +101,11 @@ d'authentification. Mesure sur la vraie base : `npx tsx --conditions=react-serve
 (lecture seule).
 
 **Couverture des pages** (2026-10-24). Avec outil : débriefing et replay, parties et soirées, armes, objets consommés,
-adversaires / Némésis, largages, cartes du clan, calendrier d'activité, classement du clan, Ligue, joueurs inter-clans,
-tournois. **Sans outil** (le Coach le dit s'il est interrogé) : tableau de bord et carrière PUBG (`MemberLifetimeStats`,
-saisons), style de jeu du clan (rôles relatifs au clan, synergies, coopération), positions / villes et fin de zone,
-cartes du joueur, distinctions et awards, défis, mortier, lecture de zone. À ajouter à la demande, un par un
-(docs/TODO/coach-ia-pistes.md).
+adversaires / Némésis, largages, cartes du clan, calendrier d'activité, carrière PUBG et saisons, style de jeu du clan
+et du joueur, classement du clan, Ligue, joueurs inter-clans, tournois. **Sans outil** (le Coach le dit s'il est
+interrogé) : carrière PUBG du clan (`/clans/[id]/stats/career`), positions / villes et fin de zone, cartes du joueur
+(`/members/[id]/map-stats`), distinctions et awards, défis, mortier, lecture de zone, carte des ressources. La liste à
+faire est tenue dans le plan (docs/TODO/chatbot-ia.md §13, « Outils à la demande »).
 
 ## 6. Prompt et garde-fous (`coach-prompt.ts`, `coach-chat-service.ts`)
 

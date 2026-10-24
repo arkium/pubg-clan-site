@@ -61,6 +61,7 @@ export async function resolveCoachContext(path: string | null | undefined, scope
       if (parsed.page === 'opponents') return { kind: 'opponents' }
       if (parsed.page === 'drop-zones') return { kind: 'drop-zones' }
       if (parsed.page === 'maps') return { kind: 'maps' }
+      if (parsed.page === 'playstyle') return { kind: 'playstyle', memberId: null, memberName: null }
       return NONE
     }
     case 'member': {
@@ -73,6 +74,8 @@ export async function resolveCoachContext(path: string | null | undefined, scope
       if (parsed.page === 'weapons') return { kind: 'weapons', memberId: member.id, memberName: member.displayName }
       if (parsed.page === 'items') return { kind: 'items', memberId: member.id, memberName: member.displayName }
       if (parsed.page === 'heatmap') return { kind: 'schedule', memberId: member.id, memberName: member.displayName }
+      if (parsed.page === 'career') return { kind: 'career', memberId: member.id, memberName: member.displayName }
+      if (parsed.page === 'playstyle') return { kind: 'playstyle', memberId: member.id, memberName: member.displayName }
       if (parsed.page === 'nemesis') return { kind: 'opponents' }
       return { kind: 'drop-zones' }
     }

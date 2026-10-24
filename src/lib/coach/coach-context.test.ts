@@ -25,9 +25,14 @@ describe('reconnaissance du chemin de page', () => {
   it('reconnaît les pages joueur et tournoi', () => {
     expect(parseCoachContextPath('/members/77/weapons')).toEqual({ kind: 'member', memberId: 77, page: 'weapons' })
     expect(parseCoachContextPath('/members/77/nemesis')).toEqual({ kind: 'member', memberId: 77, page: 'nemesis' })
-    expect(parseCoachContextPath('/members/77/dashboard')).toEqual({ kind: 'member', memberId: 77, page: 'other' })
+    expect(parseCoachContextPath('/members/77/dashboard')).toEqual({ kind: 'member', memberId: 77, page: 'career' })
+    expect(parseCoachContextPath('/members/77/rewards')).toEqual({ kind: 'member', memberId: 77, page: 'other' })
     expect(parseCoachContextPath('/members/77/items')).toEqual({ kind: 'member', memberId: 77, page: 'items' })
     expect(parseCoachContextPath('/members/77/heatmap')).toEqual({ kind: 'member', memberId: 77, page: 'heatmap' })
+    expect(parseCoachContextPath('/members/77/stats')).toEqual({ kind: 'member', memberId: 77, page: 'career' })
+    expect(parseCoachContextPath('/members/77/playstyle')).toEqual({ kind: 'member', memberId: 77, page: 'playstyle' })
+    expect(parseCoachContextPath('/clans/292/stats')).toEqual({ kind: 'clan', clanId: 292, page: 'playstyle' })
+    expect(parseCoachContextPath('/clans/292/stats/career')).toEqual({ kind: 'clan', clanId: 292, page: 'other' })
     expect(parseCoachContextPath('/players?tab=compare')).toEqual({ kind: 'players' })
     expect(parseCoachContextPath('/tournaments/ctour1/matches/cmatch9')).toEqual({ kind: 'tournament-match', tournamentId: 'ctour1', matchId: 'cmatch9' })
     expect(parseCoachContextPath('/tournaments/ctour1')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
@@ -87,6 +92,9 @@ describe('étiquette, suggestions et bloc de prompt', () => {
       { kind: 'weapons', memberId: 7, memberName: 'NovakTV' },
       { kind: 'items', memberId: 7, memberName: 'NovakTV' },
       { kind: 'schedule', memberId: 7, memberName: 'NovakTV' },
+      { kind: 'career', memberId: 7, memberName: 'NovakTV' },
+      { kind: 'playstyle', memberId: 7, memberName: 'NovakTV' },
+      { kind: 'playstyle', memberId: null, memberName: null },
       { kind: 'players' },
       { kind: 'opponents' },
       { kind: 'drop-zones' },
@@ -112,6 +120,11 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextLabel({ kind: 'schedule', memberId: 7, memberName: 'NovakTV' })).toBe('Activité de NovakTV')
     expect(coachContextPromptBlock({ kind: 'schedule', memberId: 7, memberName: 'NovakTV' })).toContain('getPlaySchedule')
     expect(coachContextLabel({ kind: 'players' })).toBe('Classement des joueurs')
+    expect(coachContextLabel({ kind: 'career', memberId: 7, memberName: 'NovakTV' })).toBe('Carrière de NovakTV')
+    expect(coachContextPromptBlock({ kind: 'career', memberId: 7, memberName: 'NovakTV' })).toContain('getCareerStats')
+    expect(coachContextLabel({ kind: 'playstyle', memberId: null, memberName: null })).toBe('Style de jeu du clan')
+    expect(coachContextLabel({ kind: 'playstyle', memberId: 7, memberName: 'NovakTV' })).toBe('Style de jeu de NovakTV')
+    expect(coachContextPromptBlock({ kind: 'playstyle', memberId: 7, memberName: 'NovakTV' })).toContain('getClanPlaystyle avec playerName « NovakTV »')
     expect(coachContextPromptBlock({ kind: 'players' })).toContain('getPlayerBenchmark')
     expect(coachContextPromptBlock({ kind: 'maps' })).toContain('getMapPerformance')
     expect(coachContextPromptBlock({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toContain('getItemUsage')

@@ -9,8 +9,8 @@ export type CoachPageContext =
   | { kind: 'tournament'; tournamentId: string }
   | { kind: 'tournament-match'; tournamentId: string; matchId: string }
   | { kind: 'session'; clanId: number; date: string }
-  | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'maps' | 'other' }
-  | { kind: 'member'; memberId: number; page: 'weapons' | 'nemesis' | 'drop-zones' | 'items' | 'heatmap' | 'other' }
+  | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'maps' | 'playstyle' | 'other' }
+  | { kind: 'member'; memberId: number; page: 'weapons' | 'nemesis' | 'drop-zones' | 'items' | 'heatmap' | 'career' | 'playstyle' | 'other' }
   | { kind: 'players' }
   | { kind: 'none' }
 
@@ -45,6 +45,7 @@ export function parseCoachContextPath(path: string | null | undefined): CoachPag
     if (rest[0] === 'matches') return { kind: 'clan', clanId, page: 'matches' }
     if (rest[0] === 'stats' && rest[1] === 'weapons') return { kind: 'clan', clanId, page: 'weapons' }
     if (rest[0] === 'stats' && rest[1] === 'maps') return { kind: 'clan', clanId, page: 'maps' }
+    if (rest[0] === 'stats' && rest.length === 1) return { kind: 'clan', clanId, page: 'playstyle' }
     if (rest[0] === 'stats' && rest[1] === 'opponents') return { kind: 'clan', clanId, page: 'opponents' }
     if (rest[0] === 'drop-zones') return { kind: 'clan', clanId, page: 'drop-zones' }
     return { kind: 'clan', clanId, page: 'other' }
@@ -63,6 +64,8 @@ export function parseCoachContextPath(path: string | null | undefined): CoachPag
     if (rest[0] === 'drop-zones') return { kind: 'member', memberId, page: 'drop-zones' }
     if (rest[0] === 'items') return { kind: 'member', memberId, page: 'items' }
     if (rest[0] === 'heatmap') return { kind: 'member', memberId, page: 'heatmap' }
+    if (rest[0] === 'stats' || rest[0] === 'dashboard') return { kind: 'member', memberId, page: 'career' }
+    if (rest[0] === 'playstyle') return { kind: 'member', memberId, page: 'playstyle' }
     return { kind: 'member', memberId, page: 'other' }
   }
 
@@ -87,6 +90,8 @@ export type CoachResolvedContext =
   | { kind: 'weapons'; memberId: number; memberName: string }
   | { kind: 'items'; memberId: number; memberName: string }
   | { kind: 'schedule'; memberId: number; memberName: string }
+  | { kind: 'career'; memberId: number; memberName: string }
+  | { kind: 'playstyle'; memberId: number | null; memberName: string | null }
   | { kind: 'players' }
   | { kind: 'opponents' }
   | { kind: 'drop-zones' }
@@ -124,6 +129,10 @@ export function coachContextLabel(context: CoachResolvedContext): string | null 
       return `Objets de ${context.memberName}`
     case 'schedule':
       return `Activité de ${context.memberName}`
+    case 'career':
+      return `Carrière de ${context.memberName}`
+    case 'playstyle':
+      return context.memberName ? `Style de jeu de ${context.memberName}` : 'Style de jeu du clan'
     case 'players':
       return 'Classement des joueurs'
     case 'opponents':
@@ -154,6 +163,12 @@ export function coachSuggestions(context: CoachResolvedContext): string[] {
       return ['Je me soigne assez ?', 'Quels boosts je consomme le plus ?', 'Combien de grenades je lance par partie ?']
     case 'schedule':
       return ['Quand est-ce que je joue le plus ?', 'Mon horaire de jeu en semaine ?', 'Combien de soirées par semaine ?']
+    case 'career':
+      return ['Résume ma carrière PUBG', 'Mon K/D est-il bon ?', 'Où en est mon palier Ranked ?']
+    case 'playstyle':
+      return context.memberName
+        ? ['Quel est mon rôle dans le clan ?', 'Avec qui je coopère le plus ?', 'Je gère bien le cercle ?']
+        : ['Qui est notre medic ?', 'On joue trop dispersés ?', 'Quels binômes marchent le mieux ?']
     case 'players':
       return ['Où je me situe ?', 'Quel est mon rôle ?', 'Qui est juste devant moi ?']
     case 'opponents':
@@ -188,6 +203,12 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
       return `Page consultée : objets consommés de ${context.memberName} (soins, boosts, carburant, gadgets, lancers). Appelle getItemUsage pour ses chiffres.`
     case 'schedule':
       return `Page consultée : calendrier d'activité de ${context.memberName} (jours, heures, soirées). Appelle getPlaySchedule pour ses chiffres.`
+    case 'career':
+      return `Page consultée : carrière PUBG de ${context.memberName} (toutes ses parties, saisons, médailles du clan). Appelle getCareerStats pour ses chiffres.`
+    case 'playstyle':
+      return context.memberName
+        ? `Page consultée : style de jeu de ${context.memberName} face au clan (rôles, cercle, coopération). Appelle getClanPlaystyle avec playerName « ${context.memberName} ».`
+        : 'Page consultée : style de jeu du clan (rôles, mobilité, cercle, survie, coopération). Appelle getClanPlaystyle.'
     case 'players':
       return 'Page consultée : classement inter-clans des joueurs. Appelle getPlayerBenchmark pour situer le joueur.'
     case 'opponents':

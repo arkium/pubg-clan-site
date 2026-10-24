@@ -13,7 +13,18 @@ import { prisma } from '@/lib/prisma'
 import { formatClock, phaseStartTimes } from '@/lib/pubg-telemetry/debrief-view'
 import { loadMatchDebriefPayload } from '@/lib/pubg-telemetry/match-debrief-payload'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
-import { itemFamilyLabel, itemLabel } from '@/lib/clan-playstyle'
+import {
+  cooperationSummary,
+  cooperationTop,
+  itemFamilyLabel,
+  itemLabel,
+  playstyleRoles,
+  playstyleThemes,
+  type ClanPlaystyleRow,
+  type CooperationPair,
+} from '@/lib/clan-playstyle'
+import { CAREER_MODE_LABELS, careerMedals, clanMedalRanks, gamesOf, rankedTierLabel, seasonLabel, winRateOf, type CareerMode, type LifetimeStats } from '@/lib/player-career'
+import { cooperationPartners, playerRoleComparison } from '@/lib/player-playstyle'
 import { getItemUsePeriodBounds, loadItemUseStats } from '@/lib/item-use-stats'
 import { getPeriodRange, getPeriodStart } from '@/lib/period'
 import {
@@ -27,6 +38,7 @@ import {
 } from '@/lib/players-ranking'
 import { getPlayersRanking } from '@/lib/players-ranking-service'
 import { resolveItemName } from '@/lib/pubg-assets'
+import { getPeriodKey } from '@/lib/pubg-telemetry/period-aggregates'
 import { collectTournamentMemberIds, loadTournamentDirectories } from '@/lib/tournament-directories'
 import { participantClanIds, resolveTournamentPhase, TOURNAMENT_MODE_DISPLAY, type TournamentPhase } from '@/lib/tournament-mode-display'
 import { listTournamentOverviews, type TournamentOverview, type TournamentStandingSummary } from '@/lib/tournament-overview'
@@ -244,6 +256,30 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       },
     },
   },
+  {
+    name: 'getCareerStats',
+    description:
+      "Carrière PUBG du joueur (ou d'un autre membre du clan), lue de l'API PUBG : toutes ses parties depuis toujours, pas seulement celles du clan — parties, Top 1, win rate, K/D, kills, headshots, knocks, dégâts, réanimations, soins, temps de jeu, jours joués, records (kill le plus long, série, survie), distances ; médailles au podium du clan ; saisons récentes (palier Ranked, points, parties normales). Pour « ma carrière », « mon K/D », « mon palier ranked », « mon record de kill ».",
+    parameters: {
+      type: 'object',
+      properties: {
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
+        mode: { type: 'string', enum: ['all', 'squad', 'duo', 'solo'], description: '« all » (tous modes, défaut), « squad », « duo » ou « solo ».' },
+      },
+    },
+  },
+  {
+    name: 'getClanPlaystyle',
+    description:
+      "Style de jeu du clan sur la période (télémétrie des parties analysées) : rôles Fragger / Medic / Ghost — moyenne du clan et les trois joueurs qui les incarnent —, mobilité (km par partie, part à pied, vitesse max), gestion du cercle (temps dans la zone sûre, hors zone, coups de zone bleue, phase du premier contact), survie (soins, dégâts subis, couverture), coopération (indice de synergie, réanimations, co-kills, recalls, meilleurs binômes) ; et le joueur face au clan (score par rôle, écart, rang, ses binômes). Pour « qui est notre medic ? », « on joue trop dispersés ? », « avec qui je coopère le plus ? ».",
+    parameters: {
+      type: 'object',
+      properties: {
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan à situer face au clan, facultatif.' },
+        period: PERIOD_PARAMETER,
+      },
+    },
+  },
 ]
 
 const PARIS_PARTS = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', weekday: 'short', hour: 'numeric', hour12: false })
@@ -331,6 +367,7 @@ const clampInt = (value: unknown, min: number, max: number, fallback: number) =>
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback
 }
 const round1 = (value: number) => Math.round(value * 10) / 10
+const round2 = (value: number) => Math.round(value * 100) / 100
 const normalizeText = (value: string) =>
   value
     .normalize('NFD')
@@ -959,6 +996,212 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  const toLifetime = (row: { combat: unknown; victory: unknown; support: unknown; vehicle: unknown; movement: unknown; other: unknown }): LifetimeStats => ({
+    combat: row.combat as LifetimeStats['combat'],
+    victory: row.victory as LifetimeStats['victory'],
+    support: row.support as LifetimeStats['support'],
+    vehicle: row.vehicle as LifetimeStats['vehicle'],
+    movement: row.movement as LifetimeStats['movement'],
+    other: row.other as LifetimeStats['other'],
+  })
+
+  async function getCareerStats(args: ToolArgs) {
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const { memberId, memberName } = resolved
+    const requestedMode = text(args.mode)
+    const mode: CareerMode = requestedMode === 'squad' || requestedMode === 'duo' || requestedMode === 'solo' ? requestedMode : 'all'
+    // Jamais d'appel à l'API PUBG ici (débit limité) : le cache de la page Carrière, synchronisé chaque nuit.
+    const [cached, seasons, clanRows] = await Promise.all([
+      prisma.memberLifetimeStats.findUnique({ where: { memberId } }),
+      prisma.memberSeasonStats.findMany({ where: { memberId }, orderBy: { seasonId: 'desc' }, take: 3 }),
+      prisma.memberLifetimeStats.findMany({
+        where: { member: { clanId: scope.clanId, isActive: true } },
+        select: { memberId: true, combat: true, victory: true, support: true, vehicle: true, movement: true, other: true },
+      }),
+    ])
+    if (!cached) {
+      return { error: 'career_not_synced', message: `La carrière PUBG de ${memberName} n'est pas encore synchronisée (synchro de nuit, ou bouton Rafraîchir de sa page Carrière).` }
+    }
+    const allModes = toLifetime(cached)
+    const byMode: Record<Exclude<CareerMode, 'all'>, LifetimeStats | null> = {
+      squad: cached.statsSquad as LifetimeStats | null,
+      duo: cached.statsDuo as LifetimeStats | null,
+      solo: cached.statsSolo as LifetimeStats | null,
+    }
+    const stats = mode === 'all' ? allModes : byMode[mode]
+    if (!stats) return { error: 'mode_not_available', message: `Aucune partie en ${CAREER_MODE_LABELS[mode]} dans la carrière de ${memberName}.` }
+    const games = gamesOf(stats)
+    const medals = careerMedals(clanMedalRanks(clanRows.map((row) => ({ memberId: row.memberId, stats: toLifetime(row) })), memberId), allModes)
+    return {
+      player: memberName,
+      mode: CAREER_MODE_LABELS[mode],
+      syncedAt: cached.lastRefreshedAt.toISOString(),
+      career: {
+        games,
+        wins: stats.victory.wins,
+        winRatePercent: round1(winRateOf(stats)),
+        kd: round2(stats.combat.kdRatio),
+        kills: stats.combat.kills,
+        headshotKills: stats.combat.headshots,
+        knocks: stats.combat.knockouts,
+        assists: stats.combat.assists,
+        damage: Math.round(stats.other.damageGiven),
+        damagePerGame: games > 0 ? Math.round(stats.other.damageGiven / games) : null,
+        revives: stats.support.teammatesRevived,
+        healsUsed: stats.support.healed,
+        boostsUsed: stats.support.boostsUsed,
+        timePlayedHours: stats.other.timeSurvived ? round1(stats.other.timeSurvived / 3600) : null,
+        daysPlayed: stats.other.daysPlayed ?? null,
+        longestKillM: Math.round(stats.combat.longestKill),
+        bestKillStreak: stats.combat.highestKillstreak,
+        longestSurvivalMin: Math.round(stats.victory.longestTimeAlive / 60),
+        roadkills: stats.vehicle.roadkills,
+        vehiclesDestroyed: stats.vehicle.vehiclesDestroyed,
+        walkedKm: round1(stats.movement.walkedDistance / 1000),
+        drivenKm: round1(stats.movement.drivenDistance / 1000),
+        swamKm: round1(stats.movement.swamDistance / 1000),
+      },
+      clanMedals: medals.map((medal) => ({ stat: medal.label, medal: medal.rank === 1 ? 'or' : medal.rank === 2 ? 'argent' : 'bronze', value: medal.value })),
+      seasons: seasons.map((row) => ({
+        season: seasonLabel(row.seasonId),
+        ranked:
+          row.rankedMatches > 0
+            ? {
+                tier: rankedTierLabel(row.rankedTier, row.rankedSubTier),
+                points: Math.round(row.rankedPoints),
+                bestTier: rankedTierLabel(row.rankedBestTier, row.rankedBestSubTier),
+                matches: row.rankedMatches,
+                wins: row.rankedWins,
+                kills: row.rankedKills,
+              }
+            : null,
+        normal: {
+          matches: row.normalMatches,
+          wins: row.normalWins,
+          kills: row.normalKills,
+          kd: round2(row.normalKills / Math.max(1, row.normalLosses)),
+          damagePerMatch: row.normalMatches > 0 ? Math.round(row.normalDamage / row.normalMatches) : null,
+        },
+      })),
+      note: 'Carrière complète du compte PUBG (toutes ses parties, pas seulement celles du clan), synchronisée chaque nuit ; K/D PUBG = kills ÷ défaites ; médailles = podium des membres actifs du clan, tous modes. Les chiffres par période des parties du clan sont dans getClanLeaderboard et getPlayerBenchmark.',
+    }
+  }
+
+  async function getClanPlaystyle(args: ToolArgs) {
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const period = parsePeriod(args.period)
+    const periodKey = getPeriodKey(period, new Date())
+    const [rows, pairRows] = await Promise.all([
+      prisma.memberTelemetryStats.findMany({
+        where: { period: periodKey, member: { clanId: scope.clanId, isActive: true } },
+        select: {
+          memberId: true,
+          aggressionScore: true,
+          supportScore: true,
+          zoneDisciplineScore: true,
+          avgBlueZoneHits: true,
+          avgFirstContactPhase: true,
+          avgCircleDelaySeconds: true,
+          avgCircleDelayPercent: true,
+          avgSafeZonePresencePercent: true,
+          avgOnFootDistanceMeters: true,
+          avgVehicleDistanceMeters: true,
+          avgDamageTaken: true,
+          avgHealsUsed: true,
+          avgHealAmount: true,
+          avgBoostsUsed: true,
+          maxVehicleSpeedKph: true,
+          avgPositionEvents: true,
+          matchesPlayed: true,
+          member: { select: { displayName: true } },
+        },
+      }),
+      prisma.clanSynergyTelemetryStats.findMany({
+        where: { clanId: scope.clanId, period: periodKey, matchType: 'official', mode: 'all' },
+        select: {
+          memberAId: true,
+          memberBId: true,
+          reviveCount: true,
+          recallCount: true,
+          coKillCount: true,
+          sharedDamageEvents: true,
+          memberA: { select: { displayName: true } },
+          memberB: { select: { displayName: true } },
+        },
+      }),
+    ])
+    const clanRows: ClanPlaystyleRow[] = rows.map(({ member, ...row }) => ({ ...row, displayName: member.displayName }))
+    const pairs: CooperationPair[] = pairRows.map((row) => ({
+      memberAId: row.memberAId,
+      memberAName: row.memberA.displayName,
+      memberBId: row.memberBId,
+      memberBName: row.memberB.displayName,
+      reviveCount: row.reviveCount,
+      recallCount: row.recallCount,
+      coKillCount: row.coKillCount,
+      sharedDamageEvents: row.sharedDamageEvents,
+    }))
+    if (clanRows.length === 0) return { period: PERIOD_LABELS[period], members: 0, message: 'Aucune partie analysée par la télémétrie sur la période.' }
+    const themes = playstyleThemes(clanRows)
+    const summary = cooperationSummary(pairs)
+    const top = (id: 'revives' | 'coKills' | 'recalls') => cooperationTop(pairs, id, 3).map((entry) => ({ players: entry.names, value: entry.value }))
+    const you = clanRows.find((row) => row.memberId === resolved.memberId) ?? null
+    return {
+      period: PERIOD_LABELS[period],
+      members: clanRows.length,
+      roles: playstyleRoles(clanRows).map((role) => ({
+        role: role.role,
+        measures: role.hint,
+        clanAverage: Math.round(role.average),
+        top: role.top.map((entry) => ({ player: entry.displayName, score: Math.round(entry.score) })),
+      })),
+      themes: {
+        mobility: {
+          kmPerMatch: themes.mobility.distance === null ? null : round1(themes.mobility.distance),
+          onFootPercent: Math.round(themes.mobility.footShare),
+          maxSpeedKph: Math.round(themes.mobility.maxSpeed),
+        },
+        circle: {
+          inSafeZonePercent: Math.round(themes.circle.safe),
+          outsideZonePercent: themes.circle.outside === null ? null : Math.round(themes.circle.outside),
+          blueZoneHitsPerMatch: round1(themes.circle.blueZoneHits),
+          firstContactPhase: round1(themes.circle.firstContactPhase),
+          circleDelaySeconds: themes.circle.delaySeconds === null ? null : Math.round(themes.circle.delaySeconds),
+        },
+        survival: {
+          healedPerMatch: Math.round(themes.survival.healed),
+          damageTakenPerMatch: Math.round(themes.survival.damageTaken),
+          healCoveragePercent: Math.round(themes.survival.coverage),
+          healsPerMatch: round1(themes.survival.heals),
+          boostsPerMatch: round1(themes.survival.boosts),
+        },
+      },
+      cooperation: {
+        synergyIndex: Math.round(summary.index),
+        pairs: summary.pairs,
+        revives: summary.revives,
+        coKills: summary.coKills,
+        recalls: summary.recalls,
+        topRevives: top('revives'),
+        topCoKills: top('coKills'),
+        topRecalls: top('recalls'),
+      },
+      you: {
+        player: resolved.memberName,
+        matchesAnalyzed: you ? Math.round(you.matchesPlayed) : 0,
+        roles: you
+          ? playerRoleComparison(you, clanRows).map((role) => ({ role: role.role, score: role.score, clanAverage: role.clanAverage, delta: role.delta, rank: role.rank, of: role.ranked }))
+          : [],
+        partners: cooperationPartners(pairs, resolved.memberId)
+          .slice(0, 3)
+          .map((partner) => ({ player: partner.displayName, revives: partner.revives, coKills: partner.coKills, recalls: partner.recalls })),
+      },
+      note: 'Parties analysées par la télémétrie ; un score de rôle est relatif au meilleur du clan sur la période (différent des centiles entre clans de getPlayerBenchmark). Indice de synergie : réanimations ×3, co-kills ×2, dégâts partagés ×1, rapporté au meilleur binôme.',
+    }
+  }
+
   // Tournois : pages publiques, quel que soit le clan organisateur. Le clan du joueur sert seulement à le situer.
   const isMine = (participant: TournamentStandingSummary['participant']) => participantClanIds(participant).includes(scope.clanId)
   const podiumLine = (entry: TournamentStandingSummary, rank: number) => ({ rank, label: entry.label, points: round1(entry.totalPoints), kills: entry.totalKills, wins: entry.wins })
@@ -1091,6 +1334,8 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     getMapPerformance,
     getPlaySchedule,
     getPlayerBenchmark,
+    getCareerStats,
+    getClanPlaystyle,
   }
 
   return {

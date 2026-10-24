@@ -27,6 +27,11 @@ const mocks = vi.hoisted(() => ({
   loadMapStats: vi.fn(),
   matchFindMany: vi.fn(),
   getPlayersRanking: vi.fn(),
+  lifetimeFindUnique: vi.fn(),
+  lifetimeFindMany: vi.fn(),
+  seasonFindMany: vi.fn(),
+  telemetryStatsFindMany: vi.fn(),
+  synergyFindMany: vi.fn(),
 }))
 
 vi.mock('@/lib/clan-map-stats-service', () => ({ loadClanMapStats: mocks.loadMapStats }))
@@ -45,6 +50,10 @@ vi.mock('@/lib/prisma', () => ({
     tournament: { findUnique: mocks.tournamentFindUnique },
     memberThrowableStat: { groupBy: mocks.throwGroupBy },
     match: { findMany: mocks.matchFindMany },
+    memberLifetimeStats: { findUnique: mocks.lifetimeFindUnique, findMany: mocks.lifetimeFindMany },
+    memberSeasonStats: { findMany: mocks.seasonFindMany },
+    memberTelemetryStats: { findMany: mocks.telemetryStatsFindMany },
+    clanSynergyTelemetryStats: { findMany: mocks.synergyFindMany },
   },
 }))
 // Dictionnaire PUBG (`@/lib/pubg-assets`) réel : pur, et les noms français viennent d'abord de `clan-playstyle.ts`.
@@ -97,7 +106,7 @@ beforeEach(() => {
 })
 
 describe('déclarations', () => {
-  it('expose les treize outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
+  it('expose les quinze outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
     expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
       'getRecentMatches',
       'getMatchDebrief',
@@ -112,6 +121,8 @@ describe('déclarations', () => {
       'getMapPerformance',
       'getPlaySchedule',
       'getPlayerBenchmark',
+      'getCareerStats',
+      'getClanPlaystyle',
     ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
@@ -674,6 +685,147 @@ describe('getPlayerBenchmark', () => {
     const result = await run('getPlayerBenchmark', { playerName: 'Novice', period: 'month', mode: 'squad' })
     expect(mocks.getPlayersRanking).toHaveBeenCalledWith('month', 'squad')
     expect(result).toMatchObject({ player: 'Novice', ranked: false, matches: 6, required: 10, message: 'Encore 4 partie(s) officielle(s) de clan pour être classé.' })
+  })
+})
+
+describe('getCareerStats', () => {
+  const lifetime = (kills: number, wins: number, losses: number) => ({
+    combat: { kills, deaths: losses, kdRatio: kills / Math.max(1, losses), headshots: Math.round(kills / 4), assists: 40, knockouts: kills + 20, highestKillstreak: 6, longestKill: 412.6, teamkills: 0, suicides: 1 },
+    victory: { wins, losses, winLossRatio: wins / Math.max(1, losses), longestTimeAlive: 1980 },
+    support: { teammatesRevived: 120, boostsUsed: 300, healed: 450 },
+    vehicle: { vehiclesDestroyed: 3, roadkills: 7 },
+    movement: { drivenDistance: 812_400, walkedDistance: 405_900, swamDistance: 3_200 },
+    other: { weaponsPicked: 2200, damageGiven: 98_765.4, timeSurvived: 523_800, roundsPlayed: wins + losses, daysPlayed: 136 },
+  })
+  const cached = {
+    memberId: 100,
+    ...lifetime(500, 20, 480),
+    statsSquad: lifetime(400, 18, 382),
+    statsDuo: null,
+    statsSolo: null,
+    lastRefreshedAt: new Date('2026-10-24T03:10:00Z'),
+  }
+
+  beforeEach(() => {
+    mocks.lifetimeFindUnique.mockResolvedValue(cached)
+    mocks.lifetimeFindMany.mockResolvedValue([
+      { memberId: 100, ...lifetime(500, 20, 480) },
+      { memberId: 5, ...lifetime(300, 25, 300) },
+    ])
+    mocks.seasonFindMany.mockResolvedValue([
+      {
+        seasonId: 'division.bro.official.pc-2018-43',
+        rankedTier: 'Gold', rankedSubTier: '3', rankedPoints: 2140.4, rankedBestTier: 'Gold', rankedBestSubTier: '2', rankedBestPoints: 2210,
+        rankedKills: 48, rankedWins: 2, rankedMatches: 31,
+        normalKills: 120, normalDamage: 31_500, normalWins: 4, normalLosses: 96, normalMatches: 100,
+      },
+    ])
+  })
+
+  it('résume la carrière, les médailles du clan et les saisons, sans appeler l’API PUBG', async () => {
+    const result = (await run('getCareerStats')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.lifetimeFindUnique).toHaveBeenCalledWith({ where: { memberId: 100 } })
+    expect(mocks.lifetimeFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { clanId: 292, isActive: true } } }))
+    expect(result).toMatchObject({
+      player: 'NovakTV',
+      mode: 'tous modes',
+      syncedAt: '2026-10-24T03:10:00.000Z',
+      career: { games: 500, wins: 20, winRatePercent: 4, kd: 1.04, kills: 500, knocks: 520, damage: 98765, damagePerGame: 198, revives: 120, timePlayedHours: 145.5, daysPlayed: 136, longestKillM: 413, bestKillStreak: 6, longestSurvivalMin: 33, walkedKm: 405.9, drivenKm: 812.4 },
+    })
+    // 500 kills contre 300 : or ; 20 victoires contre 25 : argent.
+    expect(result.clanMedals).toEqual(expect.arrayContaining([
+      { stat: 'Kills', medal: 'or', value: '500' },
+      { stat: 'Victoires', medal: 'argent', value: '20' },
+    ]))
+    expect(result.seasons).toEqual([
+      {
+        season: 'Saison 43',
+        ranked: { tier: expect.stringContaining('Or'), points: 2140, bestTier: expect.stringContaining('Or'), matches: 31, wins: 2, kills: 48 },
+        normal: { matches: 100, wins: 4, kills: 120, kd: 1.25, damagePerMatch: 315 },
+      },
+    ])
+    expect(JSON.stringify(result)).not.toMatch(/memberId|accountId/)
+  })
+
+  it('sert un mode seul, refuse un mode sans parties, dit quand la carrière n’est pas synchronisée', async () => {
+    expect(await run('getCareerStats', { mode: 'squad' })).toMatchObject({ mode: 'squad', career: { games: 400, kills: 400 } })
+    expect(await run('getCareerStats', { mode: 'solo' })).toEqual({ error: 'mode_not_available', message: 'Aucune partie en solo dans la carrière de NovakTV.' })
+    mocks.lifetimeFindUnique.mockResolvedValue(null)
+    expect(await run('getCareerStats')).toMatchObject({ error: 'career_not_synced' })
+  })
+})
+
+describe('getClanPlaystyle', () => {
+  const row = (memberId: number, displayName: string, aggression: number, support: number, zone: number) => ({
+    memberId,
+    aggressionScore: aggression,
+    supportScore: support,
+    zoneDisciplineScore: zone,
+    avgBlueZoneHits: 1.2,
+    avgFirstContactPhase: 2.4,
+    avgCircleDelaySeconds: 12,
+    avgCircleDelayPercent: 8,
+    avgSafeZonePresencePercent: 78,
+    avgOnFootDistanceMeters: 3200,
+    avgVehicleDistanceMeters: 5100,
+    avgDamageTaken: 310,
+    avgHealsUsed: 2.6,
+    avgHealAmount: 180,
+    avgBoostsUsed: 1.9,
+    maxVehicleSpeedKph: 1180,
+    avgPositionEvents: 210,
+    matchesPlayed: 24,
+    member: { displayName },
+  })
+  const pair = (aId: number, aName: string, bId: number, bName: string, revives: number, coKills: number, recalls: number) => ({
+    memberAId: aId,
+    memberBId: bId,
+    reviveCount: revives,
+    recallCount: recalls,
+    coKillCount: coKills,
+    sharedDamageEvents: 10,
+    memberA: { displayName: aName },
+    memberB: { displayName: bName },
+  })
+
+  beforeEach(() => {
+    mocks.telemetryStatsFindMany.mockResolvedValue([row(100, 'NovakTV', 60, 90, 70), row(5, 'maladus7', 100, 40, 50), row(6, 'Ionera', 80, 60, 100)])
+    mocks.synergyFindMany.mockResolvedValue([pair(100, 'NovakTV', 5, 'maladus7', 12, 9, 2), pair(5, 'maladus7', 6, 'Ionera', 4, 14, 0), pair(100, 'NovakTV', 6, 'Ionera', 7, 3, 1)])
+  })
+
+  it('décrit rôles, thèmes et coopération du clan, et situe le joueur face au clan', async () => {
+    const result = (await run('getClanPlaystyle', { period: 'month' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.telemetryStatsFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { period: expect.stringMatching(/^month-\d{4}-\d{2}$/), member: { clanId: 292, isActive: true } } })
+    )
+    expect(mocks.synergyFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: { clanId: 292, period: expect.stringMatching(/^month-/), matchType: 'official', mode: 'all' } })
+    )
+    expect(result).toMatchObject({ period: 'ce mois', members: 3 })
+    expect(result.roles[1]).toEqual({ role: 'Medic', measures: 'réanimations ; 0 % = aucune', clanAverage: 63, top: [{ player: 'NovakTV', score: 90 }, { player: 'Ionera', score: 60 }, { player: 'maladus7', score: 40 }] })
+    expect(result.themes).toMatchObject({
+      mobility: { kmPerMatch: 8.3, onFootPercent: 39, maxSpeedKph: 118 },
+      circle: { inSafeZonePercent: 78, outsideZonePercent: 8, blueZoneHitsPerMatch: 1.2, firstContactPhase: 2.4, circleDelaySeconds: 12 },
+      survival: { healedPerMatch: 180, damageTakenPerMatch: 310, healCoveragePercent: 58, healsPerMatch: 2.6, boostsPerMatch: 1.9 },
+    })
+    expect(result.cooperation).toMatchObject({ pairs: 3, revives: 23, coKills: 26, recalls: 3, topRevives: [{ players: ['NovakTV', 'maladus7'], value: 12 }, { players: ['NovakTV', 'Ionera'], value: 7 }, { players: ['maladus7', 'Ionera'], value: 4 }] })
+    expect(result.you).toMatchObject({
+      player: 'NovakTV',
+      matchesAnalyzed: 24,
+      roles: [
+        { role: 'Fragger', score: 60, clanAverage: 80, delta: -20, rank: 3, of: 3 },
+        { role: 'Medic', score: 90, clanAverage: 63, delta: 27, rank: 1, of: 3 },
+        { role: 'Ghost', score: 70, clanAverage: 73, delta: -3, rank: 2, of: 3 },
+      ],
+      partners: [{ player: 'maladus7', revives: 12, coKills: 9, recalls: 2 }, { player: 'Ionera', revives: 7, coKills: 3, recalls: 1 }],
+    })
+    expect(JSON.stringify(result)).not.toMatch(/memberId/)
+  })
+
+  it('sans partie analysée : le dit, sans chiffre', async () => {
+    mocks.telemetryStatsFindMany.mockResolvedValue([])
+    mocks.synergyFindMany.mockResolvedValue([])
+    expect(await run('getClanPlaystyle')).toEqual({ period: 'cette semaine', members: 0, message: 'Aucune partie analysée par la télémétrie sur la période.' })
   })
 })
 

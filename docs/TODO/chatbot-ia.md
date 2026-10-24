@@ -35,6 +35,7 @@ d'inscrire son clan.
 
 | 2026-10-24 | P1 à P7 | **Confirmées** telles quelles (tableau ci-dessous) | Utilisateur |
 | 2026-10-24 | Clé Gemini | Projet Google Cloud et clé créés par l'utilisateur, `GEMINI_API_KEY` dans le `.env` local (jamais dans le dépôt) | Utilisateur |
+| 2026-10-24 | Carrière et style de jeu | Outils `getCareerStats` (carrière PUBG, saisons, médailles du clan) et `getClanPlaystyle` (rôles relatifs au clan, cercle, mobilité, coopération, binômes) ; les pages encore sans outil sont listées au §13 (« Outils à la demande ») pour la suite | Utilisateur |
 | 2026-10-24 | Horaires et benchmark | Outils `getPlaySchedule` (calendrier d'activité, heure de Paris) et `getPlayerBenchmark` (classement inter-clans, piste 4a) ; couverture des pages notée dans la fiche — les pages sans outil (carrière, style de jeu, villes, fin de zone, awards…) s'ajoutent à la demande | Utilisateur |
 | 2026-10-24 | Questions fréquentes | Regroupement par mots-clés avec tolérance (Jaccard ≥ 0,6) au lieu du texte exact — « qui pose un problème » et « qui posent problème » faisaient deux lignes ; liste paginée par 10 | Utilisateur |
 | 2026-10-24 | Lexique | Six lignes de jargon dans le prompt système (§6 : loot / stuff / sac, drop, knock, wipe, smokes, nades, M4 / Beryl / Kar / Mini, snipe / pompe, chicken / Top 1, soirée, map), traduites vers le bon outil sans demander de précision — pas de dictionnaire long, qui coûterait des tokens à chaque question | Analyse externe, validée par l'utilisateur |
@@ -358,6 +359,13 @@ affiché dans `/settings/configuration` (section « Coach IA »).
 13. `getPlayerBenchmark({ playerName?, period?, mode? })` — « Où je me situe ? » (piste 4a de coach-ia-pistes.md) :
     classement inter-clans `/players` (`getPlayersRanking`) — rang et part des joueurs dépassés par critère, joueur
     juste devant, rang précédent, scores de rôle (centiles entre clans). Contexte `/players` reconnu.
+14. `getCareerStats({ playerName?, mode? })` — la page « Carrière PUBG » : cache `MemberLifetimeStats` (tous modes ou
+    un mode) et `MemberSeasonStats` (3 saisons), médailles du clan ; jamais d'appel à l'API PUBG depuis le Coach.
+    Contextes `/members/[id]/stats` et `/members/[id]/dashboard` reconnus. Ajouté le 2026-10-24.
+15. `getClanPlaystyle({ playerName?, period? })` — la page « Style de jeu du clan » : `MemberTelemetryStats` et
+    `ClanSynergyTelemetryStats` de la période (rôles relatifs au clan, mobilité, cercle, survie, coopération, le joueur
+    face au clan et ses binômes). Contextes `/clans/[id]/stats` et `/members/[id]/playstyle` reconnus. Ajouté le
+    2026-10-24.
 
 Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, memberName })`), tests
 `coach-tools.test.ts`. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).
@@ -858,6 +866,25 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
       1280 px et 375 px, aucun défilement horizontal — captures de référence au lot 9 avec `e2e/coach.spec.ts`
 - **Contrôles :** `admin-action-log-routes.test.ts` vert ; tuiles radio (pas de `<select>`) ; aucun compte dans l'onglet
   Questions (test de route) ; la clé ne sort jamais (`apiKeyPresent` seul)
+
+### Outils à la demande — pages encore sans outil (relevé du 2026-10-24)
+
+Un outil = une fermeture sur le clan et le compte, un test d'étanchéité dans `coach-tools.test.ts`, un contexte de page,
+une ligne dans la fiche et dans `scripts/coach-tools-probe.ts` ; à ajouter **un par un**, dans l'ordre des demandes
+des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils).
+
+- [ ] Carrière PUBG du clan (`/clans/[id]/stats/career`, `GET /api/clans/[clanId]/lifetime-stats`) — engagement,
+      cumul et podium du clan : `getClanCareer`
+- [ ] Positions et villes (`/members/[id]/city-insights`, `/clans/[id]/positions`, `src/lib/city-insights.ts`) :
+      zones de combat, villes où le joueur gagne ou meurt
+- [ ] Fin de zone (`docs/features/fin-de-zone.md`) : positions à chaque fermeture, biais de survie
+- [ ] Cartes du joueur (`/members/[id]/map-stats`) : le pendant joueur de `getMapPerformance`
+- [ ] Distinctions et awards (`docs/features/awards.md`, `src/lib/distinctions.ts`) : titres de la période
+- [ ] Défis (`docs/features/challenges.md`) : défis en cours et classement
+- [ ] Mortier (`docs/features/mortier.md`) : séries, artilleurs du clan
+- [ ] Lecture de zone (`docs/features/lecture-de-zone.md`) : entraînement « Où finit la zone ? », classement
+- [ ] Carte des ressources (`docs/features/carte-ressources.md`) : véhicules et points par carte
+- [ ] Variante par arme de `getPlayerBenchmark` (centile des dégâts par partie à une arme donnée, index à mesurer)
 
 ### Lot 8 — Conformité et documentation
 

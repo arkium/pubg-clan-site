@@ -26,6 +26,7 @@ export function coachProvisionalContext(path: string | null | undefined): { labe
       if (parsed.page === 'opponents') return { label: 'Adversaires', suggestions: ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?'] }
       if (parsed.page === 'drop-zones') return { label: 'Largages', suggestions: ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?'] }
       if (parsed.page === 'maps') return { label: 'Cartes', suggestions: ['Quelle est notre pire carte ?', 'Où est-on les plus forts ?', 'Qui porte l’escouade sur Erangel ?'] }
+      if (parsed.page === 'playstyle') return { label: 'Style de jeu', suggestions: ['Qui est notre medic ?', 'On joue trop dispersés ?', 'Quels binômes marchent le mieux ?'] }
       break
     case 'member':
       if (parsed.page === 'weapons') return { label: 'Armes', suggestions: ['Quelle est ma meilleure arme ?', 'Beryl ou M416 ?', 'Je suis plus précis à quelle distance ?'] }
@@ -33,6 +34,8 @@ export function coachProvisionalContext(path: string | null | undefined): { labe
       if (parsed.page === 'drop-zones') return { label: 'Largages', suggestions: ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?'] }
       if (parsed.page === 'items') return { label: 'Objets', suggestions: ['Je me soigne assez ?', 'Quels boosts je consomme le plus ?', 'Combien de grenades je lance par partie ?'] }
       if (parsed.page === 'heatmap') return { label: 'Activité', suggestions: ['Quand est-ce que je joue le plus ?', 'Mon horaire de jeu en semaine ?', 'Combien de soirées par semaine ?'] }
+      if (parsed.page === 'career') return { label: 'Carrière', suggestions: ['Résume ma carrière PUBG', 'Mon K/D est-il bon ?', 'Où en est mon palier Ranked ?'] }
+      if (parsed.page === 'playstyle') return { label: 'Style de jeu', suggestions: ['Quel est mon rôle dans le clan ?', 'Avec qui je coopère le plus ?', 'Je gère bien le cercle ?'] }
       break
     case 'players':
       return { label: 'Joueurs', suggestions: ['Où je me situe ?', 'Quel est mon rôle ?', 'Qui est juste devant moi ?'] }

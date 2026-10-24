@@ -3091,6 +3091,12 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
           <span class="num">43</span> Listes Leaderboard
         </a>
       </div>
+      <div class="docs-sidebar-group">
+        <div class="docs-sidebar-group-title">Fonctionnalités à venir</div>
+        <a class="docs-sidebar-link" href="#coach-ia" onclick="setActive(this)">
+          <span class="num">44</span> Coach IA
+        </a>
+      </div>
     </aside>
 
     <!-- ============================================================
@@ -10200,6 +10206,456 @@ const totals = summarizeBodyZones(squadBodyZones.dealt)
 
 
 
+
+      <!-- ══════════════════════════════════════════════════════════
+           SECTION 44 — COACH IA (à implémenter)
+      ══════════════════════════════════════════════════════════ -->
+      <section class="docs-section" id="coach-ia">
+        <h2 class="docs-section-title">
+          <span class="docs-section-num">44</span>
+          Coach IA
+          <span class="sync-tag sync-tag--gap" style="margin-left:auto;">À implémenter</span>
+        </h2>
+        <div class="sync-note"><b>Source :</b> maquettes Claude Design « Coach IA - Fait » et « Coach IA - Compléments » (24/10/2026), traduites dans la charte ; icône bouclier (choix par défaut de la maquette, proposition P7). Spécification et plan : <code>docs/TODO/chatbot-ia.md</code>. Le tiroir vit dans <code>.charte.game-ui</code> ; les classes <code>.coach-*</code> du bloc <code>&lt;style id="coach-ia-css"&gt;</code> ci-dessous se reportent telles quelles dans <code>src/app/globals.css</code> (lot 5). <b>Écarts volontaires à la maquette :</b><ul><li>ambre <code>#F59E0B</code> → <code>--theme-ui-accent</code> ; un seul bouton rempli par écran : Envoyer (§03) ;</li><li>titres de réponse en couleur de texte, bulle du joueur sans liseré jaune, suggestions neutres à icône d'accent — le jaune reste à l'accent ;</li><li>contexte sans numéro de match (un match a un identifiant PUBG), tutoiement, « Données de l'API PUBG » ;</li><li>thème clair et sombre (la maquette ne dessine que le sombre) : basculer le thème de cette page pour vérifier.</li></ul></div>
+
+        <style id="coach-ia-css">
+          /* Coach IA — à reporter dans src/app/globals.css (docs/TODO/chatbot-ia.md, lot 5). Jetons seulement. */
+          .coach-ico { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+          .coach-trigger[aria-expanded="true"] { border-color: transparent; background: var(--theme-ui-accent-soft); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); color: var(--theme-ui-accent-text); }
+          .coach-drawer { width: 440px; max-width: 100%; display: flex; flex-direction: column; border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); overflow: hidden; box-shadow: 0 20px 40px -16px rgb(2 6 23 / 0.35); animation: coachDrawerIn 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+          @keyframes coachDrawerIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
+          @keyframes coachSheetIn { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
+          @keyframes coachTyping { 0%, 80%, 100% { opacity: 0.3; } 40% { opacity: 1; } }
+          .coach-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--theme-ui-border); }
+          .coach-head-icon { display: inline-grid; place-items: center; width: 34px; height: 34px; flex-shrink: 0; border-radius: 10px; background: var(--theme-ui-accent-soft); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); color: var(--theme-ui-accent-text); }
+          .coach-title { font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif; font-size: 24px; font-weight: 600; letter-spacing: 0.02em; line-height: 0.95; text-transform: uppercase; color: var(--theme-ui-text); }
+          .coach-sub { display: flex; align-items: center; gap: 8px; margin-top: 2px; font-size: 11px; font-weight: 700; color: var(--theme-ui-text-muted); }
+          .coach-tag { color: var(--theme-ui-accent-text); font-weight: 800; }
+          .coach-online { display: inline-flex; align-items: center; gap: 4px; color: var(--theme-ui-positive); }
+          .coach-online::before { content: ""; width: 6px; height: 6px; border-radius: 9999px; background: currentColor; }
+          .coach-quota { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; height: 26px; padding: 0 10px; border-radius: 9999px; border: 1px solid var(--theme-ui-border); background: var(--theme-ui-surface-soft); font-size: 12px; font-weight: 600; color: var(--theme-ui-text-muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+          .coach-quota b { font-weight: 800; color: var(--theme-ui-text); }
+          .coach-quota--low { border-color: transparent; background: var(--game-warn-soft); color: var(--game-warn); }
+          .coach-quota--out { border-color: transparent; background: var(--game-neg-soft); color: var(--game-neg); }
+          .coach-quota--low b, .coach-quota--out b { color: inherit; }
+          .coach-icon-btn { display: inline-grid; place-items: center; width: 32px; height: 32px; flex-shrink: 0; border: 0; border-radius: 8px; background: transparent; color: var(--theme-ui-text-muted); cursor: pointer; transition: background-color 120ms ease-out, color 120ms ease-out; }
+          .coach-icon-btn:hover { background: var(--theme-ui-surface-soft); color: var(--theme-ui-text); }
+          .coach-icon-btn:focus-visible, .coach-suggestion:focus-visible, .coach-action:focus-visible, .coach-model:focus-visible { outline: 2px solid var(--theme-ui-accent-ring); outline-offset: 2px; }
+          .coach-context-row { padding: 8px 14px; border-bottom: 1px solid var(--theme-ui-border); }
+          .coach-context { display: inline-flex; align-items: center; gap: 6px; height: 28px; padding: 0 4px 0 10px; border-radius: 9999px; background: var(--game-sky-soft); color: var(--game-sky); font-size: 12px; font-weight: 700; }
+          .coach-context button { display: inline-grid; place-items: center; width: 22px; height: 22px; border: 0; border-radius: 9999px; background: transparent; color: inherit; cursor: pointer; }
+          .coach-context--add { padding: 0 10px; background: transparent; box-shadow: inset 0 0 0 1px var(--theme-ui-border); color: var(--theme-ui-text-muted); }
+          .coach-thread { display: flex; flex-direction: column; gap: 14px; padding: 14px; }
+          .coach-msg { display: flex; align-items: flex-start; gap: 10px; }
+          .coach-avatar { display: inline-grid; place-items: center; width: 28px; height: 28px; flex-shrink: 0; border-radius: 8px; background: var(--theme-ui-accent-soft); color: var(--theme-ui-accent-text); }
+          .coach-bubble { min-width: 0; padding: 10px 12px; border: 1px solid var(--theme-ui-border); border-radius: 6px 14px 14px 14px; background: var(--theme-ui-surface-soft); font-size: 14px; line-height: 1.5; color: var(--theme-ui-text); }
+          .coach-bubble--user { margin-left: auto; max-width: 85%; border-color: transparent; border-radius: 14px 6px 14px 14px; background: var(--theme-ui-surface-strong); }
+          .coach-suggestions { display: flex; flex-wrap: wrap; gap: 6px; padding-left: 38px; }
+          .coach-suggestion { display: inline-flex; align-items: center; gap: 6px; min-height: 30px; padding: 4px 12px; border: 1px solid var(--theme-ui-border); border-radius: 9999px; background: var(--theme-ui-surface); color: var(--theme-ui-text); font: inherit; font-size: 13px; font-weight: 600; cursor: pointer; transition: border-color 120ms ease-out, background-color 120ms ease-out; }
+          .coach-suggestion .coach-ico { color: var(--theme-ui-accent-text); }
+          .coach-suggestion:hover { border-color: var(--theme-ui-accent-ring); background: var(--theme-ui-accent-tint); }
+          .coach-answer-title { margin: 0 0 6px; font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif; font-size: 22px; font-weight: 600; letter-spacing: 0.02em; line-height: 1; text-transform: uppercase; color: var(--theme-ui-text); }
+          .coach-points { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0; list-style: none; }
+          .coach-points li { position: relative; padding-left: 14px; }
+          .coach-points li::before { content: ""; position: absolute; left: 0; top: 0.6em; width: 6px; height: 6px; border-radius: 9999px; background: var(--coach-dot, var(--game-sky)); }
+          .coach-points li[data-tone="neg"] { --coach-dot: var(--game-neg); }
+          .coach-points li[data-tone="pos"] { --coach-dot: var(--game-pos); }
+          .coach-points li[data-tone="warn"] { --coach-dot: var(--game-warn); }
+          .coach-reco { display: flex; gap: 8px; margin-top: 10px; padding: 10px 12px; border-radius: 10px; background: var(--theme-ui-accent-tint); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); }
+          .coach-reco .coach-ico { margin-top: 3px; color: var(--theme-ui-accent-text); }
+          .coach-actions { display: flex; align-items: center; gap: 4px; margin-top: -8px; padding-left: 38px; }
+          .coach-action { display: inline-flex; align-items: center; gap: 5px; height: 28px; padding: 0 8px; border: 0; border-radius: 8px; background: transparent; color: var(--theme-ui-text-muted); font: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+          .coach-action:hover { background: var(--theme-ui-surface-soft); color: var(--theme-ui-text); }
+          .coach-action[aria-pressed="true"] { background: var(--theme-ui-accent-soft); color: var(--theme-ui-accent-text); }
+          .coach-action--neg[aria-pressed="true"] { background: var(--game-neg-soft); color: var(--game-neg); }
+          .coach-status-line { display: flex; align-items: center; gap: 8px; padding-left: 38px; font-size: 12px; font-weight: 600; color: var(--theme-ui-text-muted); }
+          .coach-typing { display: inline-flex; gap: 3px; }
+          .coach-typing span { width: 5px; height: 5px; border-radius: 9999px; background: var(--theme-ui-accent); animation: coachTyping 1s ease-in-out infinite; }
+          .coach-typing span:nth-child(2) { animation-delay: 160ms; }
+          .coach-typing span:nth-child(3) { animation-delay: 320ms; }
+          .coach-notice { display: flex; align-items: flex-start; gap: 8px; padding: 10px 12px; border-radius: 10px; background: var(--theme-ui-surface-soft); font-size: 13px; line-height: 1.45; color: var(--theme-ui-text); }
+          .coach-notice--neg { background: var(--game-neg-soft); color: var(--game-neg); }
+          .coach-notice--warn { background: var(--game-warn-soft); color: var(--game-warn); }
+          .coach-composer { padding: 10px 14px 12px; border-top: 1px solid var(--theme-ui-border); }
+          .coach-input-row { display: flex; align-items: flex-end; gap: 8px; }
+          .coach-input { position: relative; flex: 1; min-width: 0; }
+          .coach-input textarea { display: block; width: 100%; min-height: 44px; max-height: 132px; padding: 10px 12px 22px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface-soft); color: var(--theme-ui-text); font: inherit; font-size: 14px; line-height: 1.45; resize: none; }
+          .coach-input textarea:focus { outline: 2px solid var(--theme-ui-accent-ring); outline-offset: 0; }
+          .coach-input textarea:disabled { opacity: 0.45; cursor: not-allowed; }
+          .coach-count { position: absolute; right: 10px; bottom: 6px; font-size: 11px; font-weight: 600; color: var(--theme-ui-text-muted); font-variant-numeric: tabular-nums; }
+          .coach-send { display: inline-grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; padding: 0; border-radius: 9999px; }
+          .coach-legal { margin: 8px 0 0; text-align: center; font-size: 11px; color: var(--theme-ui-text-muted); }
+          .coach-teaser { position: relative; }
+          .coach-blur { filter: blur(5px); opacity: 0.7; user-select: none; pointer-events: none; }
+          .coach-lock-card { position: absolute; left: 14px; right: 14px; bottom: 14px; display: flex; flex-direction: column; align-items: center; gap: 10px; padding: 20px; border-radius: 14px; background: var(--theme-ui-surface); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring), 0 20px 40px -16px rgb(2 6 23 / 0.45); text-align: center; }
+          .coach-lock-icon { display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 9999px; background: var(--theme-ui-accent-soft); color: var(--theme-ui-accent-text); }
+          .coach-lock-title { margin: 0; font-family: var(--font-teko, 'Teko'), ui-sans-serif, sans-serif; font-size: 28px; font-weight: 600; letter-spacing: 0.02em; line-height: 0.95; text-transform: uppercase; color: var(--theme-ui-text); }
+          .coach-phone { position: relative; display: flex; flex-direction: column; justify-content: flex-end; width: 360px; max-width: 100%; height: 640px; overflow: hidden; border: 1px solid var(--theme-ui-border); border-radius: 14px; background: rgb(2 6 23 / 0.35); }
+          .coach-sheet { display: flex; flex-direction: column; height: 85%; border-radius: 14px 14px 0 0; background: var(--theme-ui-surface); animation: coachSheetIn 220ms cubic-bezier(0.22, 1, 0.36, 1); }
+          .coach-handle { width: 36px; height: 4px; margin: 8px auto 0; border-radius: 9999px; background: var(--theme-ui-border); }
+          .coach-sheet .coach-icon-btn { width: 44px; height: 44px; }
+          .coach-sheet .coach-thread { flex: 1; min-height: 0; overflow-y: auto; }
+          .coach-models { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+          .coach-model { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface); color: var(--theme-ui-text); font: inherit; text-align: left; cursor: pointer; }
+          .coach-model[aria-checked="true"] { border-color: transparent; background: var(--theme-ui-accent-soft); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); }
+          .coach-model-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--theme-ui-text-muted); }
+          .coach-model-prices { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--theme-ui-text-secondary); font-variant-numeric: tabular-nums; }
+          .coach-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+          .coach-pill--pos { background: var(--game-pos-soft); color: var(--game-pos); }
+          .coach-pill--warn { background: var(--game-warn-soft); color: var(--game-warn); }
+          .coach-pill--neg { background: var(--game-neg-soft); color: var(--game-neg); }
+          .coach-threads { display: flex; flex-direction: column; gap: 4px; width: 280px; max-width: 100%; padding: 12px; border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface-soft); }
+          .coach-threads-new { width: 100%; justify-content: center; margin-bottom: 6px; }
+          .coach-threads-group { margin: 8px 8px 2px; font-size: 11px; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--theme-ui-text-muted); }
+          /* Une ligne de la liste des fils (.coach-thread est le fil de messages lui-même). */
+          .coach-thread-row { display: flex; align-items: center; gap: 6px; padding: 7px 4px 7px 10px; border: 1px solid transparent; border-radius: 10px; color: var(--theme-ui-text); cursor: pointer; transition: background-color 120ms ease-out, border-color 120ms ease-out; }
+          .coach-thread-row:hover { border-color: var(--theme-ui-border); background: var(--theme-ui-surface); }
+          .coach-thread-row--active { border-color: transparent; background: var(--theme-ui-accent-soft); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); }
+          .coach-thread-main { display: flex; flex: 1; min-width: 0; flex-direction: column; }
+          .coach-thread-title { font-size: 13px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .coach-thread-row--active .coach-thread-title { color: var(--theme-ui-accent-text); }
+          .coach-thread-meta, .coach-thread-time { font-size: 11px; color: var(--theme-ui-text-muted); white-space: nowrap; }
+          .coach-thread-time { font-variant-numeric: tabular-nums; }
+          .coach-thread-row .coach-icon-btn { width: 28px; height: 28px; }
+          .coach-menu { display: flex; flex-direction: column; gap: 2px; min-width: 160px; padding: 4px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface); box-shadow: 0 20px 40px -16px rgb(2 6 23 / 0.35); }
+          .coach-menu button { display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 10px; border: 0; border-radius: 8px; background: transparent; color: var(--theme-ui-text); font: inherit; font-size: 13px; font-weight: 600; text-align: left; cursor: pointer; }
+          .coach-menu button:hover { background: var(--theme-ui-surface-soft); }
+          .coach-menu button.is-neg { color: var(--game-neg); }
+          .coach-test { display: flex; align-items: center; gap: 6px; margin-top: 8px; font-size: 12px; font-weight: 600; }
+          .coach-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 8px; }
+          .coach-kpi { padding: 12px 14px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface); }
+          .coach-gauge { position: relative; height: 8px; margin: 10px 0 6px; border-radius: 9999px; background: var(--game-track); }
+          .coach-gauge-fill { height: 100%; border-radius: 9999px; background: var(--game-sky); }
+          .coach-gauge-mark { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--game-warn); }
+          .coach-freq { display: flex; flex-direction: column; gap: 10px; }
+          .coach-freq-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: end; }
+          .coach-freq-bar { grid-column: 1 / -1; height: 6px; border-radius: 9999px; background: var(--game-track); overflow: hidden; }
+          .coach-freq-bar > span { display: block; height: 100%; background: var(--game-sky); }
+          .coach-review { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface-soft); }
+          .coach-review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+          .coach-tool-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--theme-ui-border); border-radius: 6px; background: var(--theme-ui-surface); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--theme-ui-text-secondary); }
+          @media (prefers-reduced-motion: reduce) { .coach-drawer, .coach-sheet, .coach-typing span { animation: none !important; } }
+        </style>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Déclencheur dans l'en-tête du shell</div>
+          <div class="ex-row charte">
+            <span style="display:inline-flex;flex-direction:column;gap:6px;align-items:center;">
+              <button type="button" class="app-btn app-btn--secondary app-btn--sm coach-trigger" aria-expanded="false" style="gap:6px;"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>Coach IA</button>
+              <span class="docs-label" style="margin-top:0;">Fermé</span>
+            </span>
+            <span style="display:inline-flex;flex-direction:column;gap:6px;align-items:center;">
+              <button type="button" class="app-btn app-btn--secondary app-btn--sm coach-trigger" aria-expanded="true" style="gap:6px;"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg>Coach IA</button>
+              <span class="docs-label" style="margin-top:0;">Tiroir ouvert — teinté</span>
+            </span>
+          </div>
+          <div class="docs-label">À côté de l'avatar, sans changer la hauteur du header. Aussi : entrée « Coach IA » de la palette <code>Ctrl+K</code> et bouton « Débriefer ce match avec le Coach » du débriefing. Pas de bouton flottant (toasts en bas à droite), pas de <code>Ctrl+J</code> (téléchargements du navigateur).</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Tiroir desktop — 440 px (maquette 1a)</div>
+          <div class="charte game-ui" style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+            <div class="coach-drawer" role="dialog" aria-label="Coach IA">
+              <div class="coach-head">
+                <span class="coach-head-icon"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span>
+                <div style="min-width:0;">
+                  <div class="coach-title">Coach IA</div>
+                  <div class="coach-sub"><span class="coach-tag">[47R]</span><span class="coach-online">En ligne</span></div>
+                </div>
+                <span class="coach-quota" title="Questions restantes cette heure"><b>14</b> / 20</span>
+                <button type="button" class="coach-icon-btn" aria-label="Fils"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></button>
+                <button type="button" class="coach-icon-btn" aria-label="Agrandir"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 3h6v6"/><path d="M9 21H3v-6"/><path d="M21 3l-7 7"/><path d="M3 21l7-7"/></svg></button>
+                <button type="button" class="coach-icon-btn" aria-label="Fermer"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+              <div class="coach-context-row">
+                <span class="coach-context"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/></svg>Erangel · 22 oct. 21:47 · Top 3<button type="button" aria-label="Détacher le contexte"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></span>
+              </div>
+              <div class="coach-thread">
+                <div class="coach-msg">
+                  <span class="coach-avatar"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span>
+                  <div class="coach-bubble">Salut NovakTV ! J'ai analysé le match de ton escouade. Que veux-tu décortiquer ?</div>
+                </div>
+                <div class="coach-suggestions">
+                  <button type="button" class="coach-suggestion"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg>Pourquoi le wipe en phase 5 ?</button>
+                  <button type="button" class="coach-suggestion"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M22 12h-4M6 12H2M12 6V2M12 22v-4"/></svg>Qui a fait les ouvertures ?</button>
+                  <button type="button" class="coach-suggestion"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 17.5 3 6V3h3l11.5 11.5"/><path d="m13 19 6-6"/><path d="m16 16 4 4"/><path d="m19 21 2-2"/><path d="M14.5 6.5 18 3h3v3l-3.5 3.5"/><path d="m5 14 4 4"/><path d="m7 17-3 3"/><path d="m3 19 2 2"/></svg>Bilan face aux [VPR]</button>
+                </div>
+                <div class="coach-msg"><div class="coach-bubble coach-bubble--user">Pourquoi l'escouade s'est fait sortir en zone 5 ?</div></div>
+                <div class="coach-msg">
+                  <span class="coach-avatar"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span>
+                  <div class="coach-bubble">
+                    <p class="coach-answer-title">Phase 5 · 18:42</p>
+                    <ul class="coach-points">
+                      <li><b>Isolement :</b> Menez69 était à <b class="t-sky">145 m</b> au sud-est du reste de l'escouade.</li>
+                      <li data-tone="neg"><b>Prise en tenaille :</b> dès sa mise à terre par <b class="t-neg">[VPR] Viper</b>, vous avez perdu la ligne de crête.</li>
+                      <li data-tone="neg"><b>Dégâts subis :</b> <b class="t-neg">420</b> en 6 s, sans fumigène.</li>
+                    </ul>
+                    <div class="coach-reco"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/><path d="M9 18h6"/><path d="M10 22h4"/></svg><div><b class="t-accent">Recommandation :</b> engager le repli en véhicule dès le début du minuteur de la zone 4.</div></div>
+                  </div>
+                </div>
+                <div class="coach-actions">
+                  <button type="button" class="coach-action" aria-pressed="true"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M7 10v12"/><path d="M15 5.88 14 10h5.83a2 2 0 0 1 1.92 2.56l-2.33 8A2 2 0 0 1 17.5 22H4a2 2 0 0 1-2-2v-8a2 2 0 0 1 2-2h2.76a2 2 0 0 0 1.79-1.11L12 2a3.13 3.13 0 0 1 3 3.88Z"/></svg>Utile</button>
+                  <button type="button" class="coach-action coach-action--neg" aria-pressed="false"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M17 14V2"/><path d="M9 18.12 10 14H4.17a2 2 0 0 1-1.92-2.56l2.33-8A2 2 0 0 1 6.5 2H20a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2h-2.76a2 2 0 0 0-1.79 1.11L12 22a3.13 3.13 0 0 1-3-3.88Z"/></svg>Inexact</button>
+                  <button type="button" class="coach-action" aria-label="Copier la réponse"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><rect width="14" height="14" x="8" y="8" rx="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></button>
+                </div>
+              </div>
+              <div class="coach-composer">
+                <div class="coach-input-row">
+                  <div class="coach-input">
+                    <textarea rows="2" aria-label="Ta question" placeholder="Pose une question sur ce match, tes armes…">Et en zone 4, on aurait dû tourner par le pont de Mylta plutôt que par la crête ?</textarea>
+                    <span class="coach-count">81 / 400</span>
+                  </div>
+                  <button type="button" class="app-btn app-btn--primary coach-send" aria-label="Envoyer"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
+                </div>
+                <p class="coach-legal">Coach IA expérimental · Données de l'API PUBG</p>
+              </div>
+            </div>
+            <div class="text-gray-500" style="flex:1;min-width:220px;font-size:0.8rem;line-height:1.7;">
+              <strong class="text-gray-900">Anatomie :</strong><br>
+              En-tête : tuile d'icône (rayon 10), titre Teko 24 px, tag du clan par <code class="docs-code">ClanTag</code>, pastille « En ligne » (positif), quota de l'heure, boutons Fils · Agrandir · Fermer (32 px, 44 px sur mobile).<br>
+              Contexte : pilule <code class="docs-code">--game-sky</code> (donnée neutre) — carte · date heure · placement, jamais de numéro de match ; ✕ le détache.<br>
+              Fil : bulles rayon 14 (coin 6 vers l'émetteur) ; suggestions neutres, icône à l'accent, survol teinté.<br>
+              Réponse : titre Teko en couleur de texte, puces aux couleurs de jeu (ciel neutre, rouge subi, vert réussi, orange alerte), chiffres en <code class="docs-code">t-sky</code> / <code class="docs-code">t-neg</code> / <code class="docs-code">t-pos</code>, une recommandation teintée à l'accent par réponse au plus.<br>
+              Actions : Utile teinté une fois choisi, Inexact en négatif et ouvre la précision facultative.<br>
+              Saisie : <code class="docs-code">textarea</code> 44 → 132 px, compteur 11 px, Entrée envoie, Maj + Entrée va à la ligne ; <b>Envoyer est le seul bouton rempli</b>.<br><br>
+              <strong class="text-gray-900">Placement :</strong> bord droit sous le header, pleine hauteur ; recouvre la page sous 1 600 px, la pousse au-delà (proposition P2) ; seul le côté page porte le rayon dans le site.
+            </div>
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Liste des fils — plein écran (maquette A) et tiroir (maquette B)</div>
+          <div class="charte game-ui" style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+            <div class="coach-threads" aria-label="Fils du Coach IA">
+              <button type="button" class="app-btn app-btn--secondary app-btn--md coach-threads-new" style="gap:6px;"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Nouveau fil</button>
+              <div class="coach-threads-group">Aujourd'hui</div>
+              <div class="coach-thread-row coach-thread-row--active" role="button" tabindex="0" aria-current="true">
+                <span class="coach-thread-main"><span class="coach-thread-title">Wipe en phase 5</span><span class="coach-thread-meta">Erangel · 22 oct.</span></span>
+                <span class="coach-thread-time">21:58</span>
+                <button type="button" class="coach-icon-btn" aria-label="Actions du fil"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+              </div>
+              <div class="coach-thread-row" role="button" tabindex="0">
+                <span class="coach-thread-main"><span class="coach-thread-title">Ouvertures de la soirée</span><span class="coach-thread-meta">Erangel · 22 oct.</span></span>
+                <span class="coach-thread-time">21:50</span>
+                <button type="button" class="coach-icon-btn" aria-label="Actions du fil"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+              </div>
+              <div class="coach-threads-group">Cette semaine</div>
+              <div class="coach-thread-row" role="button" tabindex="0">
+                <span class="coach-thread-main"><span class="coach-thread-title">Rotation sur Miramar</span><span class="coach-thread-meta">Miramar · 19 oct.</span></span>
+                <span class="coach-thread-time">dim.</span>
+                <button type="button" class="coach-icon-btn" aria-label="Actions du fil"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+              </div>
+              <div class="coach-thread-row" role="button" tabindex="0">
+                <span class="coach-thread-main"><span class="coach-thread-title">Ma meilleure arme</span><span class="coach-thread-meta">Sans contexte</span></span>
+                <span class="coach-thread-time">ven.</span>
+                <button type="button" class="coach-icon-btn" aria-label="Actions du fil"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+              </div>
+              <div class="coach-threads-group">Plus ancien</div>
+              <div class="coach-thread-row" role="button" tabindex="0">
+                <span class="coach-thread-main"><span class="coach-thread-title">Soirée tournoi d'automne</span><span class="coach-thread-meta">Taego · 4 oct.</span></span>
+                <span class="coach-thread-time">4 oct.</span>
+                <button type="button" class="coach-icon-btn" aria-label="Actions du fil"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></button>
+              </div>
+            </div>
+            <div class="coach-menu" role="menu" aria-label="Actions du fil">
+              <button type="button" role="menuitem"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M17 3a2.85 2.83 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z"/><path d="m15 5 4 4"/></svg>Renommer</button>
+              <button type="button" role="menuitem" class="is-neg"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>Supprimer</button>
+            </div>
+            <div class="text-gray-500" style="flex:1;min-width:220px;font-size:0.8rem;line-height:1.7;">
+              Plein écran : colonne de <b>280 px</b> à gauche du fil (760 px). Tiroir et panneau mobile : le bouton « Fils » de l'en-tête se teinte et la liste <b>remplace le fil</b> (même composant, pleine largeur).<br>
+              Groupes « Aujourd'hui », « Cette semaine », « Plus ancien » ; un fil = titre (première question, tronqué), contexte court (carte · date, ou « Sans contexte »), heure ou jour. Fil actif teinté. Menu « … » : Renommer (édition en place) / Supprimer (négatif, confirmation en <a href="#modales" class="app-link">modale</a>).<br>
+              Un fil renommé garde son contexte. Fils conservés 12 mois (proposition P3).
+            </div>
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Quota et états du fil</div>
+          <div class="charte game-ui" style="display:flex;flex-direction:column;gap:12px;max-width:440px;">
+            <div class="ex-row" style="gap:8px;">
+              <span class="coach-quota"><b>14</b> / 20</span>
+              <span class="coach-quota coach-quota--low"><b>2</b> / 20</span>
+              <span class="coach-quota coach-quota--out"><b>0</b> / 20</span>
+              <span class="coach-quota coach-quota--low">Budget du mois : <b>82 %</b></span>
+            </div>
+            <div class="coach-status-line"><span class="coach-typing" aria-hidden="true"><span></span><span></span><span></span></span>Je consulte tes parties…<button type="button" class="app-btn app-btn--secondary app-btn--xs" style="margin-left:auto;gap:4px;"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;"><rect width="12" height="12" x="6" y="6" rx="2"/></svg>Arrêter</button></div>
+            <div class="coach-notice coach-notice--neg"><span style="flex:1;">Le Coach n'a pas pu répondre. Ta question n'est pas décomptée.</span><button type="button" class="app-btn app-btn--secondary app-btn--xs" style="gap:4px;"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg>Réessayer</button></div>
+            <div class="coach-notice coach-notice--warn">Limite de l'heure atteinte. Prochaine question à 22:14.</div>
+            <div class="coach-notice coach-notice--warn">Ton budget de questions revient le 1er novembre.</div>
+            <div class="coach-notice">Le Coach IA est en pause.</div>
+            <div class="coach-msg"><span class="coach-avatar"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span><div class="coach-bubble">La télémétrie de ce match n'est pas encore analysée. Reviens demain matin.</div></div>
+            <div class="ex-row" style="gap:8px;">
+              <span class="coach-context coach-context--add"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M5 12h14"/><path d="M12 5v14"/></svg>Ajouter le contexte de la page</span>
+              <input class="app-input" style="flex:1;min-width:200px;" aria-label="Qu'est-ce qui est faux ?" placeholder="Qu'est-ce qui est faux ? (facultatif)">
+            </div>
+          </div>
+          <div class="docs-label">Pastille : questions restantes <b>de l'heure</b> ; orange à 2 ou moins et dès 80 % du budget du mois (jamais de montant en euros), rouge à 0. Réponse en cours : indicateur de l'outil appelé puis texte qui arrive ; la réponse complète est annoncée aux lecteurs d'écran une fois finie, pas mot à mot. Erreur du fournisseur : non décomptée de l'heure. Limite, budget et pause remplacent la saisie (désactivée, opacité .45).</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Teaser visiteur (maquettes 3a, 3b)</div>
+          <div class="charte game-ui" style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+            <div class="coach-drawer" role="dialog" aria-label="Coach IA — réservé aux membres">
+              <div class="coach-head">
+                <span class="coach-head-icon"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span>
+                <div style="min-width:0;">
+                  <div class="coach-title">Coach IA</div>
+                  <div class="coach-sub t-accent"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Réservé aux membres</div>
+                </div>
+                <button type="button" class="coach-icon-btn" aria-label="Fermer" style="margin-left:auto;"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+              </div>
+              <div class="coach-teaser" style="min-height:420px;">
+                <div class="coach-thread coach-blur" aria-hidden="true">
+                  <div class="coach-msg"><span class="coach-avatar"></span><div class="coach-bubble">Salut ! J'ai analysé le match de ton escouade. Que veux-tu décortiquer ?</div></div>
+                  <div class="coach-msg"><div class="coach-bubble coach-bubble--user">Pourquoi l'escouade s'est fait sortir en zone 5 ?</div></div>
+                  <div class="coach-msg"><span class="coach-avatar"></span><div class="coach-bubble"><p class="coach-answer-title">Phase 5 · 18:42</p><ul class="coach-points"><li>Exemple : isolement à 145 m du reste de l'escouade.</li><li data-tone="neg">Exemple : 420 dégâts subis en 6 s.</li></ul></div></div>
+                </div>
+                <div class="coach-lock-card">
+                  <span class="coach-lock-icon"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:20px;height:20px;"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                  <span class="app-stamp">Exclusivité membres</span>
+                  <p class="coach-lock-title">Débloque ton Coach IA</p>
+                  <p class="t-body text-gray-700" style="margin:0;">Le Coach IA analyse chaque tir, chaque rotation et chaque duel de ton escouade. Connecte-toi, ou inscris ton clan avec ton pseudo PUBG.</p>
+                  <a class="app-btn app-btn--primary app-btn--md" href="#coach-ia" style="width:100%;justify-content:center;">Inscrire mon clan avec mon pseudo PUBG</a>
+                  <a class="app-btn app-btn--secondary app-btn--md" href="#coach-ia" style="width:100%;justify-content:center;">Se connecter</a>
+                </div>
+              </div>
+              <div class="coach-composer">
+                <div class="coach-input-row">
+                  <div class="coach-input"><textarea rows="1" aria-label="Ta question" placeholder="Réservé aux membres d'un clan" disabled></textarea></div>
+                </div>
+                <p class="coach-legal">Coach IA expérimental · Données de l'API PUBG</p>
+              </div>
+            </div>
+            <div class="text-gray-500" style="flex:1;min-width:220px;font-size:0.8rem;line-height:1.7;">
+              Mode visiteur, pages avec shell seulement (la vitrine <code class="docs-code">/</code> n'a pas de shell). Messages d'exemple figés, floutés et <code class="docs-code">aria-hidden</code>, marqués « Exemple » ; <b>aucun appel au Coach</b>. Le bouton rempli mène à <code class="docs-code">/join</code>, le second à <code class="docs-code">/login</code>. Le texte ne promet pas un accès immédiat : l'inscription attend la décision du SuperUser.
+            </div>
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Panneau mobile &lt; 768 px (maquettes 2a, 2b)</div>
+          <div class="charte game-ui" style="display:flex;gap:1.5rem;flex-wrap:wrap;align-items:flex-start;">
+            <div class="coach-phone">
+              <div class="coach-sheet" role="dialog" aria-label="Coach IA">
+                <div class="coach-handle" aria-hidden="true"></div>
+                <div class="coach-head" style="padding:6px 6px 8px 14px;gap:4px;">
+                  <div style="min-width:0;flex:1;"><div class="coach-title" style="font-size:22px;">Coach IA</div><div class="coach-sub"><span class="coach-tag">[47R]</span><span class="coach-online">En ligne</span></div></div>
+                  <span class="coach-quota"><b>14</b> / 20</span>
+                  <button type="button" class="coach-icon-btn" aria-label="Fils"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></button>
+                  <button type="button" class="coach-icon-btn" aria-label="Fermer"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+                </div>
+                <div class="coach-context-row"><span class="coach-context">Erangel · 22 oct. 21:47 · Top 3<button type="button" aria-label="Détacher le contexte"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button></span></div>
+                <div class="coach-thread">
+                  <div class="coach-msg"><div class="coach-bubble coach-bubble--user">Pourquoi l'escouade s'est fait sortir en zone 5 ?</div></div>
+                  <div class="coach-msg"><div class="coach-bubble"><p class="coach-answer-title">Phase 5 · 18:42</p><ul class="coach-points"><li><b>Isolement :</b> Menez69 à <b class="t-sky">145 m</b> du reste de l'escouade.</li><li data-tone="neg"><b>Dégâts subis :</b> <b class="t-neg">420</b> en 6 s.</li></ul></div></div>
+                </div>
+                <div class="coach-composer">
+                  <div class="coach-input-row">
+                    <div class="coach-input"><textarea rows="1" aria-label="Ta question" placeholder="Pose une question…"></textarea><span class="coach-count">0 / 400</span></div>
+                    <button type="button" class="app-btn app-btn--primary coach-send" aria-label="Envoyer" disabled><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:18px;height:18px;"><path d="m5 12 7-7 7 7"/><path d="M12 19V5"/></svg></button>
+                  </div>
+                  <p class="coach-legal">Coach IA expérimental · Données de l'API PUBG</p>
+                </div>
+              </div>
+            </div>
+            <div class="text-gray-500" style="flex:1;min-width:220px;font-size:0.8rem;line-height:1.7;">
+              Monte du bas à <b>85 %</b> de la hauteur (220 ms, même courbe que le tiroir), poignée 36 × 4 px, voile de la page derrière. Cibles de <b>44 px</b>. En-tête compacté : Agrandir passe dans le menu des fils. Saisie collée au-dessus du clavier (<code class="docs-code">visualViewport</code>, maquette 2b). Fermeture : ✕, Échap, glissement vers le bas au-delà de 30 %. Aucun défilement horizontal.
+            </div>
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Page SuperUser <code>/settings/coach</code> — choix du modèle</div>
+          <div class="charte game-ui">
+            <div class="coach-models" role="radiogroup" aria-label="Modèle du Coach IA">
+              <button type="button" class="coach-model" role="radio" aria-checked="true">
+                <span class="t-card-title">Gemini 3.5 Flash-Lite</span>
+                <span class="coach-model-id">gemini-3.5-flash-lite</span>
+                <span class="coach-model-prices"><span>Entrée 0,30 $ / M</span><span>Sortie 2,50 $ / M</span><span>≈ 0,002 € / question</span></span>
+                <span style="display:flex;flex-wrap:wrap;gap:4px;"><span class="coach-pill coach-pill--pos">Recommandé</span></span>
+                <span class="coach-test t-pos"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M20 6 9 17l-5-5"/></svg>Test réussi · 2,2 s · appel d'outil OK</span>
+              </button>
+              <button type="button" class="coach-model" role="radio" aria-checked="false">
+                <span class="t-card-title">Gemini 3.1 Flash-Lite</span>
+                <span class="coach-model-id">gemini-3.1-flash-lite</span>
+                <span class="coach-model-prices"><span>Entrée 0,25 $ / M</span><span>Sortie 1,50 $ / M</span><span>≈ 0,0015 € / question</span></span>
+                <span style="display:flex;flex-wrap:wrap;gap:4px;"><span class="coach-pill coach-pill--neg">Arrêt au plus tôt le 7 mai 2027</span></span>
+                <span class="coach-test t-neg"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M12 9v4"/><path d="M12 17h.01"/><path d="m10.3 3.9-7.7 13.3A2 2 0 0 0 4.3 20h15.4a2 2 0 0 0 1.7-2.8L13.7 3.9a2 2 0 0 0-3.4 0z"/></svg>Test : chiffres inventés sans appel d'outil (2 / 2)</span>
+              </button>
+              <button type="button" class="coach-model" role="radio" aria-checked="false">
+                <span class="t-card-title">Gemini 3.8 Flash</span>
+                <span class="coach-model-id">gemini-3.8-flash</span>
+                <span class="coach-model-prices"><span>Entrée 0,75 $ / M</span><span>Sortie 3,75 $ / M</span><span>≈ 0,008 € / question</span></span>
+                <span style="display:flex;flex-wrap:wrap;gap:4px;"><span class="coach-pill coach-pill--pos">Recommandé</span><span class="coach-pill coach-pill--warn">Prix doublé au 1er janvier 2027</span></span>
+              </button>
+              <button type="button" class="coach-model" role="radio" aria-checked="false">
+                <span class="t-card-title">Gemini 2.5 Flash-Lite</span>
+                <span class="coach-model-id">gemini-2.5-flash-lite</span>
+                <span class="coach-model-prices"><span>Entrée 0,10 $ / M</span><span>Sortie 0,40 $ / M</span><span>≈ 0,001 € / question</span></span>
+                <span style="display:flex;flex-wrap:wrap;gap:4px;"><span class="coach-pill coach-pill--neg">Indisponible</span></span>
+                <span class="coach-test t-neg"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:14px;height:14px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>Test échoué · 404, plus ouvert aux nouveaux comptes</span>
+              </button>
+            </div>
+          </div>
+          <div class="docs-label">Tuiles radio (rayon 10, active teintée), jamais de <code>&lt;select&gt;</code> natif. Chaque tuile : nom, identifiant, prix d'entrée et de sortie, coût estimé par question, statut en pastille (positif « Recommandé », orange changement de prix, négatif « Arrêt au plus tôt » / « Indisponible »), bouton « Tester » et son <b>résultat sous la tuile</b> (durée et appel d'outil, ou cause de l'échec, ou chiffres inventés hors outil — l'essai du 24/10/2026 l'a vu sur 3.1-flash-lite). <b>Les statuts de la maquette « Compléments » sont inversés</b> : ceux-ci font foi (spécification §3.1). Page : <code>AdminPageBanner</code>, onglets Réglages / Consommation / Questions, « Enregistrer » seul bouton rempli — détail au §9 de la spécification.</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Page SuperUser — onglets Consommation (maquette M) et Questions (maquette N)</div>
+          <div class="charte game-ui" style="display:flex;flex-direction:column;gap:12px;">
+            <div class="coach-kpis">
+              <div class="coach-kpi"><div class="t-hero t-hero--md text-gray-900">7,40 €</div><div class="t-meta">Coût du mois</div></div>
+              <div class="coach-kpi"><div class="t-hero t-hero--md text-gray-900">1 760</div><div class="t-meta">Questions</div></div>
+              <div class="coach-kpi"><div class="t-hero t-hero--md text-gray-900">14</div><div class="t-meta">Comptes actifs</div></div>
+              <div class="coach-kpi"><div class="t-hero t-hero--md text-gray-900">0,004 €</div><div class="t-meta">Par question</div></div>
+            </div>
+            <div class="app-panel" style="padding:12px 14px;">
+              <div style="display:flex;align-items:baseline;justify-content:space-between;gap:12px;"><span class="t-card-title">Plafond global du mois</span><span class="t-meta t-num">7,40 € sur 50 €</span></div>
+              <div class="coach-gauge" role="meter" aria-valuemin="0" aria-valuemax="50" aria-valuenow="7.4" aria-label="Plafond global du mois"><div class="coach-gauge-fill" style="width:14.8%;"></div><span class="coach-gauge-mark" style="left:80%;" title="Alerte à 80 %"></span></div>
+              <div style="display:flex;justify-content:space-between;gap:12px;"><span class="t-meta">14,8 % utilisé · reste 42,60 €</span><span class="t-meta t-warn">Alerte à 80 %</span></div>
+            </div>
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:12px;">
+              <div class="app-panel" style="padding:12px 14px;">
+                <div class="t-card-title" style="margin-bottom:10px;">Questions fréquentes <span class="t-meta">· 30 derniers jours, sans nom de joueur</span></div>
+                <div class="coach-freq">
+                  <div class="coach-freq-row"><span class="t-body text-gray-900">Pourquoi on a perdu en fin de partie ?</span><span class="t-hero t-hero--sm text-gray-900">214</span><div class="coach-freq-bar"><span style="width:100%;"></span></div></div>
+                  <div class="coach-freq-row"><span class="t-body text-gray-900">Quelle est ma meilleure arme ?</span><span class="t-hero t-hero--sm text-gray-900">168</span><div class="coach-freq-bar"><span style="width:79%;"></span></div></div>
+                  <div class="coach-freq-row"><span class="t-body text-gray-900">Où atterrir sur Miramar ?</span><span class="t-hero t-hero--sm text-gray-900">121</span><div class="coach-freq-bar"><span style="width:57%;"></span></div></div>
+                </div>
+              </div>
+              <div class="coach-review">
+                <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;"><span class="t-meta">22 oct. 21:58 · Erangel · <span class="coach-tag">[47R]</span></span><button type="button" class="app-btn app-btn--secondary app-btn--xs" style="gap:4px;"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true" style="width:12px;height:12px;"><path d="M20 6 9 17l-5-5"/></svg>Relu</button></div>
+                <div class="coach-review-grid">
+                  <div><div class="t-label">Question</div><div class="t-body t-strong text-gray-900">Pourquoi l'escouade s'est fait sortir en zone 5 ?</div></div>
+                  <div><div class="t-label">Précision du joueur</div><div class="t-body text-gray-900">La mise à terre de Menez69 est à 18:39, pas à 18:42.</div></div>
+                </div>
+                <div><div class="t-label">Réponse</div><div class="t-body text-gray-700">Phase 5 · 18:42. Isolement : Menez69 était à 145 m au sud-est du reste de l'escouade…</div></div>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;"><span class="coach-tool-chip">getMatchDebrief</span><span class="coach-tool-chip">getRecentMatches</span></div>
+              </div>
+            </div>
+          </div>
+          <div class="docs-label">Consommation : mois de Paris, KPI en <code>t-hero</code>, jauge du plafond (piste <code>--game-track</code>, remplissage ciel, repère orange à 80 %), tableau par modèle et erreurs du fournisseur en <code>app-table-shell</code>, comptes au-delà de 80 % de leur budget en barres orange. Questions : fréquences en barres ciel (regroupement par texte normalisé en V1), chaque vote « Inexact » en carte : date · carte · clan (<b>jamais le compte</b>), question, précision du joueur, réponse, outils appelés en puces monospace, « Relu ». Sur mobile, les KPI passent sur deux colonnes et le tableau par modèle en cartes (aucun défilement horizontal).</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Règles</div>
+          <div style="overflow-x:auto;">
+            <table class="text-gray-700" style="width:100%;border-collapse:collapse;font-size:0.8125rem;">
+              <thead><tr style="text-align:left;border-bottom:1px solid var(--app-border);"><th style="padding:0.5rem;">Sujet</th><th style="padding:0.5rem;">Règle</th></tr></thead>
+              <tbody>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Dimensions</td><td style="padding:0.5rem;">Tiroir 440 px ; plein écran : fil de 760 px, liste des fils de 280 px ; mobile : 85 % de la hauteur. Header inchangé.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Rayons</td><td style="padding:0.5rem;">Tiroir et bulles 14 (coin 6 vers l'émetteur), champ et tuiles 10, boutons 8, pastilles de statut 6, pilules (contexte, suggestions, quota, Envoyer).</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Accent</td><td style="padding:0.5rem;">Envoyer seul rempli ; teinté : déclencheur ouvert, vote Utile, modèle actif, tuile d'icône, recommandation. Jamais de jaune pour un titre, une bulle ou une donnée.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Couleurs de jeu</td><td style="padding:0.5rem;">Ciel : donnée neutre et contexte ; rouge : dégâts subis, mort, quota épuisé, vote Inexact ; vert : réussite, « En ligne » ; orange : alerte, quota bas, budget à 80 %.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Typographie</td><td style="padding:0.5rem;">Teko : titre du tiroir (24 px), titre de réponse (22 px), carte du teaser (28 px) ; Inter 14 px pour les bulles ; jamais sous 11 px (compteur, mention légale).</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Animations</td><td style="padding:0.5rem;">Tiroir et panneau 220 ms <code>cubic-bezier(.22,1,.36,1)</code> ; survols 120 ms ; <code>prefers-reduced-motion</code> : aucune.</td></tr>
+                <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Accessibilité</td><td style="padding:0.5rem;"><code>role="dialog"</code> nommé ; Échap ferme ; focus rendu au déclencheur ; boutons d'icône avec <code>aria-label</code> ; votes en <code>aria-pressed</code> ; réponse annoncée une fois complète ; teaser flouté en <code>aria-hidden</code>.</td></tr>
+                <tr><td style="padding:0.5rem;white-space:nowrap;">Interdits</td><td style="padding:0.5rem;">Hex en dur dans un composant ; <code>dark:</code> sur du neuf ; émojis dans l'interface ; « Match #… » ; « Données officielles » ; montant en euros côté joueur ; défilement horizontal ; <code>&lt;select&gt;</code> natif.</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </section>
 
     </main>
   </div>

@@ -120,6 +120,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 
 | Document | Contenu |
 |---|---|
+| [Coach IA — spécification et plan](TODO/chatbot-ia.md) | **Document de référence du chantier** (non implémenté) : décisions du 2026-10-24 (nom, budget de 2 € par compte et par mois, Gemini au moins cher choisi dans une liste du SuperUser), données, outils, routes, interface, page `/settings/coach`, conformité, maquettes Claude Design et prompt complémentaire, tests, **plan d'implémentation à cases à cocher** (§13). Charte : [section 44 de la doc UI](ui/index.html#coach-ia) |
 | [Page « Cartes » du clan — brief](TODO/cartes-clan.md) | Refonte de la page heatmap-kills (livrée le 2026-10-23, fiche : [Cartes du clan](features/cartes-clan.md)) : constat, données par partie d'escouade (chiffres réels), règles, accès et liens, prompt Claude Design |
 | [Inventaire du reste à faire](TODO/inventaire-2026-10-20.md) | Relevé du 2026-10-20 de tous les documents `TODO/`, contrôlé contre le code : petits correctifs traités, chantiers restants, actions de production, décisions en attente, documents en retard |
 | [Points à faire](TODO/todo.md) | Tâches restantes classées P1/P2/P3, idées de comparaison inter-clans, suggestions de stats et fonctionnalités |

@@ -215,6 +215,7 @@ model CoachConversation {
   memberId  Int?          // membre actif à la création ; null pour un SuperUser sans membre
   clanId    Int?          // clan du contexte à la création — figé
   title     String        @db.VarChar(120) // tiré de la première question
+  contextLabel String?    @db.VarChar(120) // « Erangel · 22 oct. 21:47 · Top 3 » : contexte de la première question (liste des fils)
   createdAt DateTime      @default(now())
   updatedAt DateTime      @updatedAt
   user      UserAccount   @relation(fields: [userId], references: [id], onDelete: Cascade)
@@ -370,7 +371,9 @@ Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, m
 | `POST /api/settings/coach/questions/[id]/reviewed` | idem, `withAdminActionLog` | Vote relu |
 
 Conventions Next 16 : `await params`, `Response.json()`, jamais `NextResponse`. Les fils sont des **données
-personnelles** : propriétaire ou SuperUser, sur le modèle de `requireOwnMember` — jamais `requireSameClanAsMember`.
+personnelles** : propriétaire (lecture aussi pour le SuperUser), la condition de propriété est dans la requête
+(`coach-conversation-service.ts`) ; un fil ou une réponse qui n'est pas au compte répond **404, pas 403** — son
+existence n'est pas révélée. Jamais `requireSameClanAsMember`.
 
 ### 7.2 `POST /api/clans/[clanId]/coach/chat`
 
@@ -736,11 +739,18 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 4 — Routes API
 
-- [ ] `POST /api/clans/[clanId]/coach/chat` (§7.2), en-têtes SSE, interruption, enregistrement même interrompu
-- [ ] Routes des fils, du vote (§7.1)
-- [ ] Marque `unverified` (chiffres sans appel d'outil, §6) posée à l'enregistrement du message
-- [ ] `coach-route-contracts.test.ts`
-- **Contrôles :** flux visible mot à mot sur le **build** local ; 401 / 403 / 429 / 503 vérifiés
+- [x] `POST /api/clans/[clanId]/coach/chat` (§7.2) : garde `decideClanAccess`, corps validé, refus 400 / 404 / 429 / 503
+      avant tout flux, puis SSE (`meta`, `tool`, `delta`, `done`, `error`) avec `X-Accel-Buffering: no` et
+      `no-transform` ; `request.signal` et `cancel()` interrompent l'appel au modèle ; réponse enregistrée même
+      interrompue, usage `aborted` / `error` — orchestration dans `coach-chat-service.ts` — 2026-10-24
+- [x] Routes des fils (`GET /api/coach/conversations`, `GET · PATCH · DELETE …/[id]`) et du vote
+      (`POST /api/coach/messages/[id]/feedback`), propriété dans la requête (`coach-conversation-service.ts`) — 2026-10-24
+- [x] Marque `unverified` (chiffres sans appel d'outil, §6) posée à l'enregistrement du message — 2026-10-24
+- [x] `coach-route-contracts.test.ts` (14 tests : 401, 403 autre clan, 400, 503 pause, 429 limite, 404 fil étranger,
+      flux complet avec coût, non vérifié, historique borné, erreur du fournisseur, interruption, SuperUser sans membre,
+      fils et votes) — 2026-10-24
+- [ ] **Contrôle :** flux visible mot à mot sur le **build** local, derrière un vrai navigateur — **attend la
+      migration appliquée** (les tables n'existent pas encore en base) ; 401 / 403 / 429 / 503 vérifiés par les tests
 
 ### Lot 5 — Interface membre
 

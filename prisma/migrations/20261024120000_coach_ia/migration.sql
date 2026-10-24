@@ -9,6 +9,7 @@ CREATE TABLE `CoachConversation` (
     `memberId` INTEGER NULL,
     `clanId` INTEGER NULL,
     `title` VARCHAR(120) NOT NULL,
+    `contextLabel` VARCHAR(120) NULL,
     `createdAt` DATETIME(3) NOT NULL DEFAULT CURRENT_TIMESTAMP(3),
     `updatedAt` DATETIME(3) NOT NULL,
 

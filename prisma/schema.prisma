@@ -1766,17 +1766,18 @@ model AdminActionLog {
 /// `memberId` et `clanId` sont figés à la création (membre actif et clan du contexte) : un membre archivé ou un
 /// changement de clan ne font pas disparaître le fil. Purgé 12 mois après sa dernière activité (maintenance de 01:15).
 model CoachConversation {
-  id        Int            @id @default(autoincrement())
-  userId    Int
-  memberId  Int?
-  clanId    Int?
-  title     String         @db.VarChar(120) // tiré de la première question
-  createdAt DateTime       @default(now())
-  updatedAt DateTime       @updatedAt
-  user      UserAccount    @relation(fields: [userId], references: [id], onDelete: Cascade)
-  member    ClanMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
-  clan      Clan?          @relation(fields: [clanId], references: [id], onDelete: SetNull)
-  messages  CoachMessage[]
+  id           Int            @id @default(autoincrement())
+  userId       Int
+  memberId     Int?
+  clanId       Int?
+  title        String         @db.VarChar(120) // tiré de la première question
+  contextLabel String?        @db.VarChar(120) // « Erangel · 22 oct. 21:47 · Top 3 » : contexte de la première question
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+  user         UserAccount    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member       ClanMember?    @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  clan         Clan?          @relation(fields: [clanId], references: [id], onDelete: SetNull)
+  messages     CoachMessage[]
 
   @@index([userId, updatedAt])
   @@index([memberId])

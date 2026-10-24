@@ -24,6 +24,9 @@ jamais).
 | 5a | Chronique de soirée automatique | Oui (cron, webhook Discord par clan, page Soirée), à cadrer : coût, ton, opt-in | 2 jours | Moyenne à haute | 9 |
 | 5b | Alerte de record personnel | Partiellement : les maxima existent, pas l'« avant » | 1 à 2 jours | Moyenne | 10 |
 | 3b | Utilitaires sous pression (fumigène avant knock) | **Non** : aucun horodatage des objets consommés ni lancés | parser + migration, parties futures seulement | Moyenne | 11 |
+| 6a | Mémoire personnelle du joueur (objectifs, préférences) | Oui, **par compte**, explicite, visible et effaçable par le joueur ; jamais lue par le SuperUser (§6) | 2 jours | Haute | à décider |
+| 6b | Règles apprises des votes « Inexact » (écrites par le SuperUser) | Oui, cheap : une table, un bouton dans l'onglet Questions, un bloc borné du prompt (§6) | 1 jour | Haute | à décider |
+| 6c | Bibliothèque de « meilleures réponses » (few-shot) | Possible mais coûteux en tokens et porteur de pseudos : reporté (§6) | — | Faible | non |
 
 ---
 
@@ -160,6 +163,83 @@ jamais).
 - **Attention** : un record « knock à 512 m au Kar98k » n'existe que si la distance est portée par l'événement de
   knock (`knockoutSamples` n'a que la position) ; `maxDistance` est celle des **tirs touchés** de `weaponStats`. Dire
   « tir touché à 512 m », pas « knock ».
+
+---
+
+## 6. Mémoire du Coach — analyse d'une proposition externe (2026-10-24)
+
+Proposition reçue : « le Coach a déjà 90 % de l'infrastructure (fils et messages en base) ; ajouter une mémoire
+personnelle par joueur (`CoachPlayerMemory`, clé / valeur par `memberId`, injectée dans le prompt) et une mémoire
+collective (règles apprises des votes « Inexact », validées par le SuperUser ou synthétisées par l'IA, plus une
+bibliothèque des meilleures réponses en *few-shot*) ». Vérifié contre le code et les décisions du chantier.
+
+### 6.1 Ce qui est vrai, ce qui ne l'est pas
+
+| Affirmation | Réalité |
+|---|---|
+| « 90 % de l'infrastructure existe » | Les fils, messages, votes et notes existent (`CoachConversation`, `CoachMessage.feedbackScore / feedbackNote / reviewedAt`). **Rien** pour une mémoire : pas de table, pas d'injection dans le prompt (`buildCoachSystemPrompt` ne reçoit que le contexte de page), pas d'écran pour la voir ou l'effacer, pas de purge, pas de ligne de confidentialité. Disons un tiers |
+| Mémoire par `memberId` | **Contraire à une décision du chantier** : fils et quota sont **par compte** (`userId`) — un compte peut avoir plusieurs membres, un membre peut changer de clan (P5 : « ses fils restent à son compte »). Une mémoire se range par `userId`, avec le membre et le clan du moment à titre indicatif |
+| « Lors de ta session d'hier, ton ratio de headshots au Kar98k est monté à 28 % — ton entraînement paie » | Faisable **seulement si l'objectif garde une base de départ** : `MemberWeaponStats` existe par période (mois, depuis toujours), pas par soirée ni par semaine. Il faut stocker, avec l'objectif, la valeur mesurée le jour où il est posé (« 22 % le 24 octobre ») ; le Coach compare ensuite au mois en cours |
+| « 40 % de tes éliminations étaient dues à des rotations trop tardives à pied » | **Inventé** : aucune donnée du site ne classe les causes de mort. Une « faiblesse » mémorisée ne peut venir que des mots du joueur, ou d'un chiffre renvoyé par un outil, daté — jamais d'une déduction du modèle. Sinon, la mémoire devient un réservoir d'hallucinations réinjectées à chaque question |
+| « Salut NovakTV ! Lors de ta session d'hier… » à l'ouverture | Un message proactif à l'ouverture = un appel au modèle avant toute question (coût, latence). À réserver à la première question du fil, ou à la chronique de soirée (piste 5a) |
+| « L'IA synthétise la règle apprise » | **À exclure** : une phrase écrite par le modèle qui entre dans le prompt système est une injection de consigne par le modèle lui-même, amorçable par un pseudo ou une question piégée. Seul le SuperUser écrit une règle, à la main |
+| Bibliothèque des meilleures réponses (*few-shot*) | Chaque exemple pèse 300 à 500 tokens, à chaque question : trois exemples = +30 % de coût. Et une réponse « exemplaire » cite des **pseudos et des chiffres d'un clan**, montrés au modèle pour un joueur d'un autre clan. Le format est déjà fixé par le prompt ; le gain serait marginal. Reporté |
+| « Étonnamment léger » | Le code l'est ; ce qui ne l'est pas : la **donnée personnelle** (objectifs, préférences, « faiblesses » d'une personne) — à déclarer, borner, montrer, effacer, purger, et ne jamais lire côté SuperUser |
+
+### 6.2 Mémoire personnelle (6a) — conception retenue si elle est décidée
+
+- **Table `CoachMemory`** : `userId` (compte, `Cascade`), `memberId?` et `clanId?` (`SetNull`, indicatifs), `key`
+  (`VarChar(32)` : `goal`, `role`, `preference`, `avoid`, `note`), `text` (`VarChar(200)`, les mots du joueur),
+  `baseline` (`Json?` : mesure de départ datée, posée par le serveur — ex. `{ metric: 'headshotRate', weapon:
+  'Kar98k', value: 22, at: '2026-10-24' }`), `source` (`player` | `tool`), `createdAt`, `updatedAt`, `expiresAt`.
+  **Au plus 8 lignes par compte**, les plus anciennes expirent (90 jours sans mise à jour) ; purge de 01:15 et script
+  `purge-coach-history.ts` étendus.
+- **Écriture explicite seulement** : un outil `rememberAboutMe({ key, text })` que le modèle appelle quand le joueur
+  le dit (« retiens que… », « mon objectif… »), avec le texte **du message du joueur** (le serveur refuse un texte qui
+  n'apparaît pas dans la question) ; jamais une déduction du modèle, jamais un texte venu d'un résultat d'outil. Un
+  objectif chiffré reçoit sa `baseline` par l'outil correspondant (`getWeaponStats`, `getPlayerBenchmark`).
+- **Lecture** : au début de chaque question, les lignes du compte (≤ 8 × 200 caractères ≈ 400 tokens au plus) dans
+  un bloc du prompt : « Ce que tu sais de ce joueur, dit par lui (date) : … Objectif : …, mesuré à 22 % le 24/10 »,
+  avec la consigne de s'y référer **seulement** quand c'est utile et de comparer à une mesure d'outil du jour.
+- **Vu et effaçable par le joueur** : liste dans le panneau du Coach (entrée « Ce que le Coach sait de toi », une croix
+  par ligne, « Tout oublier ») ; `DELETE /api/coach/memory/[id]`. **Jamais affiché au SuperUser** : l'onglet Questions
+  ne montre pas la mémoire, même pseudonymisée ; les alertes et la boîte « À traiter » non plus.
+- **Confidentialité** : nouvelle ligne de `/confidentialite` (« ce que tu demandes au Coach de retenir : objectifs,
+  préférences, en tes mots ; conservé 90 jours sans mise à jour, effaçable d'un clic ») ; purge ; base légale :
+  exécution du service, à ta demande. Les mémoires partent chez Google avec le prompt, comme la question.
+- **Coût** : ≈ +400 tokens par question au pire (+8 %), un appel d'outil de plus quand le joueur demande de retenir.
+- **Effort** : 2 jours (migration, outil, bloc du prompt, panneau, route, purge, confidentialité, tests). Valeur
+  haute : c'est ce qui fait passer le Coach d'un outil de stats à un suivi.
+
+### 6.3 Règles apprises (6b) — conception retenue si elle est décidée
+
+- **Table `CoachRule`** : `text` (`VarChar(200)`, impératif, tutoiement), `enabled`, `fromMessageId?` (le vote
+  « Inexact » d'origine, pour l'historique), `createdBy` (compte SuperUser), dates. **Au plus 20 règles actives**,
+  ordonnées par date ; au-delà, l'enregistrement refuse (une règle de plus = une à retirer).
+- **Écriture par le SuperUser seul**, à la main : dans l'onglet Questions, sur un vote « Inexact », un bouton
+  « En faire une règle » pré-remplit le texte **vide** (pas la note du joueur : un joueur pourrait y écrire une
+  consigne) ; le SuperUser rédige ; `withAdminActionLog`. Pas de synthèse automatique, pas de règle venue d'un vote
+  « Utile ».
+- **Lecture** : bloc « Règles du site » du prompt, après les règles absolues, avant le lexique : ≈ 20 × 40 tokens
+  = 800 tokens au pire (+16 %) — d'où la borne. Le SuperUser voit le coût en tokens de ses règles sur l'onglet.
+- **Exemples de bonnes règles** : « Le DBS est un fusil à pompe, pas un sniper » (mais le catalogue d'armes
+  `weapon-categories.ts` le dit déjà : corriger la donnée vaut mieux qu'une règle) ; « Sur Karakin, les véhicules
+  sont rares : ne propose pas de rotation en véhicule » ; « Un Top 10 n'est pas une victoire ». Une règle est un
+  pansement : quand elle corrige une donnée ou un outil, corriger l'outil et retirer la règle.
+- **Effort** : 1 jour (migration, section de l'onglet Questions, route, bloc du prompt, tests). Valeur haute dès la
+  première semaine d'usage réel, quand les votes « Inexact » auront montré les bévues récurrentes.
+
+### 6.4 Bibliothèque de réponses (6c) — non retenue
+
+Coût par question, pseudos d'un clan montrés à un autre, gain faible face au format déjà imposé. Si un jour le style
+dérive, deux exemples **anonymisés et fictifs**, écrits à la main dans le prompt, feront le même travail sans table.
+
+### 6.5 Avis
+
+Oui aux deux mémoires, dans cet ordre : **règles apprises (6b)** après la première semaine réelle (le besoin se
+mesure sur les votes), puis **mémoire personnelle (6a)** avec son écran et sa ligne de confidentialité. Non à la
+synthèse automatique et au *few-shot*. Décision à inscrire au §0 de [chatbot-ia.md](chatbot-ia.md) ; chacune devient
+un lot du §13 avec ses contrôles (étanchéité du texte mémorisé, aucune lecture SuperUser, purge, coût mesuré).
 
 ---
 

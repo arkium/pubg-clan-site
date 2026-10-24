@@ -1,8 +1,9 @@
 # Coach IA
 
 Assistant conversationnel **réservé aux membres connectés** : il explique les parties, les armes, les objets consommés
-(« loot »), les adversaires, les largages, le classement du clan, sa position en Ligue et les tournois du site à partir
-de la télémétrie du site, en flux mot à mot, dans un tiroir ou en page plein écran. Modèle Gemini (Google) appelé côté serveur ; chaque question coûte, donc quota, budget et
+(« loot »), les adversaires, les largages, les cartes, les horaires de jeu, la place du joueur parmi tous les clans,
+le classement du clan, sa position en Ligue et les tournois du site à partir de la télémétrie du site, en flux mot à
+mot, dans un tiroir ou en page plein écran. Modèle Gemini (Google) appelé côté serveur ; chaque question coûte, donc quota, budget et
 interrupteur. Spécification, décisions et plan : [docs/TODO/chatbot-ia.md](../TODO/chatbot-ia.md) ; charte des
 composants : [docs/ui/index.html#coach-ia](../ui/index.html#coach-ia) (section 44).
 
@@ -82,6 +83,8 @@ passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matc
 | `getOpponentRecord` | `OpponentClan` → joueurs → `KillEvent`, dernière rencontre (`ClanEncounter`) — jamais `EncounteredPlayer` |
 | `getDropZones` | `DropPressureStat` des 90 derniers jours, villes par `locationForPercent` |
 | `getMapPerformance` | `loadClanMapStats` (la page « Cartes » : parties d'escouade, moyenne des clans en cache 5 min) : verdict, puis chaque carte — parties, Top 1, win rate, Top 10, place, kills et dégâts par partie, écart aux clans, tendance, joueur phare ; une carte seule par `mapName` |
+| `getPlaySchedule` | la page « Calendrier d'activité » (`Match` du joueur, ou `SquadMatch` du clan avec `scope: 'clan'`), **heure de Paris**, soirée commençant à 06:00 (`sessionDateOf`) : parties et Top 1 par jour de la semaine, trois créneaux favoris, plage habituelle en semaine et le week-end (20e–80e centile des heures), soirées actives, temps de jeu, parties et heures par soirée — `buildPlaySchedule`, pur |
+| `getPlayerBenchmark` | le classement inter-clans `/players` (`getPlayersRanking`, cache 5 min, parties officielles de clan) : rang et part des joueurs dépassés pour chaque critère (dégâts, kills, knocks, réanimations, survie, quatre rôles), joueur juste devant et écart, rang de la période précédente, scores de rôle sur 100 (**centiles entre clans**, pas le style de jeu relatif au clan), moyennes ; en qualification : parties manquantes |
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
 | `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
 | `getTournaments` | `listTournamentOverviews` (cache 5 min) : tournois publiés du site, filtres statut / titre, vainqueur ou leader, podium, place du clan quand elle est connue |
@@ -92,7 +95,15 @@ montre, et le clan du joueur ne sert qu'à le situer (`yours`, `yourClan`) ; un 
 2026-10-24 après l'essai connecté : sur la page d'un tournoi, « qui a gagné le tournoi ? » était refusé.
 
 Chaque outil se borne (nombre de parties, période) ; jamais le bilan complet de télémétrie. Résultats sans donnée
-d'authentification. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).
+d'authentification. Mesure sur la vraie base : `npx tsx --conditions=react-server scripts/coach-tools-probe.ts`
+(lecture seule).
+
+**Couverture des pages** (2026-10-24). Avec outil : débriefing et replay, parties et soirées, armes, objets consommés,
+adversaires / Némésis, largages, cartes du clan, calendrier d'activité, classement du clan, Ligue, joueurs inter-clans,
+tournois. **Sans outil** (le Coach le dit s'il est interrogé) : tableau de bord et carrière PUBG (`MemberLifetimeStats`,
+saisons), style de jeu du clan (rôles relatifs au clan, synergies, coopération), positions / villes et fin de zone,
+cartes du joueur, distinctions et awards, défis, mortier, lecture de zone. À ajouter à la demande, un par un
+(docs/TODO/coach-ia-pistes.md).
 
 ## 6. Prompt et garde-fous (`coach-prompt.ts`, `coach-chat-service.ts`)
 

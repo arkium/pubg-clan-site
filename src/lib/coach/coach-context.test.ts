@@ -27,6 +27,8 @@ describe('reconnaissance du chemin de page', () => {
     expect(parseCoachContextPath('/members/77/nemesis')).toEqual({ kind: 'member', memberId: 77, page: 'nemesis' })
     expect(parseCoachContextPath('/members/77/dashboard')).toEqual({ kind: 'member', memberId: 77, page: 'other' })
     expect(parseCoachContextPath('/members/77/items')).toEqual({ kind: 'member', memberId: 77, page: 'items' })
+    expect(parseCoachContextPath('/members/77/heatmap')).toEqual({ kind: 'member', memberId: 77, page: 'heatmap' })
+    expect(parseCoachContextPath('/players?tab=compare')).toEqual({ kind: 'players' })
     expect(parseCoachContextPath('/tournaments/ctour1/matches/cmatch9')).toEqual({ kind: 'tournament-match', tournamentId: 'ctour1', matchId: 'cmatch9' })
     expect(parseCoachContextPath('/tournaments/ctour1')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
     expect(parseCoachContextPath('/tournaments/ctour1/matches')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
@@ -37,7 +39,7 @@ describe('reconnaissance du chemin de page', () => {
   it('ne fait confiance à rien d’autre', () => {
     expect(parseCoachContextPath(null)).toEqual({ kind: 'none' })
     expect(parseCoachContextPath('')).toEqual({ kind: 'none' })
-    expect(parseCoachContextPath('/players')).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('/players/abc')).toEqual({ kind: 'none' })
     expect(parseCoachContextPath('/clans/abc/matches')).toEqual({ kind: 'none' })
     expect(parseCoachContextPath('/clans/0/matches')).toEqual({ kind: 'none' })
     expect(parseCoachContextPath('/members/-1/weapons')).toEqual({ kind: 'none' })
@@ -84,6 +86,8 @@ describe('étiquette, suggestions et bloc de prompt', () => {
       { kind: 'session', date: '2026-10-22' },
       { kind: 'weapons', memberId: 7, memberName: 'NovakTV' },
       { kind: 'items', memberId: 7, memberName: 'NovakTV' },
+      { kind: 'schedule', memberId: 7, memberName: 'NovakTV' },
+      { kind: 'players' },
       { kind: 'opponents' },
       { kind: 'drop-zones' },
       { kind: 'maps' },
@@ -105,6 +109,10 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextPromptBlock({ kind: 'weapons', memberId: 7, memberName: 'NovakTV' })).toContain('getWeaponStats')
     expect(coachContextLabel({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toBe('Objets de NovakTV')
     expect(coachContextLabel({ kind: 'maps' })).toBe('Cartes du clan')
+    expect(coachContextLabel({ kind: 'schedule', memberId: 7, memberName: 'NovakTV' })).toBe('Activité de NovakTV')
+    expect(coachContextPromptBlock({ kind: 'schedule', memberId: 7, memberName: 'NovakTV' })).toContain('getPlaySchedule')
+    expect(coachContextLabel({ kind: 'players' })).toBe('Classement des joueurs')
+    expect(coachContextPromptBlock({ kind: 'players' })).toContain('getPlayerBenchmark')
     expect(coachContextPromptBlock({ kind: 'maps' })).toContain('getMapPerformance')
     expect(coachContextPromptBlock({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toContain('getItemUsage')
     expect(coachContextPromptBlock(tournament)).toContain('getTournamentResults avec tournamentId « ctour1 »')

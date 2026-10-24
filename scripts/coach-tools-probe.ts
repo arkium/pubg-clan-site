@@ -67,6 +67,8 @@ async function main() {
   results.push(await measure('getWeaponStats', () => tools.run({ name: 'getWeaponStats', args: {} })))
   results.push(await measure('getItemUsage', () => tools.run({ name: 'getItemUsage', args: {} })))
   results.push(await measure('getMapPerformance', () => tools.run({ name: 'getMapPerformance', args: {} })))
+  results.push(await measure('getPlaySchedule', () => tools.run({ name: 'getPlaySchedule', args: {} })))
+  results.push(await measure('getPlayerBenchmark', () => tools.run({ name: 'getPlayerBenchmark', args: { period: 'month' } })))
   results.push(await measure('getOpponentRecord', () => tools.run({ name: 'getOpponentRecord', args: { clanTag: opponentTag } })))
   results.push(await measure('getDropZones', () => tools.run({ name: 'getDropZones', args: { mapName: scope.mapName } })))
   results.push(await measure('getClanLeaderboard', () => tools.run({ name: 'getClanLeaderboard', args: { period: 'week' } })))

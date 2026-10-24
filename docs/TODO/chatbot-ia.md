@@ -35,6 +35,7 @@ d'inscrire son clan.
 
 | 2026-10-24 | P1 à P7 | **Confirmées** telles quelles (tableau ci-dessous) | Utilisateur |
 | 2026-10-24 | Clé Gemini | Projet Google Cloud et clé créés par l'utilisateur, `GEMINI_API_KEY` dans le `.env` local (jamais dans le dépôt) | Utilisateur |
+| 2026-10-24 | Horaires et benchmark | Outils `getPlaySchedule` (calendrier d'activité, heure de Paris) et `getPlayerBenchmark` (classement inter-clans, piste 4a) ; couverture des pages notée dans la fiche — les pages sans outil (carrière, style de jeu, villes, fin de zone, awards…) s'ajoutent à la demande | Utilisateur |
 | 2026-10-24 | Questions fréquentes | Regroupement par mots-clés avec tolérance (Jaccard ≥ 0,6) au lieu du texte exact — « qui pose un problème » et « qui posent problème » faisaient deux lignes ; liste paginée par 10 | Utilisateur |
 | 2026-10-24 | Lexique | Six lignes de jargon dans le prompt système (§6 : loot / stuff / sac, drop, knock, wipe, smokes, nades, M4 / Beryl / Kar / Mini, snipe / pompe, chicken / Top 1, soirée, map), traduites vers le bon outil sans demander de précision — pas de dictionnaire long, qui coûterait des tokens à chaque question | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Cartes | Outil `getMapPerformance` (§5.2) pour la page « Cartes » ; panoplie bornée à 11 outils pour éviter la fatigue de sélection du modèle | Analyse externe, validée par l'utilisateur |
@@ -349,7 +350,14 @@ affiché dans `/settings/configuration` (section « Coach IA »).
     verdict (carte forte, à travailler, la plus jouée) et chaque carte avec écart aux clans, tendance et joueur phare.
     Ajouté le 2026-10-24 sur la recommandation d'une analyse externe (seule page de données sans outil : « quelle est
     notre pire carte ? » n'avait que `getRecentMatches`, borné à 10 parties). Contexte `/clans/[id]/stats/maps` reconnu.
-    La panoplie reste serrée (11 outils) : « Style de jeu » (rôles, synergies) n'a pas d'outil, à juger à l'usage.
+    La panoplie reste serrée : « Style de jeu » (rôles, synergies) n'a pas d'outil, à juger à l'usage.
+12. `getPlaySchedule({ playerName?, scope?, period? })` — le calendrier d'activité (`Match` du joueur, `SquadMatch` du
+    clan), heure de Paris, soirée dès 06:00 : parties et Top 1 par jour, créneaux favoris, plage habituelle semaine /
+    week-end, soirées, temps de jeu. Ajouté le 2026-10-24 : « mon horaire de jeu en semaine ? » restait sans réponse.
+    Contexte `/members/[id]/heatmap` reconnu.
+13. `getPlayerBenchmark({ playerName?, period?, mode? })` — « Où je me situe ? » (piste 4a de coach-ia-pistes.md) :
+    classement inter-clans `/players` (`getPlayersRanking`) — rang et part des joueurs dépassés par critère, joueur
+    juste devant, rang précédent, scores de rôle (centiles entre clans). Contexte `/players` reconnu.
 
 Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, memberName })`), tests
 `coach-tools.test.ts`. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).

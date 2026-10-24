@@ -16,7 +16,7 @@ jamais).
 | 2 | Boutons 1-clic sur les pages | Oui, tout existe (`CoachContextButton`, `useCoach`) | ½ jour | Haute, surtout mobile | **1** |
 | 1c | Pilules d'action en fin de réponse | Oui, côté serveur, sans le modèle | ½ jour | Haute | **2** |
 | 1a | Horodatages cliquables vers le replay 2D | Oui (`MatchReplay2D` accepte `startAt`), un paramètre d'URL à ajouter | 1 jour | Haute | **3** |
-| 4a | « Où je me situe ? » face à la Ligue (centiles) | Oui, `players-ranking.ts` calcule déjà les centiles entre clans | ½ jour | Haute | **4** |
+| 4a | « Où je me situe ? » face à la Ligue (centiles) | **Fait le 2026-10-24** : outil `getPlayerBenchmark` (`players-ranking.ts` calculait déjà les centiles entre clans) | ½ jour | Haute | ~~4~~ fait |
 | 3c | Équilibre de l'armement de l'escouade | Oui (`MemberWeaponStats`, `weaponStatsGz` par partie) | 1 jour | Moyenne | 5 |
 | 1b | Pseudos et clans cliquables | Oui, avec des liens générés par le serveur, jamais par le modèle | 1 jour | Moyenne | 6 |
 | 3a | Indice de cohésion (distance entre coéquipiers) | Par partie : oui (`positionSamplesGz`). Sur toutes les parties : précalcul nécessaire | 1 jour + 2 à 3 jours | Haute, inédite | 7 |
@@ -109,7 +109,7 @@ jamais).
 
 ## 4. Benchmark face à la Ligue
 
-### 4a. « Où je me situe ? » — faisable, presque gratuit
+### 4a. « Où je me situe ? » — fait le 2026-10-24 (`getPlayerBenchmark`, reste la variante par arme)
 
 - **Existe** : `/players` classe les joueurs de tous les clans (parties officielles de clan, cache 5 min) avec des
   **centiles** Fragger / Medic / Ghost / Tireur à distance (`percentileOf`, `players-ranking.ts`,

@@ -25,9 +25,12 @@ const mocks = vi.hoisted(() => ({
   loadItemUse: vi.fn(),
   throwGroupBy: vi.fn(),
   loadMapStats: vi.fn(),
+  matchFindMany: vi.fn(),
+  getPlayersRanking: vi.fn(),
 }))
 
 vi.mock('@/lib/clan-map-stats-service', () => ({ loadClanMapStats: mocks.loadMapStats }))
+vi.mock('@/lib/players-ranking-service', () => ({ getPlayersRanking: mocks.getPlayersRanking }))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
@@ -41,6 +44,7 @@ vi.mock('@/lib/prisma', () => ({
     playerStats: { findMany: mocks.statsFindMany },
     tournament: { findUnique: mocks.tournamentFindUnique },
     memberThrowableStat: { groupBy: mocks.throwGroupBy },
+    match: { findMany: mocks.matchFindMany },
   },
 }))
 // Dictionnaire PUBG (`@/lib/pubg-assets`) réel : pur, et les noms français viennent d'abord de `clan-playstyle.ts`.
@@ -81,7 +85,7 @@ vi.mock('@/lib/weapon-label-service', () => {
 })
 vi.mock('@/lib/pubg-telemetry/match-debrief-payload', () => ({ loadMatchDebriefPayload: mocks.loadDebrief }))
 
-import { COACH_TOOL_DECLARATIONS, createCoachTools, resetCoachLeagueCache } from '@/lib/coach/coach-tools'
+import { buildPlaySchedule, COACH_TOOL_DECLARATIONS, createCoachTools, parisSlot, resetCoachLeagueCache } from '@/lib/coach/coach-tools'
 
 const scope = { clanId: 292, memberId: 100, memberName: 'NovakTV' }
 const tools = createCoachTools(scope)
@@ -93,7 +97,7 @@ beforeEach(() => {
 })
 
 describe('déclarations', () => {
-  it('expose les onze outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
+  it('expose les treize outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
     expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
       'getRecentMatches',
       'getMatchDebrief',
@@ -106,6 +110,8 @@ describe('déclarations', () => {
       'getTournamentResults',
       'getItemUsage',
       'getMapPerformance',
+      'getPlaySchedule',
+      'getPlayerBenchmark',
     ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
@@ -545,6 +551,129 @@ describe('getMapPerformance', () => {
     expect(await run('getMapPerformance', { mapName: 'Atlantide' })).toEqual({ error: 'map_not_found', message: 'Carte inconnue : Atlantide.' })
     await run('getMapPerformance', { period: 'never', matchType: 'bots' })
     expect(mocks.loadMapStats).toHaveBeenLastCalledWith({ clanId: 292, period: 'month', matchType: 'official' })
+  })
+})
+
+describe('getPlaySchedule', () => {
+  // Octobre 2026 : heure d'été (UTC+2) jusqu'au dimanche 25. 22:40Z le samedi = 00:40 dimanche à Paris.
+  const play = (iso: string, placement = 5, durationSeconds = 1500) => ({ playedAt: new Date(iso), durationSeconds, placement })
+  const plays = [
+    play('2026-10-21T13:00:00Z'), // mercredi 15h
+    play('2026-10-23T19:30:00Z', 1), // vendredi 21h, Top 1
+    play('2026-10-23T19:50:00Z'), // vendredi 21h
+    play('2026-10-23T20:10:00Z'), // vendredi 22h
+    play('2026-10-24T19:05:00Z'), // samedi 21h
+    play('2026-10-24T22:40:00Z', 1, 900), // dimanche 00h, soirée du samedi
+  ]
+
+  it('lit le jour et l’heure de Paris', () => {
+    expect(parisSlot(new Date('2026-10-24T22:40:00Z'))).toEqual({ dayIndex: 6, hour: 0 })
+    expect(parisSlot(new Date('2026-10-21T13:00:00Z'))).toEqual({ dayIndex: 2, hour: 15 })
+  })
+
+  it('compte parties, soirées, créneaux favoris, plages habituelles et part semaine / week-end', () => {
+    const schedule = buildPlaySchedule(plays)
+    expect(schedule).toMatchObject({
+      matches: 6,
+      activeDays: 3,
+      playtimeHours: 2.3,
+      perActiveDay: { matches: 2, hours: 0.8 },
+      favoriteSlots: [
+        { slot: 'Vendredi, 21h–22h', matches: 2 },
+        { slot: 'Mercredi, 15h–16h', matches: 1 },
+        { slot: 'Vendredi, 22h–23h', matches: 1 },
+      ],
+      usualHours: { weekdays: '15h–23h', weekend: null },
+      weekSplit: { weekdaysPercent: 67, weekendPercent: 33 },
+    })
+    expect(schedule.byWeekday[4]).toEqual({ day: 'Vendredi', matches: 3, sharePercent: 50, wins: 1 })
+    expect(schedule.byWeekday[6]).toEqual({ day: 'Dimanche', matches: 1, sharePercent: 17, wins: 1 })
+    expect(buildPlaySchedule([])).toMatchObject({ matches: 0, activeDays: 0, perActiveDay: null, favoriteSlots: [], usualHours: { weekdays: null, weekend: null } })
+  })
+
+  it('lit les parties du joueur, ou celles de l’escouade du clan, sur la période', async () => {
+    mocks.matchFindMany.mockResolvedValue(plays.map((entry) => ({ pubgCreatedAt: entry.playedAt, duration: entry.durationSeconds, placement: entry.placement })))
+    const own = await run('getPlaySchedule', { period: 'month' })
+    expect(mocks.matchFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ memberId: 100, matchType: 'official', pubgCreatedAt: { gte: expect.any(Date) } }), take: 3000 })
+    )
+    expect(own).toMatchObject({ scope: 'NovakTV', period: 'ce mois', matches: 6 })
+
+    mocks.squadMatchFindMany.mockResolvedValue([{ createdAt: new Date('2026-10-23T19:30:00Z'), placement: 2, members: [{ timeSurvived: 1200 }, { timeSurvived: 1700 }] }])
+    const clan = await run('getPlaySchedule', { scope: 'clan' })
+    expect(mocks.squadMatchFindMany).toHaveBeenCalledWith(
+      expect.objectContaining({ where: expect.objectContaining({ matchType: 'official', members: { some: { member: { clanId: 292, isActive: true } } } }) })
+    )
+    expect(clan).toMatchObject({ scope: 'le clan', period: 'depuis toujours', matches: 1, playtimeHours: 0.5 })
+  })
+})
+
+describe('getPlayerBenchmark', () => {
+  const entry = (memberId: number, name: string, clanTag: string, avgDamage: number, avgKills: number, avgRevives: number, avgSurvivalSeconds: number, previousRanks: Array<number | null> | null) => ({
+    memberId,
+    name,
+    clanId: clanTag === '47R' ? 292 : 3,
+    clanName: `Clan ${clanTag}`,
+    clanTag,
+    matches: 30,
+    wins: 2,
+    avgDamage,
+    avgKills,
+    avgKnocks: avgKills + 0.5,
+    avgRevives,
+    avgAssists: 1,
+    avgSurvivalSeconds,
+    headshotRate: 0.25,
+    avgKillDistance: 80,
+    zoneInsideRate: 0.7,
+    roles: { fragger: 50, medic: 80, ghost: 60, sniper: 70 },
+    style: 'medic',
+    previousRanks,
+  })
+  const ranking = {
+    period: 'week',
+    mode: 'all',
+    minMatches: 10,
+    minRanked: 20,
+    totals: { players: 510, clans: 33 },
+    ranked: [
+      entry(100, 'NovakTV', '47R', 300, 2, 1, 900, [3, 2, 2, 1, 2, 2, 1, 2, 1]),
+      entry(5, 'maladus7', '47R', 450, 3, 0.5, 700, null),
+      entry(7, 'Autre', 'FRX', 200, 1, 0.2, 1000, null),
+    ],
+    qualifying: [{ ...entry(9, 'Novice', '47R', 100, 1, 0, 500, null), matches: 6 }],
+    clans: [{ clanId: 292, name: 'x', tag: '47R' }, { clanId: 3, name: 'y', tag: 'FRX' }],
+    lastMatchAt: null,
+  }
+
+  it('situe le joueur sur chaque critère, avec le joueur juste devant, l’écart et le rang précédent', async () => {
+    mocks.getPlayersRanking.mockResolvedValue(ranking)
+    const result = (await run('getPlayerBenchmark')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.getPlayersRanking).toHaveBeenCalledWith('week', 'all')
+    expect(result).toMatchObject({
+      player: 'NovakTV',
+      period: 'cette semaine',
+      mode: 'tous modes',
+      playersRanked: 3,
+      clansCompared: 2,
+      ranked: true,
+      style: 'medic',
+      averages: { damage: 300, kills: 2, survivalMinutes: 15, headshotRatePercent: 25, avgKillDistanceM: 80, zoneInsidePercent: 70 },
+    })
+    expect(result.roles[0]).toEqual({ role: 'Fragger', score: 50, measures: 'dégâts, kills et knocks' })
+    const damage = result.criteria.find((line: { criterion: string }) => line.criterion === 'Dégâts')
+    expect(damage).toMatchObject({ position: 2, of: 3, aheadSharePercent: 33, previousPosition: 3, justAhead: { player: 'maladus7', clanTag: '47R', gap: '150' } })
+    const revives = result.criteria.find((line: { criterion: string }) => line.criterion === 'Réanimations')
+    expect(revives).toMatchObject({ position: 1, of: 3, aheadSharePercent: 67, justAhead: null })
+    expect(JSON.stringify(result)).not.toMatch(/memberId|clanId/)
+  })
+
+  it('dit les parties manquantes à un joueur en qualification, et accepte période et mode', async () => {
+    mocks.getPlayersRanking.mockResolvedValue(ranking)
+    mocks.memberFindFirst.mockResolvedValue({ id: 9, displayName: 'Novice' })
+    const result = await run('getPlayerBenchmark', { playerName: 'Novice', period: 'month', mode: 'squad' })
+    expect(mocks.getPlayersRanking).toHaveBeenCalledWith('month', 'squad')
+    expect(result).toMatchObject({ player: 'Novice', ranked: false, matches: 6, required: 10, message: 'Encore 4 partie(s) officielle(s) de clan pour être classé.' })
   })
 })
 

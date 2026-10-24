@@ -72,9 +72,12 @@ export async function resolveCoachContext(path: string | null | undefined, scope
       if (!member) return NONE
       if (parsed.page === 'weapons') return { kind: 'weapons', memberId: member.id, memberName: member.displayName }
       if (parsed.page === 'items') return { kind: 'items', memberId: member.id, memberName: member.displayName }
+      if (parsed.page === 'heatmap') return { kind: 'schedule', memberId: member.id, memberName: member.displayName }
       if (parsed.page === 'nemesis') return { kind: 'opponents' }
       return { kind: 'drop-zones' }
     }
+    case 'players':
+      return { kind: 'players' }
     case 'none':
       return NONE
   }

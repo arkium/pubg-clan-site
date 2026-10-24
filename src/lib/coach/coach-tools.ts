@@ -1,3 +1,4 @@
+import { activityByDay, busiestSlot, slotLabel, type ActivityCell } from '@/lib/activity-heatmap'
 import { locationForPercent } from '@/lib/city-insights'
 import { LEAGUE_MATCH_TYPE_OPTIONS, leagueMatchTypeOption, parseLeagueMatchType } from '@/lib/clan-league'
 import { getClanLeague, type LeagueEntry } from '@/lib/clan-league-service'
@@ -14,7 +15,17 @@ import { loadMatchDebriefPayload } from '@/lib/pubg-telemetry/match-debrief-payl
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 import { itemFamilyLabel, itemLabel } from '@/lib/clan-playstyle'
 import { getItemUsePeriodBounds, loadItemUseStats } from '@/lib/item-use-stats'
-import { getPeriodRange } from '@/lib/period'
+import { getPeriodRange, getPeriodStart } from '@/lib/period'
+import {
+  myStanding,
+  parsePlayersMode,
+  PLAYER_CRITERIA,
+  PLAYER_ROLES,
+  PLAYERS_MODE_WHEN,
+  previousRankOf,
+  rankPlayers,
+} from '@/lib/players-ranking'
+import { getPlayersRanking } from '@/lib/players-ranking-service'
 import { resolveItemName } from '@/lib/pubg-assets'
 import { collectTournamentMemberIds, loadTournamentDirectories } from '@/lib/tournament-directories'
 import { participantClanIds, resolveTournamentPhase, TOURNAMENT_MODE_DISPLAY, type TournamentPhase } from '@/lib/tournament-mode-display'
@@ -63,6 +74,8 @@ const DROP_DAYS = 90
 const DROP_ZONES_MAX = 8
 const LEADERBOARD_MAX = 15
 const ITEMS_MAX = 10
+const SCHEDULE_MATCHES_MAX = 3000
+const SCHEDULE_SLOTS_MAX = 3
 const TOURNAMENTS_MAX = 10
 const TOURNAMENTS_DEFAULT = 5
 const TOURNAMENT_STANDINGS_MAX = 20
@@ -205,7 +218,110 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       },
     },
   },
+  {
+    name: 'getPlaySchedule',
+    description:
+      "Quand le joueur (ou le clan) joue : parties par jour de la semaine et par heure (heure de Paris), créneaux favoris, plage horaire habituelle en semaine et le week-end, soirées actives, temps de jeu et parties par soirée. Pour « mon horaire de jeu ? », « quand est-ce qu'on joue le plus ? », « combien de soirées par semaine ? ».",
+    parameters: {
+      type: 'object',
+      properties: {
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
+        scope: { type: 'string', enum: ['player', 'clan'], description: '« player » (le joueur, défaut) ou « clan » (toutes les parties d’escouade du clan).' },
+        period: { type: 'string', enum: ['week', 'month', 'all'], description: '« all » (depuis toujours, défaut), « month » (ce mois) ou « week » (cette semaine).' },
+      },
+    },
+  },
+  {
+    name: 'getPlayerBenchmark',
+    description:
+      "Où le joueur se situe parmi les joueurs de tous les clans suivis (classement inter-clans « Joueurs », parties officielles de clan) : rang et part des joueurs dépassés pour chaque critère (dégâts, kills, knocks, réanimations, survie), scores de rôle sur 100 — Fragger, Medic, Ghost, Tireur à distance — qui sont des centiles entre clans, le joueur juste devant et l'écart, rang de la période précédente. Pour « où je me situe ? », « je suis bon ? », « quel est mon rôle ? ».",
+    parameters: {
+      type: 'object',
+      properties: {
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
+        period: { type: 'string', enum: ['week', 'month', 'all'], description: '« week » (cette semaine, défaut), « month » (ce mois) ou « all » (depuis toujours).' },
+        mode: { type: 'string', enum: ['all', 'duo', 'squad'], description: '« all » (tous modes, défaut), « duo » ou « squad ».' },
+      },
+    },
+  },
 ]
+
+const PARIS_PARTS = new Intl.DateTimeFormat('en-US', { timeZone: 'Europe/Paris', weekday: 'short', hour: 'numeric', hour12: false })
+const WEEKDAY_INDEX: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }
+const WEEKDAY_NAMES = ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche']
+
+/** Jour (lundi = 0) et heure de Paris d'un instant. */
+export function parisSlot(at: Date): { dayIndex: number; hour: number } {
+  const parts = PARIS_PARTS.formatToParts(at)
+  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? 'Mon'
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0') % 24
+  return { dayIndex: WEEKDAY_INDEX[weekday] ?? 0, hour }
+}
+
+/** Plage habituelle d'un ensemble d'heures : du 20e au 80e centile ; les heures après minuit suivent la soirée. */
+function hourWindow(hours: readonly number[]): string | null {
+  if (hours.length < 3) return null
+  const sorted = hours.map((hour) => (hour < 6 ? hour + 24 : hour)).sort((a, b) => a - b)
+  const at = (quantile: number) => sorted[Math.max(0, Math.ceil(quantile * sorted.length) - 1)]
+  const label = (hour: number) => `${String(hour % 24).padStart(2, '0')}h`
+  return `${label(at(0.2))}–${label(at(0.8) + 1)}`
+}
+
+export type SchedulePlay = { playedAt: Date; durationSeconds: number; placement: number }
+
+/** Calendrier d'activité d'un ensemble de parties (la page « Calendrier d'activité », en heure de Paris). Pur. */
+export function buildPlaySchedule(plays: readonly SchedulePlay[]) {
+  const cells = new Map<string, ActivityCell>()
+  const byDay = Array.from({ length: 7 }, () => ({ matches: 0, wins: 0 }))
+  const weekdayHours: number[] = []
+  const weekendHours: number[] = []
+  const sessions = new Set<string>()
+  let playtimeSeconds = 0
+  for (const play of plays) {
+    const { dayIndex, hour } = parisSlot(play.playedAt)
+    const key = `${dayIndex}-${hour}`
+    const cell = cells.get(key) ?? { dayIndex, hour, count: 0 }
+    cell.count += 1
+    cells.set(key, cell)
+    byDay[dayIndex].matches += 1
+    if (play.placement === 1) byDay[dayIndex].wins += 1
+    // La nuit du vendredi (01:00 samedi) est une soirée de semaine : la journée de jeu commence à 06:00.
+    const sessionDay = parisSlot(new Date(play.playedAt.getTime() - 6 * 60 * 60 * 1000)).dayIndex
+    ;(sessionDay <= 4 ? weekdayHours : weekendHours).push(hour)
+    sessions.add(sessionDateOf(play.playedAt))
+    playtimeSeconds += Math.max(0, play.durationSeconds)
+  }
+  const all = [...cells.values()]
+  const total = plays.length
+  const activeDays = sessions.size
+  const favorites: Array<{ slot: string; matches: number }> = []
+  const remaining = [...all]
+  while (favorites.length < SCHEDULE_SLOTS_MAX) {
+    const best = busiestSlot(remaining)
+    if (!best) break
+    favorites.push({ slot: slotLabel(best), matches: best.count })
+    remaining.splice(remaining.indexOf(best), 1)
+  }
+  const dayTotals = activityByDay(all)
+  return {
+    matches: total,
+    activeDays,
+    playtimeHours: round1(playtimeSeconds / 3600),
+    perActiveDay: activeDays > 0 ? { matches: round1(total / activeDays), hours: round1(playtimeSeconds / 3600 / activeDays) } : null,
+    byWeekday: WEEKDAY_NAMES.map((day, index) => ({
+      day,
+      matches: dayTotals[index],
+      sharePercent: total > 0 ? Math.round((dayTotals[index] / total) * 100) : 0,
+      wins: byDay[index].wins,
+    })),
+    favoriteSlots: favorites,
+    usualHours: { weekdays: hourWindow(weekdayHours), weekend: hourWindow(weekendHours) },
+    weekSplit: {
+      weekdaysPercent: total > 0 ? Math.round((weekdayHours.length / total) * 100) : 0,
+      weekendPercent: total > 0 ? Math.round((weekendHours.length / total) * 100) : 0,
+    },
+  }
+}
 
 type ToolArgs = Record<string, unknown>
 
@@ -751,6 +867,98 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  async function getPlaySchedule(args: ToolArgs) {
+    const scopeKind = text(args.scope) === 'clan' ? 'clan' : 'player'
+    const requested = text(args.period)
+    const period: StandardPeriod = requested === 'week' || requested === 'month' ? requested : 'all'
+    const periodStart = getPeriodStart(period)
+    if (scopeKind === 'clan') {
+      const rows = await prisma.squadMatch.findMany({
+        where: {
+          matchType: 'official',
+          ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
+          members: { some: { member: { clanId: scope.clanId, isActive: true } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: SCHEDULE_MATCHES_MAX,
+        select: { createdAt: true, placement: true, members: { select: { timeSurvived: true } } },
+      })
+      const plays = rows.map((row) => ({ playedAt: row.createdAt, durationSeconds: Math.max(0, ...row.members.map((member) => member.timeSurvived)), placement: row.placement }))
+      return { scope: 'le clan', period: PERIOD_LABELS[period], ...buildPlaySchedule(plays), note: 'Parties officielles d’escouade du clan, heure de Paris ; une soirée commence à 06:00.' }
+    }
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const rows = await prisma.match.findMany({
+      where: { memberId: resolved.memberId, matchType: 'official', ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}) },
+      orderBy: { pubgCreatedAt: 'desc' },
+      take: SCHEDULE_MATCHES_MAX,
+      select: { pubgCreatedAt: true, duration: true, placement: true },
+    })
+    const plays = rows.map((row) => ({ playedAt: row.pubgCreatedAt, durationSeconds: row.duration, placement: row.placement }))
+    return { scope: resolved.memberName, period: PERIOD_LABELS[period], ...buildPlaySchedule(plays), note: 'Toutes ses parties officielles (même sans coéquipier du clan), heure de Paris ; une soirée commence à 06:00.' }
+  }
+
+  async function getPlayerBenchmark(args: ToolArgs) {
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const { memberId, memberName } = resolved
+    const requested = text(args.period)
+    const period: StandardPeriod = requested === 'month' || requested === 'all' ? requested : 'week'
+    const mode = parsePlayersMode(text(args.mode) || null)
+    const ranking = await getPlayersRanking(period, mode)
+    const base = {
+      player: memberName,
+      period: PERIOD_LABELS[period],
+      mode: PLAYERS_MODE_WHEN[mode],
+      playersRanked: ranking.ranked.length,
+      clansCompared: ranking.clans.length,
+      minMatches: ranking.minMatches,
+    }
+    const entry = ranking.ranked.find((candidate) => candidate.memberId === memberId)
+    if (!entry) {
+      const pending = ranking.qualifying.find((candidate) => candidate.memberId === memberId)
+      const matches = pending?.matches ?? 0
+      return { ...base, ranked: false, matches, required: ranking.minMatches, message: `Encore ${Math.max(0, ranking.minMatches - matches)} partie(s) officielle(s) de clan pour être classé.` }
+    }
+    const criteria = PLAYER_CRITERIA.flatMap((criterion) => {
+      const standing = myStanding(rankPlayers(ranking.ranked, criterion.key), ranking.qualifying, memberId, criterion.key, ranking.minMatches)
+      if (!standing || standing.kind !== 'ranked' || standing.value === null) return []
+      return [
+        {
+          criterion: criterion.label,
+          kind: criterion.kind === 'role' ? 'score sur 100 (centile entre clans)' : 'moyenne par partie',
+          value: criterion.format(standing.value),
+          position: standing.position,
+          of: standing.total,
+          aheadSharePercent: standing.aheadShare,
+          previousPosition: previousRankOf(entry, criterion.key),
+          justAhead: standing.ahead ? { player: standing.ahead.name, clanTag: standing.ahead.clanTag, gap: standing.ahead.gap } : null,
+        },
+      ]
+    })
+    return {
+      ...base,
+      ranked: true,
+      matches: entry.matches,
+      wins: entry.wins,
+      style: entry.style,
+      roles: PLAYER_ROLES.map((role) => ({ role: role.label, score: entry.roles[role.id], measures: role.hint })),
+      averages: {
+        damage: Math.round(entry.avgDamage),
+        kills: entry.avgKills,
+        knocks: entry.avgKnocks,
+        revives: entry.avgRevives,
+        assists: entry.avgAssists,
+        survivalMinutes: round1(entry.avgSurvivalSeconds / 60),
+        headshotRatePercent: entry.headshotRate === null ? null : Math.round(entry.headshotRate * 100),
+        avgKillDistanceM: entry.avgKillDistance === null ? null : Math.round(entry.avgKillDistance),
+        zoneInsidePercent: entry.zoneInsideRate === null ? null : Math.round(entry.zoneInsideRate * 100),
+      },
+      criteria,
+      note: 'Classement « Joueurs » du site : parties officielles de clan de tous les clans suivis. Un score de rôle sur 100 est la part des joueurs classés dépassés (centile entre clans), pas le style de jeu relatif au clan.',
+    }
+  }
+
   // Tournois : pages publiques, quel que soit le clan organisateur. Le clan du joueur sert seulement à le situer.
   const isMine = (participant: TournamentStandingSummary['participant']) => participantClanIds(participant).includes(scope.clanId)
   const podiumLine = (entry: TournamentStandingSummary, rank: number) => ({ rank, label: entry.label, points: round1(entry.totalPoints), kills: entry.totalKills, wins: entry.wins })
@@ -881,6 +1089,8 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     getTournamentResults,
     getItemUsage,
     getMapPerformance,
+    getPlaySchedule,
+    getPlayerBenchmark,
   }
 
   return {

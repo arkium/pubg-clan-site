@@ -59,6 +59,8 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getTournamentResults: 'Je lis le classement du tournoi…',
   getItemUsage: 'Je regarde tes objets consommés…',
   getMapPerformance: 'Je compare les cartes du clan…',
+  getPlaySchedule: 'Je regarde quand tu joues…',
+  getPlayerBenchmark: 'Je te situe parmi les joueurs du site…',
 }
 
 /** Lecture stricte du corps d'une question : rien d'autre n'entre. */

@@ -32,7 +32,10 @@ export function coachProvisionalContext(path: string | null | undefined): { labe
       if (parsed.page === 'nemesis') return { label: 'Adversaires', suggestions: ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?'] }
       if (parsed.page === 'drop-zones') return { label: 'Largages', suggestions: ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?'] }
       if (parsed.page === 'items') return { label: 'Objets', suggestions: ['Je me soigne assez ?', 'Quels boosts je consomme le plus ?', 'Combien de grenades je lance par partie ?'] }
+      if (parsed.page === 'heatmap') return { label: 'Activité', suggestions: ['Quand est-ce que je joue le plus ?', 'Mon horaire de jeu en semaine ?', 'Combien de soirées par semaine ?'] }
       break
+    case 'players':
+      return { label: 'Joueurs', suggestions: ['Où je me situe ?', 'Quel est mon rôle ?', 'Qui est juste devant moi ?'] }
     default:
       break
   }

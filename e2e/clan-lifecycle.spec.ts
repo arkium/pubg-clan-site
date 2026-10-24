@@ -243,9 +243,10 @@ test('salon d’administration : alertes, mention d’un rôle, message de test'
   const card = page.getByTestId('lifecycle-admin-alerts')
   const events = card.getByTestId('lifecycle-alert-events')
 
-  // Tout est activé par défaut ; les alertes à traiter portent la pastille de mention (6 sur 8).
+  // Tout est activé par défaut ; les alertes à traiter portent la pastille de mention (8 sur 11 depuis les trois
+  // alertes du Coach IA, 2026-10-24 : plafond et erreurs à traiter, avis sur le modèle pour information).
   await expect(events.getByTestId('lifecycle-alert-clan_request')).toHaveAttribute('aria-checked', 'true')
-  await expect(events.getByText('À traiter · mention')).toHaveCount(6)
+  await expect(events.getByText('À traiter · mention')).toHaveCount(8)
 
   // Un interrupteur = un PATCH qui ne nomme que lui.
   await events.getByTestId('lifecycle-alert-resource_queue').click()

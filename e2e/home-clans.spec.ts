@@ -20,7 +20,13 @@ test('le hub des clans ferme la vitrine, juste après la ligne « Lecture de zon
   await openHome(page, api, 'reduce')
   const hub = page.getByTestId('home-clans-hub')
   await expect(hub).toBeVisible()
-  await expect(page.locator('[data-testid="home-zone-players"] + section[data-testid="home-clans-hub"]')).toHaveCount(1)
+  // Juste après « Lecture de zone · Joueurs » — ou après la carte « Coach IA », rendue par le serveur quand le Coach
+  // est ouvert dans la base locale (docs/features/coach-ia.md §8) : le hub reste la section qui suit.
+  const next = page.locator('[data-testid="home-zone-players"] + *')
+  await expect(next).toHaveAttribute('data-testid', /^(home-clans-hub|home-coach)$/)
+  if ((await next.getAttribute('data-testid')) === 'home-coach') {
+    await expect(page.locator('[data-testid="home-coach"] + section[data-testid="home-clans-hub"]')).toHaveCount(1)
+  }
   // Dernière section de la zone principale, juste avant le pied de page (<main> autour de la vitrine, 2026-10-11).
   await expect(page.locator('main > [data-testid="home-clans-hub"]:last-child')).toHaveCount(1)
   await expect(page.locator('main + footer.home-footer')).toHaveCount(1)

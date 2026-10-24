@@ -3,9 +3,9 @@
 > **Document de référence du chantier « Coach IA »** : toute décision nouvelle s'inscrit au §0, toute case cochée du
 > plan (§13) porte sa date et son commit. Destiné à l'équipe de développement, au SuperUser et à Claude Design.
 >
-> - **Statut (2026-10-24) :** **lots 0 à 8 livrés** sur la branche **`feat/coach-ia`** (commits par lot, §13) ;
->   reste le lot 9 (tests de bout en bout, build, mise en production avec le Coach fermé). Maquettes « Coach IA - Fait »
->   et « Coach IA - Compléments » relues (§11). `main` reste la production, rien n'y est fusionné avant le lot 9.
+> - **Statut (2026-10-25) :** **lots 0 à 9 livrés** — tests de bout en bout passés sur le build, branche fusionnée
+>   dans `main` pour le déploiement du 2026-10-25 au soir (procédure au §13, lot 9, et dans la fiche §12). Maquettes
+>   « Coach IA - Fait » et « Coach IA - Compléments » relues (§11).
 > - **Charte :** [docs/ui/index.html#coach-ia](../ui/index.html#coach-ia) (section 44) — composants du Coach traduits
 >   dans les jetons du site, reportés dans `globals.css`. Elle fait foi sur la maquette pour les couleurs, rayons,
 >   tailles et animations.
@@ -900,11 +900,21 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
 
 ### Lot 9 — Tests de bout en bout et mise en production
 
-- [ ] `e2e/coach.spec.ts` et réponses figées (§12) ; suite complète sur le build (`E2E_PORT=3001`)
-- [ ] Déploiement : migration, clé dans le `.env` du serveur (lisible par l'utilisateur des services), Coach **fermé**
-- [ ] Vérification derrière Nginx : flux mot à mot en production
-- [ ] Ouverture au SuperUser seul, une soirée de test, puis interrupteur ouvert à tous ; carte de vitrine en ligne
-- [ ] Bilan après une semaine : coût réel par question, votes « Inexact », questions hors sujet → §0 et §2.3 mis à jour
+- [x] `e2e/coach.spec.ts` et réponses figées (§12, `e2e/support/coach.ts`, flux SSE servi par `ApiMock` avec
+      `contentType`) : 13 tests, captures tiroir / panneau en clair et sombre sur les 4 profils — 2026-10-25
+- [x] Suite complète sur le build (`E2E_PORT=3001`, 2026-10-25, 26,8 min) : 1 603 verts, 24 écarts tous expliqués —
+      deux tests à adapter (8 alertes « à traiter » au lieu de 6 ; la carte Coach de la vitrine quand `coach_enabled`
+      est vrai en base), captures de référence à régénérer (classement mobile / tablette / WebKit, bouton d'en-tête ;
+      sur ordinateur l'ancienne référence reste sous la tolérance de 1 %), et 6 écarts **WebKit seulement** déjà
+      connus (requêtes interrompues par une redirection « access control checks », formulaires `/join` et
+      `/confidentialite/demande`) — hors Coach, non bloquants
+- [ ] Déploiement : migration (**déjà appliquée** en base le 2026-10-24), clé `GEMINI_API_KEY` dans le `.env` du serveur
+      (**posée** par l'utilisateur le 2026-10-25), `deploy.sh`, puis `seed-coach-admin-nav.ts` et `seed-coach-nav.ts`
+      en `smk`. **Attention :** `coach_enabled` vaut déjà `true` en base (interrupteur ouvert depuis `/settings/coach`
+      en local le 2026-10-24) — le Coach sera ouvert à tous dès le redémarrage, sauf à le refermer avant
+- [ ] Vérification derrière Nginx : flux mot à mot en production (`/settings/coach` → « Tester », puis une question)
+- [ ] Soirée de test, puis bilan après une semaine : coût réel par question, votes « Inexact », questions hors sujet
+      → §0 et §2.3 mis à jour ; `public/vitrine-coach-ia.jpg` à fournir
 
 ---
 

@@ -11,7 +11,8 @@ import { CLAN_ID, clanList } from './data'
  * atteignent la base configurée dans `.env`.
  */
 
-export type ApiReply = { status?: number; body: unknown }
+/** `contentType` : corps servi tel quel (texte), pour un flux `text/event-stream` figé ; sinon JSON. */
+export type ApiReply = { status?: number; body: unknown; contentType?: string }
 export type ApiHandler = ApiReply | ((url: URL, request: Request) => ApiReply)
 
 /** Le shell (header, navigation, session) : mode visiteur, sans session. */
@@ -49,12 +50,15 @@ export class ApiMock {
       }
       this.served.push({ method: request.method(), url })
       const reply = typeof handler === 'function' ? handler(url, request) : handler
+      if (reply.contentType) {
+        return route.fulfill({ status: reply.status ?? 200, body: String(reply.body), headers: { 'content-type': reply.contentType, 'cache-control': 'no-cache' } })
+      }
       return route.fulfill({ status: reply.status ?? 200, json: reply.body })
     })
   }
 
   /** Déclare la réponse d'une API (`GET /api/clans/1/leaderboard`, paramètres ignorés). */
-  on(method: 'GET' | 'POST' | 'PUT' | 'PATCH', pathname: string, handler: ApiHandler) {
+  on(method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE', pathname: string, handler: ApiHandler) {
     this.handlers.set(`${method} ${pathname}`, handler)
     return this
   }

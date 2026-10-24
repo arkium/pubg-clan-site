@@ -48,6 +48,7 @@ captures — est vérifié par Playwright, dans `e2e/`.
 | `e2e/member-heatmap.spec.ts` | Calendrier d'activité d'un joueur ([member-dashboard.md](../features/member-dashboard.md) §5) : chiffres clés et créneau favori, résumé sous le titre (plus d'encart dans le bandeau), cases sur l'échelle `app-seq` (palier 4 au créneau le plus joué), périmètre « Tout le clan » et autre joueur, couleur de style de jeu des pastilles et légende, sélecteur de carte ‹ › (« Toutes » ↔ Erangel), période sans partie, aucun défilement horizontal. Données : `e2e/support/activity-heatmap.ts` |
 | `e2e/member-items.spec.ts` | Objets consommés d'un joueur ([objets-consommes.md](../features/objets-consommes.md)) : bannière et fil d'Ariane vers son tableau de bord, chiffres clés (objets, par match, famille dominante), familles et objets aux noms français, période qui recharge sans replier la page, aucun défilement horizontal. Données : `mockMemberItems` (`e2e/support/pages.ts`) |
 | `e2e/nemesis.spec.ts` | Némésis ([nemesis.md](../features/nemesis.md)) : face-à-face et revanche calculée sur le duel inverse, bilan (joueurs, bots et zone à part), chasseurs paginés par 5 avec badge de duel et « Joueur inconnu », onglets Chasseurs / Proies sur mobile, death cam, période et arme transmises à l'API (pastille colorée), bandeau docké sur une ligne aussi sur mobile, aucun défilement horizontal. Données : `e2e/support/nemesis.ts` |
+| `e2e/coach.spec.ts` | Coach IA ([coach-ia.md](../features/coach-ia.md)) : visiteur (teaser flouté, liens `/join` et `/login`, saisie fermée, **aucun appel** aux API du Coach, Échap rend le focus au bouton) ; membre (question envoyée par Entrée, **flux SSE figé** servi par `ApiMock` avec `contentType: 'text/event-stream'`, réponse en Markdown, quota « 14 / 20 » → « 13 / 20 », vote « Utile » (corps vérifié), fil conservé à la fermeture, liste des fils et réouverture d'un fil enregistré) ; débriefing (bouton contextuel, « Ce match » puis l'étiquette du serveur, `contextPath` envoyé ; sur mobile, panneau montant dans la fenêtre et saisie visible) ; états (pause, limite de l'heure avec l'heure de Paris) ; page plein écran ; SuperUser (`/settings/coach` : tuiles radio, « Tester », interrupteur enregistré seul, brouillon ; consommation ; questions paginées et « Relu ») ; captures du tiroir (ordinateur) et du panneau (mobile) en clair et en sombre ; aucun défilement horizontal. Données : `e2e/support/coach.ts` |
 | `e2e/visual.spec.ts` | Captures repos / docké / menu ouvert, thèmes clair et sombre |
 
 Profils (`playwright.config.ts`) : Chromium 1 280 px, 768 px et 375 px, et WebKit profil iPhone 13 (approximation
@@ -100,6 +101,9 @@ régénérée avant de la valider.
 ## Écrire un test
 
 - Déclarer les réponses de la page (`mockXxx(api)` dans `e2e/support/pages.ts`) avant `page.goto`.
+- Une réponse qui n'est pas du JSON (flux `text/event-stream` du Coach IA) : `api.on(…, { body: '<texte>', contentType:
+  'text/event-stream' })` — servie d'un bloc, lue par le navigateur comme un flux. `on` accepte aussi `DELETE`
+  (2026-10-25).
 - Cliquer dans un bandeau docké avec `clickInPlace(page, locator)` : `locator.click()` fait d'abord défiler jusqu'à la
   position d'origine de l'élément collant, ce qui dédocke le bandeau.
 - Avant de naviguer vers une autre page, attendre `networkidle` : WebKit signale comme erreurs les requêtes

@@ -1,0 +1,85 @@
+import { describe, expect, it } from 'vitest'
+
+import {
+  coachContextLabel,
+  coachContextPromptBlock,
+  coachSuggestions,
+  parseCoachContextPath,
+  placementLabel,
+  type CoachResolvedContext,
+} from '@/lib/coach/coach-context'
+
+describe('reconnaissance du chemin de page', () => {
+  it('reconnaît les pages du clan', () => {
+    expect(parseCoachContextPath('/clans/292/telemetry/matches/cmatch123/debrief')).toEqual({ kind: 'match', clanId: 292, matchId: 'cmatch123' })
+    expect(parseCoachContextPath('/clans/292/telemetry/matches/cmatch123/debrief?tab=replay#x')).toEqual({ kind: 'match', clanId: 292, matchId: 'cmatch123' })
+    expect(parseCoachContextPath('/clans/292/matches/session/2026-10-22')).toEqual({ kind: 'session', clanId: 292, date: '2026-10-22' })
+    expect(parseCoachContextPath('/clans/292/matches')).toEqual({ kind: 'clan', clanId: 292, page: 'matches' })
+    expect(parseCoachContextPath('/clans/292/stats/weapons')).toEqual({ kind: 'clan', clanId: 292, page: 'weapons' })
+    expect(parseCoachContextPath('/clans/292/stats/opponents')).toEqual({ kind: 'clan', clanId: 292, page: 'opponents' })
+    expect(parseCoachContextPath('/clans/292/drop-zones')).toEqual({ kind: 'clan', clanId: 292, page: 'drop-zones' })
+    expect(parseCoachContextPath('/clans/292/overview')).toEqual({ kind: 'clan', clanId: 292, page: 'other' })
+  })
+
+  it('reconnaît les pages joueur et tournoi', () => {
+    expect(parseCoachContextPath('/members/77/weapons')).toEqual({ kind: 'member', memberId: 77, page: 'weapons' })
+    expect(parseCoachContextPath('/members/77/nemesis')).toEqual({ kind: 'member', memberId: 77, page: 'nemesis' })
+    expect(parseCoachContextPath('/members/77/dashboard')).toEqual({ kind: 'member', memberId: 77, page: 'other' })
+    expect(parseCoachContextPath('/tournaments/ctour1/matches/cmatch9')).toEqual({ kind: 'tournament-match', tournamentId: 'ctour1', matchId: 'cmatch9' })
+  })
+
+  it('ne fait confiance à rien d’autre', () => {
+    expect(parseCoachContextPath(null)).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('')).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('/players')).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('/clans/abc/matches')).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('/clans/0/matches')).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('/members/-1/weapons')).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('/clans/1/telemetry/matches/../../debrief')).toEqual({ kind: 'clan', clanId: 1, page: 'other' })
+    expect(parseCoachContextPath('/clans/1/telemetry/matches/%2e%2e/debrief')).toEqual({ kind: 'clan', clanId: 1, page: 'other' })
+    expect(parseCoachContextPath(`/clans/1/${'a'.repeat(600)}`)).toEqual({ kind: 'none' })
+  })
+})
+
+const match: CoachResolvedContext = {
+  kind: 'match',
+  matchId: 'cmatch123',
+  mapName: 'Erangel_Main',
+  mapLabel: 'Erangel',
+  createdAt: new Date('2026-10-22T19:47:00Z'),
+  placement: 3,
+  squadKills: 18,
+  telemetryAnalyzed: true,
+}
+
+describe('étiquette, suggestions et bloc de prompt', () => {
+  it('écrit le bandeau sans numéro de match, à l’heure de Paris', () => {
+    expect(coachContextLabel(match)).toBe('Erangel · 22 oct. 21:47 · Top 3')
+    expect(placementLabel(1)).toBe('Top 1')
+    expect(placementLabel(10)).toBe('Top 10')
+    expect(placementLabel(17)).toBe('17e')
+    expect(coachContextLabel({ kind: 'session', date: '2026-10-22' })).toBe('Soirée du 22/10')
+    expect(coachContextLabel({ kind: 'none' })).toBeNull()
+  })
+
+  it('propose trois suggestions quel que soit le contexte', () => {
+    const kinds: CoachResolvedContext[] = [
+      match,
+      { ...match, telemetryAnalyzed: false },
+      { kind: 'session', date: '2026-10-22' },
+      { kind: 'weapons', memberId: 7, memberName: 'NovakTV' },
+      { kind: 'opponents' },
+      { kind: 'drop-zones' },
+      { kind: 'none' },
+    ]
+    for (const context of kinds) expect(coachSuggestions(context)).toHaveLength(3)
+    expect(coachSuggestions(match)[0]).toBe('Pourquoi on s’est fait sortir ?')
+  })
+
+  it('dit au modèle quel outil appeler', () => {
+    expect(coachContextPromptBlock(match)).toContain('getMatchDebrief avec matchId « cmatch123 »')
+    expect(coachContextPromptBlock({ ...match, telemetryAnalyzed: false })).toContain('pas encore analysée')
+    expect(coachContextPromptBlock({ kind: 'weapons', memberId: 7, memberName: 'NovakTV' })).toContain('getWeaponStats')
+    expect(coachContextPromptBlock({ kind: 'none' })).toContain('sans contexte')
+  })
+})

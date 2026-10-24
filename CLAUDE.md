@@ -483,6 +483,7 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `npm run sync:pubg-assets` | Fetch weapon/map/phase labels from PUBG API (seeds `Label` table) |
 | `npm run telemetry:zone-reading:backfill` | Lecture de zone : ligne de vol et cercles de chaque partie déjà analysée (`ZoneReadingMatch`, relançable) |
 | `npx tsx scripts/coach-model-probe.ts [--list]` | Essai des modèles Gemini du Coach IA (API REST, outils bouchons, coût affiché) — docs/TODO/chatbot-ia.md §3.4 |
+| `npx tsx scripts/coach-tools-probe.ts` | Mesure des cinq outils du Coach IA sur la vraie base (lecture seule : durée, taille, tokens estimés) |
 
 ## Environment & Known Issues
 

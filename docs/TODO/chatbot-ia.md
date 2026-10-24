@@ -112,6 +112,9 @@ renverront plus de données et l'historique s'ajoutera : hypothèse de productio
 | `gemini-3.8-flash` (jusqu'au 31/12/2026) | 0,75 | 3,75 | 0,0035 $ (réflexion ≈ 1 100 tokens) | 0,009 $ | ≈ 260 |
 | `gemini-3.6` / `3.8-flash` à partir du 1er janvier 2027 | 1,50 | 7,50 | — | 0,018 $ | ≈ 130 |
 
+Mesure du lot 3 avec les **vrais outils** (`scripts/coach-tools-probe.ts`, clan 3) : un résultat d'outil pèse 100 à
+700 tokens ; une question à deux tours d'outils ≈ 3 000 à 4 000 tokens en entrée — l'hypothèse de 5 000 tient.
+
 Un joueur assidu (30 questions par soirée, 8 soirées par mois) consomme environ **0,50 €** avec le modèle par défaut :
 les 2 € sont un **plafond de sécurité**. Aujourd'hui **22 comptes** peuvent utiliser le Coach (relevé du 2026-10-24 :
 22 comptes, 632 membres actifs dont 583 ont joué sur 30 jours) — pire cas théorique 44 € par mois, d'où le plafond
@@ -160,12 +163,15 @@ comprise.**
 
 ### 3.3 Intégration
 
-- SDK officiel **`@google/genai`** (version exacte épinglée), appelé **côté serveur seulement** ; clé `GEMINI_API_KEY`
-  dans `.env` (jamais `NEXT_PUBLIC_`). Refus au démarrage du Coach si la clé manque (Coach fermé, pas de plantage).
-- Derrière une interface interne `CoachModelProvider` (`streamChat({ system, history, tools, signal })`) : changer
-  de modèle Gemini = changer d'identifiant ; un autre fournisseur plus tard = un nouvel adaptateur, sans toucher aux
-  outils ni aux routes.
-- Pas de Vercel AI SDK en V1 : une seule famille de modèles, une dépendance de moins.
+- **API REST appelée directement** (`fetch`, `streamGenerateContent?alt=sse`), **côté serveur seulement** ; clé
+  `GEMINI_API_KEY` dans `.env` (jamais `NEXT_PUBLIC_`). Sans clé, le Coach est fermé (pas de plantage). Décision du
+  2026-10-24, lot 3 : le flux et les appels d'outils ont été éprouvés en REST à l'essai du lot 0 ; pas de SDK
+  (`@google/genai` ou Vercel AI SDK) en V1 — une dépendance de moins, et le flux arrive tel que le serveur le relaie.
+- Derrière une interface interne `CoachModelProvider` (`streamAnswer({ model, system, history, question, tools,
+  runTool, maxToolRounds, signal, onDelta })`, `src/lib/coach/coach-provider.ts`) : changer de modèle Gemini = changer
+  d'identifiant ; un autre fournisseur plus tard = un nouvel adaptateur, sans toucher aux outils ni aux routes.
+  Adaptateur : `coach-provider-gemini.ts` (niveau de réflexion du catalogue, repli sans réglage sur 400, parts du
+  modèle réexpédiées telles quelles entre deux tours, délai de 30 s par tour, abandon par le `signal` du client).
 
 ### 3.4 Essai du lot 0 (2026-10-24)
 
@@ -300,11 +306,20 @@ affiché dans `/settings/configuration` (section « Coach IA »).
 
 ### 5.2 Outils de la V1
 
-1. `getRecentMatches({ limit, mapName?, matchType? })` — parties récentes du clan, groupées par soirée (`sessionDateOf`).
-2. `getMatchDebrief({ matchId })` — phases, chronologie des knocks et morts, distances, dégâts subis.
-3. `getWeaponStats({ playerName?, weaponCategory? })` — armes d'un membre du clan (le joueur lui-même par défaut).
-4. `getOpponentRecord({ clanTag })` — bilan face à un clan adverse.
-5. `getDropZones({ mapName })` — zones de largage, survie et placement.
+1. `getRecentMatches({ limit?, mapName? })` — parties récentes du clan (10 au plus), soirée par `sessionDateOf`, état de
+   la télémétrie.
+2. `getMatchDebrief({ matchId })` — `loadMatchDebriefPayload` (même source que la page) : en-tête, phases, escouade
+   (kills, dégâts, mises à terre, dégâts subis), 60 événements de l'escouade au plus à l'horloge du replay, clans
+   adverses rencontrés ; télémétrie non analysée = dit tel quel.
+3. `getWeaponStats({ playerName?, weaponCategory?, period? })` — `MemberWeaponStats` (`all-time` ou mois en cours) +
+   `aggregateMemberWeapons`, 8 armes au plus ; un autre joueur n'est cherché que dans le clan.
+4. `getOpponentRecord({ clanTag })` — `OpponentClan` → ses joueurs (200 au plus) → `KillEvent` du clan : kills
+   échangés, matchs avec combat, tueurs et armes adverses, dernière rencontre (`ClanEncounter`).
+5. `getDropZones({ mapName })` — `DropPressureStat` des 90 derniers jours (une ligne par partie), ville par
+   `locationForPercent`, pression, placement moyen, Top 10 et Top 1 par ville.
+
+Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, memberName })`), tests
+`coach-tools.test.ts`. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).
 
 ### 5.3 Règles
 
@@ -364,8 +379,10 @@ Entrée : `{ "conversationId": 42 | null, "contextPath": "/clans/292/telemetry/m
 1. Garde → 401 / 403. Coach fermé ou clé absente → 503 `{ error: 'coach_paused' }`.
 2. Validation (zod) : longueur, fil appartenant au compte.
 3. Quota et budget → 429 `{ error: 'hourly_limit' | 'monthly_budget' | 'too_fast', retryAt }`.
-4. `contextPath` reconnu par motif (débriefing, armes, joueur, adversaires…) puis **vérifié** (le match ou le joueur
-   appartient au clan) ; sinon ignoré.
+4. `contextPath` reconnu par motif (`parseCoachContextPath`, pur) puis **vérifié** par `resolveCoachContext`
+   (`coach-context-service.ts` : le match compte un membre du clan, le joueur en est membre, le clan de l'adresse est
+   celui de la session) ; sinon « sans contexte ». Le contexte donne l'étiquette du bandeau, les trois suggestions et
+   le bloc du prompt (`coach-context.ts`).
 5. Réservation `CoachUsage` (`pending`), message utilisateur enregistré.
 6. Appel au modèle, outils, flux ; message du Coach enregistré à la fin, **même interrompu** (`aborted`).
 
@@ -703,12 +720,19 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 3 — Fournisseur, outils, prompt
 
-- [ ] `@google/genai` installé, version exacte épinglée
-- [ ] `coach-provider.ts` (interface) + `coach-provider-gemini.ts` (flux, outils, `thinking_level` minimal, `signal`)
-- [ ] `coach-context.ts` (+ tests) ; `coach-prompt.ts` (§6)
-- [ ] Les cinq outils du §5.2 dans `src/lib/coach/tools/`, liés au clan par fermeture, sur les services des pages
-- [ ] `coach-tools.test.ts` (étanchéité, données d'authentification, télémétrie compressée)
-- **Contrôles :** chaque outil mesuré sur la base de dev (< 1 s) ; aucune lecture d'`EncounteredPlayer` (`grep`)
+- [x] ~~`@google/genai` installé~~ → **API REST directe, sans SDK** (décision du 2026-10-24, §3.3)
+- [x] `coach-provider.ts` (interface) + `coach-provider-gemini.ts` (flux SSE, tours d'outils, niveau de réflexion du
+      catalogue avec repli sur 400, délai par tour, `signal`) + `coach-provider-gemini.test.ts` (7 tests sur des flux
+      écrits à la main) — 2026-10-24
+- [x] `coach-context.ts` (motifs, étiquette, suggestions, bloc de prompt) + `coach-context-service.ts` (vérification
+      en base) + tests ; `coach-prompt.ts` (§6, exception déclarée dans `tutoiement.test.ts`) — 2026-10-24
+- [x] Les cinq outils du §5.2 dans `src/lib/coach/coach-tools.ts`, liés au clan par fermeture, sur les services des
+      pages (`loadMatchDebriefPayload`, `aggregateMemberWeapons`, `locationForPercent`…) — 2026-10-24
+- [x] `coach-tools.test.ts` (14 tests : étanchéité des déclarations, bornes, formes ; la télémétrie compressée est
+      lue par le chargeur de la page, `decodeTelemetryRow` compris) — 2026-10-24
+- [x] **Contrôles :** `scripts/coach-tools-probe.ts` sur la vraie base (lecture seule, clan 3) : contexte 38 ms,
+      parties 286 ms, débriefing 225 ms, armes 22 ms, adversaire 192 ms, largages 182 ms — tous < 1 s ; résultats de
+      100 à 700 tokens ; aucune lecture d'`EncounteredPlayer` (`grep`) — 2026-10-24
 
 ### Lot 4 — Routes API
 

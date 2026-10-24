@@ -17,6 +17,8 @@ const ROOT = path.resolve(__dirname, '..', '..')
 const PLURAL_ADDRESS = new Set([
   // Verdict de la lecture de zone : il parle à l'escouade (« Maîtres du centre », « vous lisez la zone »).
   'src/lib/zone-closure-view.ts',
+  // Prompt système du Coach IA : la consigne même qui réserve « vous » à l'escouade (docs/TODO/chatbot-ia.md §6).
+  'src/lib/coach/coach-prompt.ts',
 ])
 
 /** Mots en « -ez » qui ne sont pas des verbes. */

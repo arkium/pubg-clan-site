@@ -11,6 +11,8 @@
 >   tailles et animations.
 > - **Fiche de la fonctionnalité** (ce que le code fait, à jour) : [docs/features/coach-ia.md](../features/coach-ia.md).
 >   Ce document garde l'historique des décisions et le plan.
+> - **Pistes d'évolution** (liens dans les réponses, boutons 1-clic, cohésion, benchmark, chronique de soirée),
+>   faisabilité vérifiée contre le code et ordre conseillé : [coach-ia-pistes.md](coach-ia-pistes.md) (2026-10-24).
 
 **Objectif :** un assistant conversationnel réservé aux membres connectés, qui répond à partir de la télémétrie PUBG
 du site (débriefing, armes, adversaires, largages). Mis en avant sur la vitrine publique comme raison de rejoindre ou

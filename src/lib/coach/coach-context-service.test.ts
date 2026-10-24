@@ -1,9 +1,13 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const mocks = vi.hoisted(() => ({ squadMatchFindFirst: vi.fn(), memberFindFirst: vi.fn() }))
+const mocks = vi.hoisted(() => ({ squadMatchFindFirst: vi.fn(), memberFindFirst: vi.fn(), tournamentFindFirst: vi.fn() }))
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { squadMatch: { findFirst: mocks.squadMatchFindFirst }, clanMember: { findFirst: mocks.memberFindFirst } },
+  prisma: {
+    squadMatch: { findFirst: mocks.squadMatchFindFirst },
+    clanMember: { findFirst: mocks.memberFindFirst },
+    tournament: { findFirst: mocks.tournamentFindFirst },
+  },
 }))
 vi.mock('@/lib/map-label-service', () => ({
   getMapLabels: async () => ({ Baltic_Main: 'Erangel' }),
@@ -18,6 +22,7 @@ const match = { id: 'cmatch1', mapName: 'Baltic_Main', createdAt: new Date('2026
 beforeEach(() => {
   mocks.squadMatchFindFirst.mockReset()
   mocks.memberFindFirst.mockReset()
+  mocks.tournamentFindFirst.mockReset()
 })
 
 describe('vérification du contexte de page', () => {
@@ -40,6 +45,19 @@ describe('vérification du contexte de page', () => {
   it('accepte une manche de tournoi si le clan y a joué', async () => {
     mocks.squadMatchFindFirst.mockResolvedValue({ ...match, telemetry: null })
     expect(await resolveCoachContext('/tournaments/ctour1/matches/cmatch1', scope)).toMatchObject({ kind: 'match', telemetryAnalyzed: false })
+  })
+
+  it('retient un tournoi publié, quel que soit son organisateur, jamais un brouillon', async () => {
+    const tournament = { id: 'ctour1', title: 'L’Observateur des fun', status: 'active', startDate: new Date('2026-10-23T18:00:00Z'), endDate: new Date('2026-10-23T23:00:00Z') }
+    mocks.tournamentFindFirst.mockResolvedValue(tournament)
+    expect(await resolveCoachContext('/tournaments/ctour1', scope)).toEqual({ kind: 'tournament', tournamentId: 'ctour1', title: 'L’Observateur des fun', phase: 'finished' })
+    expect(mocks.tournamentFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 'ctour1' } }))
+    expect(await resolveCoachContext('/tournaments/ctour1/matches', scope)).toMatchObject({ kind: 'tournament' })
+
+    mocks.tournamentFindFirst.mockResolvedValue({ ...tournament, status: 'draft' })
+    expect(await resolveCoachContext('/tournaments/ctour1', scope)).toEqual({ kind: 'none' })
+    mocks.tournamentFindFirst.mockResolvedValue(null)
+    expect(await resolveCoachContext('/tournaments/inconnu', scope)).toEqual({ kind: 'none' })
   })
 
   it('reconnaît les pages du clan et de ses membres, jamais celles d’un autre clan', async () => {

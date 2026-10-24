@@ -17,6 +17,8 @@ export function coachProvisionalContext(path: string | null | undefined): { labe
     case 'match':
     case 'tournament-match':
       return { label: 'Ce match', suggestions: ['Pourquoi on s’est fait sortir ?', 'Qui a fait les ouvertures ?', 'Quelles armes nous ont fait mal ?'] }
+    case 'tournament':
+      return { label: 'Ce tournoi', suggestions: ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Quelle manche a fait la différence ?'] }
     case 'session':
       return { label: `Soirée du ${parsed.date.slice(8, 10)}/${parsed.date.slice(5, 7)}`, suggestions: ['Comment s’est passée cette soirée ?', 'Quelle partie a été la meilleure ?', 'Qui a porté l’escouade ?'] }
     case 'clan':

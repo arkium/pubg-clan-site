@@ -10,6 +10,18 @@ import { prisma } from '@/lib/prisma'
 import { formatClock, phaseStartTimes } from '@/lib/pubg-telemetry/debrief-view'
 import { loadMatchDebriefPayload } from '@/lib/pubg-telemetry/match-debrief-payload'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
+import { collectTournamentMemberIds, loadTournamentDirectories } from '@/lib/tournament-directories'
+import { participantClanIds, resolveTournamentPhase, TOURNAMENT_MODE_DISPLAY, type TournamentPhase } from '@/lib/tournament-mode-display'
+import { listTournamentOverviews, type TournamentOverview, type TournamentStandingSummary } from '@/lib/tournament-overview'
+import { formatTournamentPeriod } from '@/lib/tournament-schedule'
+import {
+  computeTournamentModeStandings,
+  getTournamentMatches,
+  getTrackedTournamentClanIds,
+  normalizeTournamentRules,
+  type NormalizedTournamentRules,
+} from '@/lib/tournament-service'
+import { buildRoundViews, buildStandingViews, pickMvp, type TournamentStandingView } from '@/lib/tournament-standings-view'
 import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
 import { aggregateMemberWeapons, type MemberWeaponRow } from '@/lib/weapons/member-arsenal'
 
@@ -44,6 +56,14 @@ const DROP_ROWS_MAX = 2000
 const DROP_DAYS = 90
 const DROP_ZONES_MAX = 8
 const LEADERBOARD_MAX = 15
+const TOURNAMENTS_MAX = 10
+const TOURNAMENTS_DEFAULT = 5
+const TOURNAMENT_STANDINGS_MAX = 20
+const TOURNAMENT_ROUNDS_MAX = 15
+const TOURNAMENT_ROUND_PODIUM = 3
+const TOURNAMENT_DESCRIPTION_MAX = 300
+const TOURNAMENT_PHASES = ['live', 'upcoming', 'finished'] as const
+const TOURNAMENT_PHASE_LABELS: Record<TournamentPhase, string> = { draft: 'brouillon', upcoming: 'à venir', live: 'en cours', finished: 'terminé' }
 
 const PERIOD_PARAMETER = {
   type: 'string',
@@ -126,6 +146,29 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       properties: { period: PERIOD_PARAMETER },
     },
   },
+  {
+    name: 'getTournaments',
+    description:
+      "Tournois du site (parties personnalisées organisées par un clan : inter-clans, équipes, solo ou scrims internes), du plus récent au plus ancien : identifiant, titre, mode, dates, organisateur, manches, vainqueur ou leader, podium, place du clan du joueur quand elle est connue. Pour « qui a gagné le tournoi ? », « quand est le prochain ? » ; puis getTournamentResults avec l'identifiant pour le détail.",
+    parameters: {
+      type: 'object',
+      properties: {
+        status: { type: 'string', enum: [...TOURNAMENT_PHASES], description: '« live » (en cours), « upcoming » (à venir) ou « finished » (terminés) ; sans filtre, tous.' },
+        search: { type: 'string', description: 'Mots du titre du tournoi, pour le retrouver.' },
+        limit: { type: 'integer', description: 'Nombre de tournois (défaut 5, 10 au plus).' },
+      },
+    },
+  },
+  {
+    name: 'getTournamentResults',
+    description:
+      "Détail d'un tournoi : barème, classement complet selon le mode (points, kills, Top 1, place moyenne), place du clan du joueur, chaque manche (carte, vainqueur, MVP, podium de la manche, score du clan du joueur), MVP du tournoi. L'identifiant vient de getTournaments ou de la page consultée.",
+    parameters: {
+      type: 'object',
+      properties: { tournamentId: { type: 'string', description: 'Identifiant du tournoi.' } },
+      required: ['tournamentId'],
+    },
+  },
 ]
 
 type ToolArgs = Record<string, unknown>
@@ -135,6 +178,7 @@ const clampInt = (value: unknown, min: number, max: number, fallback: number) =>
   const parsed = Math.floor(Number(value))
   return Number.isFinite(parsed) ? Math.min(max, Math.max(min, parsed)) : fallback
 }
+const round1 = (value: number) => Math.round(value * 10) / 10
 const normalizeText = (value: string) =>
   value
     .normalize('NFD')
@@ -169,9 +213,20 @@ async function cachedLeague(period: StandardPeriod, now = Date.now()) {
   return payload
 }
 
-/** Tests : repart d'un cache vide. */
+/** Les aperçus de tournois recalculent le classement de chaque tournoi (quelques dizaines) : mêmes 5 minutes. */
+let tournamentOverviewsCache: { at: number; payload: TournamentOverview[] } | null = null
+
+async function cachedTournamentOverviews(now = Date.now()) {
+  if (tournamentOverviewsCache && now - tournamentOverviewsCache.at < LEAGUE_CACHE_TTL_MS) return tournamentOverviewsCache.payload
+  const payload = await listTournamentOverviews(new Date(now))
+  tournamentOverviewsCache = { at: now, payload }
+  return payload
+}
+
+/** Tests : repart des caches vides (Ligue et aperçus de tournois). */
 export function resetCoachLeagueCache() {
   leagueCache.clear()
+  tournamentOverviewsCache = null
 }
 
 function monthPeriodKey(now = new Date()) {
@@ -549,6 +604,124 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  // Tournois : pages publiques, quel que soit le clan organisateur. Le clan du joueur sert seulement à le situer.
+  const isMine = (participant: TournamentStandingSummary['participant']) => participantClanIds(participant).includes(scope.clanId)
+  const podiumLine = (entry: TournamentStandingSummary, rank: number) => ({ rank, label: entry.label, points: round1(entry.totalPoints), kills: entry.totalKills, wins: entry.wins })
+
+  function summarizeTournament(overview: TournamentOverview) {
+    const display = TOURNAMENT_MODE_DISPLAY[overview.mode]
+    const scored = overview.leaders.filter((entry) => entry.totalPoints > 0)
+    const ranked = overview.standings.length > 0 ? overview.standings : overview.leaders
+    const mineIndex = ranked.findIndex((entry) => isMine(entry.participant))
+    return {
+      tournamentId: overview.id,
+      title: overview.title,
+      mode: display.label,
+      ranks: display.ranks,
+      phase: TOURNAMENT_PHASE_LABELS[overview.phase],
+      period: formatTournamentPeriod(overview.startDate, overview.endDate),
+      organizer: overview.organizerClan ? { tag: overview.organizerClan.tag, name: overview.organizerClan.name } : null,
+      rounds: overview.roundCount,
+      clans: overview.clanCount,
+      participants: overview.participantCount,
+      winner: overview.phase === 'finished' && overview.winner ? podiumLine(overview.winner, 1) : null,
+      leader: overview.phase === 'live' && scored[0] ? podiumLine(scored[0], 1) : null,
+      podium: scored.slice(0, 3).map((entry, index) => podiumLine(entry, index + 1)),
+      yourClan: mineIndex === -1 ? null : podiumLine(ranked[mineIndex], mineIndex + 1),
+    }
+  }
+
+  async function getTournaments(args: ToolArgs) {
+    const status = text(args.status)
+    if (status && !(TOURNAMENT_PHASES as readonly string[]).includes(status)) {
+      return { error: 'invalid_status', message: 'status : live, upcoming ou finished.' }
+    }
+    const search = normalizeText(text(args.search))
+    const take = clampInt(args.limit, 1, TOURNAMENTS_MAX, TOURNAMENTS_DEFAULT)
+    const overviews = (await cachedTournamentOverviews())
+      .filter((overview) => overview.phase !== 'draft')
+      .filter((overview) => !status || overview.phase === status)
+      .filter((overview) => !search || normalizeText(overview.title).includes(search))
+    return {
+      total: overviews.length,
+      tournaments: overviews.slice(0, take).map(summarizeTournament),
+      note: 'Seules les parties personnalisées jouées pendant les dates du tournoi, avec un membre du clan organisateur, comptent. Place du clan du joueur connue en direct ou sur le podium ; sinon, getTournamentResults.',
+    }
+  }
+
+  function rulesSummary(rules: NormalizedTournamentRules) {
+    const display = TOURNAMENT_MODE_DISPLAY[rules.mode]
+    return {
+      mode: display.label,
+      ranks: display.ranks,
+      placementPoints: Object.fromEntries(Object.entries(rules.placementPoints).map(([place, points]) => [`top${place}`, points])),
+      killPoints: rules.killPoints,
+      winBonus: rules.winBonus,
+      bestOfRounds: rules.bestOfRounds,
+      mixedSquadRule: rules.mode === 'inter_clan' ? (rules.mixedSquadRule === 'prorata' ? 'prorata de l’effectif' : 'partage intégral') : null,
+    }
+  }
+
+  async function getTournamentResults(args: ToolArgs) {
+    const tournamentId = text(args.tournamentId)
+    if (!SAFE_ID.test(tournamentId)) return { error: 'invalid_tournament', message: 'tournamentId attendu (voir getTournaments).' }
+    const tournament = await prisma.tournament.findUnique({
+      where: { id: tournamentId },
+      include: { organizerClan: { select: { id: true, name: true, tag: true } } },
+    })
+    if (!tournament || tournament.status === 'draft') return { error: 'tournament_not_found', message: 'Tournoi inconnu ou pas encore publié.' }
+
+    const rules = normalizeTournamentRules(tournament.rules as Record<string, unknown>)
+    const phase = resolveTournamentPhase(tournament)
+    const [matches, labels] = await Promise.all([getTournamentMatches(tournament.id), getMapLabels()])
+    const trackedClanIds = getTrackedTournamentClanIds(matches)
+    const { clans, members } = await loadTournamentDirectories([...trackedClanIds, tournament.organizerClanId], collectTournamentMemberIds(matches))
+    const standings = buildStandingViews(computeTournamentModeStandings(matches, trackedClanIds, rules, tournament.organizerClanId), clans, members)
+    const rounds = buildRoundViews(matches, trackedClanIds, rules, clans, members, tournament.organizerClanId)
+    const mineKeys = new Set(standings.filter((row) => isMine(row.participant)).map((row) => row.key))
+
+    const standingLine = (row: TournamentStandingView) => ({
+      rank: row.rank,
+      label: row.label,
+      clanTags: row.clanTags,
+      points: round1(row.totalPoints),
+      kills: row.totalKills,
+      wins: row.wins,
+      roundsPlayed: row.matchesPlayed,
+      bestPlacement: row.bestPlacement,
+      averagePlacement: round1(row.averagePlacement),
+      yours: mineKeys.has(row.key),
+    })
+    const shown = standings.slice(0, TOURNAMENT_STANDINGS_MAX)
+    const mineBeyond = standings.slice(TOURNAMENT_STANDINGS_MAX).filter((row) => mineKeys.has(row.key))
+    const mvp = pickMvp(matches, members, clans)
+
+    return {
+      tournamentId: tournament.id,
+      title: tournament.title,
+      description: tournament.description ? tournament.description.slice(0, TOURNAMENT_DESCRIPTION_MAX) : null,
+      phase: TOURNAMENT_PHASE_LABELS[phase],
+      period: formatTournamentPeriod(tournament.startDate, tournament.endDate),
+      organizer: { tag: tournament.organizerClan.tag, name: tournament.organizerClan.name },
+      rules: rulesSummary(rules),
+      roundsCounted: matches.length,
+      participantsRanked: standings.length,
+      standings: [...shown, ...mineBeyond].map(standingLine),
+      yourClan: standings.filter((row) => mineKeys.has(row.key)).map(standingLine),
+      mvp: mvp ? { label: mvp.label, kills: mvp.kills, damage: Math.round(mvp.damage) } : null,
+      rounds: rounds.slice(-TOURNAMENT_ROUNDS_MAX).map((round) => ({
+        round: round.index,
+        playedAt: round.createdAt,
+        map: round.mapName ? mapDisplayName(round.mapName, labels) : null,
+        winner: round.winnerLabel,
+        mvp: round.mvp ? { label: round.mvp.label, kills: round.mvp.kills } : null,
+        podium: round.scores.slice(0, TOURNAMENT_ROUND_PODIUM).map((score, index) => ({ rank: index + 1, label: score.label, points: round1(score.points), kills: score.totalKills, placement: score.bestPlacement })),
+        yourClan: round.scores.filter((score) => mineKeys.has(score.key)).map((score) => ({ rank: round.scores.indexOf(score) + 1, label: score.label, points: round1(score.points), kills: score.totalKills, placement: score.bestPlacement })),
+      })),
+      note: 'Même calcul que la page du tournoi ; les pseudos des autres clans sont ceux des joueurs suivis par le site.',
+    }
+  }
+
   const handlers: Record<string, (args: ToolArgs) => Promise<unknown>> = {
     getRecentMatches,
     getMatchDebrief,
@@ -557,6 +730,8 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     getDropZones,
     getClanLeaderboard,
     getLeagueStanding,
+    getTournaments,
+    getTournamentResults,
   }
 
   return {

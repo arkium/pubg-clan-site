@@ -26,6 +26,10 @@ describe('reconnaissance du chemin de page', () => {
     expect(parseCoachContextPath('/members/77/nemesis')).toEqual({ kind: 'member', memberId: 77, page: 'nemesis' })
     expect(parseCoachContextPath('/members/77/dashboard')).toEqual({ kind: 'member', memberId: 77, page: 'other' })
     expect(parseCoachContextPath('/tournaments/ctour1/matches/cmatch9')).toEqual({ kind: 'tournament-match', tournamentId: 'ctour1', matchId: 'cmatch9' })
+    expect(parseCoachContextPath('/tournaments/ctour1')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
+    expect(parseCoachContextPath('/tournaments/ctour1/matches')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
+    expect(parseCoachContextPath('/tournaments')).toEqual({ kind: 'none' })
+    expect(parseCoachContextPath('/tournaments/ctour1/settings')).toEqual({ kind: 'none' })
   })
 
   it('ne fait confiance à rien d’autre', () => {
@@ -52,6 +56,8 @@ const match: CoachResolvedContext = {
   telemetryAnalyzed: true,
 }
 
+const tournament: CoachResolvedContext = { kind: 'tournament', tournamentId: 'ctour1', title: 'L’Observateur des fun', phase: 'finished' }
+
 describe('étiquette, suggestions et bloc de prompt', () => {
   it('écrit le bandeau sans numéro de match, à l’heure de Paris', () => {
     expect(coachContextLabel(match)).toBe('Erangel · 22 oct. 21:47 · Top 3')
@@ -62,6 +68,13 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextLabel({ kind: 'none' })).toBeNull()
   })
 
+  it('nomme un tournoi par son titre, coupé s’il est long', () => {
+    expect(coachContextLabel(tournament)).toBe('Tournoi · L’Observateur des fun')
+    const label = coachContextLabel({ ...tournament, title: 'Un titre de tournoi vraiment très long qui dépasse largement la limite du bandeau' })!
+    expect(label.endsWith('…')).toBe(true)
+    expect(label.length).toBeLessThanOrEqual('Tournoi · '.length + 60)
+  })
+
   it('propose trois suggestions quel que soit le contexte', () => {
     const kinds: CoachResolvedContext[] = [
       match,
@@ -70,16 +83,24 @@ describe('étiquette, suggestions et bloc de prompt', () => {
       { kind: 'weapons', memberId: 7, memberName: 'NovakTV' },
       { kind: 'opponents' },
       { kind: 'drop-zones' },
+      tournament,
+      { ...tournament, phase: 'live' },
+      { ...tournament, phase: 'upcoming' },
       { kind: 'none' },
     ]
     for (const context of kinds) expect(coachSuggestions(context)).toHaveLength(3)
     expect(coachSuggestions(match)[0]).toBe('Pourquoi on s’est fait sortir ?')
+    expect(coachSuggestions(tournament)[0]).toBe('Qui a gagné le tournoi ?')
+    expect(coachSuggestions({ ...tournament, phase: 'live' })[0]).toBe('Qui est en tête ?')
+    expect(coachSuggestions({ ...tournament, phase: 'upcoming' })[0]).toBe('Quand commence le tournoi ?')
   })
 
   it('dit au modèle quel outil appeler', () => {
     expect(coachContextPromptBlock(match)).toContain('getMatchDebrief avec matchId « cmatch123 »')
     expect(coachContextPromptBlock({ ...match, telemetryAnalyzed: false })).toContain('pas encore analysée')
     expect(coachContextPromptBlock({ kind: 'weapons', memberId: 7, memberName: 'NovakTV' })).toContain('getWeaponStats')
+    expect(coachContextPromptBlock(tournament)).toContain('getTournamentResults avec tournamentId « ctour1 »')
+    expect(coachContextPromptBlock(tournament)).toContain('terminé')
     expect(coachContextPromptBlock({ kind: 'none' })).toContain('sans contexte')
   })
 })

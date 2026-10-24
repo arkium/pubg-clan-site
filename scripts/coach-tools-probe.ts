@@ -10,7 +10,9 @@ import { prisma } from '../src/lib/prisma'
  * estimés (≈ 4 caractères par token), aperçu du JSON.
  *
  *   npx tsx scripts/coach-tools-probe.ts                       # dernier match analysé, son clan, son premier membre
- *   npx tsx scripts/coach-tools-probe.ts --clan 1 --member 12 --match <id> --opponent VPR --map Miramar
+ *   npx tsx scripts/coach-tools-probe.ts --clan 1 --member 12 --match <id> --opponent VPR --map Miramar --tournament <id>
+ *
+ * Sans `--tournament`, le détail porte sur le tournoi le plus récent renvoyé par getTournaments.
  */
 
 function argument(flag: string) {
@@ -65,6 +67,15 @@ async function main() {
   results.push(await measure('getDropZones', () => tools.run({ name: 'getDropZones', args: { mapName: scope.mapName } })))
   results.push(await measure('getClanLeaderboard', () => tools.run({ name: 'getClanLeaderboard', args: { period: 'week' } })))
   results.push(await measure('getLeagueStanding', () => tools.run({ name: 'getLeagueStanding', args: { period: 'week' } })))
+  const tournaments = (await tools.run({ name: 'getTournaments', args: { limit: 5 } })) as { tournaments?: Array<{ tournamentId: string }> }
+  results.push(await measure('getTournaments (cache chaud)', () => tools.run({ name: 'getTournaments', args: { limit: 5 } })))
+  const tournamentId = argument('--tournament') ?? tournaments.tournaments?.[0]?.tournamentId ?? null
+  if (tournamentId) {
+    results.push(await measure('resolveCoachContext (tournoi)', () => resolveCoachContext(`/tournaments/${tournamentId}`, scope)))
+    results.push(await measure('getTournamentResults', () => tools.run({ name: 'getTournamentResults', args: { tournamentId } })))
+  } else {
+    console.log('\n── getTournamentResults : aucun tournoi publié à lire')
+  }
   console.log('\n═══ Bilan ═══')
   for (const entry of results) console.log(`${entry.label.padEnd(34)} ${String(entry.ms).padStart(6)} ms  ${String(entry.chars).padStart(7)} car.`)
   const slow = results.filter((entry) => entry.ms > 1000)

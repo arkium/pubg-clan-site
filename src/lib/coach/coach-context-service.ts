@@ -1,6 +1,7 @@
 import { parseCoachContextPath, type CoachResolvedContext } from '@/lib/coach/coach-context'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
+import { resolveTournamentPhase } from '@/lib/tournament-mode-display'
 
 /**
  * Vérification serveur du contexte de page (docs/TODO/chatbot-ia.md §7.2) : le chemin envoyé par le tiroir ne prouve
@@ -31,11 +32,25 @@ async function matchContext(matchId: string, clanId: number): Promise<CoachResol
   }
 }
 
+/** Un tournoi publié (pas un brouillon) : page publique, lisible par tout clan — l'outil ne lit que ce que la page montre. */
+async function tournamentContext(tournamentId: string): Promise<CoachResolvedContext> {
+  const tournament = await prisma.tournament.findFirst({
+    where: { id: tournamentId },
+    select: { id: true, title: true, status: true, startDate: true, endDate: true },
+  })
+  if (!tournament) return NONE
+  const phase = resolveTournamentPhase(tournament)
+  if (phase === 'draft') return NONE
+  return { kind: 'tournament', tournamentId: tournament.id, title: tournament.title, phase }
+}
+
 export async function resolveCoachContext(path: string | null | undefined, scope: CoachContextScope): Promise<CoachResolvedContext> {
   const parsed = parseCoachContextPath(path)
   switch (parsed.kind) {
     case 'match':
       return parsed.clanId === scope.clanId ? matchContext(parsed.matchId, scope.clanId) : NONE
+    case 'tournament':
+      return tournamentContext(parsed.tournamentId)
     case 'tournament-match':
       return matchContext(parsed.matchId, scope.clanId)
     case 'session':

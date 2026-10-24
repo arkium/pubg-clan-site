@@ -1,8 +1,8 @@
 # Coach IA
 
 Assistant conversationnel **réservé aux membres connectés** : il explique les parties, les armes, les adversaires, les
-largages, le classement du clan et sa position en Ligue à partir de la télémétrie du site, en flux mot à mot, dans un
-tiroir ou en page plein écran. Modèle Gemini (Google) appelé côté serveur ; chaque question coûte, donc quota, budget et
+largages, le classement du clan, sa position en Ligue et les tournois du site à partir de la télémétrie du site, en flux
+mot à mot, dans un tiroir ou en page plein écran. Modèle Gemini (Google) appelé côté serveur ; chaque question coûte, donc quota, budget et
 interrupteur. Spécification, décisions et plan : [docs/TODO/chatbot-ia.md](../TODO/chatbot-ia.md) ; charte des
 composants : [docs/ui/index.html#coach-ia](../ui/index.html#coach-ia) (section 44).
 
@@ -82,6 +82,12 @@ passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matc
 | `getDropZones` | `DropPressureStat` des 90 derniers jours, villes par `locationForPercent` |
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
 | `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
+| `getTournaments` | `listTournamentOverviews` (cache 5 min) : tournois publiés du site, filtres statut / titre, vainqueur ou leader, podium, place du clan quand elle est connue |
+| `getTournamentResults` | même moteur que la page d'un tournoi (`computeTournamentModeStandings`, `buildRoundViews`, `pickMvp`) : barème, classement (20 lignes + celle du clan), manches avec podium et score du clan, MVP |
+
+Les tournois sont des pages **publiques**, quel que soit le clan organisateur : ces deux outils lisent ce que la page
+montre, et le clan du joueur ne sert qu'à le situer (`yours`, `yourClan`) ; un brouillon reste invisible. Ajoutés le
+2026-10-24 après l'essai connecté : sur la page d'un tournoi, « qui a gagné le tournoi ? » était refusé.
 
 Chaque outil se borne (nombre de parties, période) ; jamais le bilan complet de télémétrie. Résultats sans donnée
 d'authentification. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).
@@ -96,8 +102,9 @@ Questions du SuperUser. Les pseudos et noms de clan renvoyés par les outils son
 consignes.
 
 Contexte de page (`coach-context.ts`, `coach-context-service.ts`) : l'adresse de la page (`contextPath`) est reconnue
-par motif puis **vérifiée** (match du clan, joueur du clan) ; elle donne l'étiquette du bandeau, trois suggestions et le
-bloc du prompt. Une adresse étrangère = « sans contexte ».
+par motif puis **vérifiée** (match du clan, joueur du clan, tournoi publié) ; elle donne l'étiquette du bandeau
+(« Erangel · 22 oct. 21:47 · Top 3 », « Tournoi · L'Observateur des fun »), trois suggestions selon la page et la phase
+du tournoi, et le bloc du prompt. Une adresse étrangère = « sans contexte ».
 
 ## 7. Routes
 

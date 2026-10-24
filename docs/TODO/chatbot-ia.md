@@ -33,6 +33,7 @@ d'inscrire son clan.
 
 | 2026-10-24 | P1 à P7 | **Confirmées** telles quelles (tableau ci-dessous) | Utilisateur |
 | 2026-10-24 | Clé Gemini | Projet Google Cloud et clé créés par l'utilisateur, `GEMINI_API_KEY` dans le `.env` local (jamais dans le dépôt) | Utilisateur |
+| 2026-10-24 | Tournois | Deux outils **publics** (`getTournaments`, `getTournamentResults`, §5.2) et le contexte `/tournaments/[id]` : les tournois sont des pages publiques, le clan du joueur ne sert qu'à le situer ; demandé après l'essai connecté (« qui a gagné le tournoi ? » refusé) | Utilisateur |
 
 **Propositions confirmées le 2026-10-24** (elles ont valeur de décision) :
 
@@ -325,6 +326,14 @@ affiché dans `/settings/configuration` (section « Coach IA »).
    membres freinent le clan en ligue ? » restait sans réponse.
 7. `getLeagueStanding({ period? })` — `getClanLeague` (même calcul que la page Ligue) : rang, Power score, rang
    précédent, clans voisins, moyennes de la ligue, ou parties manquantes pour être classé.
+
+8. `getTournaments({ status?, search?, limit? })` — `listTournamentOverviews` (cache 5 min) : tournois publiés du site,
+   vainqueur ou leader, podium, place du clan quand elle est connue. Ajouté le 2026-10-24 après l'essai connecté :
+   sur la page d'un tournoi, « qui a gagné le tournoi ? » était refusé (« tournoi extérieur »).
+9. `getTournamentResults({ tournamentId })` — même moteur que la page du tournoi (`computeTournamentModeStandings`,
+   `buildRoundViews`, `pickMvp`) : barème, classement (20 lignes + celle du clan), manches avec podium et score du
+   clan, MVP. Tournois = pages **publiques**, quel que soit l'organisateur ; un brouillon reste invisible. Contexte
+   `/tournaments/[id]` reconnu (étiquette « Tournoi · titre », suggestions selon la phase).
 
 Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, memberName })`), tests
 `coach-tools.test.ts`. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).

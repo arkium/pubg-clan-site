@@ -18,6 +18,10 @@ const mocks = vi.hoisted(() => ({
   statsFindMany: vi.fn(),
   loadDebrief: vi.fn(),
   getClanLeague: vi.fn(),
+  tournamentFindUnique: vi.fn(),
+  getTournamentMatches: vi.fn(),
+  loadDirectories: vi.fn(),
+  listOverviews: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -30,9 +34,20 @@ vi.mock('@/lib/prisma', () => ({
     clanEncounter: { aggregate: mocks.encounterAggregate },
     dropPressureStat: { findMany: mocks.dropFindMany },
     playerStats: { findMany: mocks.statsFindMany },
+    tournament: { findUnique: mocks.tournamentFindUnique },
   },
 }))
 vi.mock('@/lib/clan-league-service', () => ({ getClanLeague: mocks.getClanLeague }))
+// Moteur de classement des tournois réel (pur) ; seules les lectures de la base sont simulées.
+vi.mock('@/lib/tournament-service', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/tournament-service')>()),
+  getTournamentMatches: mocks.getTournamentMatches,
+}))
+vi.mock('@/lib/tournament-directories', () => ({
+  collectTournamentMemberIds: (matches: Array<{ members: Array<{ memberId: number }> }>) => [...new Set(matches.flatMap((match) => match.members.map((row) => row.memberId)))],
+  loadTournamentDirectories: mocks.loadDirectories,
+}))
+vi.mock('@/lib/tournament-overview', () => ({ listTournamentOverviews: mocks.listOverviews }))
 vi.mock('@/lib/map-label-service', () => {
   const DEFAULT_MAP_LABELS: Record<string, string> = { Baltic_Main: 'Erangel (Remastered)', Desert_Main: 'Miramar' }
   return {
@@ -67,7 +82,7 @@ beforeEach(() => {
 })
 
 describe('déclarations', () => {
-  it('expose les cinq outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
+  it('expose les neuf outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
     expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
       'getRecentMatches',
       'getMatchDebrief',
@@ -76,6 +91,8 @@ describe('déclarations', () => {
       'getDropZones',
       'getClanLeaderboard',
       'getLeagueStanding',
+      'getTournaments',
+      'getTournamentResults',
     ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
@@ -354,5 +371,160 @@ describe('getLeagueStanding', () => {
     resetCoachLeagueCache()
     mocks.getClanLeague.mockResolvedValue(league([standing(1, 1, 'TOP')]))
     expect(await run('getLeagueStanding')).toMatchObject({ ranked: false, matches: 0 })
+  })
+})
+
+describe('getTournaments', () => {
+  const entry = (clanId: number, tag: string, totalPoints: number) => ({
+    key: `clan:${clanId}`,
+    participant: { kind: 'clan' as const, clanId },
+    label: `[${tag}] Clan ${tag}`,
+    clanTags: [tag],
+    memberLabels: [],
+    clanIds: [clanId],
+    totalPoints,
+    totalKills: 12,
+    wins: 1,
+  })
+  const overview = (overrides: Record<string, unknown>) => ({
+    id: 'ctour1',
+    title: 'L’Observateur des fun',
+    description: null,
+    status: 'active',
+    phase: 'finished',
+    mode: 'inter_clan',
+    startDate: '2026-10-23T18:00:00.000Z',
+    endDate: '2026-10-23T23:00:00.000Z',
+    gameMode: null,
+    mapName: null,
+    mapLabel: null,
+    organizerClan: { id: 1, name: 'FunsNRoses', tag: 'FUN' },
+    roundCount: 4,
+    participantCount: 6,
+    clanCount: 6,
+    playerCount: 24,
+    lastRoundAt: null,
+    leaders: [entry(1, 'FUN', 61.5), entry(292, '47R', 48), entry(3, 'FRX', 40)],
+    standings: [],
+    winner: entry(1, 'FUN', 61.5),
+    ...overrides,
+  })
+  const all = () => [
+    overview({}),
+    overview({ id: 'ctour2', title: 'Scrims du jeudi', phase: 'live', winner: null, standings: [entry(1, 'FUN', 10), entry(3, 'FRX', 8), entry(4, 'X', 7), entry(5, 'Y', 6), entry(292, '47R', 2)] }),
+    overview({ id: 'ctour3', title: 'Coupe de novembre', phase: 'upcoming', roundCount: 0, leaders: [], winner: null }),
+    overview({ id: 'cdraft', title: 'Brouillon', phase: 'draft', leaders: [], winner: null }),
+  ]
+
+  it('liste les tournois publiés, du plus récent au plus ancien, avec vainqueur, podium et place du clan', async () => {
+    mocks.listOverviews.mockResolvedValue(all())
+    const result = (await run('getTournaments')) as { total: number; tournaments: Array<Record<string, unknown>> }
+    expect(result.total).toBe(3)
+    expect(result.tournaments.map((tournament) => tournament.tournamentId)).toEqual(['ctour1', 'ctour2', 'ctour3'])
+    expect(result.tournaments[0]).toMatchObject({
+      mode: 'Inter-clans',
+      phase: 'terminé',
+      organizer: { tag: 'FUN', name: 'FunsNRoses' },
+      rounds: 4,
+      winner: { rank: 1, label: '[FUN] Clan FUN', points: 61.5, kills: 12 },
+      leader: null,
+      yourClan: { rank: 2, label: '[47R] Clan 47R', points: 48 },
+    })
+    expect((result.tournaments[0].podium as unknown[]).length).toBe(3)
+    // En direct : le classement complet est connu, le clan y est situé même hors podium.
+    expect(result.tournaments[1]).toMatchObject({ phase: 'en cours', winner: null, leader: { label: '[FUN] Clan FUN' }, yourClan: { rank: 5 } })
+    expect(result.tournaments[2]).toMatchObject({ phase: 'à venir', winner: null, leader: null, podium: [], yourClan: null })
+    expect(JSON.stringify(result)).not.toContain('Brouillon')
+  })
+
+  it('filtre par statut et par titre, borne la liste, refuse un statut inconnu', async () => {
+    mocks.listOverviews.mockResolvedValue(all())
+    expect(((await run('getTournaments', { status: 'finished' })) as { total: number }).total).toBe(1)
+    expect(((await run('getTournaments', { search: 'OBSERVATEUR' })) as { tournaments: unknown[] }).tournaments).toHaveLength(1)
+    const limited = (await run('getTournaments', { limit: 1 })) as { total: number; tournaments: unknown[] }
+    expect(limited.total).toBe(3)
+    expect(limited.tournaments).toHaveLength(1)
+    expect(await run('getTournaments', { status: 'draft' })).toEqual({ error: 'invalid_status', message: 'status : live, upcoming ou finished.' })
+    // Aperçus gardés en cache cinq minutes.
+    expect(mocks.listOverviews).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('getTournamentResults', () => {
+  const member = (id: number, clanId: number, displayName: string) => ({ id, clanId, displayName })
+  const row = (memberId: number, clanId: number, name: string, placement: number, kills: number, damage: number) => ({
+    memberId,
+    kills,
+    damage,
+    placement,
+    member: member(memberId, clanId, name),
+  })
+  // Deux manches : [SRTY] gagne la première, [FUN] la seconde ; NovakTV finit MVP aux dégâts (kills à égalité).
+  const matches = [
+    { id: 'cmB', createdAt: new Date('2026-10-23T21:00:00Z'), mapName: 'Desert_Main', gameMode: 'squad', placement: 1, members: [row(1, 1, 'Alpha', 1, 4, 500), row(2, 292, 'NovakTV', 3, 2, 400), row(3, 3, 'Charlie', 2, 2, 300)] },
+    { id: 'cmA', createdAt: new Date('2026-10-23T20:00:00Z'), mapName: 'Baltic_Main', gameMode: 'squad', placement: 2, members: [row(1, 1, 'Alpha', 2, 3, 350), row(2, 292, 'NovakTV', 1, 5, 900), row(3, 3, 'Charlie', 4, 1, 100)] },
+  ]
+  const tournament = {
+    id: 'ctour1',
+    organizerClanId: 1,
+    organizerClan: { id: 1, name: 'FunsNRoses', tag: 'FUN' },
+    title: 'L’Observateur des fun',
+    description: 'Soirée custom inter-clans',
+    startDate: new Date('2026-10-23T18:00:00Z'),
+    endDate: new Date('2026-10-23T23:00:00Z'),
+    gameMode: null,
+    mapName: null,
+    rules: { mode: 'inter_clan' },
+    status: 'active',
+  }
+  const directories = {
+    clans: { 1: { name: 'FunsNRoses', tag: 'FUN' }, 292: { name: 'Serenity', tag: 'SRTY' }, 3: { name: 'Les Furieux', tag: 'FRX' } },
+    members: { 1: { displayName: 'Alpha', clanId: 1 }, 2: { displayName: 'NovakTV', clanId: 292 }, 3: { displayName: 'Charlie', clanId: 3 } },
+  }
+
+  it('refuse un identifiant mal formé, un tournoi inconnu ou un brouillon', async () => {
+    expect(await run('getTournamentResults', {})).toMatchObject({ error: 'invalid_tournament' })
+    expect(await run('getTournamentResults', { tournamentId: 'x y' })).toMatchObject({ error: 'invalid_tournament' })
+    mocks.tournamentFindUnique.mockResolvedValue(null)
+    expect(await run('getTournamentResults', { tournamentId: 'inconnu' })).toMatchObject({ error: 'tournament_not_found' })
+    mocks.tournamentFindUnique.mockResolvedValue({ ...tournament, status: 'draft' })
+    expect(await run('getTournamentResults', { tournamentId: 'ctour1' })).toMatchObject({ error: 'tournament_not_found' })
+    expect(mocks.getTournamentMatches).not.toHaveBeenCalled()
+  })
+
+  it('rend le barème, le classement avec la ligne du clan, les manches et le MVP, comme la page', async () => {
+    mocks.tournamentFindUnique.mockResolvedValue(tournament)
+    mocks.getTournamentMatches.mockResolvedValue(matches)
+    mocks.loadDirectories.mockResolvedValue(directories)
+
+    const result = (await run('getTournamentResults', { tournamentId: 'ctour1' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(result).toMatchObject({
+      tournamentId: 'ctour1',
+      title: 'L’Observateur des fun',
+      phase: 'terminé',
+      organizer: { tag: 'FUN', name: 'FunsNRoses' },
+      rules: { mode: 'Inter-clans', mixedSquadRule: 'partage intégral' },
+      roundsCounted: 2,
+      participantsRanked: 3,
+      mvp: { label: expect.stringContaining('NovakTV'), kills: 7, damage: 1300 },
+    })
+    expect(result.rules.placementPoints).toHaveProperty('top1')
+    expect(result.standings).toHaveLength(3)
+    expect(result.standings.map((line: { rank: number }) => line.rank)).toEqual([1, 2, 3])
+    expect(result.yourClan).toHaveLength(1)
+    expect(result.yourClan[0]).toMatchObject({ label: '[SRTY] Serenity', clanTags: ['SRTY'], kills: 7, wins: 1, roundsPlayed: 2, bestPlacement: 1, yours: true })
+    expect(result.standings.filter((line: { yours: boolean }) => line.yours)).toHaveLength(1)
+
+    // Manches dans l'ordre chronologique : la première gagnée par [SRTY], la seconde par [FUN].
+    expect(result.rounds.map((round: { round: number; map: string | null; winner: string | null }) => [round.round, round.map, round.winner])).toEqual([
+      [1, 'Erangel', '[SRTY] Serenity'],
+      [2, 'Miramar', '[FUN] FunsNRoses'],
+    ])
+    expect(result.rounds[0].podium[0]).toMatchObject({ rank: 1, label: '[SRTY] Serenity', placement: 1, kills: 5 })
+    expect(result.rounds[0].yourClan).toEqual([expect.objectContaining({ rank: 1, placement: 1, kills: 5 })])
+    expect(result.rounds[0].mvp).toEqual({ label: expect.stringContaining('NovakTV'), kills: 5 })
+    expect(result.rounds[1].yourClan[0]).toMatchObject({ placement: 3, kills: 2 })
+    // Jamais d'identifiant de compte ni d'adresse dans un résultat d'outil.
+    expect(JSON.stringify(result)).not.toMatch(/userId|memberId|@/)
   })
 })

@@ -6,6 +6,7 @@
 
 export type CoachPageContext =
   | { kind: 'match'; clanId: number; matchId: string }
+  | { kind: 'tournament'; tournamentId: string }
   | { kind: 'tournament-match'; tournamentId: string; matchId: string }
   | { kind: 'session'; clanId: number; date: string }
   | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'other' }
@@ -47,8 +48,10 @@ export function parseCoachContextPath(path: string | null | undefined): CoachPag
     return { kind: 'clan', clanId, page: 'other' }
   }
 
-  if (root === 'tournaments' && id && SAFE_ID.test(id) && rest[0] === 'matches' && rest[1] && SAFE_ID.test(rest[1])) {
-    return { kind: 'tournament-match', tournamentId: id, matchId: rest[1] }
+  if (root === 'tournaments' && id && SAFE_ID.test(id)) {
+    if (rest[0] === 'matches' && rest[1] && SAFE_ID.test(rest[1])) return { kind: 'tournament-match', tournamentId: id, matchId: rest[1] }
+    // La page du tournoi et sa liste de manches : même contexte.
+    if (rest.length === 0 || (rest[0] === 'matches' && rest.length === 1)) return { kind: 'tournament', tournamentId: id }
   }
 
   if (root === 'members' && id && POSITIVE_INT.test(id)) {
@@ -78,7 +81,17 @@ export type CoachResolvedContext =
   | { kind: 'weapons'; memberId: number; memberName: string }
   | { kind: 'opponents' }
   | { kind: 'drop-zones' }
+  | { kind: 'tournament'; tournamentId: string; title: string; phase: 'upcoming' | 'live' | 'finished' }
   | { kind: 'none' }
+
+/** Titre d'un tournoi dans le bandeau : coupé pour tenir dans `contextLabel` (120 caractères). */
+const TOURNAMENT_TITLE_MAX = 60
+const TOURNAMENT_PHASE_LABELS = { upcoming: 'à venir', live: 'en cours', finished: 'terminé' } as const
+
+function shortTitle(title: string): string {
+  const trimmed = title.trim()
+  return trimmed.length > TOURNAMENT_TITLE_MAX ? `${trimmed.slice(0, TOURNAMENT_TITLE_MAX - 1).trimEnd()}…` : trimmed
+}
 
 const DAY_MONTH = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })
 const HOUR_MINUTE = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
@@ -101,6 +114,8 @@ export function coachContextLabel(context: CoachResolvedContext): string | null 
       return 'Adversaires du clan'
     case 'drop-zones':
       return 'Zones de largage'
+    case 'tournament':
+      return `Tournoi · ${shortTitle(context.title)}`
     case 'none':
       return null
   }
@@ -121,6 +136,10 @@ export function coachSuggestions(context: CoachResolvedContext): string[] {
       return ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?']
     case 'drop-zones':
       return ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?']
+    case 'tournament':
+      if (context.phase === 'finished') return ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Quelle manche a fait la différence ?']
+      if (context.phase === 'live') return ['Qui est en tête ?', 'Où en est notre clan ?', 'Qui est le MVP pour l’instant ?']
+      return ['Quand commence le tournoi ?', 'Quel est le barème ?', 'Qui l’organise ?']
     case 'none':
       return ['Comment s’est passée notre dernière soirée ?', 'Quelle est ma meilleure arme ?', 'Où atterrir sur Miramar ?']
   }
@@ -143,6 +162,8 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
       return 'Page consultée : adversaires du clan. Appelle getOpponentRecord avec le tag du clan adverse demandé.'
     case 'drop-zones':
       return 'Page consultée : zones de largage du clan. Appelle getDropZones avec la carte demandée.'
+    case 'tournament':
+      return `Page consultée : tournoi « ${shortTitle(context.title)} » (identifiant ${context.tournamentId}, ${TOURNAMENT_PHASE_LABELS[context.phase]}). Pour toute question sur ce tournoi (vainqueur, classement, manches, barème, place du clan), appelle getTournamentResults avec tournamentId « ${context.tournamentId} ».`
     case 'none':
       return 'Page consultée : sans contexte particulier. Choisis l’outil selon la question.'
   }

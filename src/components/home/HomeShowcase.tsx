@@ -14,6 +14,7 @@ import {
   MapPin,
   Medal,
   Menu,
+  MessageSquare,
   Plane,
   Play,
   SlidersHorizontal,
@@ -693,6 +694,7 @@ function PhotoPointsCard({
   image,
   eyebrow,
   isNew = false,
+  stamp,
   title,
   accent,
   points,
@@ -704,6 +706,8 @@ function PhotoPointsCard({
   image: string
   eyebrow: string
   isNew?: boolean
+  /** Tampon libre (« Exclusivité membres ») à la place de « NOUVEAU ». */
+  stamp?: string
   title: string
   accent: string
   points: ReadonlyArray<{ icon: typeof Plane; title: string; text: string }>
@@ -720,7 +724,9 @@ function PhotoPointsCard({
         <div className="flex min-h-[26px] items-center justify-between gap-3">
           <span className="text-xs font-bold uppercase tracking-[0.14em] text-amber-400">{eyebrow}</span>
           {/* Même tampon que les cartes « Nouveautés ». */}
-          {isNew ? <span className="-rotate-3 rounded-[5px] bg-amber-400 px-2.5 py-1 text-[11px] font-black tracking-[0.06em] text-amber-950">NOUVEAU</span> : null}
+          {stamp || isNew ? (
+            <span className="-rotate-3 rounded-[5px] bg-amber-400 px-2.5 py-1 text-[11px] font-black uppercase tracking-[0.06em] text-amber-950">{stamp ?? 'NOUVEAU'}</span>
+          ) : null}
         </div>
         <h2 id={titleId} className="home-display m-0 text-[40px] font-semibold uppercase leading-[0.92] lg:text-[48px]">
           {title}
@@ -784,16 +790,64 @@ function ZoneReadingAndPlayersRow() {
   )
 }
 
+/**
+ * Coach IA (docs/TODO/chatbot-ia.md §8.7) : réservé aux membres connectés, mis en avant comme raison de rejoindre un
+ * clan. La carte n'apparaît que lorsque le Coach est ouvert (`coachOpen`, lu côté serveur) : elle promet un service.
+ * Textes fixes, aucun pseudo. Image provisoire : illustration dédiée à fournir (`public/vitrine-coach-ia.jpg`).
+ */
+const COACH_IMAGE = '/cartographie-tactique.jpg'
+const COACH_POINTS = [
+  {
+    icon: MessageSquare,
+    title: 'Débriefing immédiat après match',
+    text: 'Pourquoi l’escouade est tombée, qui a ouvert, ce qu’il fallait faire : le Coach relit la partie avec toi, à partir de la télémétrie.',
+  },
+  {
+    icon: Crosshair,
+    title: 'Tes armes, tes chiffres',
+    text: 'Beryl ou M416 ? Précision, tirs à la tête, distances : il compare tes armes et dit laquelle te réussit.',
+  },
+  {
+    icon: Swords,
+    title: 'Rivalités et adversaires',
+    text: 'Bilan face à un clan, joueurs qui te sortent le plus souvent, zones de largage qui payent : de quoi préparer la prochaine soirée.',
+  },
+] as const
+
+function CoachRow({ accountHref }: { accountHref: string | null }) {
+  return (
+    <div data-testid="home-coach" className="px-4 pb-10 md:px-8 md:pb-16 lg:px-14 lg:pb-20">
+      <div className="mx-auto max-w-[1200px]">
+        <PhotoPointsCard
+          titleId="home-coach-title"
+          image={COACH_IMAGE}
+          eyebrow="Coach IA"
+          stamp="Exclusivité membres"
+          title="Ton Coach IA"
+          accent="disponible 24/7"
+          points={COACH_POINTS}
+          href={accountHref ?? '/join'}
+          link={accountHref ? 'Ouvrir mon espace →' : 'Rejoindre un clan pour débloquer le Coach →'}
+          note={accountHref ? 'Le Coach t’attend dans l’en-tête de ton espace, sur chaque page de ton clan.' : 'Réservé aux membres d’un clan inscrit ; l’inscription est validée par l’équipe du site.'}
+        />
+      </div>
+    </div>
+  )
+}
+
 export default function HomeShowcase({
   visitorMode,
   accountHref,
   initialShowcase = null,
+  coachOpen = false,
 }: {
   visitorMode: boolean
   /** Tableau de bord du membre connecté ; `null` pour un visiteur. */
   accountHref: string | null
   /** Vitrine déjà en cache au rendu serveur : compteurs, Top 1 et kill feed dans le HTML. */
   initialShowcase?: HomeShowcasePayload | null
+  /** Coach IA ouvert aux membres (clé posée et interrupteur ouvert) : la carte « Coach IA » s'affiche. */
+  coachOpen?: boolean
 }) {
   const { data, loading, error } = useHomeShowcase(initialShowcase)
   // Tournois : mêmes droits que la liste `/tournaments` (session ou mode visiteur), maquette « Accueil - Tournois ».
@@ -1022,6 +1076,9 @@ export default function HomeShowcase({
 
       {/* Lecture de zone et la nouveauté Joueurs (classement et comparateur), côte à côte sur ordinateur. */}
       <ZoneReadingAndPlayersRow />
+
+      {/* Coach IA, seulement quand il est ouvert aux membres (docs/TODO/chatbot-ia.md §8.7). */}
+      {coachOpen ? <CoachRow accountHref={accountHref} /> : null}
 
       {/* HUB DES CLANS — fin de page : le site réunit tous les clans, pas un seul (maquette « Accueil - Bandeau clans » 1a). */}
       <HomeClansHub clans={data?.clans ?? []} stats={stats} />

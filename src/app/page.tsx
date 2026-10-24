@@ -5,6 +5,7 @@ import HomeShowcase from '@/components/home/HomeShowcase'
 import PendingActivation from '@/components/PendingActivation'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
+import { getCoachSettings, hasCoachApiKey } from '@/lib/coach/coach-config'
 import { getHomeShowcaseIfReady } from '@/lib/home-showcase-service'
 import { homeJsonLd, siteUrl } from '@/lib/seo/page-seo'
 import { getSetupState } from '@/lib/setup-service'
@@ -36,12 +37,14 @@ export default async function Home() {
   // Vitrine dans le HTML quand son cache est prêt (docs/TODO/geo-seo-propositions.md, lot 2) ; jamais d'attente d'une
   // lecture à froid : elle continue en arrière-plan et le navigateur charge la vitrine par l'API.
   const initialShowcase = await getHomeShowcaseIfReady()
+  // Carte « Coach IA » seulement quand il est ouvert aux membres (docs/TODO/chatbot-ia.md §8.7) : réglage en cache 30 s.
+  const coachOpen = hasCoachApiKey() && (await getCoachSettings()).enabled
 
   // Titre, description et aperçus : layout racine (src/lib/seo/page-seo.ts) ; ici, les données structurées du site.
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: homeJsonLd(siteUrl()) }} />
-      <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} initialShowcase={initialShowcase} />
+      <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} initialShowcase={initialShowcase} coachOpen={coachOpen} />
     </>
   )
 }

@@ -795,9 +795,14 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 6 — Visiteur et vitrine
 
-- [ ] Teaser du tiroir en mode visiteur (§8.6)
-- [ ] Carte de vitrine (§8.7) et `public/vitrine-coach-ia.jpg` — mise en ligne **avec** le lot 9
-- **Contrôles :** aucun appel `/api/clans/*/coach/*` depuis un visiteur (e2e) ; pseudos fictifs ; HTML serveur sans faux chiffre
+- [x] Teaser du tiroir en mode visiteur (§8.6) — livré avec le lot 5 (`CoachPanel`, `visitor`)
+- [x] Carte de vitrine (§8.7) : `CoachRow` dans `HomeShowcase`, rendue par `src/app/page.tsx` seulement quand le
+      Coach est **ouvert** (`hasCoachApiKey() && settings.enabled`, réglage en cache 30 s) — elle sort donc d'elle-même
+      avec l'interrupteur du lot 9. Lien « Ouvrir mon espace » pour un connecté, « Rejoindre un clan » sinon
+- [ ] `public/vitrine-coach-ia.jpg` à fournir : la carte utilise `/cartographie-tactique.jpg` en attendant
+      (`COACH_IMAGE`)
+- **Contrôles :** aucun appel `/api/clans/*/coach/*` depuis un visiteur (e2e, lot 9) ; pseudos fictifs ; HTML
+  serveur sans faux chiffre (la carte n'affiche aucun chiffre)
 
 ### Lot 7 — Page SuperUser
 

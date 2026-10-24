@@ -806,10 +806,21 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
 
 ### Lot 7 — Page SuperUser
 
-- [ ] `/settings/coach` : Réglages (dont liste des modèles et « Tester »), Consommation, Questions (§9)
-- [ ] Gardes, `AdminAccessGate`, `withAdminActionLog`, entrée du menu Plateforme
-- [ ] Alertes dans `admin-alerts/catalog.ts` ; ligne « votes Inexact » dans `admin-inbox/build.ts`
-- **Contrôles :** `admin-action-log-routes.test.ts` vert ; tuiles radio (pas de `<select>`) ; captures clair et sombre
+- [x] `/settings/coach` : Réglages (interrupteur enregistré tout de suite, tuiles radio des modèles avec « Tester » et
+      résultat sous la tuile, budgets et limites en brouillon + « Enregistrer »), Consommation (`usage/`), Questions
+      (`questions/`) — `src/app/settings/coach/**`, `src/components/settings/coach/*`, rapports purs dans
+      `src/lib/coach/coach-admin-report.ts`, lectures dans `coach-admin-service.ts`
+- [x] Routes `GET/PUT /api/settings/coach`, `POST …/test-model` (question minuscule avec outil, facturée au SuperUser),
+      `GET …/usage`, `GET …/questions`, `POST …/questions/[id]/reviewed` — `requirePlatformAdmin`, écritures sous
+      `withAdminActionLog` ; `AdminAccessGate` dans `src/app/settings/coach/layout.tsx` ; entrée `superuser.coach` du
+      registre, carte du hub Plateforme (groupe « Site »), seed `scripts/seed-coach-admin-nav.ts` (après déploiement)
+- [x] Alertes `coach_budget` (80 % puis atteint, mémoire `AppConfig` par mois), `coach_provider_errors` (5 en 15 min,
+      silence 6 h), `coach_model_notice` (30 j avant, vérifié par la veille du matin) — `src/lib/coach/coach-alerts.ts`,
+      branchées dans `runCoachChat` et `runAdminDailyDigest` ; ligne « votes Inexact à relire » dans la boîte « À traiter »
+- [x] Rendu vérifié le 2026-10-24 (spec Playwright temporaire, API simulées) : trois onglets en clair et en sombre,
+      1280 px et 375 px, aucun défilement horizontal — captures de référence au lot 9 avec `e2e/coach.spec.ts`
+- **Contrôles :** `admin-action-log-routes.test.ts` vert ; tuiles radio (pas de `<select>`) ; aucun compte dans l'onglet
+  Questions (test de route) ; la clé ne sort jamais (`apiKeyPresent` seul)
 
 ### Lot 8 — Conformité et documentation
 

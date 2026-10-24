@@ -97,6 +97,7 @@ export async function readAdminInboxFacts(now: Date = new Date()): Promise<Admin
     telemetry,
     cronFailures,
     configErrors,
+    coachInaccurateVotes,
   ] = await Promise.all([
     readOrNull('pendingClans', () =>
       prisma.clan.findMany({ where: PENDING_CLAN_WHERE, select: { id: true, tag: true, name: true, createdAt: true } })
@@ -122,6 +123,7 @@ export async function readAdminInboxFacts(now: Date = new Date()): Promise<Admin
     readOrNull('telemetry', readTelemetry),
     readOrNull('cronFailures', () => readCronFailures(now)),
     readOrNull('configErrors', async () => (await getSiteConfiguration()).errors),
+    readOrNull('coachInaccurateVotes', () => prisma.coachMessage.count({ where: { feedbackScore: -1, reviewedAt: null } })),
   ])
 
   return {
@@ -139,6 +141,7 @@ export async function readAdminInboxFacts(now: Date = new Date()): Promise<Admin
     telemetry,
     cronFailures,
     configErrors,
+    coachInaccurateVotes,
   }
 }
 

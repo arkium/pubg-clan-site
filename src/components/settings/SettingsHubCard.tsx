@@ -2,6 +2,7 @@
 
 import {
   Activity,
+  Bot,
   ChevronRight,
   Clock,
   Crosshair,
@@ -61,6 +62,7 @@ const CARD_VISUALS: Record<string, { icon: LucideIcon; tone: Tone }> = {
   'superuser.telemetry-recoveries': { icon: RefreshCw, tone: 'pos' },
   'superuser.database': { icon: Database, tone: 'sky' },
   'superuser.league-settings': { icon: Trophy, tone: 'warn' },
+  'superuser.coach': { icon: Bot, tone: 'sky' },
 }
 
 /**

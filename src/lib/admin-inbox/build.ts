@@ -48,6 +48,8 @@ export type AdminInboxFacts = {
   telemetry: { workerAlive: boolean; queueRemaining: number; urgentBacklog: number } | null
   cronFailures: Array<{ label: string; clanTag: string | null }> | null
   configErrors: number | null
+  /** Réponses du Coach IA votées « Inexact » et pas encore relues (`/settings/coach/questions`). */
+  coachInaccurateVotes: number | null
 }
 
 export const ADMIN_INBOX_SOURCE_LABELS: Record<Exclude<keyof AdminInboxFacts, 'cronJobsExpected'>, string> = {
@@ -62,6 +64,7 @@ export const ADMIN_INBOX_SOURCE_LABELS: Record<Exclude<keyof AdminInboxFacts, 'c
   telemetry: 'télémétrie',
   cronFailures: 'tâches planifiées',
   configErrors: 'configuration',
+  coachInaccurateVotes: 'Coach IA',
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -269,6 +272,16 @@ export function buildAdminInbox(facts: AdminInboxFacts, now: Date = new Date()):
       label: 'Joueurs du parking archivables',
       detail: 'Inactifs au-delà du seuil : les archiver arrête leurs appels quotidiens à PUBG.',
       href: '/settings/clans/lifecycle?tab=ungrouped',
+    })
+  }
+  if (facts.coachInaccurateVotes) {
+    items.push({
+      key: 'coach_inaccurate_votes',
+      tone: 'info',
+      count: facts.coachInaccurateVotes,
+      label: 'Réponses du Coach IA signalées « Inexact » à relire',
+      detail: 'Question, précision du joueur, réponse et outils appelés, sans le compte.',
+      href: '/settings/coach/questions',
     })
   }
 

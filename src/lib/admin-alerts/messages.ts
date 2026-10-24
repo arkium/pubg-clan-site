@@ -172,6 +172,59 @@ export function dailyDigestAlert(inbox: AdminInbox): DiscordEmbed {
   }
 }
 
+const COACH_SETTINGS_PATH = '/settings/coach'
+const COACH_USAGE_PATH = '/settings/coach/usage'
+const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 2, maximumFractionDigits: 2 })
+const DAY_MONTH_YEAR = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' })
+
+/** Plafond global du Coach IA à 80 %, puis atteint : à ce niveau, il se met en pause jusqu'au mois suivant. */
+export function coachBudgetAlert(input: { level: 80 | 100; spentEur: number; budgetEur: number; periodEnd: Date }): DiscordEmbed {
+  const reached = input.level === 100
+  return {
+    title: reached ? '⛔ Coach IA en pause — plafond du mois atteint' : '⚠️ Coach IA — plafond du mois à 80 %',
+    description: reached
+      ? `${EUR.format(input.spentEur)} dépensés sur ${EUR.format(input.budgetEur)} : plus aucune question jusqu’au ${DAY_MONTH_YEAR.format(input.periodEnd)}, sauf pour toi.`
+      : `${EUR.format(input.spentEur)} dépensés sur ${EUR.format(input.budgetEur)}. Au plafond, le Coach se ferme à tous jusqu’au ${DAY_MONTH_YEAR.format(input.periodEnd)}.`,
+    url: linkTo(COACH_USAGE_PATH),
+    color: reached ? COLOR_INCIDENT : COLOR_TO_DECIDE,
+    fields: [{ name: 'À faire', value: reached ? 'Relever le plafond dans « Coach IA », ou laisser passer le mois' : 'Surveiller la consommation ; relever le plafond si besoin', inline: false }],
+  }
+}
+
+/** Erreurs répétées du fournisseur : le Coach ne répond plus, cause probable en pied (jamais la clé). */
+export function coachProviderErrorsAlert(input: { errors: number; windowMinutes: number; lastMessage: string | null }): DiscordEmbed {
+  return {
+    title: '🛑 Coach IA — réponses en échec',
+    description: `**${input.errors}** réponses en erreur en ${input.windowMinutes} minutes : les membres voient « Le Coach n’a pas pu répondre ».`,
+    url: linkTo(COACH_USAGE_PATH),
+    color: COLOR_INCIDENT,
+    fields: [
+      { name: 'Dernière erreur', value: (input.lastMessage ?? 'non précisée').slice(0, 200), inline: false },
+      { name: 'À faire', value: 'Vérifier la clé et le quota Google, ou changer de modèle dans « Coach IA »', inline: false },
+    ],
+  }
+}
+
+/** Arrêt annoncé ou changement de prix du modèle actif, dans les trente jours. */
+export function coachModelNoticeAlert(input: {
+  model: { id: string; label: string }
+  notice: { kind: 'shutdown' | 'price'; date: string }
+  now: Date
+}): DiscordEmbed {
+  const [year, month, day] = input.notice.date.split('-').map(Number)
+  const when = DAY_MONTH_YEAR.format(new Date(Date.UTC(year, month - 1, day, 12)))
+  const shutdown = input.notice.kind === 'shutdown'
+  return {
+    title: shutdown ? `📅 Coach IA — arrêt annoncé de ${input.model.label}` : `📅 Coach IA — nouveau prix de ${input.model.label}`,
+    description: shutdown
+      ? `Google peut arrêter **${input.model.label}** (\`${input.model.id}\`) à partir du ${when} : le Coach cesserait de répondre.`
+      : `Le tarif de **${input.model.label}** (\`${input.model.id}\`) change le ${when} : le coût par question suit.`,
+    url: linkTo(COACH_SETTINGS_PATH),
+    color: COLOR_INFO,
+    fields: [{ name: 'À faire', value: shutdown ? 'Choisir un autre modèle dans « Coach IA » avant cette date' : 'Vérifier les budgets dans « Coach IA », ou changer de modèle', inline: false }],
+  }
+}
+
 /** Message du bouton « Envoyer un test » : ce que le salon recevra désormais. */
 export function adminAlertTestMessage(events: AdminAlertEvents): DiscordEmbed {
   const enabled = ADMIN_ALERT_EVENTS.filter((definition) => events[definition.key])

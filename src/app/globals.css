@@ -4554,4 +4554,38 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .coach-page-panel { display: flex; flex-direction: column; min-height: 560px; height: calc(100vh - 220px); border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); overflow: hidden; }
 .coach-page-list { display: flex; flex-direction: column; max-height: calc(100vh - 220px); border: 1px solid var(--theme-ui-border); border-radius: 14px; overflow: hidden; }
 .coach-page .coach-thread { max-width: 760px; width: 100%; margin: 0 auto; }
+/* Page SuperUser /settings/coach (docs/ui/index.html §44) : tuiles de modèle, KPI, jauge, fréquences, votes à relire. */
+.coach-models { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 8px; }
+.coach-model { position: relative; display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface); color: var(--theme-ui-text); font: inherit; text-align: left; cursor: pointer; transition: border-color 120ms ease-out, background-color 120ms ease-out; }
+.coach-model:hover { border-color: var(--theme-ui-accent-ring); }
+.coach-model[aria-checked="true"] { border-color: transparent; background: var(--theme-ui-accent-soft); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); }
+.coach-model[aria-disabled="true"] { cursor: default; opacity: 0.7; }
+.coach-model-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px; }
+.coach-model-id { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; color: var(--theme-ui-text-muted); }
+.coach-model-prices { display: flex; flex-wrap: wrap; gap: 4px 12px; font-size: 12px; color: var(--theme-ui-text-secondary); font-variant-numeric: tabular-nums; }
+.coach-model-note { margin: 0; font-size: 12px; line-height: 1.45; color: var(--theme-ui-text-secondary); }
+.coach-pills { display: flex; flex-wrap: wrap; gap: 4px; }
+.coach-pill { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border-radius: 6px; font-size: 11px; font-weight: 700; }
+.coach-pill--pos { background: var(--game-pos-soft); color: var(--game-pos); }
+.coach-pill--warn { background: var(--game-warn-soft); color: var(--game-warn); }
+.coach-pill--neg { background: var(--game-neg-soft); color: var(--game-neg); }
+.coach-test { display: flex; align-items: flex-start; gap: 6px; margin-top: 2px; font-size: 12px; font-weight: 600; line-height: 1.4; }
+.coach-test .coach-ico { width: 14px; height: 14px; margin-top: 2px; }
+.coach-kpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+@media (min-width: 640px) { .coach-kpis { grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); } }
+.coach-kpi { padding: 12px 14px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface); }
+.coach-gauge { position: relative; height: 8px; margin: 10px 0 6px; border-radius: 9999px; background: var(--game-track); }
+.coach-gauge-fill { height: 100%; border-radius: 9999px; background: var(--game-sky); transition: width 220ms ease-out; }
+.coach-gauge-fill--warn { background: var(--game-warn); }
+.coach-gauge-fill--neg { background: var(--game-neg); }
+.coach-gauge-mark { position: absolute; top: -3px; width: 2px; height: 14px; background: var(--game-warn); }
+.coach-freq { display: flex; flex-direction: column; gap: 10px; }
+.coach-freq-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 12px; align-items: end; }
+.coach-freq-bar { grid-column: 1 / -1; height: 6px; border-radius: 9999px; background: var(--game-track); overflow: hidden; }
+.coach-freq-bar > span { display: block; height: 100%; background: var(--game-sky); }
+.coach-freq-bar--warn > span { background: var(--game-warn); }
+.coach-freq-bar--neg > span { background: var(--game-neg); }
+.coach-review { display: flex; flex-direction: column; gap: 8px; padding: 12px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface-soft); }
+.coach-review-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 8px; }
+.coach-tool-chip { display: inline-flex; align-items: center; height: 22px; padding: 0 8px; border: 1px solid var(--theme-ui-border); border-radius: 6px; background: var(--theme-ui-surface); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; color: var(--theme-ui-text-secondary); }
 @media (prefers-reduced-motion: reduce) { .coach-drawer, .coach-backdrop, .coach-typing span { animation: none !important; } }

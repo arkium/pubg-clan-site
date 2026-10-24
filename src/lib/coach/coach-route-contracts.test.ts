@@ -48,7 +48,8 @@ vi.mock('@/lib/prisma', () => ({
     },
     coachMessage: { create: mocks.messageCreate, findMany: mocks.messageFindMany, updateMany: mocks.messageUpdateMany },
     coachUsage: { count: mocks.usageCount, findFirst: mocks.usageFindFirst, aggregate: mocks.usageAggregate, create: mocks.usageCreate, update: mocks.usageUpdate },
-    appConfig: { findMany: mocks.appConfigFindMany },
+    // `findUnique` / `upsert` : mémoire des alertes du plafond (coach-alerts.ts), jamais sollicitée ici.
+    appConfig: { findMany: mocks.appConfigFindMany, findUnique: vi.fn(async () => null), upsert: vi.fn(async () => undefined) },
     $transaction: mocks.transaction,
   },
 }))

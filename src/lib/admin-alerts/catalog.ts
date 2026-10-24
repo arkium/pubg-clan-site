@@ -90,6 +90,30 @@ export const ADMIN_ALERT_EVENTS = [
     toAct: false,
     defaultEnabled: true,
   },
+  {
+    key: 'coach_budget',
+    group: 'platform',
+    label: 'Coach IA : plafond global du mois à 80 %, puis atteint',
+    hint: 'Une alerte à 80 % du plafond, une autre quand il est atteint (le Coach se met alors en pause jusqu’au 1er du mois). Plafond réglable dans « Coach IA ».',
+    toAct: true,
+    defaultEnabled: true,
+  },
+  {
+    key: 'coach_provider_errors',
+    group: 'platform',
+    label: 'Coach IA : erreurs répétées du fournisseur',
+    hint: 'Cinq réponses en échec en un quart d’heure (clé refusée, quota Google, panne) : le Coach ne répond plus. Une alerte, puis silence six heures.',
+    toAct: true,
+    defaultEnabled: true,
+  },
+  {
+    key: 'coach_model_notice',
+    group: 'platform',
+    label: 'Coach IA : arrêt ou changement de prix du modèle actif',
+    hint: 'Trente jours avant une date annoncée par Google pour le modèle en service : à changer de modèle dans « Coach IA », ou à accepter le nouveau prix.',
+    toAct: false,
+    defaultEnabled: true,
+  },
 ] as const satisfies readonly AdminAlertDefinition[]
 
 export type AdminAlertEvent = (typeof ADMIN_ALERT_EVENTS)[number]['key']

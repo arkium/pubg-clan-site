@@ -271,6 +271,9 @@ interrupteur ; tous sont activés par défaut. Ceux qui attendent une décision 
 | `privacy_request` | Formulaire « Retirer mes données » | oui | Demandes de confidentialité |
 | `daily_digest` | Veille du matin, 09:00 (cron `admin_daily_digest`) : la boîte « À traiter » de l'accueil Plateforme, envoyée seulement si une décision ou un incident attend | oui | Accueil Plateforme |
 | `resource_queue` | Proposition ou signalement sur la Carte des ressources | non | File de validation |
+| `coach_budget` | Coach IA : plafond global du mois à 80 %, puis atteint (une alerte par niveau et par mois, mémoire dans `AppConfig`) | oui | Coach IA › Consommation |
+| `coach_provider_errors` | Coach IA : 5 réponses en erreur en 15 min, puis silence 6 h (`src/lib/coach/coach-alerts.ts`) | oui | Coach IA › Consommation |
+| `coach_model_notice` | Coach IA : arrêt annoncé ou changement de prix du modèle actif dans les 30 jours, vérifié chaque matin avec la veille | non | Coach IA › Réglages |
 
 **Données personnelles.** Discord est un service tiers : n'y partent ni adresse e-mail, ni le pseudo ou le motif d'une
 demande « Retirer mes données » (type et échéance seulement). Contrôlé par `admin-alerts.test.ts`.

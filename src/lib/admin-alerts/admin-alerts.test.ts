@@ -31,6 +31,9 @@ import {
 import {
   adminAlertTestMessage,
   clanDiscoveredAlert,
+  coachBudgetAlert,
+  coachModelNoticeAlert,
+  coachProviderErrorsAlert,
   dailyDigestAlert,
   clanRequestAlert,
   lifecycleFailedAlert,
@@ -191,6 +194,34 @@ describe('contenu des alertes', () => {
     const report = resourceQueueAlert({ submission: 'report', mapKey: 'Savage_Main', pointKind: 'dock', reportKind: 'missing', queueSize: 1 })
     expect(report.description).toBe('Signalement « N’existe plus » sur un point **Ponton** de Sanhok.')
     expect(report.fields?.[0].value).toBe('1 élément')
+  })
+
+  it('Coach IA : plafond à 80 % puis atteint, erreurs du fournisseur, échéance du modèle — vers la page du Coach', () => {
+    const periodEnd = new Date('2026-10-31T23:00:00.000Z')
+    const warning = coachBudgetAlert({ level: 80, spentEur: 41.2, budgetEur: 50, periodEnd })
+    expect(warning.title).toContain('80 %')
+    // Intl sépare le nombre du symbole par une espace fine insécable.
+    expect(warning.description).toMatch(/41,20\s€ dépensés sur 50,00\s€/)
+    expect(warning.description).toContain('1 novembre 2026')
+    expect(warning.url).toBe('https://chickendinner.fr/settings/coach/usage')
+
+    const reached = coachBudgetAlert({ level: 100, spentEur: 50, budgetEur: 50, periodEnd })
+    expect(reached.title).toContain('pause')
+    expect(reached.description).toContain('sauf pour toi')
+
+    const errors = coachProviderErrorsAlert({ errors: 6, windowMinutes: 15, lastMessage: 'unauthorized — API key not valid' })
+    expect(errors.description).toContain('**6** réponses en erreur en 15 minutes')
+    expect(errors.fields?.[0]).toEqual({ name: 'Dernière erreur', value: 'unauthorized — API key not valid', inline: false })
+    expect(coachProviderErrorsAlert({ errors: 5, windowMinutes: 15, lastMessage: null }).fields?.[0].value).toBe('non précisée')
+
+    const model = { id: 'gemini-3.1-flash-lite', label: 'Gemini 3.1 Flash-Lite' }
+    const shutdown = coachModelNoticeAlert({ model, notice: { kind: 'shutdown', date: '2027-05-07' }, now: new Date('2027-04-20T07:00:00.000Z') })
+    expect(shutdown.title).toBe('📅 Coach IA — arrêt annoncé de Gemini 3.1 Flash-Lite')
+    expect(shutdown.description).toContain('7 mai 2027')
+    expect(shutdown.url).toBe('https://chickendinner.fr/settings/coach')
+    const price = coachModelNoticeAlert({ model: { id: 'gemini-3.8-flash', label: 'Gemini 3.8 Flash' }, notice: { kind: 'price', date: '2027-01-01' }, now: new Date('2026-12-05T07:00:00.000Z') })
+    expect(price.title).toContain('nouveau prix')
+    expect(price.description).toContain('1 janvier 2027')
   })
 
   it('veille du matin : décisions et incidents listés, « à relire » en pied, rouge s’il y a un urgent', () => {

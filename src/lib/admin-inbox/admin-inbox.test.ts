@@ -31,6 +31,7 @@ function facts(overrides: Partial<AdminInboxFacts> = {}): AdminInboxFacts {
     telemetry: { workerAlive: true, queueRemaining: 0, urgentBacklog: 0 },
     cronFailures: [],
     configErrors: 0,
+    coachInaccurateVotes: 0,
     ...overrides,
   }
 }
@@ -205,5 +206,21 @@ describe('ordre, sources illisibles et veille', () => {
     expect(keys(inbox)).toEqual(['config_errors', 'resource_queue', 'unacknowledged_moves', 'archive_candidates'])
     expect(inbox.unavailable).toEqual(['télémétrie', 'tâches planifiées'])
     expect(actionableInboxItems(inbox).map((item) => item.key)).toEqual(['config_errors', 'resource_queue'])
+  })
+})
+
+describe('Coach IA', () => {
+  it('liste les votes « Inexact » à relire, pour information, vers l’onglet Questions', () => {
+    const inbox = buildAdminInbox(facts({ coachInaccurateVotes: 3 }), NOW)
+    expect(inbox.items).toEqual([
+      expect.objectContaining({ key: 'coach_inaccurate_votes', tone: 'info', count: 3, href: '/settings/coach/questions' }),
+    ])
+    expect(actionableInboxItems(inbox)).toEqual([])
+  })
+
+  it('signale la source quand elle est illisible, sans afficher de zéro', () => {
+    const inbox = buildAdminInbox(facts({ coachInaccurateVotes: null }), NOW)
+    expect(inbox.items).toEqual([])
+    expect(inbox.unavailable).toEqual(['Coach IA'])
   })
 })

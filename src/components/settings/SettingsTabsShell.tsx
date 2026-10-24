@@ -1,6 +1,6 @@
 'use client'
 
-import { ShieldAlert, ShieldHalf, Users, type LucideIcon } from 'lucide-react'
+import { Bot, ShieldAlert, ShieldHalf, Users, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useEffect } from 'react'
@@ -13,7 +13,7 @@ import { useAuthSession } from '@/hooks/useAuthSession'
 export type SettingsTab = { name: string; href: string; description: string }
 
 /** Icônes des en-têtes, nommées : un `layout.tsx` serveur ne peut pas passer un composant à ce composant client. */
-const ICONS = { clans: ShieldHalf, players: Users } satisfies Record<string, LucideIcon>
+const ICONS = { clans: ShieldHalf, players: Users, coach: Bot } satisfies Record<string, LucideIcon>
 
 /**
  * En-tête à onglets des pages Plateforme regroupées (`/settings/clans`, `/settings/players`) — lot 3 de

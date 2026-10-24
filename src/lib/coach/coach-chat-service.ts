@@ -1,4 +1,5 @@
 import type { AuthSessionContext } from '@/lib/auth-session'
+import { notifyCoachBudgetIfNeeded, notifyCoachProviderErrorsIfNeeded } from '@/lib/coach/coach-alerts'
 import { getCoachSettings, type CoachSettings } from '@/lib/coach/coach-config'
 import { coachContextLabel, coachContextPromptBlock, coachSuggestions } from '@/lib/coach/coach-context'
 import { resolveCoachContext } from '@/lib/coach/coach-context-service'
@@ -8,7 +9,7 @@ import { COACH_DEFAULT_MODEL_ID, getCoachModel } from '@/lib/coach/coach-models'
 import { buildCoachSystemPrompt } from '@/lib/coach/coach-prompt'
 import { CoachProviderError, type CoachHistoryMessage, type CoachModelProvider, type CoachToolCall } from '@/lib/coach/coach-provider'
 import { createGeminiProvider } from '@/lib/coach/coach-provider-gemini'
-import { checkCoachQuota, completeCoachUsage, reserveCoachUsage, type CoachQuotaDecision } from '@/lib/coach/coach-quota'
+import { checkCoachQuota, completeCoachUsage, parisMonthBounds, reserveCoachUsage, type CoachQuotaDecision } from '@/lib/coach/coach-quota'
 import { createCoachTools, type CoachToolScope } from '@/lib/coach/coach-tools'
 import { prisma } from '@/lib/prisma'
 
@@ -187,6 +188,14 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
     const costMicroUsd = coachCostMicroUsd(model, answer.tokensIn, answer.tokensOut, now)
     const saved = await saveAnswer(conversationId, answer.text, answer.toolCalls, unverified)
     await completeCoachUsage(usageId, { status: 'ok', tokensIn: answer.tokensIn, tokensOut: answer.tokensOut, costMicroUsd })
+    // Alerte du plafond global (80 %, atteint) après coup, sans retenir la réponse : `notify…` ne lève jamais.
+    void notifyCoachBudgetIfNeeded({
+      globalSpentMicroUsd: decision.state.globalSpentMicroUsd + costMicroUsd,
+      globalBudgetMicroUsd: decision.state.globalBudgetMicroUsd,
+      periodStart: parisMonthBounds(now).start,
+      periodEnd: decision.state.periodEnd,
+      usdEurRate: settings.usdEurRate,
+    })
     emit({
       event: 'done',
       data: {
@@ -204,6 +213,7 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
     // Interrompu : ce qui a été dit reste dans le fil et la question compte ; en erreur, elle ne compte pas.
     const saved = aborted && partialText.trim() ? await saveAnswer(conversationId, partialText, [], false).catch(() => null) : null
     await completeCoachUsage(usageId, { status: aborted ? 'aborted' : 'error', tokensIn: 0, tokensOut: 0, costMicroUsd: 0 }).catch(() => undefined)
+    if (!aborted) void notifyCoachProviderErrorsIfNeeded(now, error instanceof Error ? `${code} — ${error.message}` : code)
     emit({ event: 'error', data: { code, message: errorMessage(code) } })
     if (saved !== null) emit({ event: 'done', data: { messageId: saved, unverified: false, remainingHour: null, monthPercent: null, finishReason: 'ABORTED' } })
   }

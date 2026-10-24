@@ -28,6 +28,7 @@ const PLATFORM_THEMES: HubThemes = [
     navKeys: [
       'superuser.site-config',
       'superuser.platform-settings',
+      'superuser.coach',
       'superuser.delegation',
       'superuser.admin-journal',
       'superuser.email-delivery',

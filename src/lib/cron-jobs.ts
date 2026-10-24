@@ -32,6 +32,7 @@ import { getInternalApiBaseUrl, getInternalCronAuthHeaders } from '@/lib/interna
 import { prisma } from '@/lib/prisma'
 import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
 import { purgeExpiredAdminActions } from '@/lib/admin-action-log'
+import { notifyCoachModelNoticeIfNeeded } from '@/lib/coach/coach-alerts'
 import { purgeExpiredCoachHistory } from '@/lib/coach/coach-retention'
 import { refreshGeoPurgeCounts } from '@/lib/telemetry-geo-purge'
 import { computeResourceVehicleSpots, formatResourceVehicleMapSummary } from '@/lib/resources/resource-vehicle-spots'
@@ -1255,6 +1256,8 @@ async function runHomeShowcaseWarm() {
  * worker arrêté, parties qui expirent, configuration. Tâche globale, sans ligne `CronExecution` ; trace dans le journal.
  */
 async function runAdminDailyDigest() {
+  // Avis sur le modèle du Coach IA (arrêt ou prix dans les 30 jours) : même heure, message à part, jamais bloquant.
+  await notifyCoachModelNoticeIfNeeded()
   try {
     const inbox = await getAdminInbox()
     const actionable = actionableInboxItems(inbox)

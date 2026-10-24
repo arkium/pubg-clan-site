@@ -546,6 +546,14 @@ export const NAV_REGISTRY: NavItemDef[] = [
     description: 'Barème de placement, coefficients, pondération et seuils du Power score de la Ligue des clans.',
   },
   {
+    navKey: 'superuser.coach',
+    section: 'superuser-menu',
+    label: 'Coach IA',
+    hrefTemplate: '/settings/coach',
+    defaultRole: 'superuser',
+    description: 'Interrupteur, modèle Gemini, budgets et limites du Coach IA ; consommation du mois et réponses à relire.',
+  },
+  {
     navKey: 'superuser.database',
     section: 'superuser-menu',
     label: 'Base de données',

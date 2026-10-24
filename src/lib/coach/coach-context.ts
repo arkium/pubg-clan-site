@@ -10,7 +10,7 @@ export type CoachPageContext =
   | { kind: 'tournament-match'; tournamentId: string; matchId: string }
   | { kind: 'session'; clanId: number; date: string }
   | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'other' }
-  | { kind: 'member'; memberId: number; page: 'weapons' | 'nemesis' | 'drop-zones' | 'other' }
+  | { kind: 'member'; memberId: number; page: 'weapons' | 'nemesis' | 'drop-zones' | 'items' | 'other' }
   | { kind: 'none' }
 
 const POSITIVE_INT = /^[1-9]\d*$/
@@ -59,6 +59,7 @@ export function parseCoachContextPath(path: string | null | undefined): CoachPag
     if (rest[0] === 'weapons') return { kind: 'member', memberId, page: 'weapons' }
     if (rest[0] === 'nemesis') return { kind: 'member', memberId, page: 'nemesis' }
     if (rest[0] === 'drop-zones') return { kind: 'member', memberId, page: 'drop-zones' }
+    if (rest[0] === 'items') return { kind: 'member', memberId, page: 'items' }
     return { kind: 'member', memberId, page: 'other' }
   }
 
@@ -79,6 +80,7 @@ export type CoachResolvedContext =
     }
   | { kind: 'session'; date: string }
   | { kind: 'weapons'; memberId: number; memberName: string }
+  | { kind: 'items'; memberId: number; memberName: string }
   | { kind: 'opponents' }
   | { kind: 'drop-zones' }
   | { kind: 'tournament'; tournamentId: string; title: string; phase: 'upcoming' | 'live' | 'finished' }
@@ -110,6 +112,8 @@ export function coachContextLabel(context: CoachResolvedContext): string | null 
       return `Soirée du ${context.date.slice(8, 10)}/${context.date.slice(5, 7)}`
     case 'weapons':
       return `Armes de ${context.memberName}`
+    case 'items':
+      return `Objets de ${context.memberName}`
     case 'opponents':
       return 'Adversaires du clan'
     case 'drop-zones':
@@ -132,6 +136,8 @@ export function coachSuggestions(context: CoachResolvedContext): string[] {
       return ['Comment s’est passée cette soirée ?', 'Quelle partie a été la meilleure ?', 'Qui a porté l’escouade ?']
     case 'weapons':
       return ['Quelle est ma meilleure arme ?', 'Beryl ou M416 ?', 'Je suis plus précis à quelle distance ?']
+    case 'items':
+      return ['Je me soigne assez ?', 'Quels boosts je consomme le plus ?', 'Combien de grenades je lance par partie ?']
     case 'opponents':
       return ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?']
     case 'drop-zones':
@@ -158,6 +164,8 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
       return `Page consultée : soirée du ${context.date} du clan. Appelle getRecentMatches pour ses parties.`
     case 'weapons':
       return `Page consultée : armes de ${context.memberName}. Appelle getWeaponStats pour ses chiffres.`
+    case 'items':
+      return `Page consultée : objets consommés de ${context.memberName} (soins, boosts, carburant, gadgets, lancers). Appelle getItemUsage pour ses chiffres.`
     case 'opponents':
       return 'Page consultée : adversaires du clan. Appelle getOpponentRecord avec le tag du clan adverse demandé.'
     case 'drop-zones':

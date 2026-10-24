@@ -10,6 +10,10 @@ import { prisma } from '@/lib/prisma'
 import { formatClock, phaseStartTimes } from '@/lib/pubg-telemetry/debrief-view'
 import { loadMatchDebriefPayload } from '@/lib/pubg-telemetry/match-debrief-payload'
 import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
+import { itemFamilyLabel, itemLabel } from '@/lib/clan-playstyle'
+import { getItemUsePeriodBounds, loadItemUseStats } from '@/lib/item-use-stats'
+import { getPeriodRange } from '@/lib/period'
+import { resolveItemName } from '@/lib/pubg-assets'
 import { collectTournamentMemberIds, loadTournamentDirectories } from '@/lib/tournament-directories'
 import { participantClanIds, resolveTournamentPhase, TOURNAMENT_MODE_DISPLAY, type TournamentPhase } from '@/lib/tournament-mode-display'
 import { listTournamentOverviews, type TournamentOverview, type TournamentStandingSummary } from '@/lib/tournament-overview'
@@ -23,7 +27,7 @@ import {
 } from '@/lib/tournament-service'
 import { buildRoundViews, buildStandingViews, pickMvp, type TournamentStandingView } from '@/lib/tournament-standings-view'
 import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
-import { aggregateMemberWeapons, type MemberWeaponRow } from '@/lib/weapons/member-arsenal'
+import { aggregateMemberWeapons, throwableLabel, type MemberWeaponRow } from '@/lib/weapons/member-arsenal'
 
 /**
  * Outils du Coach IA (docs/TODO/chatbot-ia.md §5). **Le modèle ne choisit jamais le clan ni le compte** : `clanId`,
@@ -56,6 +60,7 @@ const DROP_ROWS_MAX = 2000
 const DROP_DAYS = 90
 const DROP_ZONES_MAX = 8
 const LEADERBOARD_MAX = 15
+const ITEMS_MAX = 10
 const TOURNAMENTS_MAX = 10
 const TOURNAMENTS_DEFAULT = 5
 const TOURNAMENT_STANDINGS_MAX = 20
@@ -169,6 +174,18 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       required: ['tournamentId'],
     },
   },
+  {
+    name: 'getItemUsage',
+    description:
+      "Ce que le joueur (ou un autre membre du clan) consomme et lance en partie — ce qu'il appelle son « loot », son sac ou ses consommables : soins, boosts, carburant, gadgets, objet par objet et par partie, comparé au clan ; grenades et autres lancers. Pour « et mon loot ? », « je me soigne assez ? », « combien de grenades je lance ? ». Le site ne connaît pas le contenu du sac ni les munitions, armures et accessoires ramassés.",
+    parameters: {
+      type: 'object',
+      properties: {
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
+        period: PERIOD_PARAMETER,
+      },
+    },
+  },
 ]
 
 type ToolArgs = Record<string, unknown>
@@ -248,6 +265,18 @@ type CombatEventLike = {
 }
 
 export function createCoachTools(scope: CoachToolScope): CoachTools {
+  /** Le joueur de la session, ou un autre membre **du clan** par son pseudo — jamais un identifiant venu du modèle. */
+  async function resolveMember(playerName: unknown): Promise<{ memberId: number; memberName: string } | { error: string; message: string }> {
+    const name = text(playerName)
+    if (!name || normalizeText(name) === normalizeText(scope.memberName)) return { memberId: scope.memberId, memberName: scope.memberName }
+    const member = await prisma.clanMember.findFirst({
+      where: { clanId: scope.clanId, isActive: true, OR: [{ displayName: name }, { pubgPlayerName: name }] },
+      select: { id: true, displayName: true },
+    })
+    if (!member) return { error: 'player_not_found', message: `Aucun membre du clan ne s'appelle ${name}.` }
+    return { memberId: member.id, memberName: member.displayName }
+  }
+
   async function getRecentMatches(args: ToolArgs) {
     const take = clampInt(args.limit, 1, RECENT_MATCHES_MAX, RECENT_MATCHES_DEFAULT)
     const labels = await getMapLabels()
@@ -355,18 +384,9 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
   }
 
   async function getWeaponStats(args: ToolArgs) {
-    const playerName = text(args.playerName)
-    let memberId = scope.memberId
-    let memberName = scope.memberName
-    if (playerName && normalizeText(playerName) !== normalizeText(scope.memberName)) {
-      const member = await prisma.clanMember.findFirst({
-        where: { clanId: scope.clanId, isActive: true, OR: [{ displayName: playerName }, { pubgPlayerName: playerName }] },
-        select: { id: true, displayName: true },
-      })
-      if (!member) return { error: 'player_not_found', message: `Aucun membre du clan ne s'appelle ${playerName}.` }
-      memberId = member.id
-      memberName = member.displayName
-    }
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const { memberId, memberName } = resolved
     const period = text(args.period) === 'month' ? 'month' : 'all'
     const periodKey = period === 'month' ? monthPeriodKey() : 'all-time'
     const [rows, weaponLabels] = await Promise.all([
@@ -604,6 +624,64 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  async function getItemUsage(args: ToolArgs) {
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const { memberId, memberName } = resolved
+    const requested = text(args.period)
+    const period: StandardPeriod = requested === 'week' || requested === 'month' ? requested : 'all'
+    const bounds = getItemUsePeriodBounds(period)
+    const range = period === 'all' ? null : getPeriodRange(period)
+    // Mêmes lectures que la page « Objets consommés » du joueur (sans la famille `None` : puce bleue, clés, badge).
+    const [own, clan, throwRows] = await Promise.all([
+      loadItemUseStats({ memberId, period, bounds, excludeSubCategories: ['None'] }),
+      loadItemUseStats({ clanId: scope.clanId, period, bounds, excludeSubCategories: ['None'] }),
+      prisma.memberThrowableStat.groupBy({
+        by: ['itemId'],
+        where: { memberId, ...(range ? { matchDate: { gte: range.start, lt: range.end } } : {}) },
+        _sum: { count: true },
+      }),
+    ])
+    const perMatch = (count: number, matches: number) => (matches > 0 ? round1(count / matches) : 0)
+    // Moyenne du clan par joueur et par partie : chaque membre apporte ses parties, pas une partie par escouade.
+    const clanMemberMatches = clan.members.reduce((sum, member) => sum + (member.perMatch > 0 ? member.count / member.perMatch : 0), 0)
+    const rank = clan.members.findIndex((member) => member.memberId === memberId)
+    const thrown = throwRows
+      .map((row) => ({ item: throwableLabel(row.itemId), count: row._sum.count ?? 0 }))
+      .filter((row) => row.count > 0)
+      .sort((a, b) => b.count - a.count)
+    return {
+      player: memberName,
+      period: PERIOD_LABELS[period],
+      consumed: {
+        matches: own.matchCount,
+        total: own.totalCount,
+        perMatch: perMatch(own.totalCount, own.matchCount),
+        since: own.dataStart,
+        families: own.families.map((family) => ({
+          family: itemFamilyLabel(family.subCategory),
+          count: family.count,
+          sharePercent: Math.round(family.share),
+          perMatch: perMatch(family.count, own.matchCount),
+        })),
+        items: own.items.slice(0, ITEMS_MAX).map((item) => ({
+          item: itemLabel(item.itemId, resolveItemName),
+          family: itemFamilyLabel(item.subCategory),
+          count: item.count,
+          perMatch: perMatch(item.count, own.matchCount),
+        })),
+      },
+      clan: {
+        perMatch: perMatch(clan.totalCount, clanMemberMatches),
+        membersCounted: clan.members.length,
+        rankByVolume: rank === -1 ? null : rank + 1,
+        topConsumer: clan.members[0] ? { player: clan.members[0].displayName, perMatch: round1(clan.members[0].perMatch) } : null,
+      },
+      thrown: { total: thrown.reduce((sum, row) => sum + row.count, 0), items: thrown.slice(0, ITEMS_MAX) },
+      note: 'Le site compte ce qui est consommé (soins, boosts, carburant, gadgets) et lancé (grenades) dans les parties analysées, pas le contenu du sac ni les munitions, armures et accessoires ramassés. Détail par objet seulement pour les parties analysées depuis le 18 septembre 2026.',
+    }
+  }
+
   // Tournois : pages publiques, quel que soit le clan organisateur. Le clan du joueur sert seulement à le situer.
   const isMine = (participant: TournamentStandingSummary['participant']) => participantClanIds(participant).includes(scope.clanId)
   const podiumLine = (entry: TournamentStandingSummary, rank: number) => ({ rank, label: entry.label, points: round1(entry.totalPoints), kills: entry.totalKills, wins: entry.wins })
@@ -732,6 +810,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     getLeagueStanding,
     getTournaments,
     getTournamentResults,
+    getItemUsage,
   }
 
   return {

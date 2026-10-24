@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   getTournamentMatches: vi.fn(),
   loadDirectories: vi.fn(),
   listOverviews: vi.fn(),
+  loadItemUse: vi.fn(),
+  throwGroupBy: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -35,7 +37,13 @@ vi.mock('@/lib/prisma', () => ({
     dropPressureStat: { findMany: mocks.dropFindMany },
     playerStats: { findMany: mocks.statsFindMany },
     tournament: { findUnique: mocks.tournamentFindUnique },
+    memberThrowableStat: { groupBy: mocks.throwGroupBy },
   },
+}))
+// Dictionnaire PUBG (`@/lib/pubg-assets`) réel : pur, et les noms français viennent d'abord de `clan-playstyle.ts`.
+vi.mock('@/lib/item-use-stats', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/item-use-stats')>()),
+  loadItemUseStats: mocks.loadItemUse,
 }))
 vi.mock('@/lib/clan-league-service', () => ({ getClanLeague: mocks.getClanLeague }))
 // Moteur de classement des tournois réel (pur) ; seules les lectures de la base sont simulées.
@@ -82,7 +90,7 @@ beforeEach(() => {
 })
 
 describe('déclarations', () => {
-  it('expose les neuf outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
+  it('expose les dix outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
     expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
       'getRecentMatches',
       'getMatchDebrief',
@@ -93,6 +101,7 @@ describe('déclarations', () => {
       'getLeagueStanding',
       'getTournaments',
       'getTournamentResults',
+      'getItemUsage',
     ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
@@ -371,6 +380,83 @@ describe('getLeagueStanding', () => {
     resetCoachLeagueCache()
     mocks.getClanLeague.mockResolvedValue(league([standing(1, 1, 'TOP')]))
     expect(await run('getLeagueStanding')).toMatchObject({ ranked: false, matches: 0 })
+  })
+})
+
+describe('getItemUsage', () => {
+  const own = {
+    period: 'all',
+    totalCount: 60,
+    matchCount: 20,
+    families: [
+      { subCategory: 'Heal', count: 40, share: 66.7 },
+      { subCategory: 'Boost', count: 20, share: 33.3 },
+    ],
+    items: [
+      { itemId: 'Item_Heal_Bandage_C', subCategory: 'Heal', count: 30, share: 50 },
+      { itemId: 'Item_Boost_PainKiller_C', subCategory: 'Boost', count: 20, share: 33.3 },
+      { itemId: 'Item_Heal_FirstAid_C', subCategory: 'Heal', count: 10, share: 16.7 },
+    ],
+    members: [],
+    dataStart: '2026-09-18T19:00:00.000Z',
+  }
+  const clan = {
+    ...own,
+    totalCount: 180,
+    matchCount: 35,
+    members: [
+      { memberId: 5, displayName: 'maladus7', count: 120, perMatch: 4 },
+      { memberId: 100, displayName: 'NovakTV', count: 60, perMatch: 3 },
+    ],
+  }
+
+  beforeEach(() => {
+    mocks.loadItemUse.mockImplementation(async (input: { memberId?: number }) => (input.memberId ? own : clan))
+    mocks.throwGroupBy.mockResolvedValue([
+      { itemId: 'Item_Weapon_SmokeBomb_C', _sum: { count: 7 } },
+      { itemId: 'Item_Weapon_Grenade_C', _sum: { count: 12 } },
+      { itemId: 'Item_Weapon_Apple_C', _sum: { count: 0 } },
+    ])
+  })
+
+  it('décrit les objets consommés par famille et par objet, situe le joueur dans le clan, ajoute les lancers', async () => {
+    const result = await run('getItemUsage')
+    expect(mocks.loadItemUse).toHaveBeenCalledWith({ memberId: 100, period: 'all', bounds: null, excludeSubCategories: ['None'] })
+    expect(mocks.loadItemUse).toHaveBeenCalledWith({ clanId: 292, period: 'all', bounds: null, excludeSubCategories: ['None'] })
+    expect(mocks.throwGroupBy).toHaveBeenCalledWith({ by: ['itemId'], where: { memberId: 100 }, _sum: { count: true } })
+    expect(result).toMatchObject({
+      player: 'NovakTV',
+      period: 'depuis toujours',
+      consumed: {
+        matches: 20,
+        total: 60,
+        perMatch: 3,
+        since: '2026-09-18T19:00:00.000Z',
+        families: [
+          { family: 'Soins', count: 40, sharePercent: 67, perMatch: 2 },
+          { family: 'Boosts', count: 20, sharePercent: 33, perMatch: 1 },
+        ],
+      },
+      // 180 objets sur 30 + 20 parties de membres : 3,6 par joueur et par partie.
+      clan: { perMatch: 3.6, membersCounted: 2, rankByVolume: 2, topConsumer: { player: 'maladus7', perMatch: 4 } },
+      thrown: { total: 19, items: [{ item: 'Grenade', count: 12 }, { item: 'Fumigène', count: 7 }] },
+    })
+    const items = (result as { consumed: { items: Array<{ item: string; family: string; perMatch: number }> } }).consumed.items
+    expect(items[0]).toEqual({ item: 'Bandage', family: 'Soins', count: 30, perMatch: 1.5 })
+    expect(items[1].item).toBe('Analgésique')
+    expect((result as { note: string }).note).toContain('pas le contenu du sac')
+  })
+
+  it('borne la période et cherche un autre membre dans le clan seulement', async () => {
+    mocks.memberFindFirst.mockResolvedValue({ id: 5, displayName: 'maladus7' })
+    const result = await run('getItemUsage', { playerName: 'maladus7', period: 'month' })
+    expect(mocks.memberFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ clanId: 292, isActive: true }) }))
+    expect(mocks.loadItemUse).toHaveBeenCalledWith(expect.objectContaining({ memberId: 5, period: 'month', bounds: expect.objectContaining({ startDate: expect.any(Date) }) }))
+    expect(mocks.throwGroupBy).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: 5, matchDate: { gte: expect.any(Date), lt: expect.any(Date) } } }))
+    expect(result).toMatchObject({ player: 'maladus7', period: 'ce mois', clan: { rankByVolume: 1 } })
+
+    mocks.memberFindFirst.mockResolvedValue(null)
+    expect(await run('getItemUsage', { playerName: 'Inconnu' })).toEqual({ error: 'player_not_found', message: "Aucun membre du clan ne s'appelle Inconnu." })
   })
 })
 

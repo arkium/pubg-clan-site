@@ -47,6 +47,12 @@ describe('vérification du contexte de page', () => {
     expect(await resolveCoachContext('/tournaments/ctour1/matches/cmatch1', scope)).toMatchObject({ kind: 'match', telemetryAnalyzed: false })
   })
 
+  it('reconnaît la page des objets consommés d’un membre du clan', async () => {
+    mocks.memberFindFirst.mockResolvedValue({ id: 77, displayName: 'Menez69' })
+    expect(await resolveCoachContext('/members/77/items', scope)).toEqual({ kind: 'items', memberId: 77, memberName: 'Menez69' })
+    expect(mocks.memberFindFirst).toHaveBeenCalledWith(expect.objectContaining({ where: { id: 77, clanId: 292 } }))
+  })
+
   it('retient un tournoi publié, quel que soit son organisateur, jamais un brouillon', async () => {
     const tournament = { id: 'ctour1', title: 'L’Observateur des fun', status: 'active', startDate: new Date('2026-10-23T18:00:00Z'), endDate: new Date('2026-10-23T23:00:00Z') }
     mocks.tournamentFindFirst.mockResolvedValue(tournament)

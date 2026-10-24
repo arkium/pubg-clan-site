@@ -33,6 +33,7 @@ d'inscrire son clan.
 
 | 2026-10-24 | P1 à P7 | **Confirmées** telles quelles (tableau ci-dessous) | Utilisateur |
 | 2026-10-24 | Clé Gemini | Projet Google Cloud et clé créés par l'utilisateur, `GEMINI_API_KEY` dans le `.env` local (jamais dans le dépôt) | Utilisateur |
+| 2026-10-24 | Loot | « Mon loot » = les objets consommés et lancés (soins, boosts, grenades), pas les largages : outil `getItemUsage` (§5.2) et vocabulaire dans le prompt ; le site ne connaît pas le contenu du sac et l'outil le dit | Utilisateur |
 | 2026-10-24 | Tournois | Deux outils **publics** (`getTournaments`, `getTournamentResults`, §5.2) et le contexte `/tournaments/[id]` : les tournois sont des pages publiques, le clan du joueur ne sert qu'à le situer ; demandé après l'essai connecté (« qui a gagné le tournoi ? » refusé) | Utilisateur |
 
 **Propositions confirmées le 2026-10-24** (elles ont valeur de décision) :
@@ -334,6 +335,11 @@ affiché dans `/settings/configuration` (section « Coach IA »).
    `buildRoundViews`, `pickMvp`) : barème, classement (20 lignes + celle du clan), manches avec podium et score du
    clan, MVP. Tournois = pages **publiques**, quel que soit l'organisateur ; un brouillon reste invisible. Contexte
    `/tournaments/[id]` reconnu (étiquette « Tournoi · titre », suggestions selon la phase).
+10. `getItemUsage({ playerName?, period? })` — `loadItemUseStats` (page « Objets consommés », famille `None` exclue)
+    + `MemberThrowableStat` : soins, boosts, carburant, gadgets par famille et par objet, par partie, comparé au clan
+    (moyenne par joueur et par partie, rang, plus gros consommateur) ; grenades lancées. Ajouté le 2026-10-24 après
+    l'essai connecté : « et mon loot ? » déclenchait `getDropZones` — le prompt nomme désormais « loot » et « sac ».
+    Contexte `/members/[id]/items` reconnu.
 
 Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, memberName })`), tests
 `coach-tools.test.ts`. Mesure sur la vraie base : `npx tsx scripts/coach-tools-probe.ts` (lecture seule).

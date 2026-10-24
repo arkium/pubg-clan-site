@@ -57,6 +57,7 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getLeagueStanding: 'Je consulte la Ligue des clans…',
   getTournaments: 'Je cherche les tournois…',
   getTournamentResults: 'Je lis le classement du tournoi…',
+  getItemUsage: 'Je regarde tes objets consommés…',
 }
 
 /** Lecture stricte du corps d'une question : rien d'autre n'entre. */

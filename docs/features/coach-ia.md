@@ -1,8 +1,8 @@
 # Coach IA
 
-Assistant conversationnel **réservé aux membres connectés** : il explique les parties, les armes, les adversaires, les
-largages, le classement du clan, sa position en Ligue et les tournois du site à partir de la télémétrie du site, en flux
-mot à mot, dans un tiroir ou en page plein écran. Modèle Gemini (Google) appelé côté serveur ; chaque question coûte, donc quota, budget et
+Assistant conversationnel **réservé aux membres connectés** : il explique les parties, les armes, les objets consommés
+(« loot »), les adversaires, les largages, le classement du clan, sa position en Ligue et les tournois du site à partir
+de la télémétrie du site, en flux mot à mot, dans un tiroir ou en page plein écran. Modèle Gemini (Google) appelé côté serveur ; chaque question coûte, donc quota, budget et
 interrupteur. Spécification, décisions et plan : [docs/TODO/chatbot-ia.md](../TODO/chatbot-ia.md) ; charte des
 composants : [docs/ui/index.html#coach-ia](../ui/index.html#coach-ia) (section 44).
 
@@ -78,6 +78,7 @@ passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matc
 | `getRecentMatches` | parties récentes du clan, soirée par `sessionDateOf`, état de la télémétrie |
 | `getMatchDebrief` | `loadMatchDebriefPayload` : phases, escouade, 60 événements au plus, clans adverses |
 | `getWeaponStats` | `MemberWeaponStats` + `aggregateMemberWeapons`, 8 armes au plus |
+| `getItemUsage` | `loadItemUseStats` (la page « Objets consommés », sans la famille `None`) + `MemberThrowableStat` : soins, boosts, carburant, gadgets par famille et par objet, par partie, comparé au clan ; grenades lancées. C'est ce que le joueur appelle son « loot » ou son sac — le site ne connaît ni le contenu du sac ni les munitions ramassées, l'outil le dit |
 | `getOpponentRecord` | `OpponentClan` → joueurs → `KillEvent`, dernière rencontre (`ClanEncounter`) — jamais `EncounteredPlayer` |
 | `getDropZones` | `DropPressureStat` des 90 derniers jours, villes par `locationForPercent` |
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |

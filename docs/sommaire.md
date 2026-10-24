@@ -70,7 +70,7 @@ Index de toute la documentation technique du projet. Chaque doc décrit le compo
 | [Rapports](features/reports.md) | Modèles Report/ReportSection, 7 types de sections, pipeline de génération, export HTML/PDF/JSON |
 | [Notifications](features/notifications.md) | 5 types, préférences, 3 canaux (in-app/email/push), NotificationBell, routes API |
 | [Notifications Discord](features/discord-notifications.md) | Webhooks par clan : alerte Top 1 automatique et diffusion manuelle des manches de tournoi, dédoublonnage, résilience réseau ; salon d'administration du SuperUser (demandes de clan, adhésions sans Owner, incidents du cycle de vie, demandes de confidentialité, carte des ressources, plafond et erreurs du Coach IA) |
-| [Coach IA](features/coach-ia.md) | Assistant réservé aux membres connectés (tiroir, page plein écran, teaser visiteur, carte de la vitrine) : Gemini en flux côté serveur, 9 outils (7 fermés sur le clan du joueur, 2 sur les tournois publics), quota horaire et budget de 2 € par compte et par mois, plafond global, page SuperUser `/settings/coach` (modèles avec « Tester », consommation, questions à relire), alertes Discord, conservation 12 mois, purge sur demande |
+| [Coach IA](features/coach-ia.md) | Assistant réservé aux membres connectés (tiroir, page plein écran, teaser visiteur, carte de la vitrine) : Gemini en flux côté serveur, 10 outils (8 fermés sur le clan du joueur, 2 sur les tournois publics), quota horaire et budget de 2 € par compte et par mois, plafond global, page SuperUser `/settings/coach` (modèles avec « Tester », consommation, questions à relire), alertes Discord, conservation 12 mois, purge sur demande |
 
 ---
 

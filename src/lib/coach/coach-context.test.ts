@@ -25,6 +25,7 @@ describe('reconnaissance du chemin de page', () => {
     expect(parseCoachContextPath('/members/77/weapons')).toEqual({ kind: 'member', memberId: 77, page: 'weapons' })
     expect(parseCoachContextPath('/members/77/nemesis')).toEqual({ kind: 'member', memberId: 77, page: 'nemesis' })
     expect(parseCoachContextPath('/members/77/dashboard')).toEqual({ kind: 'member', memberId: 77, page: 'other' })
+    expect(parseCoachContextPath('/members/77/items')).toEqual({ kind: 'member', memberId: 77, page: 'items' })
     expect(parseCoachContextPath('/tournaments/ctour1/matches/cmatch9')).toEqual({ kind: 'tournament-match', tournamentId: 'ctour1', matchId: 'cmatch9' })
     expect(parseCoachContextPath('/tournaments/ctour1')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
     expect(parseCoachContextPath('/tournaments/ctour1/matches')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
@@ -81,6 +82,7 @@ describe('étiquette, suggestions et bloc de prompt', () => {
       { ...match, telemetryAnalyzed: false },
       { kind: 'session', date: '2026-10-22' },
       { kind: 'weapons', memberId: 7, memberName: 'NovakTV' },
+      { kind: 'items', memberId: 7, memberName: 'NovakTV' },
       { kind: 'opponents' },
       { kind: 'drop-zones' },
       tournament,
@@ -99,6 +101,8 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextPromptBlock(match)).toContain('getMatchDebrief avec matchId « cmatch123 »')
     expect(coachContextPromptBlock({ ...match, telemetryAnalyzed: false })).toContain('pas encore analysée')
     expect(coachContextPromptBlock({ kind: 'weapons', memberId: 7, memberName: 'NovakTV' })).toContain('getWeaponStats')
+    expect(coachContextLabel({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toBe('Objets de NovakTV')
+    expect(coachContextPromptBlock({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toContain('getItemUsage')
     expect(coachContextPromptBlock(tournament)).toContain('getTournamentResults avec tournamentId « ctour1 »')
     expect(coachContextPromptBlock(tournament)).toContain('terminé')
     expect(coachContextPromptBlock({ kind: 'none' })).toContain('sans contexte')

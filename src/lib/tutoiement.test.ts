@@ -21,6 +21,12 @@ const PLURAL_ADDRESS = new Set([
   'src/lib/coach/coach-prompt.ts',
 ])
 
+/** Fichiers où « vous » et « -ez » sont des données (listes de mots), jamais une phrase adressée à quelqu'un. */
+const WORD_LISTS = new Set([
+  // Mots vides et terminaisons du regroupement des questions fréquentes du Coach IA (`questionTokens`).
+  'src/lib/coach/coach-admin-report.ts',
+])
+
 /** Mots en « -ez » qui ne sont pas des verbes. */
 const NOT_A_VERB = new Set(['assez', 'chez', 'nez'])
 
@@ -51,7 +57,7 @@ function vouvoiementIn(source: string) {
 describe('Tutoiement', () => {
   const files = sourceFiles(path.join(ROOT, 'src'))
     .map((file) => path.relative(ROOT, file).split(path.sep).join('/'))
-    .filter((file) => !PLURAL_ADDRESS.has(file))
+    .filter((file) => !PLURAL_ADDRESS.has(file) && !WORD_LISTS.has(file))
 
   it('parcourt bien les sources', () => {
     expect(files.length).toBeGreaterThan(300)

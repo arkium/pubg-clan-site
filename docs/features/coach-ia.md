@@ -152,7 +152,7 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
 |---|---|
 | Réglages | Interrupteur (enregistré tout de suite), clé présente ou absente, tuiles radio des modèles (prix, coût estimé par question au taux courant, plafond de sortie, pastilles recommandé / prix doublé / arrêt, note de l'essai, **Tester** avec résultat sous la tuile), budgets et limites en brouillon + « Enregistrer » |
 | Consommation | Mois de Paris : coût, questions répondues, comptes actifs, coût par question, erreurs, interrompues ; jauge du plafond global (repère 80 %) ; par modèle ; comptes au-delà de 80 % de leur budget ; erreurs des 24 h |
-| Questions | Votes Utile / Inexact / à relire ; questions fréquentes sur 30 jours regroupées par texte normalisé ; chaque vote « Inexact » avec question, précision du joueur, réponse, outils, bouton « Relu » — **jamais le compte** |
+| Questions | Votes Utile / Inexact / à relire ; questions fréquentes sur 30 jours **regroupées par mots-clés** (`questionTokens` : accents, ponctuation, mots vides, tournures de demande et terminaisons ignorés ; deux questions qui partagent 60 % de leurs mots-clés font une ligne, le libellé est la formulation la plus fréquente, « · N formulations » quand elles diffèrent), 200 groupes au plus, paginées par 10 ; chaque vote « Inexact » avec question, précision du joueur, réponse, outils, bouton « Relu » — **jamais le compte** |
 
 Rapports purs dans `coach-admin-report.ts` (tests `coach-admin-report.test.ts`), lectures dans
 `coach-admin-service.ts`, routes testées par `coach-admin-routes.test.ts`.

@@ -14,6 +14,7 @@ import {
   groupCoachQuestions,
   normalizeCoachQuestion,
   questionBefore,
+  questionTokens,
   type CoachUsageRow,
 } from '@/lib/coach/coach-admin-report'
 import { COACH_SETTING_DEFAULTS } from '@/lib/coach/coach-config'
@@ -100,11 +101,39 @@ describe('questions', () => {
       { content: 'Où atterrir ?' },
     ])
     expect(grouped).toEqual([
-      { text: 'Quelle est ma meilleure arme ?', count: 2 },
-      { text: 'Où atterrir ?', count: 1 },
-      { text: 'Pourquoi on a perdu en fin de partie ?', count: 1 },
+      { text: 'Quelle est ma meilleure arme ?', count: 2, variants: 1 },
+      { text: 'Où atterrir ?', count: 1, variants: 1 },
+      { text: 'Pourquoi on a perdu en fin de partie ?', count: 1, variants: 1 },
     ])
     expect(groupCoachQuestions(grouped.map((group) => ({ content: group.text })), 1)).toHaveLength(1)
+  })
+
+  it('réduit une question à ses mots-clés : mots vides, tournures de demande et terminaisons ignorés', () => {
+    expect([...questionTokens('Donne la liste des membres qui posent problème pour progresser dans la ligue')]).toEqual(['list', 'membr', 'pos', 'problem', 'progress', 'ligu'])
+    expect([...questionTokens('Donne la liste des membres qui pose un problème pour progresser dans la ligue ?')]).toEqual(['list', 'membr', 'pos', 'problem', 'progress', 'ligu'])
+    expect([...questionTokens('et mon loot ?')]).toEqual(['loot'])
+    expect([...questionTokens('Coach, dis-moi : et toi ?')]).toEqual([])
+  })
+
+  it('réunit les formulations proches et garde la plus fréquente comme libellé, sans mélanger deux questions', () => {
+    const grouped = groupCoachQuestions([
+      { content: 'Donne la liste des membres qui pose un problème pour progresser dans la ligue ?' },
+      { content: 'Donne la liste des membres qui posent problème pour progresser dans la ligue' },
+      { content: 'Donne la liste des membres qui posent problème pour progresser dans la ligue' },
+      { content: 'qui a gagné le tournoi ?' },
+      { content: 'Qui a gagne le dernier tournoi' },
+      { content: 'donne moi le meilleur joueur de mon clan.' },
+      { content: 'donne moi le membre avec qui je joue le plus.' },
+      { content: 'et toi ?' },
+      { content: 'Et toi ?' },
+    ])
+    expect(grouped).toEqual([
+      { text: 'Donne la liste des membres qui posent problème pour progresser dans la ligue', count: 3, variants: 2 },
+      { text: 'et toi ?', count: 2, variants: 1 },
+      { text: 'qui a gagné le tournoi ?', count: 2, variants: 2 },
+      { text: 'donne moi le meilleur joueur de mon clan.', count: 1, variants: 1 },
+      { text: 'donne moi le membre avec qui je joue le plus.', count: 1, variants: 1 },
+    ])
   })
 
   it('retrouve la question qui précède une réponse dans son fil', () => {

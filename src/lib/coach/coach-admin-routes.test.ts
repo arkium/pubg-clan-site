@@ -214,7 +214,7 @@ describe('GET /api/settings/coach/questions', () => {
     mocks.messageCount.mockResolvedValueOnce(7).mockResolvedValueOnce(2).mockResolvedValueOnce(1)
     const body = await (await questionsRoute(json('/api/settings/coach/questions', 'GET'))).json()
     expect(body.days).toBe(30)
-    expect(body.frequent).toEqual([{ text: 'Quelle est ma meilleure arme ?', count: 2 }])
+    expect(body.frequent).toEqual([{ text: 'Quelle est ma meilleure arme ?', count: 2, variants: 1 }])
     expect(body.votes).toEqual({ helpful: 7, inaccurate: 2, pendingReview: 1 })
     expect(body.inaccurate).toEqual([
       {

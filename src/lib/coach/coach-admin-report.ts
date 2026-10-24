@@ -197,19 +197,92 @@ export function normalizeCoachQuestion(text: string): string {
     .trim()
 }
 
-export type CoachFrequentQuestion = { text: string; count: number }
+export type CoachFrequentQuestion = {
+  /** Formulation la plus fréquente du groupe (à égalité, la première vue). */
+  text: string
+  count: number
+  /** Formulations distinctes réunies dans le groupe. */
+  variants: number
+}
 
-/** Questions les plus posées, regroupées par texte normalisé ; le libellé gardé est la première forme rencontrée. */
-export function groupCoachQuestions(messages: ReadonlyArray<{ content: string }>, limit = 15): CoachFrequentQuestion[] {
-  const groups = new Map<string, CoachFrequentQuestion>()
-  for (const message of messages) {
-    const key = normalizeCoachQuestion(message.content)
-    if (!key) continue
-    const group = groups.get(key)
-    if (group) group.count += 1
-    else groups.set(key, { text: message.content.trim(), count: 1 })
+/** Questions fréquentes renvoyées au SuperUser ; la page les pagine. */
+export const COACH_FREQUENT_LIMIT = 200
+/** Deux questions qui partagent au moins cette part de leurs mots-clés (Jaccard) sont une seule ligne. */
+export const COACH_QUESTION_SIMILARITY = 0.6
+
+/** Mots vides du français parlé et tournures de demande, sans valeur pour distinguer deux questions. */
+const STOP_WORDS = new Set([
+  'le', 'la', 'les', 'l', 'un', 'une', 'des', 'de', 'du', 'd', 'et', 'ou', 'a', 'au', 'aux', 'en', 'dans', 'sur', 'pour', 'par', 'avec', 'sans',
+  'ce', 'cet', 'cette', 'ces', 'se', 'sa', 'son', 'ses', 'mon', 'ma', 'mes', 'ton', 'ta', 'tes', 'notre', 'nos', 'votre', 'vos', 'leur', 'leurs',
+  'je', 'j', 'tu', 'il', 'elle', 'on', 'nous', 'vous', 'ils', 'elles', 'me', 'm', 'moi', 'te', 't', 'toi', 'lui', 'y', 'ne', 'n', 'pas',
+  'que', 'qu', 'qui', 'quoi', 'quel', 'quelle', 'quels', 'quelles', 'est', 'sont', 'ai', 'as', 'ont', 'etre', 'suis', 'es', 'c', 'ca', 'cela',
+  'donne', 'donnes', 'donner', 'dis', 'dites', 'dire', 'fais', 'fait', 'faire', 'peux', 'peut', 'pouvez', 'veux', 'veut', 'voudrais',
+  'stp', 'svp', 'plait', 'merci', 'bonjour', 'salut', 'coach',
+])
+
+/** Terminaisons retirées, de la plus longue à la plus courte, quand il reste au moins trois lettres. */
+const SUFFIXES = ['issent', 'issons', 'issez', 'ement', 'ments', 'ment', 'ent', 'ant', 'ons', 'ez', 'er', 'es', 'e', 's', 'x']
+
+function stem(token: string): string {
+  if (token.length <= 3) return token
+  for (const suffix of SUFFIXES) {
+    if (token.endsWith(suffix) && token.length - suffix.length >= 3) return token.slice(0, -suffix.length)
   }
-  return [...groups.values()].sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, 'fr')).slice(0, limit)
+  return token
+}
+
+/** Mots-clés d'une question : sans accent, ponctuation, mot vide ni terminaison — « posent problème » et « pose un problème » se rejoignent. */
+export function questionTokens(text: string): Set<string> {
+  const tokens = new Set<string>()
+  for (const word of normalizeCoachQuestion(text).split(' ')) {
+    if (!word || STOP_WORDS.has(word)) continue
+    tokens.add(stem(word))
+  }
+  return tokens
+}
+
+function jaccard(a: ReadonlySet<string>, b: ReadonlySet<string>): number {
+  if (a.size === 0 || b.size === 0) return 0
+  let shared = 0
+  for (const token of a) if (b.has(token)) shared += 1
+  return shared / (a.size + b.size - shared)
+}
+
+type QuestionGroup = { key: string; tokens: Set<string>; count: number; forms: Map<string, { text: string; count: number; order: number }> }
+
+/**
+ * Questions les plus posées, regroupées par mots-clés : même clé (mêmes mots-clés) ou assez de mots-clés en commun
+ * (`COACH_QUESTION_SIMILARITY`) avec le premier groupe compatible. Une question sans mot-clé (« et toi ? ») est
+ * groupée sur son texte normalisé. Le libellé est la formulation la plus fréquente du groupe.
+ */
+export function groupCoachQuestions(messages: ReadonlyArray<{ content: string }>, limit = COACH_FREQUENT_LIMIT): CoachFrequentQuestion[] {
+  const byKey = new Map<string, QuestionGroup>()
+  const groups: QuestionGroup[] = []
+  let order = 0
+  for (const message of messages) {
+    const normalized = normalizeCoachQuestion(message.content)
+    if (!normalized) continue
+    const tokens = questionTokens(message.content)
+    const key = tokens.size > 0 ? [...tokens].sort().join(' ') : `=${normalized}`
+    let group = byKey.get(key)
+    if (!group && tokens.size > 0) group = groups.find((candidate) => jaccard(candidate.tokens, tokens) >= COACH_QUESTION_SIMILARITY)
+    if (!group) {
+      group = { key, tokens, count: 0, forms: new Map() }
+      byKey.set(key, group)
+      groups.push(group)
+    }
+    group.count += 1
+    const form = group.forms.get(normalized)
+    if (form) form.count += 1
+    else group.forms.set(normalized, { text: message.content.trim(), count: 1, order: order++ })
+  }
+  return groups
+    .map((group) => {
+      const forms = [...group.forms.values()].sort((a, b) => b.count - a.count || a.order - b.order)
+      return { text: forms[0].text, count: group.count, variants: forms.length }
+    })
+    .sort((a, b) => b.count - a.count || a.text.localeCompare(b.text, 'fr'))
+    .slice(0, limit)
 }
 
 export type CoachInaccurateAnswer = {

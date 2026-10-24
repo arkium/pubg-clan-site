@@ -6,7 +6,12 @@ import { useState } from 'react'
 import { useLifecycleResource } from '@/components/clan-lifecycle/LifecycleShared'
 import { DATE_TIME, INT, Kpi } from '@/components/settings/coach/CoachAdminShared'
 import { EmptyState, ErrorState, ListSkeleton, SectionCard, Tag } from '@/components/ui/CharteKit'
+import Pagination from '@/components/ui/Pagination'
 import type { CoachQuestionsReport } from '@/lib/coach/coach-admin-report'
+import { paginate } from '@/lib/pagination'
+
+/** Questions fréquentes par page : la liste se pagine, elle ne s'allonge jamais sans fin (règle du site). */
+const QUESTIONS_PAGE_SIZE = 10
 
 /**
  * Questions posées au Coach IA (docs/TODO/chatbot-ia.md §9, onglet 3) : fréquences sur 30 jours regroupées par texte
@@ -19,6 +24,7 @@ export default function CoachQuestionsPage() {
   const [reviewed, setReviewed] = useState<Set<number>>(() => new Set())
   const [reviewing, setReviewing] = useState<number | null>(null)
   const [reviewError, setReviewError] = useState('')
+  const [questionsPage, setQuestionsPage] = useState(1)
 
   async function markReviewed(messageId: number) {
     setReviewing(messageId)
@@ -41,7 +47,9 @@ export default function CoachQuestionsPage() {
   if (!data) return <ListSkeleton rows={4} />
 
   const pending = data.inaccurate.filter((answer) => !reviewed.has(answer.messageId))
+  // Barres à l'échelle de la question la plus posée, quelle que soit la page affichée.
   const maxCount = data.frequent[0]?.count ?? 1
+  const questions = paginate(data.frequent, questionsPage, QUESTIONS_PAGE_SIZE)
 
   return (
     <div className={`flex flex-col gap-5 ${loading ? 'opacity-60' : ''}`} data-testid="coach-questions">
@@ -51,21 +59,40 @@ export default function CoachQuestionsPage() {
         <Kpi value={INT.format(Math.max(0, data.votes.pendingReview - reviewed.size))} label="À relire" testId="coach-pending-review" />
       </div>
 
-      <SectionCard id="coach-frequent" icon={MessageSquare} title="Questions fréquentes" meta={`${data.days} derniers jours, regroupées par texte ; sans nom de joueur ni compte.`}>
+      <SectionCard
+        id="coach-frequent"
+        icon={MessageSquare}
+        title="Questions fréquentes"
+        meta={`${data.days} derniers jours ; les formulations proches (accents, ponctuation, mots vides, terminaisons) sont réunies sur une ligne ; sans nom de joueur ni compte.`}
+      >
         {data.frequent.length === 0 ? (
           <EmptyState icon={MessageSquare} title="Aucune question sur la période" />
         ) : (
-          <div className="coach-freq" data-testid="coach-frequent">
-            {data.frequent.map((question) => (
-              <div key={question.text} className="coach-freq-row">
-                <span className="t-body text-gray-900">{question.text}</span>
-                <span className="t-hero t-hero--sm text-gray-900">{INT.format(question.count)}</span>
-                <div className="coach-freq-bar">
-                  <span style={{ width: `${Math.round((question.count / maxCount) * 100)}%` }} />
+          <>
+            <div className="coach-freq" data-testid="coach-frequent">
+              {questions.visible.map((question) => (
+                <div key={question.text} className="coach-freq-row">
+                  <span className="t-body text-gray-900">
+                    {question.text}
+                    {question.variants > 1 ? <span className="t-meta"> · {question.variants} formulations</span> : null}
+                  </span>
+                  <span className="t-hero t-hero--sm text-gray-900">{INT.format(question.count)}</span>
+                  <div className="coach-freq-bar">
+                    <span style={{ width: `${Math.round((question.count / maxCount) * 100)}%` }} />
+                  </div>
                 </div>
-              </div>
-            ))}
-          </div>
+              ))}
+            </div>
+            <Pagination
+              page={questions.current}
+              pageCount={questions.pageCount}
+              total={data.frequent.length}
+              pageSize={QUESTIONS_PAGE_SIZE}
+              onPageChange={setQuestionsPage}
+              ariaLabel="Pages des questions fréquentes"
+              itemLabel="Questions"
+            />
+          </>
         )}
       </SectionCard>
 

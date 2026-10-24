@@ -33,6 +33,7 @@ d'inscrire son clan.
 
 | 2026-10-24 | P1 à P7 | **Confirmées** telles quelles (tableau ci-dessous) | Utilisateur |
 | 2026-10-24 | Clé Gemini | Projet Google Cloud et clé créés par l'utilisateur, `GEMINI_API_KEY` dans le `.env` local (jamais dans le dépôt) | Utilisateur |
+| 2026-10-24 | Questions fréquentes | Regroupement par mots-clés avec tolérance (Jaccard ≥ 0,6) au lieu du texte exact — « qui pose un problème » et « qui posent problème » faisaient deux lignes ; liste paginée par 10 | Utilisateur |
 | 2026-10-24 | Lexique | Six lignes de jargon dans le prompt système (§6 : loot / stuff / sac, drop, knock, wipe, smokes, nades, M4 / Beryl / Kar / Mini, snipe / pompe, chicken / Top 1, soirée, map), traduites vers le bon outil sans demander de précision — pas de dictionnaire long, qui coûterait des tokens à chaque question | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Cartes | Outil `getMapPerformance` (§5.2) pour la page « Cartes » ; panoplie bornée à 11 outils pour éviter la fatigue de sélection du modèle | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Loot | « Mon loot » = les objets consommés et lancés (soins, boosts, grenades), pas les largages : outil `getItemUsage` (§5.2) et vocabulaire dans le prompt ; le site ne connaît pas le contenu du sac et l'outil le dit | Utilisateur |
@@ -504,8 +505,10 @@ routes `requirePlatformAdmin`, écritures enveloppées par `withAdminActionLog`.
 2. **Consommation** — mois en cours : coût, questions, comptes actifs, coût moyen par question, jauge du plafond
    global ; par modèle ; comptes au-delà de 80 % de leur budget ; erreurs du fournisseur.
 3. **Questions** — questions fréquentes sur 30 jours (pseudonymisées : le compte n'est pas affiché, seul le clan ;
-   regroupées par texte normalisé en V1, par sens en V2) ; votes « Inexact » à relire avec la question, la précision
-   du joueur, la réponse, les outils appelés, bouton « Relu ».
+   regroupées par **mots-clés** depuis le 2026-10-24 — accents, ponctuation, mots vides, tournures de demande et
+   terminaisons ignorés, deux questions à 60 % de mots-clés communs font une ligne ; par sens en V2 si cela ne
+   suffit pas), 200 groupes au plus, paginées par 10 ; votes « Inexact » à relire avec la question, la précision du
+   joueur, la réponse, les outils appelés, bouton « Relu ».
 
 Alertes (entrées de `src/lib/admin-alerts/catalog.ts`, jamais `sendDiscordWebhook` direct) : plafond global à 80 % et
 atteint ; erreurs répétées du fournisseur ; arrêt annoncé ou changement de prix du modèle actif. Boîte « À traiter »

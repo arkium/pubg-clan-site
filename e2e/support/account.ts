@@ -13,11 +13,15 @@ export type AccountCalls = { profiles: Array<{ email: string; displayName: strin
 
 const AVATAR_SVG = '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 10 10"><rect width="10" height="10" fill="#888"/></svg>'
 
-export async function mockAccount(api: ApiMock, page: Page): Promise<AccountCalls> {
+export type AccountMemoryFixture = { id: number; key: string; text: string; baseline: null; updatedAt: string; expiresAt: string }
+
+/** `memory` : mémoire personnelle du Coach ouverte avec ces lignes (carte « Coach IA ») ; absente = fermée. */
+export async function mockAccount(api: ApiMock, page: Page, options: { memory?: AccountMemoryFixture[] } = {}): Promise<AccountCalls> {
   const calls: AccountCalls = { profiles: [], passwords: [] }
   let profile = { id: 7, email: 'joueur@example.com', displayName: 'Alpha', avatarUrl: null as string | null }
   mockMemberSession(api, { email: 'joueur@example.com' })
   api
+    .on('GET', '/api/coach/memory', { body: { authenticated: true, enabled: options.memory !== undefined, memories: options.memory ?? [], max: 8, retentionDays: 90 } })
     .on('GET', '/api/auth/profile', () => ({
       body: {
         profile: {

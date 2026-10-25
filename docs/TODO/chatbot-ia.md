@@ -942,6 +942,10 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
       interrupteur dans l'onglet Réglages — 2026-10-25
 - [x] Tests : `coach-rules.test.ts` ; routes dans `coach-admin-routes.test.ts` ; prompt dans
       `coach-route-contracts.test.ts` ; `e2e/coach.spec.ts` (réglages, questions) — 2026-10-25
+- [x] Précision du joueur d'un vote « Inexact » modifiable en place par le SuperUser (crayon, `PATCH
+      …/questions/[id]/note`, journalisé ; 280 caractères, vide = retirée) — demande du 2026-10-25, avant la règle
+- [x] Carte « Coach IA » dans `/account` (lien vers la page du Coach du clan, lignes retenues quand la mémoire est
+      ouverte — `CoachAccountCard`, `e2e/account.spec.ts`) — demande du 2026-10-25
 
 ### Lot 11 — Mémoire personnelle (décision du 2026-10-25, [coach-ia-pistes.md §6.2](coach-ia-pistes.md))
 

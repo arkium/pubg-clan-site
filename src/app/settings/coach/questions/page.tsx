@@ -1,6 +1,6 @@
 'use client'
 
-import { Brain, Check, MessageSquare, ThumbsDown } from 'lucide-react'
+import { Brain, Check, MessageSquare, Pencil, ThumbsDown } from 'lucide-react'
 import { useState } from 'react'
 
 import { useLifecycleResource } from '@/components/clan-lifecycle/LifecycleShared'
@@ -9,6 +9,7 @@ import CoachRulesSection, { type CoachRulePrefill } from '@/components/settings/
 import { EmptyState, ErrorState, ListSkeleton, SectionCard, Tag } from '@/components/ui/CharteKit'
 import Pagination from '@/components/ui/Pagination'
 import type { CoachQuestionsReport } from '@/lib/coach/coach-admin-report'
+import { COACH_FEEDBACK_NOTE_MAX } from '@/lib/coach/coach-conversation-service'
 import { paginate } from '@/lib/pagination'
 
 /** Questions fréquentes par page : la liste se pagine, elle ne s'allonge jamais sans fin (règle du site). */
@@ -28,6 +29,31 @@ export default function CoachQuestionsPage() {
   const [reviewError, setReviewError] = useState('')
   const [questionsPage, setQuestionsPage] = useState(1)
   const [rulePrefill, setRulePrefill] = useState<CoachRulePrefill | null>(null)
+  // Précision réécrite par le SuperUser (2026-10-25) : brouillon par message, texte enregistré gardé localement.
+  const [noteDraft, setNoteDraft] = useState<{ messageId: number; text: string } | null>(null)
+  const [savedNotes, setSavedNotes] = useState<Map<number, string | null>>(() => new Map())
+  const [noteSaving, setNoteSaving] = useState(false)
+
+  async function saveNote() {
+    if (!noteDraft || noteSaving) return
+    setNoteSaving(true)
+    setReviewError('')
+    try {
+      const response = await fetch(`/api/settings/coach/questions/${noteDraft.messageId}/note`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ note: noteDraft.text }),
+      })
+      const payload = (await response.json().catch(() => null)) as { note?: string | null; error?: string } | null
+      if (!response.ok) throw new Error(payload?.error ?? 'Enregistrement impossible')
+      setSavedNotes((current) => new Map(current).set(noteDraft.messageId, payload?.note ?? null))
+      setNoteDraft(null)
+    } catch (caught) {
+      setReviewError(caught instanceof Error ? caught.message : 'Enregistrement impossible')
+    } finally {
+      setNoteSaving(false)
+    }
+  }
 
   async function markReviewed(messageId: number) {
     setReviewing(messageId)
@@ -145,8 +171,59 @@ export default function CoachQuestionsPage() {
                     <div className="t-body t-strong text-gray-900">{answer.question ?? '—'}</div>
                   </div>
                   <div>
-                    <div className="t-label">Précision du joueur</div>
-                    <div className="t-body text-gray-900">{answer.note ?? '—'}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="t-label">Précision du joueur</span>
+                      {noteDraft?.messageId !== answer.messageId ? (
+                        <button
+                          type="button"
+                          className="coach-icon-btn"
+                          style={{ width: 24, height: 24 }}
+                          aria-label="Modifier la précision"
+                          title="Modifier la précision"
+                          onClick={() => setNoteDraft({ messageId: answer.messageId, text: (savedNotes.has(answer.messageId) ? savedNotes.get(answer.messageId) : answer.note) ?? '' })}
+                          data-testid={`coach-note-edit-${answer.messageId}`}
+                        >
+                          <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
+                        </button>
+                      ) : null}
+                    </div>
+                    {noteDraft?.messageId === answer.messageId ? (
+                      <div className="flex flex-col gap-2">
+                        <textarea
+                          className="app-input w-full"
+                          rows={2}
+                          value={noteDraft.text}
+                          maxLength={COACH_FEEDBACK_NOTE_MAX}
+                          autoFocus
+                          onChange={(event) => setNoteDraft({ messageId: answer.messageId, text: event.target.value })}
+                          onKeyDown={(event) => {
+                            if (event.key === 'Escape') setNoteDraft(null)
+                            if (event.key === 'Enter' && !event.shiftKey) {
+                              event.preventDefault()
+                              void saveNote()
+                            }
+                          }}
+                          aria-label="Précision du joueur"
+                          data-testid={`coach-note-input-${answer.messageId}`}
+                        />
+                        <span className="flex flex-wrap items-center gap-2">
+                          <button type="button" className="app-btn app-btn--sm app-btn--secondary gap-1" onClick={() => void saveNote()} disabled={noteSaving} data-testid={`coach-note-save-${answer.messageId}`}>
+                            <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                            {noteSaving ? 'Enregistrement…' : 'Enregistrer'}
+                          </button>
+                          <button type="button" className="app-btn app-btn--sm app-btn--secondary" onClick={() => setNoteDraft(null)} disabled={noteSaving}>
+                            Annuler
+                          </button>
+                          <span className="t-meta">
+                            {noteDraft.text.length} / {COACH_FEEDBACK_NOTE_MAX} · remplace le texte du joueur, journalisé
+                          </span>
+                        </span>
+                      </div>
+                    ) : (
+                      <div className="t-body text-gray-900" data-testid={`coach-note-${answer.messageId}`}>
+                        {(savedNotes.has(answer.messageId) ? savedNotes.get(answer.messageId) : answer.note) ?? '—'}
+                      </div>
+                    )}
                   </div>
                 </div>
                 <div>

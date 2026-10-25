@@ -1,6 +1,6 @@
 'use client'
 
-import { KeyRound, Save, UserRound, Users } from 'lucide-react'
+import { KeyRound, Save, Shield, UserRound, Users } from 'lucide-react'
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 
@@ -14,6 +14,7 @@ import {
   TextField,
   type AvatarSuggestion,
 } from '@/components/account/AccountSections'
+import CoachAccountCard from '@/components/account/CoachAccountCard'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
 
@@ -336,6 +337,17 @@ export default function AccountPage() {
             testId="account-members"
           >
             <LinkedMembersList members={activeMembers} />
+          </AccountCard>
+
+          {/* Coach IA (docs/features/coach-ia.md §8) : rappel et lien vers sa page, mémoire personnelle quand elle est ouverte. */}
+          <AccountCard
+            id="account-coach-title"
+            icon={Shield}
+            title="Coach IA"
+            meta="Ton coach e-sport, réservé aux membres connectés."
+            testId="account-coach"
+          >
+            <CoachAccountCard />
           </AccountCard>
 
           <AccountCard

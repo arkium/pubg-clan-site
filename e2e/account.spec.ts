@@ -36,6 +36,25 @@ test('profil chargé : champs remplis, membres liés actifs seulement', async ({
   await expect(members.getByRole('link', { name: /Notifications/ })).toHaveAttribute('href', /\/members\/1\//)
 })
 
+test('carte « Coach IA » : lien vers la page du Coach du clan ; lignes retenues quand la mémoire est ouverte', async ({ api, page }) => {
+  await mockAccount(api, page)
+  await openAccount(page)
+  const card = page.getByTestId('account-coach')
+  await expect(card).toContainText('Coach IA')
+  await expect(card.getByTestId('account-coach-link')).toHaveAttribute('href', '/clans/1/coach')
+  // Mémoire personnelle fermée (défaut) : rien n'est dit sur ce que le Coach retient.
+  await expect(card.getByTestId('account-coach-memory')).toHaveCount(0)
+
+  await mockAccount(api, page, {
+    memory: [
+      { id: 1, key: 'goal', text: '30 % de headshots au Kar98k', baseline: null, updatedAt: '2026-10-24T20:00:00.000Z', expiresAt: '2027-01-22T20:00:00.000Z' },
+      { id: 2, key: 'preference', text: 'je joue surtout le soir', baseline: null, updatedAt: '2026-10-20T20:00:00.000Z', expiresAt: '2027-01-18T20:00:00.000Z' },
+    ],
+  })
+  await openAccount(page)
+  await expect(card.getByTestId('account-coach-memory')).toContainText('Le Coach retient 2 lignes sur toi')
+})
+
 test('profil : pseudo et avatar modifiés, enregistrés, message de succès', async ({ api, page }) => {
   const calls = await mockAccount(api, page)
   await openAccount(page)

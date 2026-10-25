@@ -46,6 +46,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 vi.mock('@/lib/coach/coach-provider-gemini', () => ({ createGeminiProvider: () => ({ streamAnswer: mocks.streamAnswer }) }))
 
+import { PATCH as noteRoute } from '@/app/api/settings/coach/questions/[id]/note/route'
 import { POST as reviewedRoute } from '@/app/api/settings/coach/questions/[id]/reviewed/route'
 import { GET as questionsRoute } from '@/app/api/settings/coach/questions/route'
 import { GET as getSettings, PUT as putSettings } from '@/app/api/settings/coach/route'
@@ -99,6 +100,7 @@ describe('garde', () => {
     expect((await usageRoute(json('/api/settings/coach/usage', 'GET'))).status).toBe(403)
     expect((await questionsRoute(json('/api/settings/coach/questions', 'GET'))).status).toBe(403)
     expect((await reviewedRoute(json('/api/settings/coach/questions/3/reviewed', 'POST'), params('3'))).status).toBe(403)
+    expect((await noteRoute(json('/api/settings/coach/questions/3/note', 'PATCH', { note: 'x' }), params('3'))).status).toBe(403)
     expect((await rulesRoute(json('/api/settings/coach/rules', 'GET'))).status).toBe(403)
     expect((await createRuleRoute(json('/api/settings/coach/rules', 'POST', { text: 'Un Top 10 n’est pas une victoire.' }))).status).toBe(403)
     expect((await patchRuleRoute(json('/api/settings/coach/rules/1', 'PATCH', { enabled: false }), params('1'))).status).toBe(403)
@@ -106,6 +108,25 @@ describe('garde', () => {
     expect(mocks.appConfigFindMany).not.toHaveBeenCalled()
     expect(mocks.ruleFindMany).not.toHaveBeenCalled()
     expect(mocks.ruleCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('précision d’un vote « Inexact » — PATCH /api/settings/coach/questions/[id]/note', () => {
+  it('réécrit la précision en place (espaces réduits), la retire quand elle est vide, 404 hors vote « Inexact »', async () => {
+    mocks.messageUpdateMany.mockResolvedValue({ count: 1 })
+    const response = await noteRoute(json('/api/settings/coach/questions/42/note', 'PATCH', { note: '  La mise à terre est\n à 18:39. ' }), params('42'))
+    expect(response.status).toBe(200)
+    expect(await response.json()).toEqual({ ok: true, note: 'La mise à terre est à 18:39.' })
+    expect(mocks.messageUpdateMany).toHaveBeenCalledWith({ where: { id: 42, feedbackScore: -1 }, data: { feedbackNote: 'La mise à terre est à 18:39.' } })
+
+    await noteRoute(json('/api/settings/coach/questions/42/note', 'PATCH', { note: '' }), params('42'))
+    expect(mocks.messageUpdateMany).toHaveBeenLastCalledWith({ where: { id: 42, feedbackScore: -1 }, data: { feedbackNote: null } })
+
+    expect((await noteRoute(json('/api/settings/coach/questions/42/note', 'PATCH', { note: 'x'.repeat(281) }), params('42'))).status).toBe(400)
+    expect((await noteRoute(json('/api/settings/coach/questions/42/note', 'PATCH', { note: 12 }), params('42'))).status).toBe(400)
+    expect((await noteRoute(json('/api/settings/coach/questions/abc/note', 'PATCH', { note: 'x' }), params('abc'))).status).toBe(400)
+    mocks.messageUpdateMany.mockResolvedValue({ count: 0 })
+    expect((await noteRoute(json('/api/settings/coach/questions/7/note', 'PATCH', { note: 'x' }), params('7'))).status).toBe(404)
   })
 })
 

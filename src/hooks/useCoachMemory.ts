@@ -53,5 +53,16 @@ export function useCoachMemory(active: boolean) {
   }, [])
 
   const loading = active && payload === null && error === null
-  return { memories: payload?.memories ?? null, max: payload?.max ?? 8, retentionDays: payload?.retentionDays ?? 90, loading, error, reload, forget, forgetAll }
+  return {
+    memories: payload?.memories ?? null,
+    /** Mémoire personnelle ouverte par l'administrateur (`coach_memory_enabled`) ; null tant que rien n'est lu. */
+    enabled: payload ? payload.enabled : null,
+    max: payload?.max ?? 8,
+    retentionDays: payload?.retentionDays ?? 90,
+    loading,
+    error,
+    reload,
+    forget,
+    forgetAll,
+  }
 }

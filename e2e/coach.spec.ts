@@ -277,6 +277,14 @@ test.describe('SuperUser', () => {
     await page.getByRole('navigation', { name: 'Pages des questions fréquentes' }).getByRole('button', { name: '2' }).click()
     await expect(frequent).toContainText('Question fréquente n° 11 ?')
 
+    // Précision du joueur réécrite par le SuperUser (2026-10-25) : en place, journalisée côté serveur.
+    await expect(page.getByTestId('coach-note-42')).toContainText('La mise à terre est à 18:39, pas à 18:42.')
+    await page.getByTestId('coach-note-edit-42').click()
+    await page.getByTestId('coach-note-input-42').fill('Heure de la mise à terre fausse : 18:39 dans le replay, 18:42 dans la réponse.')
+    await page.getByTestId('coach-note-save-42').click()
+    await expect(page.getByTestId('coach-note-42')).toContainText('Heure de la mise à terre fausse')
+    expect(admin.noteWrites).toEqual(['Heure de la mise à terre fausse : 18:39 dans le replay, 18:42 dans la réponse.'])
+
     // Règles apprises (lot 10) : « En faire une règle » rattache le vote, le texte reste à écrire ; ajout, interrupteur, suppression.
     const count = page.getByTestId('coach-rules-count')
     await expect(count).toContainText('1 / 20 actives')

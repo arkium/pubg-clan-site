@@ -114,6 +114,16 @@ export async function markCoachMessageReviewed(id: number, now: Date = new Date(
   return result.count > 0
 }
 
+/**
+ * Précision d'un vote « Inexact » réécrite par le SuperUser (2026-10-25) : la note du joueur est souvent vague
+ * (« la réponse n'est pas juste ») et la relecture la complète en une phrase. Remplace le texte en place (journalisé
+ * par la route) ; vide = retirée. Faux si le message n'est pas un vote « Inexact ».
+ */
+export async function updateCoachFeedbackNote(id: number, note: string | null): Promise<boolean> {
+  const result = await prisma.coachMessage.updateMany({ where: { id, feedbackScore: -1 }, data: { feedbackNote: note } })
+  return result.count > 0
+}
+
 const TEST_TOOL = { name: 'getTestCode', description: 'Renvoie le code de test du jour. À appeler avant de répondre.', parameters: { type: 'object', properties: {} } }
 const TEST_SYSTEM =
   'Tu es un assistant de test. Pour répondre, appelle d’abord l’outil getTestCode, puis réponds uniquement par le code qu’il te renvoie, sans autre texte. Sans l’outil, tu ne connais pas ce code.'

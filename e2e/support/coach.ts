@@ -178,6 +178,7 @@ export function mockCoachAdmin(api: ApiMock) {
   mockMemberSession(api, { superUser: true })
   const saves: Array<Record<string, unknown>> = []
   const ruleWrites: CoachRuleWrite[] = []
+  const noteWrites: string[] = []
   let settings = { ...COACH_SETTINGS }
   let rules: CoachRuleFixture[] = [{ id: 1, text: 'Un Top 10 n’est pas une victoire.', enabled: true, fromMessageId: null, createdAt: '2026-10-25T09:00:00.000Z', updatedAt: '2026-10-25T09:00:00.000Z', tokens: 9 }]
   const rulesReport = () => {
@@ -251,5 +252,10 @@ export function mockCoachAdmin(api: ApiMock) {
       },
     })
     .on('POST', '/api/settings/coach/questions/42/reviewed', { body: { ok: true } })
-  return { saves, ruleWrites }
+    .on('PATCH', '/api/settings/coach/questions/42/note', (_url, request: Request) => {
+      const { note } = request.postDataJSON() as { note: string }
+      noteWrites.push(note)
+      return { body: { ok: true, note: note.trim() || null } }
+    })
+  return { saves, ruleWrites, noteWrites }
 }

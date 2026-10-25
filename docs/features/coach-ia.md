@@ -144,6 +144,7 @@ du tournoi, et le bloc du prompt. Une adresse étrangère = « sans contexte ».
 | `POST /api/clans/[clanId]/coach/chat` | membre du clan + quota → flux SSE (`meta`, `tool`, `delta`, `done`, `error`) |
 | `GET · DELETE /api/coach/memory`, `DELETE …/memory/[id]` (lot 11) | compte connecté : ses lignes (`enabled`, `max`, `retentionDays`), « Tout oublier », une ligne (404 si elle n'est pas à lui) |
 | `GET · POST /api/settings/coach/rules`, `PATCH · DELETE …/rules/[id]` (lot 10) | `requirePlatformAdmin`, écritures `withAdminActionLog` ; 409 au-delà de 20 règles actives |
+| `PATCH /api/settings/coach/questions/[id]/note` | `requirePlatformAdmin`, `withAdminActionLog` : précision d'un vote « Inexact » réécrite (280, vide = retirée) ; 404 hors vote « Inexact » |
 | `GET /api/coach/quota` | session |
 | `GET /api/coach/conversations`, `GET · PATCH · DELETE …/[id]` | propriétaire (lecture SuperUser), 404 sinon |
 | `POST /api/coach/messages/[id]/feedback` | propriétaire |
@@ -172,6 +173,9 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
   —, « Oublier » par ligne, « Tout oublier » ; relue à la fin de chaque réponse (`useCoachMemory`). Dans le tiroir elle
   remplace le fil, sur la page plein écran la liste des fils. Sous 768 px, le bouton « Agrandir » du panneau disparaît
   (`.coach-maximize`) pour lui laisser la place : la page plein écran reste accessible par le menu.
+- **Carte « Coach IA » de `/account`** (`CoachAccountCard`, 2026-10-25) : rappel, lien « Ouvrir le Coach » vers la page
+  du clan du membre (à défaut, le clan choisi dans le menu), et le nombre de lignes retenues quand la mémoire
+  personnelle est ouverte (une lecture de `GET /api/coach/memory`).
 - **Plein écran** `/clans/[clanId]/coach` (`CoachPanel` en variante `page`) : fil de 760 px et liste des fils (nouveau,
   renommer, supprimer). `noindex` (`CLAN_PAGES`, `src/lib/seo/page-seo.ts`).
 - **Teaser** visiteur et **carte de la vitrine** (`CoachRow` de `HomeShowcase.tsx`, rendue seulement quand le Coach est
@@ -191,6 +195,9 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
   par question », saisie d'une règle (8 à 200 caractères, impératif, tutoiement), liste avec interrupteur, modification
   et suppression confirmée ; « En faire une règle » sur un vote « Inexact » rattache le vote (`fromMessageId`) et laisse
   le texte vide : la note du joueur n'entre jamais dans le prompt. La mémoire personnelle n'apparaît nulle part ici.
+  La **précision du joueur** d'un vote « Inexact » se réécrit en place (crayon, `PATCH …/questions/[id]/note`, 280
+  caractères, vide = retirée, journalisé) : une note vague (« la réponse n'est pas juste ») devient le diagnostic de la
+  relecture, source de la règle — demande du 2026-10-25.
 
 | Onglet | Contenu |
 |---|---|

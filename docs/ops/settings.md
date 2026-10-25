@@ -100,6 +100,7 @@ votes, questions fréquentes sur 30 jours, votes « Inexact » à relire avec «
   (`coach_rules_enabled`, `coach_memory_enabled`, fermés par défaut) ; section « Règles apprises » de l'onglet Questions
   (`CoachRulesSection`, routes `GET · POST /api/settings/coach/rules`, `PATCH · DELETE …/rules/[id]`, 20 actives au
   plus). La mémoire personnelle des joueurs n'est lisible nulle part dans l'administration — [coach-ia.md](../features/coach-ia.md) §9.
+  La précision d'un vote « Inexact » se réécrit en place (crayon, `PATCH …/questions/[id]/note`, journalisé).
 
 ---
 

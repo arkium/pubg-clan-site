@@ -37,11 +37,8 @@ export default function CoachPage() {
         <p className="t-meta m-0 mt-1">Tes parties, tes armes et tes adversaires expliqués à partir de la télémétrie du clan. Réservé aux membres connectés.</p>
       </header>
       {clanId ? <CoachPanel variant="page" active /> : <p className="t-meta">Clan inconnu.</p>}
-      <section id="aide" aria-labelledby="coach-help-heading" className="mt-6 flex flex-col gap-3">
-        <h2 id="coach-help-heading" className="t-card-title m-0">
-          Ce qu’il sait faire, ses limites, comment l’améliorer
-        </h2>
-        <p className="t-meta m-0">Pose-lui des questions que ses outils savent servir : voici lesquelles, et ce qui restera sans réponse.</p>
+      {/* « Comment ça marche ? » : une barre repliée qui déplie ce qu'il sait faire, ses limites, comment l'améliorer. */}
+      <section id="aide" aria-label="Comment ça marche ?" className="mt-4">
         <CoachHelp variant="page" memoryEnabled={memory.enabled === true} />
       </section>
     </main>

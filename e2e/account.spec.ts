@@ -42,14 +42,18 @@ test('carte « Coach IA » : lien vers la page du Coach du clan ; lignes retenue
   const card = page.getByTestId('account-coach')
   await expect(card).toContainText('Coach IA')
   await expect(card.getByTestId('account-coach-link')).toHaveAttribute('href', '/clans/1/coach')
-  // Ce qu'il sait faire, ses limites, comment l'améliorer (source unique `coach-help.ts`), sans les exemples.
+  // Ce qu'il sait faire, ses limites, comment l'améliorer (source unique `coach-help.ts`), sans les exemples :
+  // trois blocs repliables, fermés par défaut, ouverts d'un clic sur leur titre.
   const help = card.getByTestId('coach-help')
   await expect(help).toContainText('Ce qu’il sait faire')
-  await expect(help).toContainText('Classement, Ligue et tournois')
-  await expect(help).toContainText('Ses limites')
-  await expect(help).toContainText('Les statistiques du site font foi.')
-  await expect(help).toContainText('Pour l’améliorer')
-  await expect(help).toContainText('Vote « Utile » ou « Inexact »')
+  await expect(help.getByText('Classement, Ligue et tournois')).toBeHidden()
+  await help.getByText('Ce qu’il sait faire').click()
+  await expect(help.getByText('Classement, Ligue et tournois')).toBeVisible()
+  await expect(help.getByText('Les statistiques du site font foi.')).toBeHidden()
+  await help.getByText('Ses limites').click()
+  await expect(help.getByText('Les statistiques du site font foi.')).toBeVisible()
+  await help.getByText('Pour l’améliorer').click()
+  await expect(help.getByText(/Vote « Utile » ou « Inexact »/)).toBeVisible()
   await expect(help).not.toContainText('Ce qu’il retient de toi')
   // Mémoire personnelle fermée (défaut) : rien n'est dit sur ce que le Coach retient.
   await expect(card.getByTestId('account-coach-memory')).toHaveCount(0)

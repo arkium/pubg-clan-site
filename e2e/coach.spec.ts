@@ -219,11 +219,17 @@ test.describe('membre', () => {
     await expect(page.getByTestId('coach-trigger')).toHaveCount(0)
     await expect(page.getByTestId('coach-fab')).toHaveCount(0)
     await expect(page.getByTestId('coach-context')).toHaveCount(0)
-    // Section « aide » sous le panneau : domaines avec exemples, limites, conseils ; pas de mémoire (fermée).
+    // Barre « Comment ça marche ? » sous le panneau, repliée : « Afficher » déplie d'un coup les trois blocs — domaines
+    // avec exemples, limites, conseils ; pas de mémoire (fermée).
     const help = page.getByTestId('coach-help')
-    await expect(help).toContainText('« Qui a gagné le dernier tournoi ? »')
-    await expect(help).toContainText('Ses limites')
-    await expect(help).toContainText('Pour l’améliorer')
+    const example = help.getByText('« Qui a gagné le dernier tournoi ? »')
+    await expect(help).toContainText('Comment ça marche ?')
+    await expect(example).toBeHidden()
+    await help.getByText('Afficher').click()
+    await expect(example).toBeVisible()
+    await expect(help.getByText('Les statistiques du site font foi.')).toBeVisible()
+    await expect(help.getByText(/Vote « Utile » ou « Inexact »/)).toBeVisible()
+    await expect(help.getByText('Masquer')).toBeVisible()
     await expect(help).not.toContainText('Ce qu’il retient de toi')
     await expect(page.getByTestId('coach-help-link')).toHaveAttribute('href', '#aide')
     await noHorizontalScroll(page)

@@ -4581,9 +4581,30 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .coach-help { display: grid; gap: 10px; }
 @media (min-width: 1024px) { .coach-help--page { grid-template-columns: 1.4fr 1fr 1fr; } }
 @media (min-width: 768px) { .coach-help--card { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
-.coach-help-block { display: flex; min-width: 0; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--theme-ui-border); border-radius: 12px; background: var(--theme-ui-surface-soft); }
-.coach-help-title { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; color: var(--theme-ui-text); }
-.coach-help-title svg { color: var(--theme-ui-accent-text); }
+.coach-help-block { min-width: 0; padding: 10px 14px; border: 1px solid var(--theme-ui-border); border-radius: 12px; background: var(--theme-ui-surface-soft); align-self: start; }
+/* Résumé = titre cliquable à chevron (fermé par défaut, demande du 25/10/2026) ; marqueur natif masqué. */
+.coach-help-title { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; color: var(--theme-ui-text); cursor: pointer; list-style: none; }
+.coach-help-title::-webkit-details-marker { display: none; }
+.coach-help-title:focus-visible { outline: 2px solid var(--theme-ui-accent-ring); outline-offset: 2px; border-radius: 6px; }
+.coach-help-title > svg:first-child { color: var(--theme-ui-accent-text); }
+.coach-help-chevron { margin-left: auto; color: var(--theme-ui-text-muted); transition: transform 120ms ease-out; }
+.coach-help-block[open] > .coach-help-title .coach-help-chevron { transform: rotate(180deg); }
+.coach-help-title--static { cursor: default; }
+.coach-help-body { margin-top: 10px; }
+/* Page plein écran : une barre « Comment ça marche ? » (icône accent, « Afficher » / « Masquer » et chevron à droite en
+   accent) qui déplie les trois blocs d'un coup — demande du 25/10/2026. */
+.coach-help-group { border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); }
+.coach-help-group-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 14px 16px; font-size: 15px; font-weight: 800; color: var(--theme-ui-text); cursor: pointer; list-style: none; }
+.coach-help-group-title::-webkit-details-marker { display: none; }
+.coach-help-group-title:focus-visible { outline: 2px solid var(--theme-ui-accent-ring); outline-offset: -2px; border-radius: 14px; }
+.coach-help-group-title > svg:first-child { color: var(--theme-ui-accent-text); }
+.coach-help-group-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--theme-ui-accent-text); white-space: nowrap; }
+.coach-help-group-toggle svg { transition: transform 120ms ease-out; }
+.coach-help-group[open] > .coach-help-group-title .coach-help-group-toggle svg { transform: rotate(180deg); }
+.coach-help-when-open { display: none; }
+.coach-help-group[open] .coach-help-when-open { display: inline; }
+.coach-help-group[open] .coach-help-when-closed { display: none; }
+.coach-help-group-body { padding: 0 12px 12px; }
 .coach-help-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; line-height: 1.45; color: var(--theme-ui-text-secondary); }
 .coach-help-domains { display: grid; gap: 8px; }
 .coach-help-domain { display: flex; flex-direction: column; gap: 3px; }

@@ -56,6 +56,11 @@ export function coachQuota(overrides: Partial<CoachQuotaFixture> = {}): CoachQuo
   }
 }
 
+/** `GET /api/coach/limits` : limites chiffrées de l'aide (réglages par défaut du Coach, mémoire selon le test). */
+export function coachLimits(overrides: { memoryEnabled?: boolean } = {}) {
+  return { hourlyLimit: 20, minIntervalSeconds: 4, maxInputChars: 400, budgetPerAccountEur: 2, historyMessages: 10, memoryEnabled: false, memoryMax: 8, memoryRetentionDays: 90, ...overrides }
+}
+
 export type CoachMemoryFixture = { id: number; key: 'goal' | 'role' | 'preference' | 'avoid' | 'note'; text: string; baseline: { metric: string; weapon?: string; value: number; at: string } | null; updatedAt: string; expiresAt: string }
 
 /** Deux lignes de « Ce que le Coach sait de toi » : un objectif chiffré avec sa mesure de départ, une préférence. */
@@ -108,6 +113,7 @@ export function mockCoachMember(api: ApiMock, options: { superUser?: boolean; qu
   let memories = [...(options.memory ?? [])]
   api
     .on('GET', '/api/coach/quota', { body: coachQuota({ memoryEnabled: options.memory !== undefined, ...options.quota }) })
+    .on('GET', '/api/coach/limits', { body: coachLimits({ memoryEnabled: options.memory !== undefined }) })
     .on('GET', '/api/coach/memory', () => ({ body: { authenticated: true, enabled: options.memory !== undefined, memories, max: 8, retentionDays: 90 } }))
     .on('DELETE', '/api/coach/memory', () => {
       calls.forgotAll += 1

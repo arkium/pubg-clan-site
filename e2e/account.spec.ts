@@ -52,6 +52,11 @@ test('carte « Coach IA » : lien vers la page du Coach du clan ; lignes retenue
   await expect(help.getByText('Les statistiques du site font foi.')).toBeHidden()
   await help.getByText('Ses limites').click()
   await expect(help.getByText('Les statistiques du site font foi.')).toBeVisible()
+  // Limites chiffrées, lues des réglages (GET /api/coach/limits).
+  await expect(help.getByTestId('coach-help-limit-rows')).toContainText('20 questions par heure')
+  await expect(help.getByTestId('coach-help-limit-rows')).toContainText(/2\s€ de budget par mois/)
+  await expect(help.getByTestId('coach-help-limit-rows')).toContainText('au plus 400 caractères')
+  await expect(help.getByTestId('coach-help-limit-rows')).not.toContainText('lignes sur toi')
   await help.getByText('Pour l’améliorer').click()
   await expect(help.getByText(/Vote « Utile » ou « Inexact »/)).toBeVisible()
   await expect(help).not.toContainText('Ce qu’il retient de toi')
@@ -67,6 +72,7 @@ test('carte « Coach IA » : lien vers la page du Coach du clan ; lignes retenue
   await openAccount(page)
   await expect(card.getByTestId('account-coach-memory')).toContainText('Le Coach retient 2 lignes sur toi')
   await expect(card.getByTestId('coach-help')).toContainText('Ce qu’il retient de toi')
+  await expect(card.getByTestId('coach-help-limit-rows')).toContainText('au plus 8 lignes sur toi, 90 jours')
 })
 
 test('profil : pseudo et avatar modifiés, enregistrés, message de succès', async ({ api, page }) => {

@@ -5,6 +5,7 @@ import Link from 'next/link'
 
 import CoachHelp from '@/components/coach/CoachHelp'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { useCoachLimits } from '@/hooks/useCoachLimits'
 import { useCoachMemory } from '@/hooks/useCoachMemory'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 
@@ -18,6 +19,7 @@ export default function CoachAccountCard() {
   const session = useAuthSession()
   const { clanId: selectedClanId } = useSelectedClan()
   const memory = useCoachMemory(!session.loading && session.authenticated)
+  const limits = useCoachLimits(true)
 
   const activeMember = session.members.find((member) => member.memberId === session.activeMemberId) ?? session.members.find((member) => member.clanId !== null) ?? null
   const clanId = activeMember?.clanId ?? selectedClanId
@@ -46,7 +48,7 @@ export default function CoachAccountCard() {
           </span>
         ) : null}
       </div>
-      <CoachHelp variant="card" memoryEnabled={memoryEnabled} />
+      <CoachHelp variant="card" memoryEnabled={memoryEnabled} limits={limits} />
     </div>
   )
 }

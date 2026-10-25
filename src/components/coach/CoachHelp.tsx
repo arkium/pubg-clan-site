@@ -1,7 +1,7 @@
 import { AlertCircle, ChevronDown, HelpCircle, Sparkles, ThumbsUp, type LucideIcon } from 'lucide-react'
 import type { ReactNode } from 'react'
 
-import { COACH_HELP_IMPROVE, COACH_HELP_LIMITS, COACH_HELP_MEMORY_TIP, coachHelpDomains } from '@/lib/coach/coach-help'
+import { COACH_HELP_IMPROVE, COACH_HELP_MEMORY_TIP, coachHelpDomains, coachHelpLimits, type CoachLimits } from '@/lib/coach/coach-help'
 
 /**
  * « Ce qu'il sait faire, ses limites, comment l'améliorer » (demande du 2026-10-25). Même contenu, deux habillages :
@@ -11,9 +11,11 @@ import { COACH_HELP_IMPROVE, COACH_HELP_LIMITS, COACH_HELP_MEMORY_TIP, coachHelp
  *   qui déplie les trois blocs d'un coup — un bloc par domaine avec ses questions d'exemple.
  * Source : `src/lib/coach/coach-help.ts` ; patron du repli : `ClanSyncPanel`.
  */
-export default function CoachHelp({ variant, memoryEnabled = false }: { variant: 'card' | 'page'; memoryEnabled?: boolean }) {
+export default function CoachHelp({ variant, memoryEnabled = false, limits = null }: { variant: 'card' | 'page'; memoryEnabled?: boolean; limits?: CoachLimits | null }) {
   const domains = coachHelpDomains(memoryEnabled)
   const improve = memoryEnabled ? [...COACH_HELP_IMPROVE, COACH_HELP_MEMORY_TIP] : COACH_HELP_IMPROVE
+  // Limites chiffrées dès que les réglages sont lus ; la ligne sur la mémoire ne suit que l'ouverture réelle.
+  const limitRows = coachHelpLimits(limits ? { ...limits, memoryEnabled } : null)
   const collapsible = variant === 'card'
 
   const blocks = (
@@ -42,8 +44,8 @@ export default function CoachHelp({ variant, memoryEnabled = false }: { variant:
       </HelpBlock>
 
       <HelpBlock icon={AlertCircle} title="Ses limites" collapsible={collapsible} testId={`coach-help-limits-${variant}`}>
-        <ul className="coach-help-list">
-          {COACH_HELP_LIMITS.map((limit) => (
+        <ul className="coach-help-list" data-testid="coach-help-limit-rows">
+          {limitRows.map((limit) => (
             <li key={limit}>{limit}</li>
           ))}
         </ul>

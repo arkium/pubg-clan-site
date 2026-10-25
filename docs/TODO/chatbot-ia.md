@@ -949,7 +949,9 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
 - [x] Aide du Coach : ce qu'il sait faire (domaines = groupes d'outils, questions d'exemple servies par un outil — test
       de couverture `coach-help.test.ts`), ses limites, comment l'améliorer ; sur la carte de `/account` et en section
       `#aide` de la page plein écran, reliée depuis le mot d'accueil du tiroir (`coach-help.ts`, `CoachHelp`) —
-      demande du 2026-10-25
+      demande du 2026-10-25 ; limites **chiffrées** d'après les réglages (`GET /api/coach/limits`, publique, cache
+      5 min : questions par heure, budget mensuel, longueur et délai d'une question, historique, mémoire) ; sur
+      `/account` trois blocs à chevron fermés, sur la page une barre « Comment ça marche ? » — même jour
 
 ### Lot 11 — Mémoire personnelle (décision du 2026-10-25, [coach-ia-pistes.md §6.2](coach-ia-pistes.md))
 

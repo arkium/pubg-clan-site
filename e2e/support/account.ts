@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 
 import type { ApiMock } from './api'
+import { coachLimits } from './coach'
 import { mockMemberSession } from './session'
 
 /**
@@ -22,6 +23,7 @@ export async function mockAccount(api: ApiMock, page: Page, options: { memory?: 
   mockMemberSession(api, { email: 'joueur@example.com' })
   api
     .on('GET', '/api/coach/memory', { body: { authenticated: true, enabled: options.memory !== undefined, memories: options.memory ?? [], max: 8, retentionDays: 90 } })
+    .on('GET', '/api/coach/limits', { body: coachLimits({ memoryEnabled: options.memory !== undefined }) })
     .on('GET', '/api/auth/profile', () => ({
       body: {
         profile: {

@@ -228,6 +228,8 @@ test.describe('membre', () => {
     await help.getByText('Afficher').click()
     await expect(example).toBeVisible()
     await expect(help.getByText('Les statistiques du site font foi.')).toBeVisible()
+    await expect(help.getByTestId('coach-help-limit-rows')).toContainText('20 questions par heure')
+    await expect(help.getByTestId('coach-help-limit-rows')).toContainText('au plus 400 caractères, à 4 s d’écart au moins')
     await expect(help.getByText(/Vote « Utile » ou « Inexact »/)).toBeVisible()
     await expect(help.getByText('Masquer')).toBeVisible()
     await expect(help).not.toContainText('Ce qu’il retient de toi')

@@ -6,6 +6,7 @@ import CoachHelp from '@/components/coach/CoachHelp'
 import CoachPanel from '@/components/coach/CoachPanel'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { useCoachLimits } from '@/hooks/useCoachLimits'
 import { useCoachMemory } from '@/hooks/useCoachMemory'
 
 /**
@@ -26,6 +27,8 @@ export default function CoachPage() {
   const session = useAuthSession()
   // Le domaine « Ce qu'il retient de toi » n'apparaît que si la mémoire est ouverte : une lecture, membre connecté seulement.
   const memory = useCoachMemory(!session.loading && session.authenticated)
+  // Limites chiffrées de l'aide (route publique en cache), pour tout le monde — le teaser du visiteur les montre aussi.
+  const limits = useCoachLimits(true)
 
   return (
     <main className="app-container app-main charte game-ui">
@@ -39,7 +42,7 @@ export default function CoachPage() {
       {clanId ? <CoachPanel variant="page" active /> : <p className="t-meta">Clan inconnu.</p>}
       {/* « Comment ça marche ? » : une barre repliée qui déplie ce qu'il sait faire, ses limites, comment l'améliorer. */}
       <section id="aide" aria-label="Comment ça marche ?" className="mt-4">
-        <CoachHelp variant="page" memoryEnabled={memory.enabled === true} />
+        <CoachHelp variant="page" memoryEnabled={memory.enabled === true} limits={limits} />
       </section>
     </main>
   )

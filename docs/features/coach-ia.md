@@ -145,6 +145,7 @@ du tournoi, et le bloc du prompt. Une adresse étrangère = « sans contexte ».
 | `GET · DELETE /api/coach/memory`, `DELETE …/memory/[id]` (lot 11) | compte connecté : ses lignes (`enabled`, `max`, `retentionDays`), « Tout oublier », une ligne (404 si elle n'est pas à lui) |
 | `GET · POST /api/settings/coach/rules`, `PATCH · DELETE …/rules/[id]` (lot 10) | `requirePlatformAdmin`, écritures `withAdminActionLog` ; 409 au-delà de 20 règles actives |
 | `PATCH /api/settings/coach/questions/[id]/note` | `requirePlatformAdmin`, `withAdminActionLog` : précision d'un vote « Inexact » réécrite (280, vide = retirée) ; 404 hors vote « Inexact » |
+| `GET /api/coach/limits` | publique, cache 5 min : limites chiffrées de l'aide (questions par heure, budget mensuel par compte, longueur et délai d'une question, historique relu, bornes de la mémoire) — rien de personnel |
 | `GET /api/coach/quota` | session |
 | `GET /api/coach/conversations`, `GET · PATCH · DELETE …/[id]` | propriétaire (lecture SuperUser), 404 sinon |
 | `POST /api/coach/messages/[id]/feedback` | propriétaire |
@@ -178,7 +179,9 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
   ouverte (une lecture de `GET /api/coach/memory`), et l'aide (`CoachHelp` en variante `card`).
 - **Aide** (`src/lib/coach/coach-help.ts`, `CoachHelp`, 2026-10-25) : « Ce qu'il sait faire » — un domaine par groupe
   d'outils avec des questions d'exemple qu'un outil sait servir (`coach-help.test.ts` vérifie que chaque outil déclaré
-  est couvert, pour ne jamais suggérer une question hors des fonctions) —, « Ses limites », « Pour l'améliorer »
+  est couvert, pour ne jamais suggérer une question hors des fonctions) —, « Ses limites » (chiffrées d'après
+  `GET /api/coach/limits` : « 20 questions par heure et 2 € de budget par mois », « au plus 400 caractères, à 4 s
+  d'écart », historique relu, bornes de la mémoire quand elle est ouverte), « Pour l'améliorer »
   (votes, précision, contexte de page, noms du site, fil ; conseil « retiens que… » quand la mémoire est ouverte).
   Sur `/account`, trois blocs repliables (`<details>`, chevron), fermés par défaut ; sur la page plein écran, une seule
   barre « Comment ça marche ? » sous le panneau (section `#aide`, « Afficher » / « Masquer » à droite) qui déplie les

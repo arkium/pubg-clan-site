@@ -1,4 +1,5 @@
-import { COACH_MEMORY_TOOL_NAME } from '@/lib/coach/coach-memory'
+import type { CoachSettings } from '@/lib/coach/coach-config'
+import { COACH_MEMORY_MAX, COACH_MEMORY_RETENTION_DAYS, COACH_MEMORY_TOOL_NAME } from '@/lib/coach/coach-memory'
 
 /**
  * Aide du Coach IA (demande du 2026-10-25) : ce qu'il sait faire — un domaine par groupe d'outils, avec des questions
@@ -63,14 +64,59 @@ export const COACH_HELP_MEMORY_DOMAIN: CoachHelpDomain = {
   examples: ['Retiens que mon objectif, c’est 30 % de headshots au Kar98k', 'Retiens que je préfère jouer le soir en squad'],
 }
 
-export const COACH_HELP_LIMITS: string[] = [
-  'Il ne lit que les données de ton clan sur le site, plus les tournois : rien sur un autre clan ni sur un joueur absent du site.',
-  'Tout chiffre qu’il donne vient d’un outil ci-dessus. Ce qu’aucun outil ne mesure, il ne le sait pas : la cause exacte d’une mort, ce qui s’est dit en vocal, les parties jouées hors du clan.',
-  'Une partie dont la télémétrie n’est pas encore analysée n’a rien à lui apprendre avant le lendemain matin.',
-  'Hors PUBG (devoirs, code, vie privée), il refuse en une phrase.',
-  'Ses réponses sont générées par un modèle d’IA : elles peuvent être inexactes. Les statistiques du site font foi.',
-  'Un nombre de questions par heure et un budget par mois, affichés dans le panneau ; au-delà, il te donne l’heure de retour.',
-]
+/** Limites chiffrées montrées dans l'aide (`GET /api/coach/limits`, public, cache 5 min) : réglages du SuperUser et bornes de la mémoire. */
+export type CoachLimits = {
+  hourlyLimit: number
+  minIntervalSeconds: number
+  maxInputChars: number
+  budgetPerAccountEur: number
+  historyMessages: number
+  memoryEnabled: boolean
+  memoryMax: number
+  memoryRetentionDays: number
+}
+
+export function coachLimitsPayload(settings: CoachSettings): CoachLimits {
+  return {
+    hourlyLimit: settings.hourlyLimit,
+    minIntervalSeconds: settings.minIntervalSeconds,
+    maxInputChars: settings.maxInputChars,
+    budgetPerAccountEur: settings.budgetPerAccountEur,
+    historyMessages: settings.historyMessages,
+    memoryEnabled: settings.memoryEnabled,
+    memoryMax: COACH_MEMORY_MAX,
+    memoryRetentionDays: COACH_MEMORY_RETENTION_DAYS,
+  }
+}
+
+const EUR = new Intl.NumberFormat('fr-FR', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0, maximumFractionDigits: 2 })
+const INT = new Intl.NumberFormat('fr-FR')
+
+/** Limites, chiffrées quand les réglages sont connus (demande du 2026-10-25), génériques sinon. */
+export function coachHelpLimits(limits: CoachLimits | null): string[] {
+  const quota = limits
+    ? `${INT.format(limits.hourlyLimit)} questions par heure et ${EUR.format(limits.budgetPerAccountEur)} de budget par mois pour ton compte (le panneau affiche le restant) ; au-delà, il te donne l’heure de retour.`
+    : 'Un nombre de questions par heure et un budget par mois, affichés dans le panneau ; au-delà, il te donne l’heure de retour.'
+  const question = limits
+    ? `Une question fait au plus ${INT.format(limits.maxInputChars)} caractères${limits.minIntervalSeconds > 0 ? `, à ${INT.format(limits.minIntervalSeconds)} s d’écart au moins` : ''} ; il relit les ${INT.format(limits.historyMessages)} derniers messages du fil avec chaque question.`
+    : 'Une question est bornée en longueur, et il ne relit que les derniers messages du fil.'
+  const rows = [
+    'Il ne lit que les données de ton clan sur le site, plus les tournois : rien sur un autre clan ni sur un joueur absent du site.',
+    'Tout chiffre qu’il donne vient d’un outil ci-dessus. Ce qu’aucun outil ne mesure, il ne le sait pas : la cause exacte d’une mort, ce qui s’est dit en vocal, les parties jouées hors du clan.',
+    'Une partie dont la télémétrie n’est pas encore analysée n’a rien à lui apprendre avant le lendemain matin.',
+    'Hors PUBG (devoirs, code, vie privée), il refuse en une phrase.',
+    'Ses réponses sont générées par un modèle d’IA : elles peuvent être inexactes. Les statistiques du site font foi.',
+    quota,
+    question,
+  ]
+  if (limits?.memoryEnabled) {
+    rows.push(`Il retient au plus ${INT.format(limits.memoryMax)} lignes sur toi, ${INT.format(limits.memoryRetentionDays)} jours après leur dernière mise à jour — en tes mots seulement, jamais une déduction.`)
+  }
+  return rows
+}
+
+/** Limites génériques (sans réglages connus) : forme de repli de `coachHelpLimits`. */
+export const COACH_HELP_LIMITS: string[] = coachHelpLimits(null)
 
 export const COACH_HELP_IMPROVE: string[] = [
   'Vote « Utile » ou « Inexact » sous chaque réponse. Avec « Inexact », précise ce qui cloche (heure, chiffre, joueur) : c’est ce que l’administrateur relit pour corriger le Coach, sans voir ton compte.',

@@ -241,6 +241,14 @@ mesure sur les votes), puis **mémoire personnelle (6a)** avec son écran et sa 
 synthèse automatique et au *few-shot*. Décision à inscrire au §0 de [chatbot-ia.md](chatbot-ia.md) ; chacune devient
 un lot du §13 avec ses contrôles (étanchéité du texte mémorisé, aucune lecture SuperUser, purge, coût mesuré).
 
+**Décision du 2026-10-25 : les deux, règles d'abord** — implémentées comme les lots 10 et 11 de
+[chatbot-ia.md §13](chatbot-ia.md) (branche `feat/coach-memoire`), chacune derrière un interrupteur fermé par défaut
+(`coach_rules_enabled`, `coach_memory_enabled`, onglet Réglages de `/settings/coach`) : le prompt reste exactement
+celui d'avant tant qu'ils le sont. Écarts à la conception ci-dessus : aucun ; précisions — la mesure de départ d'un
+objectif n'est acceptée que si sa valeur figure dans un résultat d'outil de la même réponse (sinon l'objectif est retenu
+sans mesure), et l'ouverture de la mémoire est portée par `GET /api/coach/quota` (`memoryEnabled`) pour que le panneau
+n'appelle rien de plus.
+
 ---
 
 ## Ordre proposé

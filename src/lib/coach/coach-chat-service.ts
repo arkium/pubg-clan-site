@@ -5,11 +5,15 @@ import { coachContextLabel, coachContextPromptBlock, coachSuggestions } from '@/
 import { resolveCoachContext } from '@/lib/coach/coach-context-service'
 import { coachConversationTitle } from '@/lib/coach/coach-conversation-service'
 import { coachCostMicroUsd } from '@/lib/coach/coach-cost'
+import { COACH_MEMORY_TOOL_NAME, coachMemoryPromptBlock } from '@/lib/coach/coach-memory'
+import { createCoachMemoryTool, listCoachMemories } from '@/lib/coach/coach-memory-service'
 import { COACH_DEFAULT_MODEL_ID, getCoachModel } from '@/lib/coach/coach-models'
 import { buildCoachSystemPrompt } from '@/lib/coach/coach-prompt'
 import { CoachProviderError, type CoachHistoryMessage, type CoachModelProvider, type CoachToolCall } from '@/lib/coach/coach-provider'
 import { createGeminiProvider } from '@/lib/coach/coach-provider-gemini'
 import { checkCoachQuota, completeCoachUsage, parisMonthBounds, reserveCoachUsage, type CoachQuotaDecision } from '@/lib/coach/coach-quota'
+import { coachRulesPromptBlock } from '@/lib/coach/coach-rules'
+import { activeCoachRuleTexts } from '@/lib/coach/coach-rules-service'
 import { createCoachTools, type CoachToolScope } from '@/lib/coach/coach-tools'
 import { prisma } from '@/lib/prisma'
 
@@ -63,6 +67,26 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getPlayerBenchmark: 'Je te situe parmi les joueurs du site…',
   getCareerStats: 'Je lis ta carrière PUBG…',
   getClanPlaystyle: 'Je regarde le style de jeu du clan…',
+  [COACH_MEMORY_TOOL_NAME]: 'Je note ce que tu me dis…',
+}
+
+/**
+ * Blocs du prompt ouverts par les interrupteurs (lots 10 et 11) : vides quand ils sont fermés — le prompt est alors
+ * exactement celui d'avant. Une base injoignable rend des blocs vides : la réponse part sans eux, jamais en erreur.
+ */
+export async function loadCoachPromptBlocks(settings: Pick<CoachSettings, 'rulesEnabled' | 'memoryEnabled'>, userId: number, now: Date): Promise<{ rulesBlock: string; memoryBlock: string }> {
+  const [rulesBlock, memoryBlock] = await Promise.all([
+    settings.rulesEnabled ? activeCoachRuleTexts(now.getTime()).then(coachRulesPromptBlock) : Promise.resolve(''),
+    settings.memoryEnabled
+      ? listCoachMemories(userId, now)
+          .then(coachMemoryPromptBlock)
+          .catch((error: unknown) => {
+            console.error('[coach] Mémoire illisible, réponse sans elle :', error)
+            return coachMemoryPromptBlock([])
+          })
+      : Promise.resolve(''),
+  ])
+  return { rulesBlock, memoryBlock }
 }
 
 /** Lecture stricte du corps d'une question : rien d'autre n'entre. */
@@ -171,19 +195,39 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
   ])
   emit({ event: 'meta', data: { conversationId, questionId: question.id, context: { label: coachContextLabel(context), suggestions: coachSuggestions(context) } } })
 
-  const history = await loadHistory(conversationId, question.id, settings.historyMessages)
+  const [history, blocks] = await Promise.all([loadHistory(conversationId, question.id, settings.historyMessages), loadCoachPromptBlocks(settings, session.userId, now)])
   const tools = createCoachTools(scope)
+  // Mémoire personnelle (lot 11) : outil lié au compte et à la question ; les résultats des autres outils de cette
+  // réponse sont gardés pour vérifier une mesure de départ. Rien de tout cela quand l'interrupteur est fermé.
+  const toolResults: unknown[] = []
+  const memoryTool = settings.memoryEnabled
+    ? createCoachMemoryTool({ userId: session.userId, memberId: scope.memberId > 0 ? scope.memberId : null, clanId: scope.clanId, message: body.message, toolResults: () => toolResults, now })
+    : null
+  const runTool = async (call: CoachToolCall) => {
+    if (memoryTool && call.name === memoryTool.declaration.name) return memoryTool.run(call)
+    const result = await tools.run(call)
+    toolResults.push(result)
+    return result
+  }
   const provider = input.provider ?? createGeminiProvider({ apiKey: process.env.GEMINI_API_KEY ?? '' })
   let partialText = ''
 
   try {
     const answer = await provider.streamAnswer({
       model,
-      system: buildCoachSystemPrompt({ playerName: scope.playerName, clanTag: scope.clanTag, clanName: scope.clanName, contextBlock: coachContextPromptBlock(context), today: now }),
+      system: buildCoachSystemPrompt({
+        playerName: scope.playerName,
+        clanTag: scope.clanTag,
+        clanName: scope.clanName,
+        contextBlock: coachContextPromptBlock(context),
+        rulesBlock: blocks.rulesBlock,
+        memoryBlock: blocks.memoryBlock,
+        today: now,
+      }),
       history,
       question: body.message,
-      tools: tools.declarations,
-      runTool: (call) => tools.run(call),
+      tools: memoryTool ? [...tools.declarations, memoryTool.declaration] : tools.declarations,
+      runTool,
       maxToolRounds: settings.maxToolRounds,
       signal,
       onDelta: (text) => {

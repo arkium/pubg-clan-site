@@ -21,7 +21,7 @@ import {
 
 const KINDS: Array<{ value: PrivacyRequestKind; icon: LucideIcon; text: string }> = [
   { value: 'hide', icon: EyeOff, text: 'Ton pseudo disparaît des classements et pages publiques.' },
-  { value: 'purge', icon: Trash2, text: 'Matchs, stats, télémétrie et fils du Coach IA supprimés de la base.' },
+  { value: 'purge', icon: Trash2, text: 'Matchs, stats, télémétrie, fils et mémoire du Coach IA supprimés de la base.' },
   { value: 'correct', icon: Pencil, text: 'Pseudo, clan ou rattachement erroné.' },
   { value: 'other', icon: MessageSquare, text: 'Accès à tes données, question.' },
 ]

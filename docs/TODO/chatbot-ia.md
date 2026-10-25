@@ -3,9 +3,10 @@
 > **Document de référence du chantier « Coach IA »** : toute décision nouvelle s'inscrit au §0, toute case cochée du
 > plan (§13) porte sa date et son commit. Destiné à l'équipe de développement, au SuperUser et à Claude Design.
 >
-> - **Statut (2026-10-25) :** **lots 0 à 9 livrés** — tests de bout en bout passés sur le build, branche fusionnée
->   dans `main` pour le déploiement du 2026-10-25 au soir (procédure au §13, lot 9, et dans la fiche §12). Maquettes
->   « Coach IA - Fait » et « Coach IA - Compléments » relues (§11).
+> - **Statut (2026-10-25) :** **lots 0 à 9 en production** depuis le 2026-10-25 ; **lots 10 (règles apprises) et 11
+>   (mémoire personnelle)** livrés sur la branche `feat/coach-memoire`, interrupteurs fermés par défaut (§13 ; décision
+>   au §0, conception dans [coach-ia-pistes.md §6](coach-ia-pistes.md)). Maquettes « Coach IA - Fait » et « Coach IA -
+>   Compléments » relues (§11).
 > - **Charte :** [docs/ui/index.html#coach-ia](../ui/index.html#coach-ia) (section 44) — composants du Coach traduits
 >   dans les jetons du site, reportés dans `globals.css`. Elle fait foi sur la maquette pour les couleurs, rayons,
 >   tailles et animations.
@@ -35,7 +36,7 @@ d'inscrire son clan.
 
 | 2026-10-24 | P1 à P7 | **Confirmées** telles quelles (tableau ci-dessous) | Utilisateur |
 | 2026-10-24 | Clé Gemini | Projet Google Cloud et clé créés par l'utilisateur, `GEMINI_API_KEY` dans le `.env` local (jamais dans le dépôt) | Utilisateur |
-| 2026-10-24 | Mémoire du Coach | Proposition externe analysée ([coach-ia-pistes.md §6](coach-ia-pistes.md)) : **à décider**. Avis : oui à des règles apprises écrites par le SuperUser seul (table bornée à 20, bloc du prompt) et à une mémoire personnelle **par compte**, explicite, visible et effaçable par le joueur, jamais lue par le SuperUser ; non à la synthèse automatique de règles par le modèle et aux réponses exemplaires en *few-shot* (coût, pseudos). Rien n'est implémenté | Analyse externe, à trancher par l'utilisateur |
+| 2026-10-24 | Mémoire du Coach | Proposition externe analysée ([coach-ia-pistes.md §6](coach-ia-pistes.md)). **Décidé le 2026-10-25 : les deux, règles d'abord** — règles apprises écrites par le SuperUser seul (`CoachRule`, 20 actives au plus, bloc « Règles du site » du prompt, `coach_rules_enabled`) et mémoire personnelle **par compte** (`CoachMemory`, 8 lignes, 90 jours, texte repris de la question du joueur, visible et effaçable par lui, jamais lue par le SuperUser, `coach_memory_enabled`) ; non à la synthèse automatique de règles par le modèle et aux réponses exemplaires en *few-shot* (coût, pseudos). Les deux interrupteurs sont **fermés par défaut** : le prompt reste celui d'avant tant qu'ils le sont. Lots 10 et 11 du §13 | Analyse externe, décision de l'utilisateur |
 | 2026-10-24 | Carrière et style de jeu | Outils `getCareerStats` (carrière PUBG, saisons, médailles du clan) et `getClanPlaystyle` (rôles relatifs au clan, cercle, mobilité, coopération, binômes) ; les pages encore sans outil sont listées au §13 (« Outils à la demande ») pour la suite | Utilisateur |
 | 2026-10-24 | Horaires et benchmark | Outils `getPlaySchedule` (calendrier d'activité, heure de Paris) et `getPlayerBenchmark` (classement inter-clans, piste 4a) ; couverture des pages notée dans la fiche — les pages sans outil (carrière, style de jeu, villes, fin de zone, awards…) s'ajoutent à la demande | Utilisateur |
 | 2026-10-24 | Questions fréquentes | Regroupement par mots-clés avec tolérance (Jaccard ≥ 0,6) au lieu du texte exact — « qui pose un problème » et « qui posent problème » faisaient deux lignes ; liste paginée par 10 | Utilisateur |
@@ -926,6 +927,41 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
 - [x] Bouton de l'en-tête au même habillage que le bouton flottant (bordure et icône en accent, bordure doublée une fois
       ouvert — demande de l'utilisateur) ; au passage, cartes Clan et Joueur du header en icône seule sous 640 px (les
       textes écrasaient le header et le bouton de menu) — 2026-10-25
+
+### Lot 10 — Règles apprises (décision du 2026-10-25, [coach-ia-pistes.md §6.3](coach-ia-pistes.md))
+
+- [x] Table `CoachRule` (migration `20261025180000_coach_rules_memory`, additive), réglage `coach_rules_enabled` (fermé
+      par défaut) ; `coach-rules.ts` (texte normalisé de 8 à 200 caractères, bloc « Règles du site », tokens estimés à
+      4 caractères par token), `coach-rules-service.ts` (cache de 30 s, borne de 20 actives, création rattachée au vote
+      d'origine, signée du SuperUser) ; bloc injecté après les règles absolues, avant le lexique — prompt inchangé
+      quand l'interrupteur est fermé — 2026-10-25
+- [x] Routes `GET · POST /api/settings/coach/rules`, `PATCH · DELETE …/rules/[id]` (`requirePlatformAdmin`,
+      `withAdminActionLog`, 409 au-delà de 20 actives) ; section « Règles apprises » de l'onglet Questions
+      (`CoachRulesSection` : compteur actives / tokens, ajout, modification, interrupteur, suppression confirmée,
+      « En faire une règle » sur un vote « Inexact » qui rattache le vote **sans** reprendre la note du joueur) ;
+      interrupteur dans l'onglet Réglages — 2026-10-25
+- [x] Tests : `coach-rules.test.ts` ; routes dans `coach-admin-routes.test.ts` ; prompt dans
+      `coach-route-contracts.test.ts` ; `e2e/coach.spec.ts` (réglages, questions) — 2026-10-25
+
+### Lot 11 — Mémoire personnelle (décision du 2026-10-25, [coach-ia-pistes.md §6.2](coach-ia-pistes.md))
+
+- [x] Table `CoachMemory` (même migration), réglage `coach_memory_enabled` (fermé par défaut) ; `coach-memory.ts`
+      (clés `goal` / `role` / `preference` / `avoid` / `note`, texte **repris de la question du joueur** — jamais une
+      déduction, jamais un texte d'outil —, mesure de départ acceptée seulement si sa valeur figure dans un résultat
+      d'outil de la même réponse, bloc du prompt daté et présenté comme les mots du joueur), `coach-memory-service.ts`
+      (8 lignes par compte, la plus ancienne remplacée, 90 jours, même clé et même texte = date rafraîchie, outil
+      `rememberAboutMe` lié au compte et à la question) ; purge de 01:15 et `purge-coach-history.ts` étendus — 2026-10-25
+- [x] Routes `GET · DELETE /api/coach/memory`, `DELETE …/memory/[id]` (compte seul, 404 ailleurs) ; panneau « Ce que le
+      Coach sait de toi » (bouton de l'en-tête quand la mémoire est ouverte — `memoryEnabled` porté par le quota —,
+      lignes datées avec leur mesure de départ, « Oublier », « Tout oublier ») ; **jamais lue par le SuperUser**
+      (contrôle statique dans `coach-memory.test.ts` : ni le service ni le rapport d'administration, ni les alertes, ni
+      la boîte « À traiter » ne la touchent) ; `/confidentialite` (ligne de données, conservation 90 jours), formulaire
+      de purge — 2026-10-25
+- [x] Tests : `coach-memory.test.ts`, `coach-retention.test.ts` ; outil et prompt dans `coach-route-contracts.test.ts` ;
+      `e2e/coach.spec.ts` (« Ce que le Coach sait de toi ») — 2026-10-25
+- [ ] Mise en production : `deploy.sh` (migration additive, rien d'autre) ; puis ouverture des interrupteurs depuis
+      `/settings/coach` quand tu le décides — règles d'abord, une fois la première semaine de votes « Inexact » relue ;
+      mémoire ensuite
 
 ---
 

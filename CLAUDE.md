@@ -407,7 +407,11 @@ aux API du Coach (teaser seul) ; `GEMINI_API_KEY` est lue par `coach-config.ts` 
 chaque question est réservée dans `CoachUsage` **avant** l'appel ; le flux SSE garde ses en-têtes `COACH_SSE_HEADERS`
 (`X-Accel-Buffering: no`) ; un fil étranger répond 404 ; aucune donnée d'authentification dans un résultat d'outil ;
 tout chiffre vient d'un outil (`unverified` sinon). Un nouvel outil = une fermeture sur le scope + un test d'étanchéité
-dans `coach-tools.test.ts` ; un nouveau modèle = une entrée de `coach-models.ts`.
+dans `coach-tools.test.ts` ; un nouveau modèle = une entrée de `coach-models.ts`. **Règles apprises** (`CoachRule`,
+`coach-rules*.ts`) : écrites par le SuperUser seul, jamais par le modèle ni reprises d'une note de joueur ; **mémoire
+personnelle** (`CoachMemory`, `coach-memory*.ts`) : par compte, texte **repris de la question du joueur** (le serveur
+refuse le reste), **jamais lue depuis l'administration** (contrôle statique dans `coach-memory.test.ts`) ; les deux
+derrière `coach_rules_enabled` / `coach_memory_enabled`, fermés par défaut — fermés, le prompt ne change pas.
 
 **Données personnelles d'un membre** (notifications, préférences — depuis le 2026-10-10) : `requireOwnMember`
 (`src/lib/auth/own-member-guard.ts`), le compte lié au membre ou le SuperUser. Jamais `requireSameClanAsMember`, faite

@@ -49,6 +49,7 @@ en base avec alerte aux SuperUsers, adresse de contact `contact@chickendinner.fr
 | E-mails de notification | coupés par défaut (`emailNotifications = false`) : consentement ; adresse du compte, vérifiée ; envoi par le SMTP d'OVH (`SMTP_HOST=ssl0.ovh.net`, docs/ops/deployment.md), l'hébergeur — confirmé pour la production le 2026-10-10. Chaque e-mail porte « Ne plus recevoir ces e-mails » (jeton signé, sans connexion) et les en-têtes `List-Unsubscribe` — à revoir si le SMTP change de prestataire |
 | Conservation | aucune purge automatique ; sessions 7 jours ; tracés GPS purgés à la main (`/api/superuser/database/purge-telemetry`) ; notifications et préférences supprimées avec la fiche du joueur (`onDelete: Cascade`), ou une à une par le joueur ; Coach IA : fils inactifs depuis 12 mois et usage de plus de 13 mois supprimés par la maintenance de 01:15 (`src/lib/coach/coach-retention.ts`) |
 | Coach IA (2026-10-24) | `CoachConversation`, `CoachMessage`, `CoachUsage` : questions, réponses, outils appelés, votes, tokens et coût — sans e-mail. Question, fil et résultats d'outils (pseudos PUBG, tags de clan, statistiques) envoyés à l'API Gemini de Google au niveau payant (pas d'entraînement sur ces échanges), traitement possible hors UE : signalé sur la page. Réponses relues par le SuperUser sans le compte (`/settings/coach`, onglet Questions). Mention « tu parles à une IA » sous la saisie du tiroir et dans les mentions légales (AI Act, art. 50) — [coach-ia.md](coach-ia.md) §11 |
+| Mémoire personnelle du Coach (2026-10-25) | `CoachMemory` : ce que le joueur demande au Coach de retenir, en ses mots (le serveur refuse tout texte absent de sa question), par compte ; 8 lignes, 90 jours après la dernière mise à jour, visible et effaçable d'un clic dans le panneau du Coach, jamais lue par le SuperUser ; fonction fermée tant que l'administrateur ne l'ouvre pas. Ligne « Ce que tu demandes au Coach IA de retenir » et conservation sur `/confidentialite` ; purge sur demande étendue — [coach-ia.md](coach-ia.md) §11 |
 
 Toute nouvelle donnée personnelle (champ, cookie, traceur) doit être ajoutée au tableau de `/confidentialite`.
 
@@ -75,7 +76,7 @@ administrateur applique la demande à la main ».
 
 1. Vérifier que le compte appartient au demandeur (capture du profil en jeu).
 2. Appliquer la demande, répondre par e-mail sous un mois (RGPD art. 12). Pour une purge, la part Coach IA (fils,
-   messages, usage de tous les comptes liés au pseudo) se fait par `npx tsx scripts/purge-coach-history.ts --pubg-name
+   messages, usage et mémoire personnelle de tous les comptes liés au pseudo) se fait par `npx tsx scripts/purge-coach-history.ts --pubg-name
    <pseudo>` (simulation), puis `--apply` ; l'e-mail reçu le rappelle.
 3. Clore la demande dans **Plateforme › Demandes de confidentialité** (`/settings/privacy-requests`, SuperUser) :
    « Traitée » ou « Refusée » pose `status` et `handledAt`, « Rouvrir » les efface. La page affiche l'échéance d'un

@@ -1,6 +1,6 @@
 'use client'
 
-import { Bot, KeyRound, Save, SlidersHorizontal, Undo2 } from 'lucide-react'
+import { Bot, Brain, KeyRound, Save, SlidersHorizontal, Undo2 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 
 import { FormFeedback } from '@/components/settings/AdminPageStates'
@@ -133,12 +133,13 @@ export default function CoachSettingsPage() {
     }
   }
 
-  async function toggle(enabled: boolean) {
+  // Les trois interrupteurs (Coach, règles apprises, mémoire personnelle) s'enregistrent seuls, tout de suite.
+  async function toggle(key: 'enabled' | 'rulesEnabled' | 'memoryEnabled', value: boolean) {
     if (!state) return
     setToggling(true)
     setToggleError('')
     try {
-      const next = await putSettings({ enabled })
+      const next = await putSettings({ [key]: value })
       setState(next)
     } catch (caught) {
       setToggleError(caught instanceof Error ? caught.message : 'Modification impossible')
@@ -173,7 +174,7 @@ export default function CoachSettingsPage() {
       <SectionCard id="coach-state" icon={Bot} title="Ouverture" meta="Fermé, le Coach ne fait aucun appel au modèle : les membres voient le tiroir en pause.">
         <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
           <div className="flex items-center gap-2.5">
-            <Switch checked={settings.enabled} onChange={(enabled) => void toggle(enabled)} disabled={toggling} labelledBy="coach-enabled-label" testId="coach-enabled" />
+            <Switch checked={settings.enabled} onChange={(enabled) => void toggle('enabled', enabled)} disabled={toggling} labelledBy="coach-enabled-label" testId="coach-enabled" />
             <span id="coach-enabled-label" className="t-body text-gray-900">
               {toggling ? 'Modification…' : settings.enabled ? 'Ouvert aux membres' : 'Fermé (pause)'}
             </span>
@@ -191,6 +192,30 @@ export default function CoachSettingsPage() {
             redémarre. Tant qu’elle manque, le Coach reste fermé quel que soit l’interrupteur.
           </Callout>
         ) : null}
+      </SectionCard>
+
+      <SectionCard
+        id="coach-memory-switches"
+        icon={Brain}
+        title="Règles apprises et mémoire personnelle"
+        meta="Deux fonctions fermées par défaut (docs/TODO/coach-ia-pistes.md §6) : fermées, le prompt est exactement celui d’avant. Chaque interrupteur s’enregistre tout de suite."
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Switch checked={settings.rulesEnabled} onChange={(value) => void toggle('rulesEnabled', value)} disabled={toggling} labelledBy="coach-rules-enabled-label" testId="coach-rules-enabled" />
+            <span id="coach-rules-enabled-label" className="t-body text-gray-900">
+              Règles apprises {settings.rulesEnabled ? 'injectées dans le prompt' : 'gardées, hors du prompt'}
+            </span>
+            <span className="t-meta">— écrites par toi dans l’onglet Questions, 20 actives au plus (≈ 800 tokens par question au pire).</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2.5">
+            <Switch checked={settings.memoryEnabled} onChange={(value) => void toggle('memoryEnabled', value)} disabled={toggling} labelledBy="coach-memory-enabled-label" testId="coach-memory-enabled" />
+            <span id="coach-memory-enabled-label" className="t-body text-gray-900">
+              Mémoire personnelle {settings.memoryEnabled ? 'ouverte aux membres' : 'fermée'}
+            </span>
+            <span className="t-meta">— ce qu’un joueur demande au Coach de retenir, en ses mots : 8 lignes par compte, 90 jours, visibles et effaçables par lui, jamais lisibles ici.</span>
+          </div>
+        </div>
       </SectionCard>
 
       <SectionCard

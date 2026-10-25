@@ -32,8 +32,8 @@ async function main() {
   console.log(`Pseudo : ${pubgName}`)
   console.log(`Fiches de membre : ${result.memberIds.length > 0 ? result.memberIds.join(', ') : 'aucune'}`)
   console.log(`Comptes liés : ${result.userIds.length > 0 ? result.userIds.join(', ') : 'aucun'}`)
-  console.log(`${mode} : ${result.conversations} fil(s) avec leurs messages, ${result.usages} ligne(s) d’usage`)
-  if (!apply && (result.conversations > 0 || result.usages > 0)) console.log('Relancer avec --apply pour supprimer.')
+  console.log(`${mode} : ${result.conversations} fil(s) avec leurs messages, ${result.usages} ligne(s) d’usage, ${result.memories} ligne(s) de mémoire personnelle`)
+  if (!apply && (result.conversations > 0 || result.usages > 0 || result.memories > 0)) console.log('Relancer avec --apply pour supprimer.')
 }
 
 main()

@@ -11,6 +11,10 @@ import { prisma } from '@/lib/prisma'
 export type CoachSettings = {
   /** Interrupteur général : fermé = aucun appel au modèle, tiroir en « pause ». */
   enabled: boolean
+  /** Règles apprises (lot 10) : bloc « Règles du site » du prompt, écrit par le SuperUser. Fermé par défaut. */
+  rulesEnabled: boolean
+  /** Mémoire personnelle (lot 11) : outil `rememberAboutMe` et bloc « Ce que tu sais de ce joueur ». Fermée par défaut. */
+  memoryEnabled: boolean
   /** Identifiant du catalogue `coach-models.ts`. */
   model: string
   /** Budget mensuel par compte, en euros (mois calendaire de Paris). */
@@ -31,10 +35,15 @@ export type CoachSettings = {
   maxToolRounds: number
 }
 
-export type CoachNumericSetting = Exclude<keyof CoachSettings, 'enabled' | 'model'>
+export type CoachBooleanSetting = 'enabled' | 'rulesEnabled' | 'memoryEnabled'
+export type CoachNumericSetting = Exclude<keyof CoachSettings, CoachBooleanSetting | 'model'>
+
+export const COACH_BOOLEAN_SETTINGS: CoachBooleanSetting[] = ['enabled', 'rulesEnabled', 'memoryEnabled']
 
 export const COACH_SETTING_DEFAULTS: CoachSettings = {
   enabled: false,
+  rulesEnabled: false,
+  memoryEnabled: false,
   model: COACH_DEFAULT_MODEL_ID,
   budgetPerAccountEur: 2,
   globalBudgetEur: 50,
@@ -61,6 +70,8 @@ export const COACH_SETTING_BOUNDS: Record<CoachNumericSetting, { min: number; ma
 /** Clés `AppConfig`, une par réglage. */
 export const COACH_SETTING_KEYS: Record<keyof CoachSettings, string> = {
   enabled: 'coach_enabled',
+  rulesEnabled: 'coach_rules_enabled',
+  memoryEnabled: 'coach_memory_enabled',
   model: 'coach_model',
   budgetPerAccountEur: 'coach_budget_per_account_eur',
   globalBudgetEur: 'coach_global_budget_eur',
@@ -100,8 +111,10 @@ export function parseCoachSettings(
   const envModel = env.COACH_MODEL?.trim()
   const settings: CoachSettings = {
     ...COACH_SETTING_DEFAULTS,
-    enabled: parseBoolean(stored[COACH_SETTING_KEYS.enabled]) ?? COACH_SETTING_DEFAULTS.enabled,
     model: isCoachModelId(storedModel) ? storedModel : isCoachModelId(envModel) ? envModel : COACH_DEFAULT_MODEL_ID,
+  }
+  for (const key of COACH_BOOLEAN_SETTINGS) {
+    settings[key] = parseBoolean(stored[COACH_SETTING_KEYS[key]]) ?? COACH_SETTING_DEFAULTS[key]
   }
   for (const key of NUMERIC_SETTINGS) {
     const raw = stored[COACH_SETTING_KEYS[key]]
@@ -119,9 +132,11 @@ export type CoachSettingsPatch = Partial<Record<keyof CoachSettings, unknown>>
 export function sanitizeCoachSettingsPatch(patch: CoachSettingsPatch): { accepted: Partial<CoachSettings>; errors: string[] } {
   const accepted: Partial<CoachSettings> = {}
   const errors: string[] = []
-  if (patch.enabled !== undefined) {
-    if (typeof patch.enabled === 'boolean') accepted.enabled = patch.enabled
-    else errors.push('enabled : vrai ou faux attendu.')
+  for (const key of COACH_BOOLEAN_SETTINGS) {
+    const value = patch[key]
+    if (value === undefined) continue
+    if (typeof value === 'boolean') accepted[key] = value
+    else errors.push(`${key} : vrai ou faux attendu.`)
   }
   if (patch.model !== undefined) {
     if (isCoachModelId(patch.model)) accepted.model = patch.model

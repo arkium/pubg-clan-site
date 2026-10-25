@@ -54,6 +54,19 @@ describe('réglages du Coach IA — lecture pure', () => {
     expect(parseCoachSettings({ coach_enabled: 'oui' }, {}).enabled).toBe(false)
   })
 
+  it('règles apprises et mémoire personnelle : fermées par défaut, chacune son interrupteur (lots 10 et 11)', () => {
+    expect(COACH_SETTING_DEFAULTS.rulesEnabled).toBe(false)
+    expect(COACH_SETTING_DEFAULTS.memoryEnabled).toBe(false)
+    expect(COACH_SETTING_KEYS.rulesEnabled).toBe('coach_rules_enabled')
+    expect(COACH_SETTING_KEYS.memoryEnabled).toBe('coach_memory_enabled')
+    const settings = parseCoachSettings({ coach_rules_enabled: 'true', coach_memory_enabled: 'oui' }, {})
+    expect(settings.rulesEnabled).toBe(true)
+    expect(settings.memoryEnabled).toBe(false)
+    const { accepted, errors } = sanitizeCoachSettingsPatch({ rulesEnabled: true, memoryEnabled: 'oui' })
+    expect(accepted).toEqual({ rulesEnabled: true })
+    expect(errors).toEqual(['memoryEnabled : vrai ou faux attendu.'])
+  })
+
   it('nettoie un patch de route : inconnu ignoré, modèle vérifié, nombre borné', () => {
     const { accepted, errors } = sanitizeCoachSettingsPatch({
       enabled: true,

@@ -205,12 +205,15 @@ export type CoachQuotaPayload = {
   monthPercent: number | null
   globalPercent: number
   periodEnd: string
+  /** Mémoire personnelle ouverte (`coach_memory_enabled`, lot 11) : le panneau montre « Ce que le Coach sait de toi ». */
+  memoryEnabled: boolean
 }
 
-export function coachQuotaPayload(decision: CoachQuotaDecision): CoachQuotaPayload {
+export function coachQuotaPayload(decision: CoachQuotaDecision, extras: { memoryEnabled: boolean } = { memoryEnabled: false }): CoachQuotaPayload {
   const { state } = decision
   return {
     authenticated: true,
+    memoryEnabled: extras.memoryEnabled,
     allowed: decision.allowed,
     reason: decision.reason,
     retryAt: decision.retryAt ? decision.retryAt.toISOString() : null,

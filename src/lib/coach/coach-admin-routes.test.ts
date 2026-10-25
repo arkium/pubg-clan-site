@@ -20,7 +20,14 @@ const mocks = vi.hoisted(() => ({
   messageFindMany: vi.fn(),
   messageCount: vi.fn(),
   messageUpdateMany: vi.fn(),
+  messageFindUnique: vi.fn(),
   streamAnswer: vi.fn(),
+  ruleFindMany: vi.fn(),
+  ruleCount: vi.fn(),
+  ruleCreate: vi.fn(),
+  ruleUpdate: vi.fn(),
+  ruleFindUnique: vi.fn(),
+  ruleDeleteMany: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -31,7 +38,8 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     appConfig: { findMany: mocks.appConfigFindMany, upsert: mocks.appConfigUpsert },
     coachUsage: { findMany: mocks.usageFindMany, count: mocks.usageCount, create: mocks.usageCreate, update: mocks.usageUpdate },
-    coachMessage: { findMany: mocks.messageFindMany, count: mocks.messageCount, updateMany: mocks.messageUpdateMany },
+    coachMessage: { findMany: mocks.messageFindMany, count: mocks.messageCount, updateMany: mocks.messageUpdateMany, findUnique: mocks.messageFindUnique },
+    coachRule: { findMany: mocks.ruleFindMany, count: mocks.ruleCount, create: mocks.ruleCreate, update: mocks.ruleUpdate, findUnique: mocks.ruleFindUnique, deleteMany: mocks.ruleDeleteMany },
     userAccount: { findMany: mocks.userFindMany },
     $transaction: mocks.transaction,
   },
@@ -41,10 +49,14 @@ vi.mock('@/lib/coach/coach-provider-gemini', () => ({ createGeminiProvider: () =
 import { POST as reviewedRoute } from '@/app/api/settings/coach/questions/[id]/reviewed/route'
 import { GET as questionsRoute } from '@/app/api/settings/coach/questions/route'
 import { GET as getSettings, PUT as putSettings } from '@/app/api/settings/coach/route'
+import { DELETE as deleteRuleRoute, PATCH as patchRuleRoute } from '@/app/api/settings/coach/rules/[id]/route'
+import { GET as rulesRoute, POST as createRuleRoute } from '@/app/api/settings/coach/rules/route'
 import { POST as testModelRoute } from '@/app/api/settings/coach/test-model/route'
 import { GET as usageRoute } from '@/app/api/settings/coach/usage/route'
 import { COACH_SETTING_DEFAULTS, resetCoachSettingsCache } from '@/lib/coach/coach-config'
 import { CoachProviderError } from '@/lib/coach/coach-provider'
+import { COACH_RULE_MAX_ACTIVE } from '@/lib/coach/coach-rules'
+import { resetCoachRulesCache } from '@/lib/coach/coach-rules-service'
 
 const previousKey = process.env.GEMINI_API_KEY
 
@@ -56,6 +68,9 @@ const params = (id: string) => ({ params: Promise.resolve({ id }) })
 beforeEach(() => {
   vi.clearAllMocks()
   resetCoachSettingsCache()
+  resetCoachRulesCache()
+  mocks.ruleFindMany.mockResolvedValue([])
+  mocks.ruleCount.mockResolvedValue(0)
   delete process.env.GEMINI_API_KEY
   mocks.requirePlatformAdmin.mockResolvedValue(null)
   mocks.getSession.mockResolvedValue({ sessionId: 's1', userId: 1, email: 'su@example.com', activeMemberId: null, isSuperUser: true })
@@ -84,7 +99,65 @@ describe('garde', () => {
     expect((await usageRoute(json('/api/settings/coach/usage', 'GET'))).status).toBe(403)
     expect((await questionsRoute(json('/api/settings/coach/questions', 'GET'))).status).toBe(403)
     expect((await reviewedRoute(json('/api/settings/coach/questions/3/reviewed', 'POST'), params('3'))).status).toBe(403)
+    expect((await rulesRoute(json('/api/settings/coach/rules', 'GET'))).status).toBe(403)
+    expect((await createRuleRoute(json('/api/settings/coach/rules', 'POST', { text: 'Un Top 10 n’est pas une victoire.' }))).status).toBe(403)
+    expect((await patchRuleRoute(json('/api/settings/coach/rules/1', 'PATCH', { enabled: false }), params('1'))).status).toBe(403)
+    expect((await deleteRuleRoute(json('/api/settings/coach/rules/1', 'DELETE'), params('1'))).status).toBe(403)
     expect(mocks.appConfigFindMany).not.toHaveBeenCalled()
+    expect(mocks.ruleFindMany).not.toHaveBeenCalled()
+    expect(mocks.ruleCreate).not.toHaveBeenCalled()
+  })
+})
+
+describe('règles apprises — /api/settings/coach/rules (lot 10)', () => {
+  const rule = (id: number, text: string, enabled = true) => ({ id, text, enabled, fromMessageId: null, createdAt: new Date('2026-10-25T10:00:00Z'), updatedAt: new Date('2026-10-25T10:00:00Z') })
+
+  it('liste les règles avec le compte des actives, la borne, les tokens du bloc et l’interrupteur', async () => {
+    mocks.appConfigFindMany.mockResolvedValue([{ key: 'coach_rules_enabled', value: 'true' }])
+    mocks.ruleFindMany.mockResolvedValue([rule(1, 'Un Top 10 n’est pas une victoire.'), rule(2, 'Règle au repos.', false)])
+    const response = await rulesRoute(json('/api/settings/coach/rules', 'GET'))
+    expect(response.status).toBe(200)
+    const body = await response.json()
+    expect(body).toMatchObject({ enabled: true, activeCount: 1, maxActive: COACH_RULE_MAX_ACTIVE })
+    expect(body.rules.map((entry: { id: number }) => entry.id)).toEqual([1, 2])
+    expect(body.promptTokens).toBeGreaterThan(0)
+  })
+
+  it('crée une règle (201) signée du SuperUser, rattachée au vote d’origine ; refuse la 21e (409) et un texte trop court (400)', async () => {
+    mocks.messageFindUnique.mockResolvedValue({ id: 42 })
+    mocks.ruleCreate.mockResolvedValue({ ...rule(9, 'Un Top 10 n’est pas une victoire.'), fromMessageId: 42 })
+    const created = await createRuleRoute(json('/api/settings/coach/rules', 'POST', { text: ' Un Top 10  n’est pas une victoire. ', fromMessageId: 42 }))
+    expect(created.status).toBe(201)
+    expect(await created.json()).toMatchObject({ rule: { id: 9, fromMessageId: 42, enabled: true } })
+    expect(mocks.ruleCreate.mock.calls[0][0].data).toEqual({ text: 'Un Top 10 n’est pas une victoire.', fromMessageId: 42, createdById: 1 })
+
+    expect((await createRuleRoute(json('/api/settings/coach/rules', 'POST', { text: 'court' }))).status).toBe(400)
+    mocks.ruleCount.mockResolvedValue(COACH_RULE_MAX_ACTIVE)
+    const limited = await createRuleRoute(json('/api/settings/coach/rules', 'POST', { text: 'Une règle de trop pour le prompt.' }))
+    expect(limited.status).toBe(409)
+    expect(await limited.json()).toMatchObject({ error: expect.stringContaining('20 règles actives') })
+    expect(mocks.ruleCreate).toHaveBeenCalledTimes(1)
+  })
+
+  it('modifie et désactive une règle, supprime ; inconnue = 404, réactivation au-delà de 20 = 409', async () => {
+    mocks.ruleFindUnique.mockResolvedValue({ id: 2, enabled: true })
+    mocks.ruleUpdate.mockResolvedValue(rule(2, 'Texte corrigé de la règle.', false))
+    const patched = await patchRuleRoute(json('/api/settings/coach/rules/2', 'PATCH', { text: 'Texte corrigé de la règle.', enabled: false }), params('2'))
+    expect(patched.status).toBe(200)
+    expect(await patched.json()).toMatchObject({ rule: { id: 2, enabled: false } })
+
+    mocks.ruleFindUnique.mockResolvedValue({ id: 2, enabled: false })
+    mocks.ruleCount.mockResolvedValue(COACH_RULE_MAX_ACTIVE)
+    expect((await patchRuleRoute(json('/api/settings/coach/rules/2', 'PATCH', { enabled: true }), params('2'))).status).toBe(409)
+    expect((await patchRuleRoute(json('/api/settings/coach/rules/2', 'PATCH', {}), params('2'))).status).toBe(400)
+    expect((await patchRuleRoute(json('/api/settings/coach/rules/abc', 'PATCH', { enabled: true }), params('abc'))).status).toBe(400)
+    mocks.ruleFindUnique.mockResolvedValue(null)
+    expect((await patchRuleRoute(json('/api/settings/coach/rules/3', 'PATCH', { enabled: false }), params('3'))).status).toBe(404)
+
+    mocks.ruleDeleteMany.mockResolvedValue({ count: 1 })
+    expect((await deleteRuleRoute(json('/api/settings/coach/rules/2', 'DELETE'), params('2'))).status).toBe(200)
+    mocks.ruleDeleteMany.mockResolvedValue({ count: 0 })
+    expect((await deleteRuleRoute(json('/api/settings/coach/rules/9', 'DELETE'), params('9'))).status).toBe(404)
   })
 })
 

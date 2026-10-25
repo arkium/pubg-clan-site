@@ -64,6 +64,8 @@ membre : changer de membre actif ne multiplie rien.
 | `CoachConversation` | Fil d'un compte (`userId`), rattaché au membre et au clan du moment (`SetNull`), titre tiré de la première question, `contextLabel` (« Erangel · 22 oct. 21:47 · Top 3 ») |
 | `CoachMessage` | Question ou réponse ; `contextPath`, `toolCalls` (audit), `unverified` (chiffres sans outil), `feedbackScore` ±1, `feedbackNote`, `reviewedAt` |
 | `CoachUsage` | Une ligne par question facturée : modèle, statut, tokens, `costMicroUsd` — sans relation, survit aux fils |
+| `CoachRule` (lot 10, 2026-10-25) | Règle apprise écrite par le SuperUser : `text` (200), `enabled`, `fromMessageId` (vote « Inexact » d'origine, `SetNull`), `createdById` ; 20 actives au plus, injectées dans le prompt quand `coach_rules_enabled` est ouvert |
+| `CoachMemory` (lot 11, 2026-10-25) | Mémoire personnelle **par compte** (`userId`, cascade ; membre et clan indicatifs) : `key` (goal · role · preference · avoid · note), `text` (200, les mots du joueur), `baseline` (mesure de départ datée), `expiresAt` (90 jours après la dernière mise à jour) ; 8 lignes par compte ; jamais lue par le SuperUser |
 
 Aucune adresse e-mail dans ces tables. Conservation (`coach-retention.ts`, maintenance de 01:15) : fil inactif depuis
 12 mois supprimé avec ses messages, usage après 13 mois. Demande « Purger mon historique » :
@@ -73,6 +75,12 @@ Aucune adresse e-mail dans ces tables. Conservation (`coach-retention.ts`, maint
 
 `createCoachTools({ clanId, memberId, memberName })` : le clan et le membre sont **liés dans la fermeture**, le modèle ne
 passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matchId` d'un autre clan est refusé.
+
+**`rememberAboutMe`** (lot 11, `coach-memory-service.ts`, seulement quand `coach_memory_enabled` est ouvert) : lié au
+compte **et à la question en cours** — `text` doit être une partie du message du joueur (comparaison sans casse,
+accents ni ponctuation), sinon `not_in_message` et rien n'est retenu ; `baseline` (mesure de départ d'un objectif
+chiffré) n'est acceptée que si sa valeur figure dans un résultat d'outil de la même réponse (`baseline_unverified`
+sinon). Déclaré en plus des quinze outils, après eux.
 
 | Outil | Source (la même que la page) |
 |---|---|
@@ -109,6 +117,12 @@ faire est tenue dans le plan (docs/TODO/chatbot-ia.md §13, « Outils à la dema
 
 ## 6. Prompt et garde-fous (`coach-prompt.ts`, `coach-chat-service.ts`)
 
+**Blocs ouverts par les interrupteurs** (lots 10 et 11, `loadCoachPromptBlocks`) : « Règles du site » (règles actives,
+après les règles absolues, avant le lexique ; `coach-rules.ts`) et « Ce que tu sais de ce joueur, dit par lui-même »
+(lignes datées du compte, présentées comme ses mots, jamais comme une donnée, plus la consigne d'usage de
+`rememberAboutMe` ; `coach-memory.ts`), placé après le format, avant le contexte de page. Interrupteurs fermés : blocs
+vides, prompt **identique** à celui d'avant ; base injoignable : blocs vides, la réponse part sans eux.
+
 Coach e-sport francophone, **tutoiement** (« vous » seulement pour l'escouade — exception déclarée dans
 `src/lib/tutoiement.test.ts`), vocabulaire du site, **lexique des joueurs** (« loot » / « stuff » = armes et
 consommables, « drop » = largage, « knock », « wipe », « smokes », « nades », « la M4 », « le Kar », « chicken »,
@@ -128,6 +142,8 @@ du tournoi, et le bloc du prompt. Une adresse étrangère = « sans contexte ».
 | Route | Garde |
 |---|---|
 | `POST /api/clans/[clanId]/coach/chat` | membre du clan + quota → flux SSE (`meta`, `tool`, `delta`, `done`, `error`) |
+| `GET · DELETE /api/coach/memory`, `DELETE …/memory/[id]` (lot 11) | compte connecté : ses lignes (`enabled`, `max`, `retentionDays`), « Tout oublier », une ligne (404 si elle n'est pas à lui) |
+| `GET · POST /api/settings/coach/rules`, `PATCH · DELETE …/rules/[id]` (lot 10) | `requirePlatformAdmin`, écritures `withAdminActionLog` ; 409 au-delà de 20 règles actives |
 | `GET /api/coach/quota` | session |
 | `GET /api/coach/conversations`, `GET · PATCH · DELETE …/[id]` | propriétaire (lecture SuperUser), 404 sinon |
 | `POST /api/coach/messages/[id]/feedback` | propriétaire |
@@ -151,6 +167,11 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
   ligne », pastille de quota, Fils · Agrandir · Fermer), bandeau de contexte détachable, suggestions, bulles, votes
   Utile · Inexact (+ précision) · Copier, saisie de 400 caractères, mention « Coach IA expérimental · Données de l'API
   PUBG » (AI Act, art. 50).
+- **« Ce que le Coach sait de toi »** (lot 11) : bouton de l'en-tête (icône cerveau), présent seulement quand la mémoire
+  est ouverte (`memoryEnabled` du quota) ; liste des lignes du compte — clé, les mots du joueur, date, mesure de départ
+  —, « Oublier » par ligne, « Tout oublier » ; relue à la fin de chaque réponse (`useCoachMemory`). Dans le tiroir elle
+  remplace le fil, sur la page plein écran la liste des fils. Sous 768 px, le bouton « Agrandir » du panneau disparaît
+  (`.coach-maximize`) pour lui laisser la place : la page plein écran reste accessible par le menu.
 - **Plein écran** `/clans/[clanId]/coach` (`CoachPanel` en variante `page`) : fil de 760 px et liste des fils (nouveau,
   renommer, supprimer). `noindex` (`CLAN_PAGES`, `src/lib/seo/page-seo.ts`).
 - **Teaser** visiteur et **carte de la vitrine** (`CoachRow` de `HomeShowcase.tsx`, rendue seulement quand le Coach est
@@ -163,6 +184,13 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
 
 `AdminAccessGate` (platform) dans `src/app/settings/coach/layout.tsx`, onglets `SettingsTabsShell`, entrée
 `superuser.coach` du registre (seed `scripts/seed-coach-admin-nav.ts`), carte du hub Plateforme (groupe « Site »).
+
+- **Réglages** (lots 10 et 11) : carte « Règles apprises et mémoire personnelle », deux interrupteurs enregistrés seuls
+  (`rulesEnabled`, `memoryEnabled`), fermés par défaut.
+- **Questions** (lot 10) : section « Règles apprises » (`CoachRulesSection`) — compteur « N / 20 actives · ≈ T tokens
+  par question », saisie d'une règle (8 à 200 caractères, impératif, tutoiement), liste avec interrupteur, modification
+  et suppression confirmée ; « En faire une règle » sur un vote « Inexact » rattache le vote (`fromMessageId`) et laisse
+  le texte vide : la note du joueur n'entre jamais dans le prompt. La mémoire personnelle n'apparaît nulle part ici.
 
 | Onglet | Contenu |
 |---|---|
@@ -185,7 +213,10 @@ de prix du modèle actif dans les 30 jours, vérifié chaque matin avec la veill
 
 - `/confidentialite` : lignes « Questions au Coach IA » et « Consommation du Coach IA », transfert chez Google (API
   Gemini, niveau payant, pas d'entraînement, traitement possible hors UE), finalité, base légale (exécution du service),
-  conservation 12 / 13 mois, suppression d'un fil par le joueur, purge sur demande.
+  conservation 12 / 13 mois, suppression d'un fil par le joueur, purge sur demande. Lot 11 (2026-10-25) : ligne « Ce que
+  tu demandes au Coach IA de retenir » (en tes mots, mesure de départ comprise ; visible et effaçable dans le panneau,
+  jamais lu par l'administrateur), conservation 90 jours après la dernière mise à jour ; les mémoires partent chez Google
+  avec le prompt, comme la question. Purge sur demande étendue (`purge-coach-history.ts`).
 - `/mentions-legales` : réponses générées par un modèle d'IA (origine des données, condition d'utilisation).
 - Ce qui part chez Google : la question, le fil en cours, les résultats d'outils (pseudos PUBG et tags de clan, déjà
   publics dans le jeu, statistiques de parties). Jamais l'adresse e-mail ni l'identifiant du compte.
@@ -203,11 +234,16 @@ de prix du modèle actif dans les 30 jours, vérifié chaque matin avec la veill
    SuperUser, qui passe outre la pause).
 5. Interrupteur ouvert depuis `/settings/coach` ; la carte de la vitrine apparaît avec lui.
 6. Bilan après une semaine (onglet Consommation) : coût réel par question, votes « Inexact », questions hors sujet.
+7. Lots 10 et 11 (2026-10-25) : `deploy.sh` applique la migration additive `20261025180000_coach_rules_memory` (deux
+   tables vides) ; rien ne change tant que `coach_rules_enabled` et `coach_memory_enabled` restent fermés. Ouvrir les
+   règles après la première semaine de votes relus, la mémoire ensuite — depuis l'onglet Réglages.
 
 ## 13. Tests
 
 Vitest (`src/lib/coach/*.test.ts`) : réglages et bornes, quota (fenêtre glissante, mois de Paris, plafond global,
 SuperUser), coût et catalogue, contexte, outils (étanchéité, parties compressées), fournisseur (flux simulé), routes
 (session, clan, 404 d'un fil étranger, flux SSE sans crédit consommé), rapports d'administration, alertes, routes
-d'administration, conservation et purge ; `admin-action-log-routes.test.ts` (écritures journalisées),
+d'administration, règles apprises (`coach-rules.test.ts` : bornes, bloc, cache, routes), mémoire personnelle
+(`coach-memory.test.ts` : étanchéité du texte, baseline vérifiée, borne de 8, outil lié au compte, aucune lecture depuis
+l'administration), conservation et purge ; `admin-action-log-routes.test.ts` (écritures journalisées),
 `tutoiement.test.ts`, `ui-conformance.test.ts`. Playwright `e2e/coach.spec.ts` : lot 9.

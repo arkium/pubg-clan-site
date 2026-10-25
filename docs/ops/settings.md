@@ -96,6 +96,10 @@ votes, questions fréquentes sur 30 jours, votes « Inexact » à relire avec «
 - **Entrée de menu** : `superuser.coach` (`scripts/seed-coach-admin-nav.ts` après déploiement) ; carte du hub
   Plateforme, groupe « Site ». Fiche : [coach-ia.md](../features/coach-ia.md) §9.
 - **Tests** : `src/lib/coach/coach-admin-report.test.ts`, `coach-admin-routes.test.ts`, `coach-alerts.test.ts`.
+- **Règles apprises et mémoire personnelle (2026-10-25, lots 10 et 11)** : deux interrupteurs dans l'onglet Réglages
+  (`coach_rules_enabled`, `coach_memory_enabled`, fermés par défaut) ; section « Règles apprises » de l'onglet Questions
+  (`CoachRulesSection`, routes `GET · POST /api/settings/coach/rules`, `PATCH · DELETE …/rules/[id]`, 20 actives au
+  plus). La mémoire personnelle des joueurs n'est lisible nulle part dans l'administration — [coach-ia.md](../features/coach-ia.md) §9.
 
 ---
 

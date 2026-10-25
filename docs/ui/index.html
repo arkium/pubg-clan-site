@@ -10230,6 +10230,15 @@ const totals = summarizeBodyZones(squadBodyZones.dealt)
           .coach-fab:focus-visible { outline: 2px solid var(--theme-ui-accent); outline-offset: 2px; }
           .coach-fab .coach-ico { width: 22px; height: 22px; }
           .coach-fab--demo { position: static; display: inline-flex; } /* charte seulement : l'exemple posé dans le flux de la page */
+          /* « Ce que le Coach sait de toi » (lot 11, 25/10/2026) : même panneau que la liste des fils ; une ligne = clé en étiquette accent, les mots du joueur, date et mesure de départ, une croix « Oublier » ; « Tout oublier » en pied. */
+          .coach-memory { display: flex; flex: 1; min-height: 0; flex-direction: column; gap: 6px; padding: 12px; overflow-y: auto; background: var(--theme-ui-surface-soft); }
+          .coach-memory-intro { margin: 0 4px 4px; font-size: 12px; line-height: 1.45; color: var(--theme-ui-text-secondary); }
+          .coach-memory-row { display: flex; align-items: flex-start; gap: 8px; padding: 8px 6px 8px 10px; border: 1px solid var(--theme-ui-border); border-radius: 10px; background: var(--theme-ui-surface); }
+          .coach-memory-main { display: flex; flex: 1; min-width: 0; flex-direction: column; gap: 2px; }
+          .coach-memory-key { font-size: 11px; font-weight: 800; letter-spacing: 0.06em; text-transform: uppercase; color: var(--theme-ui-accent-text); }
+          .coach-memory-text { font-size: 13px; line-height: 1.4; color: var(--theme-ui-text); overflow-wrap: anywhere; }
+          .coach-memory-meta { font-size: 11px; color: var(--theme-ui-text-muted); }
+          .coach-memory-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; padding-top: 8px; font-size: 11px; color: var(--theme-ui-text-muted); }
           .coach-drawer { width: 440px; max-width: 100%; display: flex; flex-direction: column; border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); overflow: hidden; box-shadow: 0 20px 40px -16px rgb(2 6 23 / 0.35); animation: coachDrawerIn 220ms cubic-bezier(0.22, 1, 0.36, 1); }
           @keyframes coachDrawerIn { from { opacity: 0; transform: translateX(18px); } to { opacity: 1; transform: none; } }
           @keyframes coachSheetIn { from { opacity: 0; transform: translateY(24px); } to { opacity: 1; transform: none; } }
@@ -10362,6 +10371,19 @@ const totals = summarizeBodyZones(squadBodyZones.dealt)
             </span>
           </div>
           <div class="docs-label">À côté de l'avatar, sans changer la hauteur du header ; <b>même habillage que le bouton flottant</b> depuis le 25/10/2026 (bordure et icône en accent, fond surface teinté — avant : bouton secondaire gris, teinté seulement une fois ouvert). <b>Sous 640 px</b>, où ce bouton est masqué : bouton flottant <code>.coach-fab</code> en bas à droite (52 px, bordure accent, fond surface teinté, icône seule — nom accessible « Coach IA »), marge basse augmentée de la zone sûre iOS, <b>masqué dès que le panneau est ouvert</b> (attribut <code>hidden</code>, l'élément reste monté pour le retour du focus), absent de la page plein écran, sous les toasts et les menus (z 45 &lt; 50) — décision du 25/10/2026, qui remplace « pas de bouton flottant » (composant <code>CoachFab</code>). Aussi : entrée « Coach IA » de la palette <code>Ctrl+K</code> et bouton « Débriefer ce match avec le Coach » du débriefing. Pas de <code>Ctrl+J</code> (téléchargements du navigateur).</div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">« Ce que le Coach sait de toi » et règles apprises (lots 10 et 11, 25/10/2026)</div>
+          <div class="ex-row charte game-ui">
+            <div class="coach-memory" style="flex:0 1 420px;max-width:100%;border:1px solid var(--theme-ui-border);border-radius:14px;">
+              <p class="coach-memory-intro">Ce que tu as demandé au Coach de retenir, en tes mots — au plus 8 lignes, gardées 90 jours après leur dernière mise à jour. Dis-lui « retiens que… » pour en ajouter. Rien ici n’est lu par l’administrateur.</p>
+              <div class="coach-memory-row"><div class="coach-memory-main"><span class="coach-memory-key">Objectif</span><span class="coach-memory-text">« 30 % de headshots au Kar98k »</span><span class="coach-memory-meta">24 oct. · mesuré à 22 (Kar98k) le 24 oct.</span></div><button type="button" class="coach-icon-btn" aria-label="Oublier"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+              <div class="coach-memory-row"><div class="coach-memory-main"><span class="coach-memory-key">Préférence</span><span class="coach-memory-text">« je joue surtout le soir en squad »</span><span class="coach-memory-meta">20 oct.</span></div><button type="button" class="coach-icon-btn" aria-label="Oublier"><svg class="coach-ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button></div>
+              <div class="coach-memory-foot"><span>2 / 8</span><button type="button" class="app-btn app-btn--secondary app-btn--xs">Tout oublier</button></div>
+            </div>
+          </div>
+          <div class="docs-label"><b>Mémoire personnelle</b> (<code>CoachMemory</code>, par compte) : bouton « cerveau » dans l'en-tête du panneau, présent seulement quand l'administrateur a ouvert la fonction ; la liste remplace le fil dans le tiroir (la liste des fils sur la page plein écran). Une ligne = clé en étiquette accent (Objectif, Rôle, Préférence, À éviter, Note), <b>les mots du joueur entre guillemets</b> (le serveur refuse tout texte absent de sa question), date, mesure de départ d'un objectif chiffré ; croix « Oublier » par ligne, « Tout oublier » en pied. Jamais affichée côté SuperUser. <b>Règles apprises</b> (<code>CoachRule</code>, onglet Questions de <code>/settings/coach</code>) : liste de phrases à l'impératif écrites par le SuperUser, interrupteur par règle (<code>Switch</code>), compteur « N / 20 actives · ≈ T tokens par question » en aside, saisie bornée à 200 caractères, suppression en deux clics ; « En faire une règle » sur un vote « Inexact » rattache le vote sans reprendre la note. Deux interrupteurs dans l'onglet Réglages, fermés par défaut. Spécification : <code>docs/TODO/coach-ia-pistes.md</code> §6.</div>
         </div>
 
         <div class="docs-subsection">

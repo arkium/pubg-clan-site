@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowUp, Check, Copy, History, Lock, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Shield, Square, ThumbsDown, ThumbsUp, Trash2, X, Zap } from 'lucide-react'
+import { ArrowUp, Brain, Check, Copy, History, Lock, Maximize2, MoreHorizontal, Pencil, Plus, RefreshCw, Shield, Square, ThumbsDown, ThumbsUp, Trash2, X, Zap } from 'lucide-react'
 import Link from 'next/link'
 import { usePathname } from 'next/navigation'
 import { useCallback, useEffect, useMemo, useRef, useState, type KeyboardEvent } from 'react'
@@ -9,11 +9,13 @@ import CoachMarkdown from '@/components/coach/CoachMarkdown'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { COACH_REFUSAL_CODES, useCoachChat, type CoachChatMessage } from '@/hooks/useCoachChat'
 import { useCoachConversations } from '@/hooks/useCoachConversations'
+import { useCoachMemory } from '@/hooks/useCoachMemory'
 import { useCoachQuota } from '@/hooks/useCoachQuota'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { COACH_INPUT_MAX_CHARS, COACH_LEGAL_LINE, coachProvisionalContext, coachRefusalText, coachThreadWhen, type CoachThreadGroup } from '@/lib/coach/coach-client'
 import type { CoachConversationSummary } from '@/lib/coach/coach-conversation-service'
 import { coachPlainText } from '@/lib/coach/coach-markdown'
+import { COACH_MEMORY_KEY_LABELS, type CoachMemoryView } from '@/lib/coach/coach-memory'
 
 /**
  * Le Coach IA lui-même (docs/TODO/chatbot-ia.md §8) : en-tête, contexte de page, fil, saisie, liste des fils, teaser
@@ -51,6 +53,11 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
   const { quota, reload: reloadQuota, apply: applyQuota } = useCoachQuota(enabled)
   const [listOpen, setListOpen] = useState(variant === 'page')
   const threads = useCoachConversations(enabled && listOpen)
+  // « Ce que le Coach sait de toi » (lot 11) : seulement quand la mémoire personnelle est ouverte (le quota le dit),
+  // lue quand la liste s'affiche ; une réponse peut y avoir ajouté une ligne, la liste se relit à sa fin.
+  const memoryEnabled = Boolean(quota?.memoryEnabled)
+  const [memoryOpen, setMemoryOpen] = useState(false)
+  const memory = useCoachMemory(enabled && memoryEnabled && memoryOpen)
   const [announcement, setAnnouncement] = useState('')
 
   // Fin de réponse ou refus : signalés depuis le flux, pas par un effet — quota ajusté, lecteurs d'écran prévenus.
@@ -61,6 +68,7 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
       applyQuota({ remainingHour: done.remainingHour ?? undefined, monthPercent: done.monthPercent ?? undefined })
       setAnnouncement('Réponse du Coach terminée.')
       threads.reload()
+      memory.reload()
     },
     onRefused: () => reloadQuota(),
   })
@@ -141,13 +149,39 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
         </div>
       </div>
       {!visitor && quota ? <QuotaPill remainingHour={quota.remainingHour} hourlyLimit={quota.hourlyLimit} monthPercent={quota.monthPercent} unlimited={quota.unlimited} /> : <span className="ml-auto" />}
+      {!visitor && memoryEnabled ? (
+        <button
+          type="button"
+          className="coach-icon-btn"
+          aria-label="Ce que le Coach sait de toi"
+          title="Ce que le Coach sait de toi"
+          aria-pressed={memoryOpen}
+          onClick={() => {
+            setMemoryOpen((current) => !current)
+            setListOpen(false)
+          }}
+          data-testid="coach-memory-toggle"
+        >
+          <Brain className="coach-ico" aria-hidden="true" />
+        </button>
+      ) : null}
       {!visitor ? (
-        <button type="button" className="coach-icon-btn" aria-label="Fils de discussion" aria-pressed={listOpen} onClick={() => setListOpen((current) => !current)} data-testid="coach-threads-toggle">
+        <button
+          type="button"
+          className="coach-icon-btn"
+          aria-label="Fils de discussion"
+          aria-pressed={listOpen}
+          onClick={() => {
+            setListOpen((current) => !current)
+            setMemoryOpen(false)
+          }}
+          data-testid="coach-threads-toggle"
+        >
           <History className="coach-ico" aria-hidden="true" />
         </button>
       ) : null}
       {variant === 'drawer' && clanId && !visitor ? (
-        <Link href={`/clans/${clanId}/coach`} className="coach-icon-btn" aria-label="Agrandir en plein écran" onClick={onClose}>
+        <Link href={`/clans/${clanId}/coach`} className="coach-icon-btn coach-maximize" aria-label="Agrandir en plein écran" onClick={onClose}>
           <Maximize2 className="coach-ico" aria-hidden="true" />
         </Link>
       ) : null}
@@ -184,6 +218,8 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
       }}
     />
   )
+
+  const memoryList = <MemoryList memories={memory.memories} max={memory.max} retentionDays={memory.retentionDays} loading={memory.loading} error={memory.error} onForget={memory.forget} onForgetAll={memory.forgetAll} />
 
   const thread = (
     <>
@@ -306,8 +342,8 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
   if (variant === 'page') {
     return (
       <div className="coach-page">
-        <aside className="coach-page-list" aria-label="Fils de discussion">
-          {threadList}
+        <aside className="coach-page-list" aria-label={memoryOpen ? 'Ce que le Coach sait de toi' : 'Fils de discussion'}>
+          {memoryOpen ? memoryList : threadList}
         </aside>
         <section className="coach-page-panel">
           {header}
@@ -320,8 +356,66 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
   return (
     <>
       {header}
-      <div className="coach-body">{listOpen ? threadList : thread}</div>
+      <div className="coach-body">{listOpen ? threadList : memoryOpen ? memoryList : thread}</div>
     </>
+  )
+}
+
+const MEMORY_DATE = new Intl.DateTimeFormat('fr-FR', { day: 'numeric', month: 'short', timeZone: 'Europe/Paris' })
+
+/** « Ce que le Coach sait de toi » (lot 11) : les lignes du compte, une croix par ligne, « Tout oublier ». */
+function MemoryList({
+  memories,
+  max,
+  retentionDays,
+  loading,
+  error,
+  onForget,
+  onForgetAll,
+}: {
+  memories: CoachMemoryView[] | null
+  max: number
+  retentionDays: number
+  loading: boolean
+  error: string | null
+  onForget: (id: number) => Promise<boolean>
+  onForgetAll: () => Promise<boolean>
+}) {
+  return (
+    <div className="coach-memory" data-testid="coach-memory">
+      <p className="coach-memory-intro">
+        Ce que tu as demandé au Coach de retenir, en tes mots — au plus {max} lignes, gardées {retentionDays} jours après leur dernière mise à jour. Dis-lui « retiens que… » pour en ajouter. Rien ici n’est lu par l’administrateur.
+      </p>
+      {loading ? <p className="t-meta m-0 px-2 py-3">Chargement…</p> : null}
+      {error ? <p className="t-meta m-0 px-2 py-3">{error}</p> : null}
+      {memories && memories.length === 0 ? <p className="t-meta m-0 px-2 py-3">Le Coach ne retient rien pour l’instant.</p> : null}
+      {memories?.map((memory) => (
+        <div key={memory.id} className="coach-memory-row" data-testid={`coach-memory-${memory.id}`}>
+          <div className="coach-memory-main">
+            <span className="coach-memory-key">{COACH_MEMORY_KEY_LABELS[memory.key] ?? memory.key}</span>
+            <span className="coach-memory-text">« {memory.text} »</span>
+            <span className="coach-memory-meta">
+              {MEMORY_DATE.format(new Date(memory.updatedAt))}
+              {memory.baseline ? ` · mesuré à ${memory.baseline.value}${memory.baseline.weapon ? ` (${memory.baseline.weapon})` : ''} le ${MEMORY_DATE.format(new Date(memory.baseline.at))}` : ''}
+            </span>
+          </div>
+          <button type="button" className="coach-icon-btn" aria-label={`Oublier : ${memory.text}`} title="Oublier" onClick={() => void onForget(memory.id)}>
+            <X className="coach-ico" aria-hidden="true" />
+          </button>
+        </div>
+      ))}
+      {memories && memories.length > 0 ? (
+        <div className="coach-memory-foot">
+          <span>
+            {memories.length} / {max}
+          </span>
+          <button type="button" className="app-btn app-btn--secondary app-btn--xs gap-1" onClick={() => void onForgetAll()} data-testid="coach-memory-forget-all">
+            <Trash2 className="h-3 w-3" aria-hidden="true" />
+            Tout oublier
+          </button>
+        </div>
+      ) : null}
+    </div>
   )
 }
 

@@ -31,6 +31,12 @@ const mocks = vi.hoisted(() => ({
   resolveContext: vi.fn(),
   streamAnswer: vi.fn(),
   runTool: vi.fn(),
+  ruleFindMany: vi.fn(),
+  memoryFindMany: vi.fn(),
+  memoryCreate: vi.fn(),
+  memoryUpdate: vi.fn(),
+  memoryDelete: vi.fn(),
+  memoryDeleteMany: vi.fn(),
 }))
 
 vi.mock('@/lib/auth-session', () => ({ getSessionFromRequest: mocks.getSession, getSessionTokenFromRequest: mocks.getToken }))
@@ -50,6 +56,9 @@ vi.mock('@/lib/prisma', () => ({
     coachUsage: { count: mocks.usageCount, findFirst: mocks.usageFindFirst, aggregate: mocks.usageAggregate, create: mocks.usageCreate, update: mocks.usageUpdate },
     // `findUnique` / `upsert` : mémoire des alertes du plafond (coach-alerts.ts), jamais sollicitée ici.
     appConfig: { findMany: mocks.appConfigFindMany, findUnique: vi.fn(async () => null), upsert: vi.fn(async () => undefined) },
+    // Lots 10 et 11 : lus seulement quand leur interrupteur est ouvert.
+    coachRule: { findMany: mocks.ruleFindMany },
+    coachMemory: { findMany: mocks.memoryFindMany, create: mocks.memoryCreate, update: mocks.memoryUpdate, delete: mocks.memoryDelete, deleteMany: mocks.memoryDeleteMany },
     $transaction: mocks.transaction,
   },
 }))
@@ -167,6 +176,58 @@ describe('POST /api/clans/[clanId]/coach/chat — accès et refus avant tout flu
     const response = await chat({ message: 'Et ensuite ?', conversationId: 77 })
     expect(response.status).toBe(404)
     expect(mocks.conversationFindFirst.mock.calls[0][0].where).toEqual({ id: 77, userId: 10 })
+  })
+})
+
+describe('POST /api/clans/[clanId]/coach/chat — règles apprises et mémoire personnelle (lots 10 et 11)', () => {
+  const plainAnswer = () => mocks.streamAnswer.mockResolvedValue({ text: 'OK', toolCalls: [], tokensIn: 10, tokensOut: 2, rounds: 1, finishReason: 'STOP' })
+  const settings = (...extra: Array<{ key: string; value: string }>) => mocks.appConfigFindMany.mockResolvedValue([{ key: 'coach_enabled', value: 'true' }, ...extra])
+
+  it('interrupteurs fermés (défaut) : prompt inchangé, aucune lecture de règle ni de mémoire, pas d’outil rememberAboutMe', async () => {
+    mocks.getSession.mockResolvedValue(session())
+    plainAnswer()
+    await readSse(await chat({ message: 'Salut' }))
+    const request = mocks.streamAnswer.mock.calls[0][0]
+    expect(request.system).not.toContain('Règles du site')
+    expect(request.system).not.toContain('rememberAboutMe')
+    expect(request.tools.map((tool: { name: string }) => tool.name)).toEqual(['getMatchDebrief'])
+    expect(mocks.ruleFindMany).not.toHaveBeenCalled()
+    expect(mocks.memoryFindMany).not.toHaveBeenCalled()
+  })
+
+  it('règles ouvertes : le bloc « Règles du site » entre dans le prompt, après les règles absolues', async () => {
+    mocks.getSession.mockResolvedValue(session())
+    settings({ key: 'coach_rules_enabled', value: 'true' })
+    mocks.ruleFindMany.mockResolvedValue([{ text: 'Un Top 10 n’est pas une victoire.' }])
+    plainAnswer()
+    await readSse(await chat({ message: 'Salut' }))
+    const request = mocks.streamAnswer.mock.calls[0][0]
+    expect(request.system).toContain('Règles du site')
+    expect(request.system).toContain('- Un Top 10 n’est pas une victoire.')
+    expect(request.system.indexOf('Règles absolues')).toBeLessThan(request.system.indexOf('Règles du site'))
+    expect(request.system).not.toContain('rememberAboutMe')
+    expect(mocks.memoryFindMany).not.toHaveBeenCalled()
+  })
+
+  it('mémoire ouverte : lignes du compte dans le prompt, outil lié au compte et à la question ; une déduction est refusée', async () => {
+    mocks.getSession.mockResolvedValue(session())
+    settings({ key: 'coach_memory_enabled', value: 'true' })
+    mocks.memoryFindMany.mockResolvedValue([{ id: 1, key: 'goal', text: '30 % de headshots', baseline: null, memberId: 100, clanId: 292, updatedAt: new Date('2026-10-24T20:00:00Z'), expiresAt: new Date('2027-01-22T20:00:00Z') }])
+    mocks.memoryCreate.mockImplementation(async ({ data }: { data: Record<string, unknown> }) => ({ id: 2, key: data.key, text: data.text, baseline: null, updatedAt: new Date(), expiresAt: data.expiresAt }))
+    mocks.streamAnswer.mockImplementation(async (request: { runTool: (call: unknown) => Promise<unknown> }) => {
+      expect(await request.runTool({ name: 'rememberAboutMe', args: { key: 'avoid', text: 'tes rotations tardives' } })).toMatchObject({ error: 'not_in_message' })
+      expect(await request.runTool({ name: 'rememberAboutMe', args: { key: 'preference', text: 'je joue surtout le soir' } })).toMatchObject({ remembered: true, total: 2 })
+      return { text: 'Noté.', toolCalls: [{ name: 'rememberAboutMe', args: { key: 'preference', text: 'je joue surtout le soir' } }], tokensIn: 10, tokensOut: 2, rounds: 1, finishReason: 'STOP' }
+    })
+    const events = await readSse(await chat({ message: 'Retiens que je joue surtout le soir.' }))
+    expect(events.at(-1)?.event).toBe('done')
+    const request = mocks.streamAnswer.mock.calls[0][0]
+    expect(request.system).toContain('« 30 % de headshots »')
+    expect(request.system).toContain('rememberAboutMe')
+    expect(request.tools.map((tool: { name: string }) => tool.name)).toEqual(['getMatchDebrief', 'rememberAboutMe'])
+    expect(mocks.memoryFindMany.mock.calls[0][0].where).toMatchObject({ userId: 10 })
+    expect(mocks.memoryCreate.mock.calls[0][0].data).toMatchObject({ userId: 10, memberId: 100, clanId: 292, key: 'preference', text: 'je joue surtout le soir', source: 'player' })
+    expect(mocks.runTool).not.toHaveBeenCalled()
   })
 })
 

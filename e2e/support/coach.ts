@@ -35,6 +35,8 @@ export type CoachQuotaFixture = {
   monthPercent: number | null
   globalPercent: number
   periodEnd: string
+  /** Mémoire personnelle ouverte (lot 11) : le panneau montre « Ce que le Coach sait de toi ». */
+  memoryEnabled: boolean
 }
 
 export function coachQuota(overrides: Partial<CoachQuotaFixture> = {}): CoachQuotaFixture {
@@ -49,9 +51,18 @@ export function coachQuota(overrides: Partial<CoachQuotaFixture> = {}): CoachQuo
     monthPercent: 12,
     globalPercent: 15,
     periodEnd: '2026-10-31T23:00:00.000Z',
+    memoryEnabled: false,
     ...overrides,
   }
 }
+
+export type CoachMemoryFixture = { id: number; key: 'goal' | 'role' | 'preference' | 'avoid' | 'note'; text: string; baseline: { metric: string; weapon?: string; value: number; at: string } | null; updatedAt: string; expiresAt: string }
+
+/** Deux lignes de « Ce que le Coach sait de toi » : un objectif chiffré avec sa mesure de départ, une préférence. */
+export const COACH_MEMORIES: CoachMemoryFixture[] = [
+  { id: 1, key: 'goal', text: '30 % de headshots au Kar98k', baseline: { metric: 'headshotRate', weapon: 'Kar98k', value: 22, at: '2026-10-24T20:00:00.000Z' }, updatedAt: '2026-10-24T20:00:00.000Z', expiresAt: '2027-01-22T20:00:00.000Z' },
+  { id: 2, key: 'preference', text: 'je joue surtout le soir en squad', baseline: null, updatedAt: '2026-10-20T20:00:00.000Z', expiresAt: '2027-01-18T20:00:00.000Z' },
+]
 
 /** Corps d'un flux SSE, tel que le serveur l'écrit (`encodeCoachSseEvent`). */
 export function coachSse(events: Array<{ event: string; data: unknown }>) {
@@ -72,6 +83,9 @@ export function coachAnswerEvents(contextLabel: string | null) {
 export type CoachCalls = {
   chats: Array<{ conversationId: number | null; contextPath: string | null; message: string }>
   feedback: Array<Record<string, unknown>>
+  /** Lignes de mémoire effacées une à une, et nombre de « Tout oublier ». */
+  forgotten: number[]
+  forgotAll: number
 }
 
 const conversation = () => ({
@@ -83,13 +97,31 @@ const conversation = () => ({
   updatedAt: new Date(Date.now() - 5 * 60_000).toISOString(),
 })
 
-/** Session d'un membre du clan et toutes les API du Coach ; les corps envoyés sont gardés pour vérification. */
-export function mockCoachMember(api: ApiMock, options: { superUser?: boolean; quota?: Partial<CoachQuotaFixture>; contextLabel?: string | null } = {}): CoachCalls {
+/**
+ * Session d'un membre du clan et toutes les API du Coach ; les corps envoyés sont gardés pour vérification. `memory` :
+ * mémoire personnelle ouverte (lot 11) avec ces lignes ; absente, l'interrupteur est fermé et le panneau n'en montre rien.
+ */
+export function mockCoachMember(api: ApiMock, options: { superUser?: boolean; quota?: Partial<CoachQuotaFixture>; contextLabel?: string | null; memory?: CoachMemoryFixture[] } = {}): CoachCalls {
   mockMemberSession(api, { superUser: options.superUser })
-  const calls: CoachCalls = { chats: [], feedback: [] }
+  const calls: CoachCalls = { chats: [], feedback: [], forgotten: [], forgotAll: 0 }
   const summary = conversation()
+  let memories = [...(options.memory ?? [])]
   api
-    .on('GET', '/api/coach/quota', { body: coachQuota(options.quota) })
+    .on('GET', '/api/coach/quota', { body: coachQuota({ memoryEnabled: options.memory !== undefined, ...options.quota }) })
+    .on('GET', '/api/coach/memory', () => ({ body: { authenticated: true, enabled: options.memory !== undefined, memories, max: 8, retentionDays: 90 } }))
+    .on('DELETE', '/api/coach/memory', () => {
+      calls.forgotAll += 1
+      memories = []
+      return { body: { ok: true, deleted: memories.length } }
+    })
+  for (const memory of options.memory ?? []) {
+    api.on('DELETE', `/api/coach/memory/${memory.id}`, () => {
+      calls.forgotten.push(memory.id)
+      memories = memories.filter((entry) => entry.id !== memory.id)
+      return { body: { ok: true } }
+    })
+  }
+  api
     .on('GET', '/api/coach/conversations', { body: { authenticated: true, conversations: [summary] } })
     .on('GET', `/api/coach/conversations/${COACH_CONVERSATION_ID}`, {
       body: {
@@ -113,6 +145,8 @@ export function mockCoachMember(api: ApiMock, options: { superUser?: boolean; qu
 
 const COACH_SETTINGS = {
   enabled: true,
+  rulesEnabled: false,
+  memoryEnabled: false,
   model: 'gemini-3.5-flash-lite',
   budgetPerAccountEur: 2,
   globalBudgetEur: 50,
@@ -134,11 +168,45 @@ const COACH_BOUNDS = {
   maxToolRounds: { min: 1, max: 8, decimals: 0 },
 }
 
-/** Page SuperUser /settings/coach : réglages, test de modèle, consommation et questions figés. */
+export type CoachRuleFixture = { id: number; text: string; enabled: boolean; fromMessageId: number | null; createdAt: string; updatedAt: string; tokens: number }
+export type CoachRuleWrite = { method: 'POST' | 'PATCH' | 'DELETE'; id?: number; body?: Record<string, unknown> }
+
+const estimateTokens = (text: string) => Math.ceil(text.trim().length / 4)
+
+/** Page SuperUser /settings/coach : réglages, test de modèle, consommation, questions et règles apprises figés. */
 export function mockCoachAdmin(api: ApiMock) {
   mockMemberSession(api, { superUser: true })
   const saves: Array<Record<string, unknown>> = []
+  const ruleWrites: CoachRuleWrite[] = []
   let settings = { ...COACH_SETTINGS }
+  let rules: CoachRuleFixture[] = [{ id: 1, text: 'Un Top 10 n’est pas une victoire.', enabled: true, fromMessageId: null, createdAt: '2026-10-25T09:00:00.000Z', updatedAt: '2026-10-25T09:00:00.000Z', tokens: 9 }]
+  const rulesReport = () => {
+    const active = rules.filter((rule) => rule.enabled)
+    return { enabled: settings.rulesEnabled, rules, activeCount: active.length, maxActive: 20, promptTokens: active.length === 0 ? 0 : estimateTokens(active.map((rule) => `- ${rule.text}`).join('\n')) + 30 }
+  }
+  api
+    .on('GET', '/api/settings/coach/rules', () => ({ body: rulesReport() }))
+    .on('POST', '/api/settings/coach/rules', (_url, request: Request) => {
+      const body = request.postDataJSON() as { text: string; fromMessageId: number | null }
+      ruleWrites.push({ method: 'POST', body })
+      const rule: CoachRuleFixture = { id: rules.length + 1, text: body.text.trim(), enabled: true, fromMessageId: body.fromMessageId ?? null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(), tokens: estimateTokens(body.text) }
+      rules = [...rules, rule]
+      return { status: 201, body: { rule } }
+    })
+  for (const id of [1, 2, 3]) {
+    api
+      .on('PATCH', `/api/settings/coach/rules/${id}`, (_url, request: Request) => {
+        const body = request.postDataJSON() as Record<string, unknown>
+        ruleWrites.push({ method: 'PATCH', id, body })
+        rules = rules.map((rule) => (rule.id === id ? { ...rule, ...body, updatedAt: new Date().toISOString() } : rule))
+        return { body: { rule: rules.find((rule) => rule.id === id) } }
+      })
+      .on('DELETE', `/api/settings/coach/rules/${id}`, () => {
+        ruleWrites.push({ method: 'DELETE', id })
+        rules = rules.filter((rule) => rule.id !== id)
+        return { body: { ok: true } }
+      })
+  }
   api
     .on('GET', '/api/settings/coach', () => ({ body: { settings, apiKeyPresent: true, defaults: COACH_SETTINGS, bounds: COACH_BOUNDS } }))
     .on('PUT', '/api/settings/coach', (_url, request: Request) => {
@@ -183,5 +251,5 @@ export function mockCoachAdmin(api: ApiMock) {
       },
     })
     .on('POST', '/api/settings/coach/questions/42/reviewed', { body: { ok: true } })
-  return { saves }
+  return { saves, ruleWrites }
 }

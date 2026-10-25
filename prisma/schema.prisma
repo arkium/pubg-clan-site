@@ -61,6 +61,7 @@ model Clan {
   clanChangesAsPrevious     PlayerClanChange[]          @relation("PlayerClanChangePrevious")
   clanChangesAsNew          PlayerClanChange[]          @relation("PlayerClanChangeNew")
   coachConversations        CoachConversation[]
+  coachMemories             CoachMemory[]
 
   @@unique([name, platformShard])
   @@unique([pubgClanId, platformShard])
@@ -125,6 +126,7 @@ model ClanMember {
   mortarSeries              MortarSeries[]
   zoneReadingSeries         ZoneReadingSeries[]
   coachConversations        CoachConversation[]
+  coachMemories             CoachMemory[]
 
   @@unique([pubgPlayerName, platformShard])
   @@index([clanId, lastMatchAt])
@@ -589,6 +591,8 @@ model UserAccount {
   resourceConfirmations   ResourceConfirmation[]
   resourceActions         ResourceAction[]       @relation("ResourceActionActor")
   coachConversations      CoachConversation[]
+  coachMemories           CoachMemory[]
+  coachRules              CoachRule[]
 
   @@map("UserAccount")
 }
@@ -1798,6 +1802,7 @@ model CoachMessage {
   reviewedAt     DateTime? // vote « Inexact » relu par le SuperUser
   createdAt      DateTime          @default(now())
   conversation   CoachConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  rules          CoachRule[]
 
   @@index([conversationId, createdAt])
   @@index([feedbackScore, reviewedAt])
@@ -1819,4 +1824,49 @@ model CoachUsage {
 
   @@index([userId, createdAt])
   @@index([createdAt])
+}
+
+/// Règle apprise du Coach IA (docs/TODO/coach-ia-pistes.md §6.3, lot 10) : phrase écrite à la main par le SuperUser,
+/// injectée dans le prompt (bloc « Règles du site ») quand `coach_rules_enabled` est ouvert. Au plus 20 règles actives ;
+/// jamais écrite par le modèle ni reprise d'une note de joueur. `fromMessageId` : le vote « Inexact » d'origine.
+model CoachRule {
+  id            Int          @id @default(autoincrement())
+  text          String       @db.VarChar(200)
+  enabled       Boolean      @default(true)
+  fromMessageId Int?
+  createdById   Int?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+  fromMessage   CoachMessage? @relation(fields: [fromMessageId], references: [id], onDelete: SetNull)
+  createdBy     UserAccount?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
+
+  @@index([enabled, createdAt])
+  @@index([fromMessageId])
+  @@index([createdById])
+}
+
+/// Mémoire personnelle du Coach IA (docs/TODO/coach-ia-pistes.md §6.2, lot 11) : ce que le joueur demande au Coach de
+/// retenir, en ses mots, par compte (`userId`, cascade) — membre et clan du moment à titre indicatif. Au plus 8 lignes
+/// par compte, 90 jours sans mise à jour (`expiresAt`, maintenance de 01:15). Visible et effaçable par le joueur dans
+/// le panneau du Coach ; jamais lue par le SuperUser. `baseline` : mesure de départ datée d'un objectif chiffré.
+model CoachMemory {
+  id        Int         @id @default(autoincrement())
+  userId    Int
+  memberId  Int?
+  clanId    Int?
+  key       String      @db.VarChar(32) // "goal" | "role" | "preference" | "avoid" | "note"
+  text      String      @db.VarChar(200) // les mots du joueur, jamais une déduction du modèle
+  baseline  Json? // { metric, weapon?, value, at } posé par le serveur d'après un outil appelé dans la même réponse
+  source    String      @db.VarChar(16) // "player"
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+  expiresAt DateTime
+  user      UserAccount @relation(fields: [userId], references: [id], onDelete: Cascade)
+  member    ClanMember? @relation(fields: [memberId], references: [id], onDelete: SetNull)
+  clan      Clan?       @relation(fields: [clanId], references: [id], onDelete: SetNull)
+
+  @@index([userId, updatedAt])
+  @@index([expiresAt])
+  @@index([memberId])
+  @@index([clanId])
 }

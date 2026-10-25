@@ -1,10 +1,11 @@
 'use client'
 
-import { Check, MessageSquare, ThumbsDown } from 'lucide-react'
+import { Brain, Check, MessageSquare, ThumbsDown } from 'lucide-react'
 import { useState } from 'react'
 
 import { useLifecycleResource } from '@/components/clan-lifecycle/LifecycleShared'
 import { DATE_TIME, INT, Kpi } from '@/components/settings/coach/CoachAdminShared'
+import CoachRulesSection, { type CoachRulePrefill } from '@/components/settings/coach/CoachRulesSection'
 import { EmptyState, ErrorState, ListSkeleton, SectionCard, Tag } from '@/components/ui/CharteKit'
 import Pagination from '@/components/ui/Pagination'
 import type { CoachQuestionsReport } from '@/lib/coach/coach-admin-report'
@@ -16,7 +17,8 @@ const QUESTIONS_PAGE_SIZE = 10
 /**
  * Questions posées au Coach IA (docs/TODO/chatbot-ia.md §9, onglet 3) : fréquences sur 30 jours regroupées par texte
  * normalisé, votes, et chaque vote « Inexact » à relire — date · contexte · clan, jamais le compte. « Relu » sort la
- * réponse de la file. Données : GET /api/settings/coach/questions, POST …/questions/[id]/reviewed.
+ * réponse de la file ; « En faire une règle » ouvre la section des règles apprises (lot 10) avec le vote rattaché.
+ * Données : GET /api/settings/coach/questions, POST …/questions/[id]/reviewed, règles : `CoachRulesSection`.
  */
 export default function CoachQuestionsPage() {
   const [token, setToken] = useState(0)
@@ -25,6 +27,7 @@ export default function CoachQuestionsPage() {
   const [reviewing, setReviewing] = useState<number | null>(null)
   const [reviewError, setReviewError] = useState('')
   const [questionsPage, setQuestionsPage] = useState(1)
+  const [rulePrefill, setRulePrefill] = useState<CoachRulePrefill | null>(null)
 
   async function markReviewed(messageId: number) {
     setReviewing(messageId)
@@ -125,10 +128,16 @@ export default function CoachQuestionsPage() {
                       </>
                     ) : null}
                   </span>
-                  <button type="button" className="app-btn app-btn--sm app-btn--secondary gap-1" disabled={reviewing === answer.messageId} onClick={() => void markReviewed(answer.messageId)}>
-                    <Check className="h-3.5 w-3.5" aria-hidden="true" />
-                    {reviewing === answer.messageId ? 'Enregistrement…' : 'Relu'}
-                  </button>
+                  <span className="flex flex-wrap items-center gap-2">
+                    <button type="button" className="app-btn app-btn--sm app-btn--secondary gap-1" onClick={() => setRulePrefill({ messageId: answer.messageId, token: Date.now() })} data-testid={`coach-rule-from-${answer.messageId}`}>
+                      <Brain className="h-3.5 w-3.5" aria-hidden="true" />
+                      En faire une règle
+                    </button>
+                    <button type="button" className="app-btn app-btn--sm app-btn--secondary gap-1" disabled={reviewing === answer.messageId} onClick={() => void markReviewed(answer.messageId)}>
+                      <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                      {reviewing === answer.messageId ? 'Enregistrement…' : 'Relu'}
+                    </button>
+                  </span>
                 </div>
                 <div className="coach-review-grid">
                   <div>
@@ -160,6 +169,8 @@ export default function CoachQuestionsPage() {
           </div>
         )}
       </SectionCard>
+
+      <CoachRulesSection prefill={rulePrefill} />
     </div>
   )
 }

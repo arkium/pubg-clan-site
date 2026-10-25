@@ -55,7 +55,12 @@
 | `COACH_MODEL` | `gemini-3.5-flash-lite` | Non — modèle de repli quand `AppConfig.coach_model` est absent ; le SuperUser choisit dans `/settings/coach` |
 
 Le web seul lit la clé (routes du Coach) ; le worker cron ne l'utilise que pour la purge et les avis sur le modèle,
-qui n'appellent pas Google. Un `.env` modifié après le build doit être recopié dans `.next/standalone/.env` (voir
+qui n'appellent pas Google.
+
+Règles apprises et mémoire personnelle (2026-10-25, lots 10 et 11) : la migration `20261025180000_coach_rules_memory`
+(deux tables vides, additive) part avec `deploy.sh` ; les deux fonctions restent fermées (`coach_rules_enabled`,
+`coach_memory_enabled` dans `AppConfig`, absents = fermés) tant que le SuperUser ne les ouvre pas depuis
+`/settings/coach` — aucune variable d'environnement. Un `.env` modifié après le build doit être recopié dans `.next/standalone/.env` (voir
 « Propriétaire du `.env` et du build »).
 
 ### Cron

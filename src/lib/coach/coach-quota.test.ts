@@ -131,7 +131,10 @@ describe('décision de quota', () => {
       monthPercent: 0,
       globalPercent: 0,
       periodEnd: '2026-10-31T23:00:00.000Z',
+      memoryEnabled: false,
     })
+    // Mémoire personnelle ouverte (lot 11) : le panneau l'apprend par le quota, sans appel de plus.
+    expect(coachQuotaPayload(decideCoachQuota(facts({ hourCount: 3 }), settings(), member), { memoryEnabled: true }).memoryEnabled).toBe(true)
   })
 })
 

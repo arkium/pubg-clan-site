@@ -45,6 +45,11 @@ const DATA_ROWS = [
     source: 'Chaque question que tu poses au Coach',
     usage: 'Limite horaire, budget du mois par compte et plafond du site',
   },
+  {
+    data: 'Ce que tu demandes au Coach IA de retenir : objectifs, préférences, en tes mots (et la mesure de départ d’un objectif chiffré)',
+    source: 'Toi, quand tu dis au Coach « retiens que… » (fonction ouverte par l’administrateur)',
+    usage: 'Personnaliser les réponses du Coach ; visible et effaçable d’un clic dans le panneau du Coach ; jamais lu par l’administrateur',
+  },
   { data: 'Commentaires sur la carte des ressources', source: 'Toi', usage: 'Validation des points' },
   { data: 'Résultats publiés sur Discord : pseudos de l’escouade, kills, dégâts, carte', source: 'Matchs et tournois du clan', usage: 'Canal Discord du clan, si un admin l’active' },
   {
@@ -149,7 +154,7 @@ const SECTIONS: LegalSection[] = [
           {
             label: 'Conservation',
             value:
-              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Notifications et préférences : jusqu’à ce que tu les supprimes, au plus avec la fiche du joueur. Coach IA : un fil 12 mois après sa dernière question (tu le supprimes avant si tu veux), la consommation 13 mois. Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
+              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Notifications et préférences : jusqu’à ce que tu les supprimes, au plus avec la fiche du joueur. Coach IA : un fil 12 mois après sa dernière question (tu le supprimes avant si tu veux), la consommation 13 mois, ce que tu lui demandes de retenir 90 jours après sa dernière mise à jour (ou dès que tu l’effaces). Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
           },
         ]}
       />

@@ -53,6 +53,7 @@ export function encodeCoachSseEvent(event: CoachSseEvent): string {
 /** Libellés des outils pour la ligne « Je consulte… » du tiroir. */
 export const COACH_TOOL_LABELS: Record<string, string> = {
   getRecentMatches: 'Je consulte tes parties…',
+  getSessions: 'Je fais le bilan des soirées…',
   getMatchDebrief: 'Je relis le match…',
   getWeaponStats: 'Je regarde tes armes…',
   getOpponentRecord: 'Je cherche les rencontres du clan…',
@@ -67,6 +68,9 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getPlayerBenchmark: 'Je te situe parmi les joueurs du site…',
   getCareerStats: 'Je lis ta carrière PUBG…',
   getClanPlaystyle: 'Je regarde le style de jeu du clan…',
+  getClanCareer: 'Je lis la carrière du clan…',
+  getCityInsights: 'Je regarde les villes et les zones de combat…',
+  getZoneClosures: 'Je regarde les fins de zone…',
   [COACH_MEMORY_TOOL_NAME]: 'Je note ce que tu me dis…',
 }
 

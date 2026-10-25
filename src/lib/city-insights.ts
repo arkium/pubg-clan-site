@@ -272,6 +272,10 @@ type LoadInput = {
   bounds: { startDate: Date; endDate: Date } | null
   squadMatchIds?: string[] | null
   matchType?: string[] | null
+  /** Une ou plusieurs cartes (noms bruts) ; absent : toutes. */
+  mapNames?: string[] | null
+  /** Métriques `PositionMetricCell` à lire à la place des quatre familles (`death`, `knockout_taken`…) — Coach IA. */
+  sources?: string[] | null
   withWeeks?: boolean
 }
 
@@ -290,9 +294,40 @@ function loadFilters(input: LoadInput) {
       SELECT 1 FROM SquadMatch sm WHERE sm.id = c.squadMatchId AND sm.matchType IN (${Prisma.join(input.matchType)})
     )`)
   }
-  const sources = METRIC_KEYS.flatMap((key) => CITY_METRIC_SOURCES[key])
+  if (input.mapNames && input.mapNames.length > 0) filters.push(Prisma.sql`c.mapName IN (${Prisma.join(input.mapNames)})`)
+  const sources = input.sources && input.sources.length > 0 ? input.sources : METRIC_KEYS.flatMap((key) => CITY_METRIC_SOURCES[key])
   filters.push(Prisma.sql`c.metric IN (${Prisma.join(sources)})`)
   return Prisma.join(filters, ' AND ')
+}
+
+export type CityEventRank = { locationId: string; name: string; mapName: string; mapLabel: string; events: number; share: number }
+
+/**
+ * Événements d'une métrique hors des quatre familles (morts, mises à terre subies…), ville par ville : total, part
+ * rattachée à une ville et classement complet (part parmi les événements en ville). Pur ; pour le Coach IA.
+ */
+export function rankCellsByCity(
+  rows: CityMetricCellRow[],
+  grid: Map<string, MapLocation>,
+  mapLabel?: (mapName: string) => string
+): { total: number; inCities: number; cities: CityEventRank[] } {
+  const byCity = new Map<string, CityEventRank>()
+  let total = 0
+  let inCities = 0
+  for (const row of rows) {
+    total += row.events
+    const location = grid.get(`${row.mapName}|${row.xIndex}|${row.yIndex}`)
+    if (!location) continue
+    inCities += row.events
+    const key = `${row.mapName}|${location.id}`
+    const entry = byCity.get(key) ?? { locationId: location.id, name: location.name, mapName: row.mapName, mapLabel: mapLabel?.(row.mapName) ?? row.mapName, events: 0, share: 0 }
+    entry.events += row.events
+    byCity.set(key, entry)
+  }
+  const cities = [...byCity.values()]
+    .sort((left, right) => right.events - left.events)
+    .map((city) => ({ ...city, share: inCities > 0 ? (city.events / inCities) * 100 : 0 }))
+  return { total, inCities, cities }
 }
 
 /**

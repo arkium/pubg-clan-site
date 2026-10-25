@@ -52,6 +52,14 @@ describe('vérification du contexte de page', () => {
     expect(await resolveCoachContext('/clans/7/stats/maps', scope)).toEqual({ kind: 'none' })
   })
 
+  it('reconnaît la carrière du clan, la fin de zone et la cartographie des positions, du clan de la session seulement', async () => {
+    expect(await resolveCoachContext('/clans/292/stats/career', scope)).toEqual({ kind: 'clan-career' })
+    expect(await resolveCoachContext('/clans/292/stats/zone-closures', scope)).toEqual({ kind: 'zone-closures' })
+    expect(await resolveCoachContext('/clans/292/stats/positions', scope)).toEqual({ kind: 'cities' })
+    expect(await resolveCoachContext('/clans/7/stats/career', scope)).toEqual({ kind: 'none' })
+    expect(mocks.memberFindFirst).not.toHaveBeenCalled()
+  })
+
   it('reconnaît la page des objets consommés d’un membre du clan', async () => {
     mocks.memberFindFirst.mockResolvedValue({ id: 77, displayName: 'Menez69' })
     expect(await resolveCoachContext('/members/77/items', scope)).toEqual({ kind: 'items', memberId: 77, memberName: 'Menez69' })

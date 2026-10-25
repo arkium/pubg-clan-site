@@ -20,9 +20,9 @@ export type CoachHelpDomain = {
 export const COACH_HELP_DOMAINS: CoachHelpDomain[] = [
   {
     id: 'parties',
-    title: 'Tes parties',
-    tools: ['getRecentMatches', 'getMatchDebrief'],
-    examples: ['Pourquoi on s’est fait sortir sur la dernière partie ?', 'Mes cinq dernières parties sur Erangel'],
+    title: 'Tes parties et tes soirées',
+    tools: ['getRecentMatches', 'getSessions', 'getMatchDebrief'],
+    examples: ['Pourquoi on s’est fait sortir sur la dernière partie ?', 'Combien de Top 1 samedi soir ?', 'Mes cinq dernières parties sur Erangel'],
   },
   {
     id: 'arsenal',
@@ -32,9 +32,9 @@ export const COACH_HELP_DOMAINS: CoachHelpDomain[] = [
   },
   {
     id: 'adversaires',
-    title: 'Adversaires et largages',
-    tools: ['getOpponentRecord', 'getDropZones'],
-    examples: ['Notre bilan contre les [RATZ]', 'Où atterrir sur Miramar ?'],
+    title: 'Adversaires, largages et villes',
+    tools: ['getOpponentRecord', 'getDropZones', 'getCityInsights'],
+    examples: ['Notre bilan contre les [RATZ]', 'Où atterrir sur Miramar ?', 'Dans quelle ville je meurs le plus ?'],
   },
   {
     id: 'classements',
@@ -44,15 +44,15 @@ export const COACH_HELP_DOMAINS: CoachHelpDomain[] = [
   },
   {
     id: 'clan',
-    title: 'Le clan : cartes, horaires, style de jeu',
-    tools: ['getMapPerformance', 'getPlaySchedule', 'getClanPlaystyle'],
-    examples: ['Sur quelle carte on gagne le plus ?', 'Quand est-ce que je joue le plus en semaine ?', 'Quel est le style de jeu du clan ?'],
+    title: 'Le clan : cartes, horaires, style de jeu, fin de zone',
+    tools: ['getMapPerformance', 'getPlaySchedule', 'getClanPlaystyle', 'getZoneClosures'],
+    examples: ['Sur quelle carte on gagne le plus ?', 'Quand est-ce que je joue le plus en semaine ?', 'Quel est le style de jeu du clan ?', 'On est souvent dehors quand le cercle se ferme ?'],
   },
   {
     id: 'carriere',
-    title: 'Ta carrière et ta place parmi les joueurs',
-    tools: ['getCareerStats', 'getPlayerBenchmark'],
-    examples: ['Mon K/D en ranked cette saison', 'Où je me situe parmi les joueurs du site ?'],
+    title: 'Ta carrière, celle du clan, et ta place parmi les joueurs',
+    tools: ['getCareerStats', 'getClanCareer', 'getPlayerBenchmark'],
+    examples: ['Mon K/D en ranked cette saison', 'Qui a le plus de victoires en carrière dans le clan ?', 'Où je me situe parmi les joueurs du site ?'],
   },
 ]
 

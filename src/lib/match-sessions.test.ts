@@ -11,8 +11,11 @@ import {
   periodChipLabel,
   placeTone,
   sessionBannerMap,
+  sessionBoundsOf,
   sessionDateParts,
   sessionDateOf,
+  sessionStartOf,
+  shiftSessionDate,
   summarizeSession,
 } from './match-sessions'
 import type { SquadMatch } from '@/types/squad-matches'
@@ -134,5 +137,30 @@ describe('match-sessions — journée de jeu', () => {
     expect(sessionDateOf('2026-09-26T04:10:00.000Z')).toBe('2026-09-26')
     // Hiver (UTC+1) : 00:30 UTC = 01:30 à Paris, soirée de la veille.
     expect(sessionDateOf(new Date('2026-12-05T00:30:00.000Z'))).toBe('2026-12-04')
+  })
+
+  it('retrouve l’instant où commence une soirée, été comme hiver', () => {
+    // Été : 06:00 à Paris = 04:00 UTC ; hiver : 05:00 UTC.
+    expect(sessionStartOf('2026-09-26').toISOString()).toBe('2026-09-26T04:00:00.000Z')
+    expect(sessionStartOf('2026-12-05').toISOString()).toBe('2026-12-05T05:00:00.000Z')
+    expect(shiftSessionDate('2026-10-31', 1)).toBe('2026-11-01')
+    expect(shiftSessionDate('2026-03-01', -1)).toBe('2026-02-28')
+  })
+
+  it('borne une plage de soirées en accord exact avec sessionDateOf, changements d’heure compris', () => {
+    // 2026 : passage à l'heure d'été le 29 mars, retour à l'heure d'hiver le 25 octobre (01:00 UTC).
+    for (const date of ['2026-03-28', '2026-03-29', '2026-10-24', '2026-10-25', '2026-10-26', '2026-07-14', '2027-01-01']) {
+      const start = sessionStartOf(date)
+      expect(sessionDateOf(start), date).toBe(date)
+      expect(sessionDateOf(new Date(start.getTime() - 1)), date).toBe(shiftSessionDate(date, -1))
+    }
+    const { start, end } = sessionBoundsOf('2026-10-23', '2026-10-24')
+    expect(start.toISOString()).toBe('2026-10-23T04:00:00.000Z')
+    // La soirée du 24 finit au début de celle du 25 : six heures réelles après minuit à Paris, soit 05:00 heure d'hiver
+    // la nuit du changement d'heure — exactement la frontière de sessionDateOf.
+    expect(end).toEqual(sessionStartOf('2026-10-25'))
+    expect(end.toISOString()).toBe('2026-10-25T04:00:00.000Z')
+    expect(sessionDateOf(new Date(end.getTime() - 1))).toBe('2026-10-24')
+    expect(sessionDateOf(end)).toBe('2026-10-25')
   })
 })

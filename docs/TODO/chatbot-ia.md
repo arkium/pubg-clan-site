@@ -44,6 +44,7 @@ d'inscrire son clan.
 | 2026-10-24 | Cartes | Outil `getMapPerformance` (§5.2) pour la page « Cartes » ; panoplie bornée à 11 outils pour éviter la fatigue de sélection du modèle | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Loot | « Mon loot » = les objets consommés et lancés (soins, boosts, grenades), pas les largages : outil `getItemUsage` (§5.2) et vocabulaire dans le prompt ; le site ne connaît pas le contenu du sac et l'outil le dit | Utilisateur |
 | 2026-10-24 | Tournois | Deux outils **publics** (`getTournaments`, `getTournamentResults`, §5.2) et le contexte `/tournaments/[id]` : les tournois sont des pages publiques, le clan du joueur ne sert qu'à le situer ; demandé après l'essai connecté (« qui a gagné le tournoi ? » refusé) | Utilisateur |
+| 2026-10-25 | Soirées et calculs | Analyse d'un fil de production (clan 25, fil 9) : « combien de Top 1 samedi ? » répondu depuis `getRecentMatches` (10 parties sur 31), « aucune partie vendredi » (55 en base), moyenne fausse (10,9 pour 13,0), « vous » dans les conseils. **Décidé :** outil **`getSessions`** (bilan par soirée calculé par le serveur, date ou plage, 06:00 à 06:00 par `sessionStartOf`) ; `truncated` et résumé calculé (`summary`) dans `getRecentMatches` ; règles du prompt « ne calcule rien toi-même », « une liste bornée ne prouve pas une absence », bloc « Choix de l'outil », tutoiement de la recommandation ; les outils de période gardent la semaine des pages (lundi minuit) et le disent dans leur `note` — le Coach ne contredit pas l'écran | Utilisateur |
 
 **Propositions confirmées le 2026-10-24** (elles ont valeur de décision) :
 
@@ -320,8 +321,42 @@ affiché dans `/settings/configuration` (section « Coach IA »).
 
 ### 5.2 Outils de la V1
 
-1. `getRecentMatches({ limit?, mapName? })` — parties récentes du clan (10 au plus), soirée par `sessionDateOf`, état de
-   la télémétrie.
+1. `getRecentMatches({ limit?, mapName? })` — les toutes dernières parties du clan (10 au plus, une ligne lue en plus pour
+   poser `truncated`), soirée par `sessionDateOf`, état de la télémétrie, `summary` calculé par le serveur sur les
+   parties listées (Top 1, Top 10, place moyenne, meilleure et pire place). Sa description dit qu'il n'est **pas** le
+   bilan d'une soirée (2026-10-25).
+16. `getSessions({ date?, from?, to?, matchType? })` — bilan par **soirée** (06:00 à 06:00 heure de Paris :
+    `sessionBoundsOf`, inverse exact de `sessionDateOf`), toutes parties par défaut comme la page de la soirée, 31
+    soirées au plus, 7 sans date. Par soirée : parties, Top 1, Top 10, place moyenne, meilleure et pire place, kills et
+    dégâts par partie, heures de début et de fin, carte la plus jouée, meilleur joueur, types de partie s'il y en a
+    plusieurs ; totaux de la plage et soirées sans partie. Une date seule : détail (cartes, modes d'équipe, types,
+    chaque membre, 40 parties avec identifiants). Mesuré le 2026-10-25 sur le clan 25 (292 parties la semaine) :
+    7 soirées ≈ 800 tokens, 31 soirées ≈ 3 100, une soirée de 31 parties en détail ≈ 2 000 ; 120 à 520 ms (la première
+    forme, en détail complet sur 31 soirées, pesait 20 600 tokens : d'où la ligne compacte). Ajouté le 2026-10-25 après l'analyse du fil 9
+    (§0) : « combien de Top 1 samedi ? » n'avait que `getRecentMatches`. Contexte `/clans/[id]/matches/session/[date]`
+    redirigé vers lui.
+17. `getClanCareer({ group?, playerName? })` — la page « Carrière PUBG du clan » (`MemberLifetimeStats` des membres
+    actifs, mêmes lectures que `GET /api/clans/[clanId]/lifetime-stats`, jamais l'API PUBG) : quatre totaux
+    (`careerHeadline`), sept familles (`computeCareerGroups`) avec valeur du clan (total, moyenne ou record), podium en
+    une ligne, place du joueur parmi les membres qui ont la donnée (« Moins = mieux » et « Mur de la honte » classent à
+    l'envers), membres sans la donnée. `group` sert une seule famille (≈ 600 tokens au lieu de ≈ 1 400 pour les sept ;
+    40 ms — podium en une ligne, le détail en objets pesait 1 800 tokens).
+    Contexte `/clans/[id]/stats/career` reconnu. Ajouté le 2026-10-25.
+18. `getCityInsights({ playerName?, scope?, period?, mapName?, matchType? })` — les indicateurs de villes des tableaux de
+    bord (`city-insights.ts` : `loadCityMetricCells`, `aggregateCityCells`, `buildCityInsights`, `withClanComparison`)
+    plus la métrique `death` de `PositionMetricCell` (`rankCellsByCity`, ajouté pour le Coach) : ville la plus
+    fréquentée, zone de combat favorite, Top 5 par présence, kills, dégâts, réanimations et **morts**, bilan des combats
+    ville par ville (kills contre morts), part hors des villes, comparaison au clan pour un joueur. Défauts de chaque
+    page : semaine, parties officielles pour le clan, toutes pour un joueur. `mapNames` et `sources` ajoutés à
+    `loadCityMetricCells`. ≈ 800 tokens, 0,9 à 1,3 s (quatre lectures SQL en parallèle, comme la page). Contexte
+    `/clans/[id]/stats/positions` reconnu ; la page `/members/[id]/drop-zones` le cite à côté de `getDropZones`.
+    Ajouté le 2026-10-25.
+19. `getZoneClosures({ mapName?, period?, phase? , playerName? })` — la page « Fin de zone »
+    (`loadZoneClosureSummary`, vue `zone-closure-view.ts`) : parts centre / bord / dehors, distance moyenne en % du
+    rayon, verdict, trois titres, phase par phase, villes d'arrivée, joueurs classés du plus central au plus excentré
+    avec leur profil, place du joueur ; carte par défaut = la plus jouée, une carte demandée n'est relue que si elle a
+    des fermetures ; `lowSample` sous 20 observations et la note rappellent le biais de survie. ≈ 1 400 tokens, 160 ms.
+    Contexte `/clans/[id]/stats/zone-closures` reconnu. Ajouté le 2026-10-25.
 2. `getMatchDebrief({ matchId })` — `loadMatchDebriefPayload` (même source que la page) : en-tête, phases, escouade
    (kills, dégâts, mises à terre, dégâts subis), 60 événements de l'escouade au plus à l'horloge du replay, clans
    adverses rencontrés ; télémétrie non analysée = dit tel quel.
@@ -877,11 +912,12 @@ Un outil = une fermeture sur le clan et le compte, un test d'étanchéité dans 
 une ligne dans la fiche et dans `scripts/coach-tools-probe.ts` ; à ajouter **un par un**, dans l'ordre des demandes
 des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils).
 
-- [ ] Carrière PUBG du clan (`/clans/[id]/stats/career`, `GET /api/clans/[clanId]/lifetime-stats`) — engagement,
-      cumul et podium du clan : `getClanCareer`
-- [ ] Positions et villes (`/members/[id]/city-insights`, `/clans/[id]/positions`, `src/lib/city-insights.ts`) :
-      zones de combat, villes où le joueur gagne ou meurt
-- [ ] Fin de zone (`docs/features/fin-de-zone.md`) : positions à chaque fermeture, biais de survie
+- [x] Carrière PUBG du clan (`/clans/[id]/stats/career`, `GET /api/clans/[clanId]/lifetime-stats`) — engagement,
+      cumul et podium du clan : `getClanCareer` — 2026-10-25 (§5.2 n° 17)
+- [x] Positions et villes (`/members/[id]/drop-zones`, `/clans/[id]/stats/positions`, `src/lib/city-insights.ts`) :
+      zones de combat, villes où le joueur tue et meurt : `getCityInsights` — 2026-10-25 (§5.2 n° 18)
+- [x] Fin de zone (`docs/features/fin-de-zone.md`) : positions à chaque fermeture, biais de survie : `getZoneClosures` —
+      2026-10-25 (§5.2 n° 19)
 - [ ] Cartes du joueur (`/members/[id]/map-stats`) : le pendant joueur de `getMapPerformance`
 - [ ] Distinctions et awards (`docs/features/awards.md`, `src/lib/distinctions.ts`) : titres de la période
 - [ ] Défis (`docs/features/challenges.md`) : défis en cours et classement
@@ -927,6 +963,21 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
 - [x] Bouton de l'en-tête au même habillage que le bouton flottant (bordure et icône en accent, bordure doublée une fois
       ouvert — demande de l'utilisateur) ; au passage, cartes Clan et Joueur du header en icône seule sous 640 px (les
       textes écrasaient le header et le bouton de menu) — 2026-10-25
+- [x] Fil 9 relu (décision du 2026-10-25, §0 « Soirées et calculs ») : outil `getSessions` (§5.2, n° 16) ; `truncated`
+      et `summary` dans `getRecentMatches`, `itemsTruncated` / `roundsTruncated` / `standingsTruncated` ailleurs ; prompt :
+      « ne calcule rien toi-même », « une liste bornée ne prouve pas une absence », bloc « Choix de l'outil » (jour ou
+      date → `getSessions`, dernières parties → `getRecentMatches`, période → cartes / classement / Ligue, habitudes →
+      `getPlaySchedule`), recommandation finale au tutoiement ; descriptions des outils réécrites pour dire ce que chacun
+      n'est **pas** ; `note` des outils de période : « cette semaine » = lundi minuit. Aide et libellé « Je fais le bilan
+      des soirées… ». Tests : `coach-tools.test.ts` (6 cas, changement d'heure du 25 octobre compris),
+      `match-sessions.test.ts` (`sessionStartOf`, `sessionBoundsOf`). À vérifier sur le fil : reposer les six questions
+      du 25 octobre
+- [x] Trois outils de la liste « à la demande » (demande de l'utilisateur du 2026-10-25) : `getClanCareer`,
+      `getCityInsights`, `getZoneClosures` (§5.2 n° 17 à 19) ; contextes `/clans/[id]/stats/career`,
+      `/stats/positions`, `/stats/zone-closures` ; aide (domaines « Adversaires, largages et villes », « … fin de
+      zone », « Ta carrière, celle du clan… ») ; prompt : lignes « un lieu » et « carrière » du bloc « Choix de
+      l'outil » ; sonde ; tests (`coach-tools.test.ts` : 6 cas, `city-insights.test.ts` : `rankCellsByCity`).
+      Dix-neuf outils : au-delà d'une vingtaine, surveiller la fatigue de sélection du modèle (§13)
 
 ### Lot 10 — Règles apprises (décision du 2026-10-25, [coach-ia-pistes.md §6.3](coach-ia-pistes.md))
 

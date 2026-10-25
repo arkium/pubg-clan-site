@@ -80,11 +80,12 @@ passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matc
 compte **et à la question en cours** — `text` doit être une partie du message du joueur (comparaison sans casse,
 accents ni ponctuation), sinon `not_in_message` et rien n'est retenu ; `baseline` (mesure de départ d'un objectif
 chiffré) n'est acceptée que si sa valeur figure dans un résultat d'outil de la même réponse (`baseline_unverified`
-sinon). Déclaré en plus des quinze outils, après eux.
+sinon). Déclaré en plus des dix-neuf outils, après eux.
 
 | Outil | Source (la même que la page) |
 |---|---|
-| `getRecentMatches` | parties récentes du clan, soirée par `sessionDateOf`, état de la télémétrie |
+| `getRecentMatches` | les toutes dernières parties du clan (10 au plus, `truncated` quand il y en a d'autres), soirée par `sessionDateOf`, état de la télémétrie, `summary` calculé par le serveur sur les parties listées — **pas** le bilan d'une soirée |
+| `getSessions` | la page « Soirée » en chiffres : parties du clan entre `sessionBoundsOf(from, to)` (06:00 à 06:00 heure de Paris, inverse exact de `sessionDateOf`), toutes parties par défaut, 31 soirées au plus (7 sans date). Par soirée : parties, Top 1, Top 10, place moyenne, meilleure et pire place, kills et dégâts par partie, heures, carte la plus jouée, meilleur joueur ; totaux et soirées sans partie ; une date seule ajoute cartes, modes, types, membres et 40 parties avec identifiants. C'est l'outil de « samedi », « hier », « le 23 » (2026-10-25) |
 | `getMatchDebrief` | `loadMatchDebriefPayload` : phases, escouade, 60 événements au plus, clans adverses |
 | `getWeaponStats` | `MemberWeaponStats` + `aggregateMemberWeapons`, 8 armes au plus |
 | `getItemUsage` | `loadItemUseStats` (la page « Objets consommés », sans la famille `None`) + `MemberThrowableStat` : soins, boosts, carburant, gadgets par famille et par objet, par partie, comparé au clan ; grenades lancées. C'est ce que le joueur appelle son « loot » ou son sac — le site ne connaît ni le contenu du sac ni les munitions ramassées, l'outil le dit |
@@ -95,6 +96,9 @@ sinon). Déclaré en plus des quinze outils, après eux.
 | `getCareerStats` | la page « Carrière PUBG » (`MemberLifetimeStats`, `MemberSeasonStats` — le cache synchronisé chaque nuit, **jamais un appel à l'API PUBG** depuis le Coach) : parties, Top 1, win rate, K/D, kills, headshots, knocks, dégâts, réanimations, soins, temps de jeu, jours joués, records, distances ; par mode (`squad`, `duo`, `solo`) ; médailles au podium du clan (`clanMedalRanks`, tous modes) ; saisons (palier Ranked, points, parties normales) |
 | `getClanPlaystyle` | la page « Style de jeu du clan » (`MemberTelemetryStats`, `ClanSynergyTelemetryStats` de la période) : rôles Fragger / Medic / Ghost (moyenne du clan, top 3), mobilité, cercle, survie (`playstyleRoles`, `playstyleThemes`), coopération (`cooperationSummary`, meilleurs binômes) et le joueur face au clan (`playerRoleComparison`, `cooperationPartners`). Ces scores sont **relatifs au meilleur du clan**, pas des centiles entre clans |
 | `getPlayerBenchmark` | le classement inter-clans `/players` (`getPlayersRanking`, cache 5 min, parties officielles de clan) : rang et part des joueurs dépassés pour chaque critère (dégâts, kills, knocks, réanimations, survie, quatre rôles), joueur juste devant et écart, rang de la période précédente, scores de rôle sur 100 (**centiles entre clans**, pas le style de jeu relatif au clan), moyennes ; en qualification : parties manquantes |
+| `getClanCareer` | la page « Carrière PUBG du clan » (`MemberLifetimeStats` des membres actifs, `careerHeadline`, `computeCareerGroups` — jamais l'API PUBG) : quatre totaux, sept familles avec valeur du clan (total, moyenne, record), podium en une ligne, place du joueur ; `group` pour une seule famille. Cumuls de toute la carrière des comptes, aucune période (2026-10-25) |
+| `getCityInsights` | les indicateurs de villes des tableaux de bord (`city-insights.ts`) plus la métrique `death` de `PositionMetricCell` (`rankCellsByCity`) : ville la plus fréquentée, zone de combat favorite, Top 5 par présence, kills, dégâts, réanimations et morts, kills contre morts ville par ville, part hors des villes, comparaison au clan pour un joueur ; défauts des pages (semaine ; parties officielles pour le clan, toutes pour un joueur). Les positions brutes de plus de trois semaines sont purgées : `since` le dit (2026-10-25) |
+| `getZoneClosures` | la page « Fin de zone » (`loadZoneClosureSummary`, `zone-closure-view.ts`) : centre / bord / dehors à chaque fermeture du cercle, distance moyenne en % du rayon, verdict, titres, phase par phase, villes d'arrivée, joueurs profilés du plus central au plus excentré, place du joueur ; carte par défaut = la plus jouée ; biais de survie rappelé (`lowSample`, note) (2026-10-25) |
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
 | `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
 | `getTournaments` | `listTournamentOverviews` (cache 5 min) : tournois publiés du site, filtres statut / titre, vainqueur ou leader, podium, place du clan quand elle est connue |
@@ -108,12 +112,19 @@ Chaque outil se borne (nombre de parties, période) ; jamais le bilan complet de
 d'authentification. Mesure sur la vraie base : `npx tsx --conditions=react-server scripts/coach-tools-probe.ts`
 (lecture seule).
 
-**Couverture des pages** (2026-10-24). Avec outil : débriefing et replay, parties et soirées, armes, objets consommés,
-adversaires / Némésis, largages, cartes du clan, calendrier d'activité, carrière PUBG et saisons, style de jeu du clan
-et du joueur, classement du clan, Ligue, joueurs inter-clans, tournois. **Sans outil** (le Coach le dit s'il est
-interrogé) : carrière PUBG du clan (`/clans/[id]/stats/career`), positions / villes et fin de zone, cartes du joueur
-(`/members/[id]/map-stats`), distinctions et awards, défis, mortier, lecture de zone, carte des ressources. La liste à
-faire est tenue dans le plan (docs/TODO/chatbot-ia.md §13, « Outils à la demande »).
+**Listes bornées et calculs** (2026-10-25, après le fil 9 : « aucune partie vendredi » déduit des 10 dernières parties,
+moyenne fausse). Tout résultat coupé le dit (`truncated`, `itemsTruncated`, `roundsTruncated`, `standingsTruncated`,
+`matchListTruncated`) ; les moyennes, totaux et pourcentages sont calculés par le serveur (`summary`, `totals`,
+`placementSummary`) et le prompt interdit au modèle de les refaire. Les outils de période (cartes, classement, Ligue)
+gardent la semaine des pages — lundi à minuit — et le disent dans leur `note` ; une semaine soirée par soirée passe par
+`getSessions`.
+
+**Couverture des pages** (2026-10-25). Avec outil : débriefing et replay, parties et soirées, armes, objets consommés,
+adversaires / Némésis, largages, villes et zones de combat, fin de zone, cartes du clan, calendrier d'activité, carrière
+PUBG du joueur et du clan, saisons, style de jeu du clan et du joueur, classement du clan, Ligue, joueurs inter-clans,
+tournois. **Sans outil** (le Coach le dit s'il est interrogé) : cartes du joueur (`/members/[id]/map-stats`),
+distinctions et awards, défis, mortier, lecture de zone, carte des ressources. La liste à faire est tenue dans le plan
+(docs/TODO/chatbot-ia.md §13, « Outils à la demande »).
 
 ## 6. Prompt et garde-fous (`coach-prompt.ts`, `coach-chat-service.ts`)
 
@@ -126,7 +137,10 @@ vides, prompt **identique** à celui d'avant ; base injoignable : blocs vides, l
 Coach e-sport francophone, **tutoiement** (« vous » seulement pour l'escouade — exception déclarée dans
 `src/lib/tutoiement.test.ts`), vocabulaire du site, **lexique des joueurs** (« loot » / « stuff » = armes et
 consommables, « drop » = largage, « knock », « wipe », « smokes », « nades », « la M4 », « le Kar », « chicken »,
-« soirée ») traduit vers le bon outil sans demander de précision, titre court + puces + recommandation, horloge du replay. Tout
+« soirée ») traduit vers le bon outil sans demander de précision, bloc **« Choix de l'outil »** (un jour ou une date →
+`getSessions` après traduction du jour en date ; les dernières parties → `getRecentMatches` ; une période → cartes,
+classement, Ligue ; les habitudes → `getPlaySchedule`), titre court + puces + recommandation finale **au tutoiement**
+(« vous » seulement à l'escouade), horloge du replay. Tout
 chiffre vient d'un outil ; hors sujet : refus en une phrase **sans chiffre**. Une réponse chiffrée sans appel d'outil
 est marquée `unverified` : bandeau « Chiffres non vérifiés par les données » dans le tiroir, remontée dans l'onglet
 Questions du SuperUser. Les pseudos et noms de clan renvoyés par les outils sont traités comme du texte, pas comme des

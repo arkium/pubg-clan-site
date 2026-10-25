@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Outils du Coach IA (docs/TODO/chatbot-ia.md §5) : étanchéité (le clan et le compte viennent de la fermeture, jamais
@@ -32,15 +32,29 @@ const mocks = vi.hoisted(() => ({
   seasonFindMany: vi.fn(),
   telemetryStatsFindMany: vi.fn(),
   synergyFindMany: vi.fn(),
+  memberCount: vi.fn(),
+  loadCityCells: vi.fn(),
+  loadCityCoverage: vi.fn(),
+  loadZoneClosures: vi.fn(),
 }))
 
 vi.mock('@/lib/clan-map-stats-service', () => ({ loadClanMapStats: mocks.loadMapStats }))
 vi.mock('@/lib/players-ranking-service', () => ({ getPlayersRanking: mocks.getPlayersRanking }))
+// Villes et fin de zone : seules les lectures SQL sont simulées, les agrégations (grille, classements, verdicts) sont réelles.
+vi.mock('@/lib/city-insights', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/city-insights')>()),
+  loadCityMetricCells: mocks.loadCityCells,
+  loadCityMatchCoverage: mocks.loadCityCoverage,
+}))
+vi.mock('@/lib/zone-closure-stats', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/lib/zone-closure-stats')>()),
+  loadZoneClosureSummary: mocks.loadZoneClosures,
+}))
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     squadMatch: { findMany: mocks.squadMatchFindMany },
-    clanMember: { findFirst: mocks.memberFindFirst },
+    clanMember: { findFirst: mocks.memberFindFirst, count: mocks.memberCount },
     memberWeaponStats: { findMany: mocks.weaponsFindMany },
     opponentClan: { findFirst: mocks.opponentFindFirst },
     killEvent: { count: mocks.killCount, groupBy: mocks.killGroupBy, findMany: mocks.killFindMany },
@@ -106,9 +120,10 @@ beforeEach(() => {
 })
 
 describe('déclarations', () => {
-  it('expose les quinze outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
+  it('expose les dix-neuf outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
     expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
       'getRecentMatches',
+      'getSessions',
       'getMatchDebrief',
       'getWeaponStats',
       'getOpponentRecord',
@@ -123,6 +138,9 @@ describe('déclarations', () => {
       'getPlayerBenchmark',
       'getCareerStats',
       'getClanPlaystyle',
+      'getClanCareer',
+      'getCityInsights',
+      'getZoneClosures',
     ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
@@ -150,23 +168,160 @@ describe('getRecentMatches', () => {
     telemetry: { status: 'success' },
   }
 
-  it('lit les parties du clan de la fermeture, bornées, par soirée de jeu', async () => {
-    mocks.squadMatchFindMany.mockResolvedValue([match])
-    const result = (await run('getRecentMatches', { limit: 50 })) as { matches: Array<Record<string, unknown>> }
+  it('lit les parties du clan de la fermeture, bornées, par soirée de jeu, avec un résumé calculé', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue([match, { ...match, id: 'cmatch0', placement: 14, createdAt: new Date('2026-10-22T22:50:00Z') }])
+    const result = (await run('getRecentMatches', { limit: 50 })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
     const query = mocks.squadMatchFindMany.mock.calls[0][0]
     expect(query.where).toEqual({ members: { some: { member: { clanId: 292 } } } })
-    expect(query.take).toBe(10)
+    // Une ligne de plus que la borne : elle dit s'il existe des parties avant la liste.
+    expect(query.take).toBe(11)
     // 01:30 à Paris le 23 : c'est encore la soirée du 22.
     expect(result.matches[0]).toMatchObject({ matchId: 'cmatch1', map: 'Erangel', session: '2026-10-22', placement: 3, squadKills: 18, squadDamage: 2846, squad: ['NovakTV', 'Menez69'], telemetryAnalyzed: true })
+    expect(result).toMatchObject({ listed: 2, limit: 10, truncated: false })
+    expect(result.summary).toEqual({ matches: 2, wins: 0, top10: 1, winRatePercent: 0, top10Percent: 50, avgPlacement: 8.5, bestPlacement: 3, worstPlacement: 14, sessions: ['2026-10-22'] })
+    expect(result.note).toContain('getSessions')
+  })
+
+  it('signale une liste coupée sans compter tout l’historique', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue(Array.from({ length: 3 }, (_, index) => ({ ...match, id: `m${index}` })))
+    const result = (await run('getRecentMatches', { limit: 2 })) as { listed: number; truncated: boolean; matches: unknown[]; note: string }
+    expect(mocks.squadMatchFindMany.mock.calls[0][0].take).toBe(3)
+    expect(result).toMatchObject({ listed: 2, truncated: true })
+    expect(result.matches).toHaveLength(2)
+    expect(result.note).toContain('d’autres avant')
   })
 
   it('filtre par carte d’après son nom affiché, et refuse une carte inconnue', async () => {
     mocks.squadMatchFindMany.mockResolvedValue([])
-    await run('getRecentMatches', { mapName: 'erangel' })
+    const empty = (await run('getRecentMatches', { mapName: 'erangel' })) as { summary: unknown; listed: number }
     expect(mocks.squadMatchFindMany.mock.calls[0][0].where.mapName).toEqual({ in: ['Baltic_Main'] })
-    expect(mocks.squadMatchFindMany.mock.calls[0][0].take).toBe(5)
+    expect(mocks.squadMatchFindMany.mock.calls[0][0].take).toBe(6)
+    expect(empty).toMatchObject({ listed: 0, summary: null })
     expect(await run('getRecentMatches', { mapName: 'Mars' })).toMatchObject({ error: 'map_not_found' })
     expect(mocks.squadMatchFindMany).toHaveBeenCalledTimes(1)
+  })
+})
+
+describe('getSessions', () => {
+  // Heure d'été jusqu'au dimanche 25 octobre 2026 à 03:00 (01:00 UTC). Une soirée = six heures réelles après minuit à
+  // Paris, comme `sessionDateOf` : celle du samedi 24 finit donc à 05:00 heure d'hiver (04:00 UTC).
+  const row =(id: string, iso: string, placement: number, overrides: Record<string, unknown> = {}) => ({
+    id,
+    mapName: 'Baltic_Main',
+    gameMode: 'squad',
+    matchType: 'official',
+    placement,
+    createdAt: new Date(iso),
+    totalKills: 6,
+    totalDamage: 812.4,
+    members: [
+      { kills: 4, damage: 500.2, knockouts: 3, member: { displayName: 'NovakTV' } },
+      { kills: 2, damage: 312.2, knockouts: 1, member: { displayName: 'Menez69' } },
+    ],
+    telemetry: { status: 'success' },
+    ...overrides,
+  })
+  // Renvoyées par la base de la plus récente à la plus ancienne.
+  const saturday = [
+    row('s4', '2026-10-25T00:35:00Z', 1, { mapName: 'Desert_Main', matchType: 'airoyale' }), // 02:35 dimanche : soirée du samedi
+    row('s3', '2026-10-24T22:16:00Z', 1),
+    row('s2', '2026-10-24T21:31:00Z', 25, { members: [{ kills: 0, damage: 22, knockouts: 0, member: { displayName: 'NovakTV' } }] }),
+    row('s1', '2026-10-24T19:05:00Z', 7),
+  ]
+  const friday = [row('f1', '2026-10-23T20:00:00Z', 12)]
+
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-10-25T12:00:00Z'))
+  })
+  afterEach(() => vi.useRealTimers())
+
+  it('sans date : les sept dernières soirées du clan, toutes parties, bornées à 06:00 heure de Paris', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue([...saturday, ...friday])
+    const result = (await run('getSessions')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    const query = mocks.squadMatchFindMany.mock.calls[0][0]
+    expect(query.where).toEqual({
+      // Du lundi 19 à 06:00 (04:00 UTC, heure d'été) au lundi 26 à 06:00 (05:00 UTC, heure d'hiver).
+      createdAt: { gte: new Date('2026-10-19T04:00:00Z'), lt: new Date('2026-10-26T05:00:00Z') },
+      members: { some: { member: { clanId: 292, isActive: true } } },
+    })
+    expect(query.orderBy).toEqual({ createdAt: 'desc' })
+    expect(query.take).toBe(3001)
+    expect(result).toMatchObject({ from: '2026-10-19', to: '2026-10-25', days: 7, today: '2026-10-25', matchType: 'toutes les parties', truncated: false })
+    expect(result.totals).toEqual({ sessionsPlayed: 2, matches: 5, wins: 2, top10: 3, winRatePercent: 40, top10Percent: 60, avgPlacement: 9.2, bestPlacement: 1, worstPlacement: 25, squadKills: 30 })
+    expect(result.sessions.map((session: { date: string }) => session.date)).toEqual(['2026-10-23', '2026-10-24'])
+    expect(result.sessionsWithoutPlay).toEqual(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25'])
+    // Plusieurs soirées : une ligne compacte par soirée, sans liste de parties ; jamais d'identifiant interne.
+    expect(result.sessions[1]).toEqual({
+      date: '2026-10-24',
+      label: 'Samedi 24 octobre',
+      matches: 4,
+      wins: 2,
+      top10: 3,
+      winRatePercent: 50,
+      top10Percent: 75,
+      avgPlacement: 8.5,
+      bestPlacement: 1,
+      worstPlacement: 25,
+      squadKills: 24,
+      killsPerMatch: 6,
+      damagePerMatch: 812,
+      firstMatchAt: '21:05',
+      lastMatchAt: '02:35',
+      mostPlayedMap: 'Erangel',
+      topPlayer: { player: 'NovakTV', kills: 12 },
+      matchTypes: '3 normale (1 Top 1) · 1 Air Royale (bots) (1 Top 1)',
+    })
+    expect(result.sessions[0]).not.toHaveProperty('matchTypes')
+    expect(JSON.stringify(result)).not.toMatch(/memberId|matchList/)
+  })
+
+  it('une seule date : le détail — cartes, modes, types, membres — et ses parties dans l’ordre du jeu, avec un type de partie au choix', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue(saturday)
+    const result = (await run('getSessions', { date: '2026-10-24', matchType: 'casual' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    const query = mocks.squadMatchFindMany.mock.calls[0][0]
+    expect(query.where.createdAt).toEqual({ gte: new Date('2026-10-24T04:00:00Z'), lt: new Date('2026-10-25T04:00:00Z') })
+    expect(query.where.matchType).toEqual({ in: ['casual', 'airoyale'] })
+    expect(result).toMatchObject({ from: '2026-10-24', to: '2026-10-24', days: 1, matchType: 'Casual' })
+    const sat = result.sessions[0]
+    expect(sat).toMatchObject({
+      label: 'Samedi 24 octobre',
+      matches: 4,
+      wins: 2,
+      avgPlacement: 8.5,
+      maps: [{ map: 'Erangel', matches: 3, wins: 1 }, { map: 'Miramar', matches: 1, wins: 1 }],
+      teamModes: '4 duo',
+      matchTypes: [{ type: 'normale', matches: 3, wins: 1 }, { type: 'Air Royale (bots)', matches: 1, wins: 1 }],
+      players: [{ player: 'NovakTV', matches: 4, kills: 12, damage: 1523, knockouts: 9 }, { player: 'Menez69', matches: 3, kills: 6, damage: 937, knockouts: 3 }],
+      matchListTruncated: false,
+    })
+    expect(sat.matchList.map((match: { matchId: string }) => match.matchId)).toEqual(['s1', 's2', 's3', 's4'])
+    expect(sat.matchList[3]).toEqual({ matchId: 's4', time: '02:35', map: 'Miramar', matchType: 'Air Royale (bots)', placement: 1, squadKills: 6, squad: 'NovakTV, Menez69', telemetryAnalyzed: true })
+
+    await run('getSessions', { date: '2026-10-24', matchType: 'official' })
+    expect(mocks.squadMatchFindMany.mock.calls[1][0].where.matchType).toEqual({ in: ['official'] })
+  })
+
+  it('accepte une plage, la remet dans l’ordre, la borne à 31 soirées, refuse une date invalide', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue([])
+    const swapped = (await run('getSessions', { from: '2026-10-24', to: '2026-10-20' })) as { from: string; to: string; days: number; totals: unknown; sessions: unknown[] }
+    expect(swapped).toMatchObject({ from: '2026-10-20', to: '2026-10-24', days: 5, totals: { sessionsPlayed: 0, matches: 0, wins: 0 }, sessions: [] })
+    const clamped = (await run('getSessions', { from: '2026-01-01', to: '2026-10-25' })) as { from: string; days: number; note: string }
+    expect(clamped).toMatchObject({ from: '2026-09-25', days: 31 })
+    expect(clamped.note).toContain('31 dernières soirées')
+    expect(mocks.squadMatchFindMany.mock.calls[1][0].where.createdAt.gte).toEqual(new Date('2026-09-25T04:00:00Z'))
+    expect(await run('getSessions', { date: '24/10/2026' })).toEqual({ error: 'invalid_date', message: 'Date attendue au format AAAA-MM-JJ : « 24/10/2026 ».' })
+    expect(await run('getSessions', { date: '2026-02-30' })).toMatchObject({ error: 'invalid_date' })
+    expect(mocks.squadMatchFindMany).toHaveBeenCalledTimes(2)
+  })
+
+  it('garde les parties les plus récentes quand la plage dépasse la borne, et coupe la liste d’une soirée à 40', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue(Array.from({ length: 3001 }, (_, index) => row(`m${index}`, new Date(Date.UTC(2026, 9, 24, 20) - index * 60_000).toISOString(), 5)))
+    const result = (await run('getSessions', { date: '2026-10-24' })) as { truncated: boolean; totals: { matches: number }; note: string; sessions: Array<{ matchList: unknown[]; matchListTruncated: boolean }> }
+    expect(result).toMatchObject({ truncated: true, totals: { matches: 3000 } })
+    expect(result.note).toContain('les plus anciennes manquent')
+    expect(result.sessions[0].matchList).toHaveLength(40)
+    expect(result.sessions[0].matchListTruncated).toBe(true)
   })
 })
 
@@ -826,6 +981,198 @@ describe('getClanPlaystyle', () => {
     mocks.telemetryStatsFindMany.mockResolvedValue([])
     mocks.synergyFindMany.mockResolvedValue([])
     expect(await run('getClanPlaystyle')).toEqual({ period: 'cette semaine', members: 0, message: 'Aucune partie analysée par la télémétrie sur la période.' })
+  })
+})
+
+describe('getClanCareer', () => {
+  const lifetime = (kills: number, deaths: number, wins: number, timeSurvived?: number) => ({
+    combat: { kills, deaths, kdRatio: kills / Math.max(1, deaths), headshots: Math.round(kills / 4), assists: 40, knockouts: kills + 20, highestKillstreak: 6, longestKill: 412.6, teamkills: 1, suicides: 0 },
+    victory: { wins, losses: deaths, winLossRatio: wins / Math.max(1, deaths), longestTimeAlive: 1980 },
+    support: { teammatesRevived: 120, boostsUsed: 300, healed: 450 },
+    vehicle: { vehiclesDestroyed: 3, roadkills: 7 },
+    movement: { drivenDistance: 812_400, walkedDistance: 405_900, swamDistance: 3_200 },
+    other: { weaponsPicked: 2200, damageGiven: 98_765.4, roundsPlayed: wins + deaths, daysPlayed: 136, ...(timeSurvived === undefined ? {} : { timeSurvived }) },
+  })
+  const row = (id: number, displayName: string, stats: ReturnType<typeof lifetime>, refreshedAt: string) => ({ ...stats, lastRefreshedAt: new Date(refreshedAt), member: { id, displayName } })
+
+  beforeEach(() => {
+    mocks.lifetimeFindMany.mockResolvedValue([
+      row(100, 'NovakTV', lifetime(500, 480, 20, 523_800), '2026-10-24T03:10:00Z'),
+      row(5, 'maladus7', lifetime(900, 600, 45, 700_000), '2026-10-24T03:12:00Z'),
+      row(6, 'Ionera', lifetime(300, 150, 10), '2026-10-20T03:00:00Z'),
+    ])
+    mocks.memberCount.mockResolvedValue(4)
+  })
+
+  it('cumule la carrière des membres actifs du clan, avec podiums et place du joueur, sans identifiant', async () => {
+    const result = (await run('getClanCareer')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.lifetimeFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { clanId: 292, isActive: true } } }))
+    expect(mocks.memberCount).toHaveBeenCalledWith({ where: { clanId: 292, isActive: true } })
+    expect(result).toMatchObject({
+      player: 'NovakTV',
+      membersSynced: 3,
+      activeMembers: 4,
+      unsynced: 1,
+      syncedAt: { latest: '2026-10-24T03:12:00.000Z', oldest: '2026-10-20T03:00:00.000Z' },
+    })
+    expect(result.headline.map((line: { label: string }) => line.label)).toEqual(['Temps de jeu', 'Kills', 'Victoires', 'Distance parcourue'])
+    expect(result.headline[1]).toMatchObject({ label: 'Kills', value: expect.stringMatching(/^1.700$/) })
+    expect(result.groups.map((group: { group: string }) => group.group)).toEqual(['Engagement', 'Combat', 'Victoires', 'Support', 'Véhicules', 'Déplacements', 'Autres'])
+    const combat = result.groups[1]
+    const kills = combat.metrics.find((metric: { metric: string }) => metric.metric === 'Kills')
+    expect(kills).toMatchObject({ kind: 'Total', clan: expect.stringMatching(/^1.700$/), you: { value: '500', rank: 2, of: 3 } })
+    expect(kills.top).toMatch(/^maladus7 900 · NovakTV 500 · Ionera 300$/)
+    // « Moins = mieux » : le moins de morts d'abord ; « Mur de la honte » : le plus de teamkills d'abord.
+    const deaths = combat.metrics.find((metric: { metric: string }) => metric.metric === 'Morts')
+    expect(deaths).toMatchObject({ kind: 'Moins = mieux', you: { rank: 2, of: 3 } })
+    expect(deaths.top).toMatch(/^Ionera 150 · /)
+    expect(combat.metrics.find((metric: { metric: string }) => metric.metric === 'Teamkills').kind).toBe('Mur de la honte')
+    // Le temps de jeu manque à un joueur synchronisé avant l'ajout du champ.
+    const time = result.groups[0].metrics.find((metric: { metric: string }) => metric.metric === 'Temps de jeu')
+    expect(time).toMatchObject({ kind: 'Total', clan: expect.stringMatching(/^340.h$/), membersWithoutData: 1, you: { rank: 2, of: 2 } })
+    expect(JSON.stringify(result)).not.toMatch(/memberId/)
+  })
+
+  it('sert une seule famille, situe un autre membre, dit quand rien n’est synchronisé', async () => {
+    mocks.memberFindFirst.mockResolvedValue({ id: 5, displayName: 'maladus7' })
+    const result = (await run('getClanCareer', { group: 'victory', playerName: 'maladus7' })) as { player: string; groups: Array<{ group: string; metrics: Array<{ metric: string; you: { rank: number } }> }> }
+    expect(result.player).toBe('maladus7')
+    expect(result.groups).toHaveLength(1)
+    expect(result.groups[0].group).toBe('Victoires')
+    expect(result.groups[0].metrics[0]).toMatchObject({ metric: 'Victoires', you: { rank: 1 } })
+    mocks.lifetimeFindMany.mockResolvedValue([])
+    expect(await run('getClanCareer')).toMatchObject({ error: 'career_not_synced' })
+  })
+})
+
+describe('getCityInsights', () => {
+  // Grille 40 × 40 : la case 19/19 (48,75 %) est dans le cercle de Pochinki (50 %, rayon 5), la case 0/0 hors de toute ville.
+  const cell = (metric: string, xIndex: number, yIndex: number, events: number) => ({ mapName: 'Baltic_Main', metric, xIndex, yIndex, events, weekStart: null })
+  const memberCells = [cell('position', 19, 19, 100), cell('position', 0, 0, 50), cell('kill', 19, 19, 6), cell('damage_dealt', 19, 19, 900), cell('revive_given', 19, 19, 2)]
+  const clanCells = [cell('position', 19, 19, 300), cell('position', 0, 0, 100), cell('kill', 19, 19, 20)]
+  const deathCells = [cell('death', 19, 19, 4), cell('death', 0, 0, 3)]
+
+  beforeEach(() => {
+    mocks.loadCityCells.mockImplementation(async (input: { memberId?: number; sources?: string[] | null }) => (input.sources?.includes('death') ? deathCells : input.memberId ? memberCells : clanCells))
+    mocks.loadCityCoverage.mockResolvedValue({ matchCount: 12, dataStart: new Date('2026-10-03T19:00:00Z') })
+  })
+
+  it('décrit les villes du joueur — présence, combats, morts — comparées au clan, sur la semaine comme sa page', async () => {
+    const result = (await run('getCityInsights')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    // Quatre lectures : ses cellules, ses morts, sa couverture, et le clan pour la comparaison ; aucun filtre de type sur un joueur.
+    expect(mocks.loadCityCells).toHaveBeenCalledTimes(3)
+    expect(mocks.loadCityCells).toHaveBeenCalledWith({ clanId: 292, memberId: 100, bounds: expect.objectContaining({ startDate: expect.any(Date) }), matchType: null, mapNames: null })
+    expect(mocks.loadCityCells).toHaveBeenCalledWith(expect.objectContaining({ memberId: 100, sources: ['death'] }))
+    expect(mocks.loadCityCells).toHaveBeenCalledWith({ clanId: 292, bounds: expect.any(Object), matchType: null, mapNames: null })
+    expect(mocks.loadCityCoverage).toHaveBeenCalledWith(expect.objectContaining({ clanId: 292, memberId: 100 }))
+    expect(result).toMatchObject({
+      scope: 'NovakTV',
+      period: 'cette semaine',
+      matchType: 'toutes les parties',
+      map: 'toutes les cartes',
+      matches: 12,
+      since: '2026-10-03T19:00:00.000Z',
+      mainMap: 'Erangel',
+      favoriteCity: { city: 'Pochinki', map: 'Erangel', events: 100, sharePercent: 100, clanSharePercent: 100 },
+      favoriteCombatCity: { city: 'Pochinki', combatEvents: 906 },
+      outsideCitiesPercent: 33,
+    })
+    // Six kills, deux réanimations : sous 25 événements, pas de comparaison au clan (seule la présence, 100, y a droit).
+    expect(result.top.kills).toEqual([{ city: 'Pochinki', map: 'Erangel', events: 6, sharePercent: 100 }])
+    expect(result.top.revives[0]).not.toHaveProperty('clanSharePercent')
+    expect(result.top.deaths).toEqual([{ city: 'Pochinki', map: 'Erangel', events: 4, sharePercent: 100 }])
+    expect(result.fights).toEqual([{ city: 'Pochinki', map: 'Erangel', kills: 6, deaths: 4, killsPerDeath: 1.5 }])
+    expect(JSON.stringify(result)).not.toMatch(/memberId|locationId/)
+  })
+
+  it('lit le clan en parties officielles comme son tableau de bord, borne carte et période, refuse une carte inconnue', async () => {
+    const result = (await run('getCityInsights', { scope: 'clan', period: 'all', mapName: 'erangel' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.loadCityCells).toHaveBeenCalledTimes(2)
+    expect(mocks.loadCityCells).toHaveBeenCalledWith({ clanId: 292, memberId: undefined, bounds: null, matchType: ['official'], mapNames: ['Baltic_Main'] })
+    expect(mocks.memberFindFirst).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ scope: 'le clan', period: 'depuis toujours', matchType: 'Normal', map: 'Erangel', favoriteCity: { city: 'Pochinki', events: 300 } })
+    expect(result.favoriteCity).not.toHaveProperty('clanSharePercent')
+    expect(await run('getCityInsights', { mapName: 'Atlantide' })).toEqual({ error: 'map_not_found', message: 'Carte inconnue : Atlantide.' })
+    await run('getCityInsights', { scope: 'clan', matchType: 'casual' })
+    expect(mocks.loadCityCells).toHaveBeenLastCalledWith(expect.objectContaining({ matchType: ['casual', 'airoyale'] }))
+  })
+})
+
+describe('getZoneClosures', () => {
+  const member = (memberId: number, displayName: string, positions: number, averageRatio: number, center: number, edge: number, outside: number) => ({ memberId, displayName, positions, averageRatio, bands: { center, edge, outside } })
+  const summary = (overrides: Record<string, unknown> = {}) => ({
+    period: 'week',
+    selectedMap: 'Baltic_Main',
+    maps: [{ mapName: 'Baltic_Main', positions: 120, matches: 30 }, { mapName: 'Desert_Main', positions: 40, matches: 12 }],
+    // NovakTV : 22,5 % au centre, 55 % au bord, 22,5 % dehors — sous chaque seuil de profil, donc « Équilibré ».
+    members: [member(100, 'NovakTV', 40, 0.62, 9, 22, 9), member(5, 'maladus7', 50, 0.48, 20, 25, 5), member(6, 'Ionera', 30, 1.05, 2, 12, 16), member(7, 'Newbie', 4, 0.3, 2, 2, 0)],
+    counts: { positions: 124, matches: 30, closures: 70, members: 4, averageSurvivors: 23.4 },
+    bands: { center: 34, edge: 59, outside: 31 },
+    averageRatio: 0.71,
+    byPhase: [
+      { phase: 2, positions: 60, averageRatio: 0.8, bands: { center: 10, edge: 30, outside: 20 } },
+      { phase: 5, positions: 20, averageRatio: 0.5, bands: { center: 8, edge: 10, outside: 2 } },
+    ],
+    cells: [],
+    topCities: [{ locationId: 'pochinki', name: 'Pochinki', positions: 30, share: 60 }],
+    dataStart: '2026-10-01T18:00:00.000Z',
+    ...overrides,
+  })
+
+  beforeEach(() => {
+    mocks.loadZoneClosures.mockResolvedValue(summary())
+  })
+
+  it('lit la carte la plus jouée du clan de la fermeture : bandes, verdict, titres, phases, joueurs profilés, place du joueur', async () => {
+    const result = (await run('getZoneClosures')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.loadZoneClosures).toHaveBeenCalledTimes(1)
+    expect(mocks.loadZoneClosures).toHaveBeenCalledWith(expect.objectContaining({ clanId: 292, period: 'week', mapName: null, phases: [], bounds: expect.objectContaining({ startDate: expect.any(Date) }) }))
+    expect(result).toMatchObject({
+      map: 'Erangel',
+      period: 'cette semaine',
+      phase: 'Toutes',
+      otherMaps: [{ map: 'Miramar', closures: 40, matches: 12 }],
+      counts: { positions: 124, closures: 70, matches: 30, members: 4, averageSurvivors: 23.4 },
+      lowSample: false,
+      since: '2026-10-01T18:00:00.000Z',
+      bands: { centerPercent: 27, edgePercent: 48, outsidePercent: 25 },
+      avgDistancePercentOfRadius: 71,
+      verdict: { title: 'Maîtres du centre' },
+      arrivalCities: [{ city: 'Pochinki', positions: 30, sharePercent: 60 }],
+      membersTruncated: false,
+    })
+    expect(result.titles.map((title: { title: string; player: string }) => [title.title, title.player])).toEqual([
+      ['Roi du cercle', 'maladus7'],
+      ['Increvable', 'maladus7'],
+      ['Coureur de zone bleue', 'Ionera'],
+    ])
+    expect(result.byPhase[0]).toEqual({ phase: 2, positions: 60, centerPercent: 17, edgePercent: 50, outsidePercent: 33, avgDistancePercentOfRadius: 80 })
+    // Du plus central au plus excentré, les petits échantillons en fin de liste et sans profil.
+    expect(result.members.map((line: { player: string; profile: string }) => [line.player, line.profile])).toEqual([
+      ['maladus7', 'Joue le centre'],
+      ['NovakTV', 'Équilibré'],
+      ['Ionera', 'Court après la zone'],
+      ['Newbie', 'trop peu de fermetures (moins de 10)'],
+    ])
+    expect(result.you).toEqual({ player: 'NovakTV', closures: 40, avgDistancePercentOfRadius: 62, centerPercent: 23, edgePercent: 55, outsidePercent: 23, profile: 'Équilibré' })
+    expect(JSON.stringify(result)).not.toMatch(/memberId|locationId/)
+  })
+
+  it('relit une carte demandée seulement si elle a des fermetures, borne période et phase, et dit quand il n’y a rien', async () => {
+    const result = (await run('getZoneClosures', { mapName: 'Miramar', period: 'month', phase: 'late' })) as { map: string; period: string; phase: string }
+    expect(mocks.loadZoneClosures).toHaveBeenCalledTimes(2)
+    expect(mocks.loadZoneClosures).toHaveBeenLastCalledWith(expect.objectContaining({ mapName: 'Desert_Main', period: 'month', phases: [5, 6, 7, 8] }))
+    expect(result).toMatchObject({ period: 'ce mois', phase: 'Fin de partie · phases 5–8' })
+
+    mocks.loadZoneClosures.mockClear()
+    await run('getZoneClosures', { mapName: 'erangel' })
+    expect(mocks.loadZoneClosures).toHaveBeenCalledTimes(1)
+
+    expect(await run('getZoneClosures', { mapName: 'Atlantide' })).toEqual({ error: 'map_not_found', message: 'Carte inconnue : Atlantide.' })
+    mocks.loadZoneClosures.mockResolvedValue(summary({ maps: [{ mapName: 'Baltic_Main', positions: 120, matches: 30 }] }))
+    expect(await run('getZoneClosures', { mapName: 'Miramar' })).toMatchObject({ map: 'Miramar', message: 'Aucune fin de zone enregistrée sur cette carte pour la période.', otherMaps: [{ map: 'Erangel' }] })
+    mocks.loadZoneClosures.mockResolvedValue(summary({ selectedMap: null, maps: [], members: [], counts: { positions: 0, matches: 0, closures: 0, members: 0, averageSurvivors: 0 } }))
+    expect(await run('getZoneClosures')).toEqual({ period: 'cette semaine', phase: 'Toutes', message: 'Aucune fin de zone enregistrée sur la période.' })
   })
 })
 

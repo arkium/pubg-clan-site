@@ -1,12 +1,23 @@
 import { activityByDay, busiestSlot, slotLabel, type ActivityCell } from '@/lib/activity-heatmap'
-import { locationForPercent } from '@/lib/city-insights'
-import { LEAGUE_MATCH_TYPE_OPTIONS, leagueMatchTypeOption, parseLeagueMatchType } from '@/lib/clan-league'
+import {
+  aggregateCityCells,
+  buildCityGrid,
+  buildCityInsights,
+  getCityPeriodBounds,
+  loadCityMatchCoverage,
+  loadCityMetricCells,
+  locationForPercent,
+  rankCellsByCity,
+  withClanComparison,
+} from '@/lib/city-insights'
+import { CAREER_GROUPS, careerHeadline, careerRefresh, computeCareerGroups, type CareerGroupId, type CareerLifetimeStats, type CareerMember, type CareerMetric } from '@/lib/clan-career'
+import { LEAGUE_MATCH_TYPE_OPTIONS, leagueMatchTypeOption, leagueMatchTypeValues, parseLeagueMatchType } from '@/lib/clan-league'
 import { getClanLeague, type LeagueEntry } from '@/lib/clan-league-service'
 import { loadClanMapStats } from '@/lib/clan-map-stats-service'
 import type { CoachToolCall, CoachToolDeclaration } from '@/lib/coach/coach-provider'
 import { DEFAULT_MAP_LABELS, getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { getMapLocations } from '@/lib/map-location-service'
-import { sessionDateOf } from '@/lib/match-sessions'
+import { sessionBoundsOf, sessionDateOf, sessionDateParts, shiftSessionDate, teamModeOf, type TeamModeKey } from '@/lib/match-sessions'
 import type { StandardPeriod } from '@/lib/period'
 import { statsPeriodKeys } from '@/lib/player-dashboard'
 import { prisma } from '@/lib/prisma'
@@ -51,8 +62,13 @@ import {
   type NormalizedTournamentRules,
 } from '@/lib/tournament-service'
 import { buildRoundViews, buildStandingViews, pickMvp, type TournamentStandingView } from '@/lib/tournament-standings-view'
+import { parseTacticalPhase, tacticalPhaseLabel, tacticalPhaseNumbers } from '@/lib/tactical-phase'
 import { getWeaponLabels, weaponDisplayName } from '@/lib/weapon-label-service'
 import { aggregateMemberWeapons, throwableLabel, type MemberWeaponRow } from '@/lib/weapons/member-arsenal'
+import { getZoneClosurePeriodBounds, loadZoneClosureSummary, type ZoneClosureMemberStat, type ZoneClosurePeriod } from '@/lib/zone-closure-stats'
+import { bandShares, memberZoneProfile, MIN_PLAYER_SAMPLE, rankZoneMembers, ratioPercent, zoneTitles, zoneVerdict } from '@/lib/zone-closure-view'
+import type { CityEntry, CityInsightsPeriod } from '@/types/city-insights'
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 
 /**
  * Outils du Coach IA (docs/TODO/chatbot-ia.md §5). **Le modèle ne choisit jamais le clan ni le compte** : `clanId`,
@@ -76,8 +92,33 @@ export type CoachTools = {
 }
 
 const SAFE_ID = /^[A-Za-z0-9_-]{1,64}$/
+const ISO_DAY = /^\d{4}-\d{2}-\d{2}$/
 const RECENT_MATCHES_MAX = 10
 const RECENT_MATCHES_DEFAULT = 5
+/** Soirées : 31 au plus par lecture (~1 700 parties pour un clan très actif), 7 sans date ; 40 parties listées pour une soirée seule. */
+const SESSION_RANGE_MAX_DAYS = 31
+const SESSION_RANGE_DEFAULT_DAYS = 7
+const SESSION_MATCHES_MAX = 3000
+const SESSION_MATCH_LIST_MAX = 40
+const SESSION_MATCH_TYPES = ['all', 'official', 'competitive', 'casual', 'custom'] as const
+type SessionMatchType = (typeof SESSION_MATCH_TYPES)[number]
+/** `SquadMatch.matchType` en clair pour le modèle (valeurs vues en base : official, competitive, casual, airoyale, custom, event). */
+const MATCH_TYPE_LABELS: Record<string, string> = {
+  official: 'normale',
+  competitive: 'Ranked',
+  casual: 'casual',
+  airoyale: 'Air Royale (bots)',
+  custom: 'personnalisée',
+  event: 'événement',
+  training: 'entraînement',
+}
+const TEAM_MODE_LABELS: Record<TeamModeKey, string> = { duo: 'duo', trio: 'trio', squad: 'squad' }
+const CAREER_GROUP_IDS = CAREER_GROUPS.map((group) => group.id)
+const CITY_TOP = 5
+const ZONE_MEMBERS_MAX = 15
+/** Sous ce nombre d'observations, la page « Fin de zone » signale un échantillon fragile. */
+const ZONE_LOW_SAMPLE = 20
+const TACTICAL_PHASES = ['all', 'early', 'mid', 'late'] as const
 const DEBRIEF_EVENTS_MAX = 60
 const WEAPONS_MAX = 8
 const OPPONENT_PLAYERS_MAX = 200
@@ -109,12 +150,30 @@ type LeaderboardSort = (typeof LEADERBOARD_SORTS)[number]
 export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
     name: 'getRecentMatches',
-    description: 'Parties récentes du clan du joueur, de la plus récente à la plus ancienne, regroupées par soirée.',
+    description: `Les toutes dernières parties du clan du joueur (${RECENT_MATCHES_MAX} au plus, de la plus récente à la plus ancienne), chacune avec sa date de soirée, et un résumé calculé par le serveur sur ces seules parties. Pour « notre dernière partie », « les 5 dernières sur Erangel », retrouver un identifiant pour getMatchDebrief. Ce n'est PAS le bilan d'une soirée, d'un jour ou d'une période : la liste est coupée à ${RECENT_MATCHES_MAX} parties, sans rien dire des parties d'avant — pour un jour, une date ou une soirée, getSessions.`,
     parameters: {
       type: 'object',
       properties: {
         limit: { type: 'integer', description: `Nombre de parties, ${RECENT_MATCHES_MAX} au plus (${RECENT_MATCHES_DEFAULT} par défaut).` },
         mapName: { type: 'string', description: 'Carte (Erangel, Miramar, Sanhok, Taego, Vikendi, Deston, Rondo…), facultatif.' },
+      },
+    },
+  },
+  {
+    name: 'getSessions',
+    description:
+      "Bilan d'une ou plusieurs soirées du clan, calculé par le serveur — l'outil de toute question qui nomme un jour ou une date : « combien de Top 1 samedi ? », « la place moyenne d'hier », « le bilan du 23 », « la semaine soirée par soirée », « on a joué mardi ? ». Une soirée = la journée de jeu de 06:00 à 06:00, heure de Paris (une partie de 01:00 compte dans la soirée de la veille), désignée par la date du soir où elle commence. Par soirée : parties, Top 1, Top 10, place moyenne, meilleure et pire place, kills et dégâts par partie, heures de début et de fin, carte la plus jouée, meilleur joueur ; totaux de la plage et soirées sans partie. Pour une seule date, le détail : cartes, modes d'équipe, types de partie, chaque membre présent, et la liste de ses parties avec leurs identifiants (getMatchDebrief). Sans date : les 7 dernières soirées, celle en cours comprise.",
+    parameters: {
+      type: 'object',
+      properties: {
+        date: { type: 'string', description: 'Une soirée, AAAA-MM-JJ (le jour est d’abord traduit en date d’après la date d’aujourd’hui).' },
+        from: { type: 'string', description: 'Première soirée d’une plage, AAAA-MM-JJ.' },
+        to: { type: 'string', description: `Dernière soirée de la plage, AAAA-MM-JJ (défaut : la soirée en cours) ; ${SESSION_RANGE_MAX_DAYS} soirées au plus.` },
+        matchType: {
+          type: 'string',
+          enum: [...SESSION_MATCH_TYPES],
+          description: '« all » (défaut : toutes les parties, comme la page de la soirée — chaque soirée détaille ses types), « official » (matchmaking normal), « competitive » (Ranked), « casual » (casual et Air Royale), « custom » (parties personnalisées, tournois).',
+        },
       },
     },
   },
@@ -160,7 +219,7 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
     name: 'getClanLeaderboard',
     description:
-      "Classement des membres du clan sur la période (parties officielles, agrégats recalculés chaque nuit) : parties, kills, dégâts, K/M, win rate, temps de jeu, jours actifs, badge. Pour comparer les membres, repérer qui porte l'escouade ou qui décroche, et situer le joueur.",
+      "Classement des membres du clan sur une période calendaire — cette semaine (depuis lundi), ce mois ou depuis toujours — en parties officielles, agrégats recalculés chaque nuit : parties, kills, dégâts, K/M, win rate, temps de jeu, jours actifs, badge. Pour comparer les membres, repérer qui porte l'escouade ou qui décroche, et situer le joueur. Pas pour une soirée ou un jour précis (getSessions).",
     parameters: {
       type: 'object',
       properties: {
@@ -216,7 +275,7 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
     name: 'getMapPerformance',
     description:
-      "Performance du clan carte par carte (parties d'escouade, mêmes règles que la page « Cartes ») : parties, Top 1, win rate, Top 10, place moyenne, kills et dégâts par partie, écart à la moyenne des clans, tendance depuis la période précédente, joueur phare ; verdict (carte forte, carte à travailler, carte la plus jouée). Pour « notre pire carte ? », « pourquoi on perd sur Rondo ? », « on est meilleurs où ? ».",
+      "Performance du clan carte par carte sur une période calendaire (cette semaine depuis lundi, ce mois, depuis toujours ; parties d'escouade, mêmes règles que la page « Cartes ») : parties, Top 1, win rate, Top 10, place moyenne, kills et dégâts par partie, écart à la moyenne des clans, tendance depuis la période précédente, joueur phare ; verdict (carte forte, carte à travailler, carte la plus jouée). Pour « notre pire carte ? », « pourquoi on perd sur Rondo ? », « on est meilleurs où ? », « le bilan de la semaine par carte ». Pas pour une soirée ou un jour précis (getSessions).",
     parameters: {
       type: 'object',
       properties: {
@@ -233,7 +292,7 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
     name: 'getPlaySchedule',
     description:
-      "Quand le joueur (ou le clan) joue : parties par jour de la semaine et par heure (heure de Paris), créneaux favoris, plage horaire habituelle en semaine et le week-end, soirées actives, temps de jeu et parties par soirée. Pour « mon horaire de jeu ? », « quand est-ce qu'on joue le plus ? », « combien de soirées par semaine ? ».",
+      "Les habitudes de jeu du joueur (ou du clan), parties officielles : parties par jour de la semaine et par heure (heure de Paris), créneaux favoris, plage horaire habituelle en semaine et le week-end, soirées actives, temps de jeu et parties par soirée. Pour « mon horaire de jeu ? », « quand est-ce qu'on joue le plus ? », « combien de soirées par semaine ? ». Ce sont des cumuls par jour de la semaine (tous les samedis ensemble), jamais le bilan d'un jour précis : pour « samedi dernier », getSessions.",
     parameters: {
       type: 'object',
       properties: {
@@ -271,12 +330,57 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
     name: 'getClanPlaystyle',
     description:
-      "Style de jeu du clan sur la période (télémétrie des parties analysées) : rôles Fragger / Medic / Ghost — moyenne du clan et les trois joueurs qui les incarnent —, mobilité (km par partie, part à pied, vitesse max), gestion du cercle (temps dans la zone sûre, hors zone, coups de zone bleue, phase du premier contact), survie (soins, dégâts subis, couverture), coopération (indice de synergie, réanimations, co-kills, recalls, meilleurs binômes) ; et le joueur face au clan (score par rôle, écart, rang, ses binômes). Pour « qui est notre medic ? », « on joue trop dispersés ? », « avec qui je coopère le plus ? ».",
+      "Style de jeu du clan sur la période (télémétrie des parties analysées) : rôles Fragger / Medic / Ghost — moyenne du clan et les trois joueurs qui les incarnent —, mobilité (km par partie, part à pied, vitesse max), gestion du cercle (temps dans la zone sûre, hors zone, coups de zone bleue, phase du premier contact), survie (soins, dégâts subis, couverture), coopération (indice de synergie, réanimations, co-kills, recalls, meilleurs binômes) ; et le joueur face au clan (score par rôle, écart, rang, ses binômes). Pour « qui est notre medic ? », « on joue trop dispersés ? », « avec qui je coopère le plus ? ». La position au moment où le cercle se ferme, c'est getZoneClosures.",
     parameters: {
       type: 'object',
       properties: {
         playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan à situer face au clan, facultatif.' },
         period: PERIOD_PARAMETER,
+      },
+    },
+  },
+  {
+    name: 'getClanCareer',
+    description:
+      "Carrière PUBG du clan entier, lue de l'API PUBG (toutes les parties des comptes depuis leur création, pas seulement celles jouées avec le clan ; aucune période) : les quatre totaux de la page (temps de jeu, kills et K/D moyen, victoires, distance), puis sept familles — Engagement, Combat, Victoires, Support, Véhicules, Déplacements, Autres — avec, pour chaque statistique, la valeur du clan (total, moyenne ou record), le podium des trois meilleurs membres et la place du joueur. Pour « combien de kills le clan a en carrière ? », « qui a le plus de victoires ? », « le kill le plus lointain du clan », « je suis où au K/D dans le clan ? ». La carrière d'un seul joueur, ses saisons et son palier Ranked : getCareerStats.",
+    parameters: {
+      type: 'object',
+      properties: {
+        group: { type: 'string', enum: [...CAREER_GROUP_IDS], description: 'Une seule famille, facultatif : engagement, combat, victory, support, vehicle, movement, other.' },
+        playerName: { type: 'string', description: 'Membre du clan à situer dans chaque classement (le joueur par défaut).' },
+      },
+    },
+  },
+  {
+    name: 'getCityInsights',
+    description:
+      "Villes et zones de combat du joueur (ou du clan) sur la période, d'après les positions des parties analysées rattachées aux villes de la carte : ville la plus fréquentée, zone de combat favorite (kills et dégâts), Top 5 des villes par présence, kills, dégâts, réanimations et morts, bilan des combats ville par ville (kills contre morts), part du temps hors des villes, et pour le joueur la part du clan sur la même ville. Pour « où je me bats le plus ? », « dans quelle ville je meurs ? », « où le clan traîne ? », « où je gagne mes duels ? ». Pas le largage en parachute (getDropZones) ni la position à la fermeture du cercle (getZoneClosures).",
+    parameters: {
+      type: 'object',
+      properties: {
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
+        scope: { type: 'string', enum: ['player', 'clan'], description: '« player » (le joueur, défaut) ou « clan » (tout le clan).' },
+        period: { type: 'string', enum: ['week', 'month', 'all'], description: '« week » (cette semaine, défaut de la page), « month » (ce mois) ou « all » (depuis toujours).' },
+        mapName: { type: 'string', description: 'Une seule carte (Erangel, Miramar, Rondo…), facultatif.' },
+        matchType: {
+          type: 'string',
+          enum: [...SESSION_MATCH_TYPES],
+          description: '« official » (matchmaking normal), « competitive » (Ranked), « casual » (casual et Air Royale), « custom » ou « all » ; défaut : official pour le clan (comme son tableau de bord), all pour un joueur (comme sa page).',
+        },
+      },
+    },
+  },
+  {
+    name: 'getZoneClosures',
+    description:
+      "Fin de zone du clan (page « Fin de zone ») : où se trouvent les membres encore en vie à l'instant où le cercle se referme — au centre (moins de la moitié du rayon), au bord intérieur, ou dehors —, sur une carte et une période : parts centre / bord / dehors, distance moyenne au centre en % du rayon, verdict du clan, trois titres (Roi du cercle, Increvable, Coureur de zone bleue), phase par phase, villes d'arrivée, chaque joueur avec son profil (court après la zone, joue le centre, longe le bord, équilibré) et la place du joueur. Pour « on gère bien le cercle ? », « qui court après la zone ? », « je suis souvent dehors à la fermeture ? ». Biais de survie : les phases tardives ne décrivent que les survivants.",
+    parameters: {
+      type: 'object',
+      properties: {
+        mapName: { type: 'string', description: 'Carte, facultatif : par défaut la carte où le clan a le plus de fermetures.' },
+        period: { type: 'string', enum: ['week', 'month', 'all'], description: '« week » (cette semaine, défaut de la page), « month » (ce mois) ou « all » (depuis toujours).' },
+        phase: { type: 'string', enum: [...TACTICAL_PHASES], description: '« all » (défaut), « early » (début de partie, phases 1–2), « mid » (phases 3–4) ou « late » (fin de partie, phases 5–8).' },
+        playerName: { type: 'string', description: 'Membre du clan à situer (le joueur par défaut).' },
       },
     },
   },
@@ -386,6 +490,30 @@ function resolveMapNames(requested: string, labels: Record<string, string>): str
 }
 
 const parsePeriod = (value: unknown): StandardPeriod => (value === 'month' || value === 'all' ? value : 'week')
+const PARIS_TIME = new Intl.DateTimeFormat('fr-FR', { hour: '2-digit', minute: '2-digit', timeZone: 'Europe/Paris' })
+/** Une date `AAAA-MM-JJ` qui existe (le 30 février est refusé). */
+const isSessionDate = (value: string) => ISO_DAY.test(value) && shiftSessionDate(value, 0) === value
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86_400_000)
+
+/**
+ * Bilan d'un lot de places finales, calculé ici pour que le modèle n'ait jamais à faire une moyenne lui-même (la
+ * conversation du 2026-10-25 l'a vu rendre 10,9 pour 13,0 sur dix valeurs).
+ */
+export function placementSummary(placements: readonly number[]) {
+  if (placements.length === 0) return null
+  const wins = placements.filter((placement) => placement === 1).length
+  const top10 = placements.filter((placement) => placement <= 10).length
+  return {
+    matches: placements.length,
+    wins,
+    top10,
+    winRatePercent: Math.round((wins / placements.length) * 100),
+    top10Percent: Math.round((top10 / placements.length) * 100),
+    avgPlacement: round1(placements.reduce((sum, placement) => sum + placement, 0) / placements.length),
+    bestPlacement: Math.min(...placements),
+    worstPlacement: Math.max(...placements),
+  }
+}
 
 /**
  * La Ligue se recalcule pour tous les clans à chaque lecture (~1,4 s mesuré) et ne change qu'à l'import des parties :
@@ -456,13 +584,14 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     const rawMaps = requestedMap ? resolveMapNames(requestedMap, labels) : []
     if (requestedMap && rawMaps.length === 0) return { error: 'map_not_found', message: `Carte inconnue : ${requestedMap}.` }
 
-    const matches = await prisma.squadMatch.findMany({
+    // Une ligne de plus que demandé : dit s'il existe des parties avant la liste, sans compter tout l'historique.
+    const rows = await prisma.squadMatch.findMany({
       where: {
         members: { some: { member: { clanId: scope.clanId } } },
         ...(rawMaps.length > 0 ? { mapName: { in: rawMaps } } : {}),
       },
       orderBy: { createdAt: 'desc' },
-      take,
+      take: take + 1,
       select: {
         id: true,
         mapName: true,
@@ -476,7 +605,14 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         telemetry: { select: { status: true } },
       },
     })
+    const truncated = rows.length > take
+    const matches = truncated ? rows.slice(0, take) : rows
+    const summary = placementSummary(matches.map((match) => match.placement))
     return {
+      listed: matches.length,
+      limit: RECENT_MATCHES_MAX,
+      truncated,
+      summary: summary ? { ...summary, sessions: [...new Set(matches.map((match) => sessionDateOf(match.createdAt)))] } : null,
       matches: matches.map((match) => ({
         matchId: match.id,
         map: mapDisplayName(match.mapName, labels),
@@ -490,6 +626,172 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         squad: match.members.map((entry) => entry.member.displayName),
         telemetryAnalyzed: match.telemetry?.status === 'success',
       })),
+      note: `Les ${matches.length} dernières parties seulement${truncated ? ', il y en a d’autres avant' : ''} ; « summary » ne porte que sur elles. Ce n’est pas le bilan d’une soirée ni d’un jour : pour cela, getSessions avec la date.`,
+    }
+  }
+
+  type SessionRow = {
+    id: string
+    mapName: string
+    gameMode: string
+    matchType: string
+    placement: number
+    createdAt: Date
+    totalKills: number
+    totalDamage: number
+    members: Array<{ kills: number; damage: number; knockouts: number; member: { displayName: string } }>
+    telemetry: { status: string } | null
+  }
+
+  /**
+   * Bilan d'une soirée (la page « Soirée » du clan, en chiffres). Compact par défaut (une plage de 31 soirées faisait
+   * 20 000 tokens en détail) ; `detailed`, pour une date seule : cartes, modes, types, chaque membre et la liste des
+   * parties.
+   */
+  function summarizeSessionRows(date: string, rows: SessionRow[], labels: Record<string, string>, detailed: boolean) {
+    const maps = new Map<string, { matches: number; wins: number }>()
+    const types = new Map<string, { matches: number; wins: number }>()
+    const modes = new Map<TeamModeKey, number>()
+    const players = new Map<string, { matches: number; kills: number; damage: number; knockouts: number }>()
+    let kills = 0
+    let damage = 0
+    for (const row of rows) {
+      const win = row.placement === 1 ? 1 : 0
+      const map = maps.get(row.mapName) ?? { matches: 0, wins: 0 }
+      map.matches += 1
+      map.wins += win
+      maps.set(row.mapName, map)
+      const type = types.get(row.matchType) ?? { matches: 0, wins: 0 }
+      type.matches += 1
+      type.wins += win
+      types.set(row.matchType, type)
+      const mode = teamModeOf(row.members.length)
+      modes.set(mode, (modes.get(mode) ?? 0) + 1)
+      for (const entry of row.members) {
+        const player = players.get(entry.member.displayName) ?? { matches: 0, kills: 0, damage: 0, knockouts: 0 }
+        player.matches += 1
+        player.kills += entry.kills
+        player.damage += entry.damage
+        player.knockouts += entry.knockouts
+        players.set(entry.member.displayName, player)
+      }
+      kills += row.totalKills
+      damage += row.totalDamage
+    }
+    const mapsRanked = [...maps.entries()].sort((a, b) => b[1].matches - a[1].matches).map(([mapName, stats]) => ({ map: mapDisplayName(mapName, labels), ...stats }))
+    const typesRanked = [...types.entries()].sort((a, b) => b[1].matches - a[1].matches).map(([type, stats]) => ({ type: MATCH_TYPE_LABELS[type] ?? type, ...stats }))
+    const playersRanked = [...players.entries()]
+      .sort((a, b) => b[1].kills - a[1].kills || b[1].damage - a[1].damage)
+      .map(([player, stats]) => ({ player, matches: stats.matches, kills: stats.kills, damage: Math.round(stats.damage), knockouts: stats.knockouts }))
+    const base = {
+      date,
+      label: sessionDateParts(date).full,
+      ...placementSummary(rows.map((row) => row.placement))!,
+      squadKills: kills,
+      killsPerMatch: round1(kills / rows.length),
+      damagePerMatch: Math.round(damage / rows.length),
+      firstMatchAt: PARIS_TIME.format(rows[0].createdAt),
+      lastMatchAt: PARIS_TIME.format(rows[rows.length - 1].createdAt),
+    }
+    if (!detailed) {
+      return {
+        ...base,
+        mostPlayedMap: mapsRanked[0].map,
+        topPlayer: { player: playersRanked[0].player, kills: playersRanked[0].kills },
+        ...(typesRanked.length > 1 ? { matchTypes: typesRanked.map((entry) => `${entry.matches} ${entry.type}${entry.wins > 0 ? ` (${entry.wins} Top 1)` : ''}`).join(' · ') } : {}),
+      }
+    }
+    const list = rows.slice(0, SESSION_MATCH_LIST_MAX)
+    return {
+      ...base,
+      maps: mapsRanked,
+      teamModes: (['squad', 'trio', 'duo'] as TeamModeKey[]).filter((mode) => modes.has(mode)).map((mode) => `${modes.get(mode)} ${TEAM_MODE_LABELS[mode]}`).join(' · '),
+      matchTypes: typesRanked,
+      players: playersRanked,
+      matchList: list.map((row) => ({
+        matchId: row.id,
+        time: PARIS_TIME.format(row.createdAt),
+        map: mapDisplayName(row.mapName, labels),
+        matchType: MATCH_TYPE_LABELS[row.matchType] ?? row.matchType,
+        placement: row.placement,
+        squadKills: row.totalKills,
+        squad: row.members.map((entry) => entry.member.displayName).join(', '),
+        telemetryAnalyzed: row.telemetry?.status === 'success',
+      })),
+      matchListTruncated: rows.length > list.length,
+    }
+  }
+
+  async function getSessions(args: ToolArgs) {
+    const today = sessionDateOf(new Date())
+    const single = text(args.date)
+    const requestedFrom = text(args.from)
+    const requestedTo = text(args.to)
+    for (const value of [single, requestedFrom, requestedTo]) {
+      if (value && !isSessionDate(value)) return { error: 'invalid_date', message: `Date attendue au format AAAA-MM-JJ : « ${value} ».` }
+    }
+    const requestedType = text(args.matchType) as SessionMatchType
+    const matchType: SessionMatchType = SESSION_MATCH_TYPES.includes(requestedType) ? requestedType : 'all'
+
+    let to = single || requestedTo || today
+    let from = single || requestedFrom || shiftSessionDate(to, 1 - SESSION_RANGE_DEFAULT_DAYS)
+    if (from > to) [from, to] = [to, from]
+    const clamped = daysBetween(from, to) + 1 > SESSION_RANGE_MAX_DAYS
+    if (clamped) from = shiftSessionDate(to, 1 - SESSION_RANGE_MAX_DAYS)
+    const { start, end } = sessionBoundsOf(from, to)
+
+    // Les plus récentes d'abord : si la borne coupe, ce sont les plus anciennes qui manquent.
+    const [rows, labels] = await Promise.all([
+      prisma.squadMatch.findMany({
+        where: {
+          createdAt: { gte: start, lt: end },
+          ...(matchType === 'all' ? {} : { matchType: { in: leagueMatchTypeValues(matchType) } }),
+          members: { some: { member: { clanId: scope.clanId, isActive: true } } },
+        },
+        orderBy: { createdAt: 'desc' },
+        take: SESSION_MATCHES_MAX + 1,
+        select: {
+          id: true,
+          mapName: true,
+          gameMode: true,
+          matchType: true,
+          placement: true,
+          createdAt: true,
+          totalKills: true,
+          totalDamage: true,
+          members: { select: { kills: true, damage: true, knockouts: true, member: { select: { displayName: true } } } },
+          telemetry: { select: { status: true } },
+        },
+      }),
+      getMapLabels(),
+    ])
+    const truncated = rows.length > SESSION_MATCHES_MAX
+    const matches = (truncated ? rows.slice(0, SESSION_MATCHES_MAX) : rows).reverse()
+    const byDate = new Map<string, SessionRow[]>()
+    for (const row of matches) {
+      const date = sessionDateOf(row.createdAt)
+      const list = byDate.get(date) ?? []
+      list.push(row)
+      byDate.set(date, list)
+    }
+    const dates: string[] = []
+    for (let date = from; date <= to; date = shiftSessionDate(date, 1)) dates.push(date)
+    const sessions = dates.filter((date) => byDate.has(date)).map((date) => summarizeSessionRows(date, byDate.get(date)!, labels, from === to))
+    const totals = placementSummary(matches.map((row) => row.placement))
+    return {
+      from,
+      to,
+      days: dates.length,
+      today,
+      matchType: matchType === 'all' ? 'toutes les parties' : leagueMatchTypeOption(matchType).label,
+      totals: totals ? { sessionsPlayed: sessions.length, ...totals, squadKills: matches.reduce((sum, row) => sum + row.totalKills, 0) } : { sessionsPlayed: 0, matches: 0, wins: 0 },
+      sessions,
+      sessionsWithoutPlay: dates.filter((date) => !byDate.has(date)),
+      truncated,
+      note:
+        'Une soirée va de 06:00 à 06:00, heure de Paris, et porte la date du soir où elle commence ; parties avec au moins un membre actif du clan ; chiffres calculés par le serveur, à reprendre tels quels.' +
+        (clamped ? ` Plage ramenée aux ${SESSION_RANGE_MAX_DAYS} dernières soirées demandées.` : '') +
+        (truncated ? ' Trop de parties sur la plage : les plus anciennes manquent, demander une plage plus courte.' : ''),
     }
   }
 
@@ -751,7 +1053,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
       membersTruncated: ranked.length > LEADERBOARD_MAX,
       you: you ? strip(you) : null,
       updatedAt: updatedAt?.toISOString() ?? null,
-      note: 'Parties officielles ; agrégats recalculés chaque nuit, la soirée en cours peut manquer.',
+      note: 'Parties officielles ; agrégats recalculés chaque nuit, la soirée en cours peut manquer. « Cette semaine » commence le lundi à minuit (pas à 06:00) ; pour une soirée précise, getSessions.',
     }
   }
 
@@ -772,7 +1074,12 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
       avgKnocks: Math.round(entry.avgKnocks * 100) / 100,
     })
     const index = league.standings.findIndex((entry) => entry.clanId === scope.clanId)
-    const base = { period: PERIOD_LABELS[period], clansRanked: league.standings.length, minMatches: league.scoring.minMatches }
+    const base = {
+      period: PERIOD_LABELS[period],
+      clansRanked: league.standings.length,
+      minMatches: league.scoring.minMatches,
+      note: 'Parties officielles sur une période calendaire : « cette semaine » commence le lundi à minuit.',
+    }
     if (index === -1) {
       const qualifying = league.qualifying.find((entry) => entry.clanId === scope.clanId)
       if (qualifying) {
@@ -842,6 +1149,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
           count: item.count,
           perMatch: perMatch(item.count, own.matchCount),
         })),
+        itemsTruncated: own.items.length > ITEMS_MAX,
       },
       clan: {
         perMatch: perMatch(clan.totalCount, clanMemberMatches),
@@ -849,7 +1157,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         rankByVolume: rank === -1 ? null : rank + 1,
         topConsumer: clan.members[0] ? { player: clan.members[0].displayName, perMatch: round1(clan.members[0].perMatch) } : null,
       },
-      thrown: { total: thrown.reduce((sum, row) => sum + row.count, 0), items: thrown.slice(0, ITEMS_MAX) },
+      thrown: { total: thrown.reduce((sum, row) => sum + row.count, 0), items: thrown.slice(0, ITEMS_MAX), itemsTruncated: thrown.length > ITEMS_MAX },
       note: 'Le site compte ce qui est consommé (soins, boosts, carburant, gadgets) et lancé (grenades) dans les parties analysées, pas le contenu du sac ni les munitions, armures et accessoires ramassés. Détail par objet seulement pour les parties analysées depuis le 18 septembre 2026.',
     }
   }
@@ -900,7 +1208,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         mostPlayed: verdict.mostPlayed ? { map: verdict.mostPlayed.mapLabel, matches: verdict.mostPlayed.matches, sharePercent: pct(verdict.mostPlayed.share) } : null,
       },
       maps,
-      note: `Une partie = une partie d'escouade du clan ; « vsClans » = écart à la moyenne des ${payload.comparedClans} clans suivis (Top 10 en points, place et kills dans leur unité) ; sous ${payload.minSample} parties sur une carte, ni écart, ni tendance, ni joueur phare.`,
+      note: `Une partie = une partie d'escouade du clan ; « vsClans » = écart à la moyenne des ${payload.comparedClans} clans suivis (Top 10 en points, place et kills dans leur unité) ; sous ${payload.minSample} parties sur une carte, ni écart, ni tendance, ni joueur phare. Période calendaire : « cette semaine » commence le lundi à minuit, pas à 06:00 — pour une soirée précise, getSessions.`,
     }
   }
 
@@ -1202,6 +1510,217 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  async function getClanCareer(args: ToolArgs) {
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const requestedGroup = text(args.group) as CareerGroupId
+    const groupIds: CareerGroupId[] = CAREER_GROUP_IDS.includes(requestedGroup) ? [requestedGroup] : CAREER_GROUP_IDS
+    // Mêmes lectures que `GET /api/clans/[clanId]/lifetime-stats` : le cache de la carrière, jamais l'API PUBG.
+    const [rows, activeMembers] = await Promise.all([
+      prisma.memberLifetimeStats.findMany({
+        where: { member: { clanId: scope.clanId, isActive: true } },
+        select: { lastRefreshedAt: true, combat: true, victory: true, support: true, vehicle: true, movement: true, other: true, member: { select: { id: true, displayName: true } } },
+      }),
+      prisma.clanMember.count({ where: { clanId: scope.clanId, isActive: true } }),
+    ])
+    if (rows.length === 0) return { error: 'career_not_synced', message: 'Aucune carrière PUBG synchronisée pour les membres du clan (synchro de nuit).' }
+    const members: CareerMember[] = rows.map((row) => ({
+      memberId: row.member.id,
+      displayName: row.member.displayName,
+      lastRefreshedAt: row.lastRefreshedAt.toISOString(),
+      stats: {
+        combat: row.combat as CareerLifetimeStats['combat'],
+        victory: row.victory as CareerLifetimeStats['victory'],
+        support: row.support as CareerLifetimeStats['support'],
+        vehicle: row.vehicle as CareerLifetimeStats['vehicle'],
+        movement: row.movement as CareerLifetimeStats['movement'],
+        other: row.other as CareerLifetimeStats['other'],
+      },
+    }))
+    /** Place du joueur parmi les membres qui ont la donnée, dans l'ordre du classement de la statistique. */
+    const standing = (metric: CareerMetric) => {
+      const known = members
+        .map((member) => ({ memberId: member.memberId, value: metric.value(member.stats) }))
+        .filter((entry): entry is { memberId: number; value: number } => entry.value !== null)
+        .sort((a, b) => (metric.order === 'lower' ? a.value - b.value : b.value - a.value))
+      const index = known.findIndex((entry) => entry.memberId === resolved.memberId)
+      return index === -1 ? null : { value: metric.format(known[index].value), rank: index + 1, of: known.length }
+    }
+    return {
+      player: resolved.memberName,
+      membersSynced: members.length,
+      activeMembers,
+      unsynced: Math.max(0, activeMembers - members.length),
+      syncedAt: careerRefresh(members),
+      headline: careerHeadline(members).map(({ label, value, detail }) => ({ label, value, detail })),
+      groups: computeCareerGroups(members)
+        .filter((group) => groupIds.includes(group.id))
+        .map((group) => ({
+          group: group.title,
+          metrics: group.results.map((result) => ({
+            metric: result.metric.label,
+            kind: result.tag,
+            clan: result.value === null ? null : result.metric.format(result.value),
+            // Podium en une ligne : 27 statistiques, le détail en objets pesait 1 800 tokens.
+            top: result.top.map((entry) => `${entry.displayName} ${result.metric.format(entry.value)}`).join(' · '),
+            you: standing(result.metric),
+            ...(result.metric.note ? { note: result.metric.note } : {}),
+            ...(result.missing > 0 ? { membersWithoutData: result.missing } : {}),
+          })),
+        })),
+      note: "Carrière PUBG complète des comptes (toutes leurs parties, pas seulement celles du clan), synchronisée chaque nuit ; aucune période. « Total » = somme des membres actifs, « Moyenne » = moyenne des joueurs, « Record » = meilleur joueur ; « Moins = mieux » et « Mur de la honte » classent à l'envers (le premier est le plus mauvais). Valeurs écrites à la française.",
+    }
+  }
+
+  async function getCityInsights(args: ToolArgs) {
+    const scopeKind = text(args.scope) === 'clan' ? 'clan' : 'player'
+    const requestedPeriod = text(args.period)
+    const period: CityInsightsPeriod = requestedPeriod === 'month' || requestedPeriod === 'all' ? requestedPeriod : 'week'
+    const requestedType = text(args.matchType) as SessionMatchType
+    // Défaut de chaque page : le tableau de bord du clan filtre sur les parties officielles, la page du joueur ne filtre pas.
+    const matchType: ClanMatchTypeFilter = SESSION_MATCH_TYPES.includes(requestedType) ? requestedType : scopeKind === 'clan' ? 'official' : 'all'
+    const resolved = scopeKind === 'player' ? await resolveMember(args.playerName) : null
+    if (resolved && 'error' in resolved) return resolved
+    const memberId = resolved && 'memberId' in resolved ? resolved.memberId : undefined
+    const [labels, locations] = await Promise.all([getMapLabels(), getMapLocations()])
+    const requestedMap = text(args.mapName)
+    const rawMaps = requestedMap ? resolveMapNames(requestedMap, labels) : []
+    if (requestedMap && rawMaps.length === 0) return { error: 'map_not_found', message: `Carte inconnue : ${requestedMap}.` }
+
+    const base = { clanId: scope.clanId, bounds: getCityPeriodBounds(period), matchType: matchType === 'all' ? null : leagueMatchTypeValues(matchType), mapNames: rawMaps.length > 0 ? rawMaps : null }
+    const [cells, deathCells, coverage, clanCells] = await Promise.all([
+      loadCityMetricCells({ ...base, memberId }),
+      loadCityMetricCells({ ...base, memberId, sources: ['death'] }),
+      loadCityMatchCoverage({ ...base, memberId }),
+      // Référence de comparaison du joueur : tout le clan sur les mêmes filtres.
+      memberId ? loadCityMetricCells(base) : Promise.resolve(null),
+    ])
+    const grid = buildCityGrid(locations)
+    const mapLabel = (mapName: string) => mapDisplayName(mapName, labels)
+    const aggregation = aggregateCityCells({ rows: cells, grid, mapLabel })
+    const built = buildCityInsights({ period, aggregation, timeline: [], matchCount: coverage.matchCount, dataStart: coverage.dataStart, mapLabel })
+    const insights = clanCells ? withClanComparison(built, aggregateCityCells({ rows: clanCells, grid, mapLabel })) : built
+    const deaths = rankCellsByCity(deathCells, grid, mapLabel)
+
+    const cityLine = (city: CityEntry) => ({
+      city: city.name,
+      map: city.mapLabel,
+      events: city.events,
+      sharePercent: Math.round(city.share),
+      ...(city.clanShare !== null ? { clanSharePercent: Math.round(city.clanShare) } : {}),
+    })
+    // Bilan des combats : kills et morts rattachés à la même ville, les villes les plus disputées d'abord.
+    const fights = new Map<string, { city: string; map: string; kills: number; deaths: number }>()
+    for (const city of aggregation.cities) fights.set(`${city.mapName}|${city.locationId}`, { city: city.name, map: city.mapLabel, kills: city.byMetric.kill, deaths: 0 })
+    for (const city of deaths.cities) {
+      const key = `${city.mapName}|${city.locationId}`
+      const entry = fights.get(key) ?? { city: city.name, map: city.mapLabel, kills: 0, deaths: 0 }
+      entry.deaths = city.events
+      fights.set(key, entry)
+    }
+    const { presence } = insights.metricTotals
+    return {
+      scope: resolved && 'memberName' in resolved ? resolved.memberName : 'le clan',
+      period: PERIOD_LABELS[period],
+      matchType: matchType === 'all' ? 'toutes les parties' : leagueMatchTypeOption(matchType).label,
+      map: rawMaps.length > 0 ? mapDisplayName(rawMaps[0], labels) : 'toutes les cartes',
+      matches: coverage.matchCount,
+      since: coverage.dataStart?.toISOString() ?? null,
+      mainMap: insights.mainMapLabel,
+      favoriteCity: insights.favoriteCity ? cityLine(insights.favoriteCity) : null,
+      favoriteCombatCity: insights.favoriteCombatCity ? { city: insights.favoriteCombatCity.name, map: insights.favoriteCombatCity.mapLabel, combatEvents: insights.favoriteCombatCity.events } : null,
+      outsideCitiesPercent: presence > 0 ? Math.round((1 - insights.cityTotals.presence / presence) * 100) : null,
+      top: {
+        presence: insights.top.presence.map(cityLine),
+        kills: insights.top.kill.map(cityLine),
+        damage: insights.top.damage.map(cityLine),
+        revives: insights.top.revive.map(cityLine),
+        deaths: deaths.cities.slice(0, CITY_TOP).map((city) => ({ city: city.name, map: city.mapLabel, events: city.events, sharePercent: Math.round(city.share) })),
+      },
+      fights: [...fights.values()]
+        .filter((entry) => entry.kills + entry.deaths > 0)
+        .sort((a, b) => b.kills + b.deaths - (a.kills + a.deaths))
+        .slice(0, CITY_TOP)
+        .map((entry) => ({ ...entry, killsPerDeath: entry.deaths > 0 ? round2(entry.kills / entry.deaths) : null })),
+      note: "Positions des parties analysées, rattachées aux villes configurées sur chaque carte ; ce qui se passe hors de toute ville compte dans les totaux (« outsideCitiesPercent »), jamais dans une ville. « sharePercent » = part parmi les événements en ville ; « clanSharePercent » = part du clan sur la même ville, donnée seulement avec assez d'événements des deux côtés. Les positions brutes de plus de trois semaines sont purgées : « since » dit depuis quand les données existent. Période calendaire (semaine depuis lundi).",
+    }
+  }
+
+  async function getZoneClosures(args: ToolArgs) {
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const requestedPeriod = text(args.period)
+    const period: ZoneClosurePeriod = requestedPeriod === 'month' || requestedPeriod === 'all' ? requestedPeriod : 'week'
+    const phase = parseTacticalPhase(text(args.phase) || null)
+    const [labels, locations] = await Promise.all([getMapLabels(), getMapLocations()])
+    const requestedMap = text(args.mapName)
+    const rawMaps = requestedMap ? resolveMapNames(requestedMap, labels) : []
+    if (requestedMap && rawMaps.length === 0) return { error: 'map_not_found', message: `Carte inconnue : ${requestedMap}.` }
+
+    const load = (mapName: string | null) =>
+      loadZoneClosureSummary({ clanId: scope.clanId, period, bounds: getZoneClosurePeriodBounds(period), mapName, phases: tacticalPhaseNumbers(phase), locations })
+    // Sans carte, la page prend la plus jouée ; une carte demandée n'est relue que si elle a des fermetures.
+    let summary = await load(null)
+    const mapLines = (except: string | null) =>
+      summary.maps.filter((entry) => entry.mapName !== except).map((entry) => ({ map: mapDisplayName(entry.mapName, labels), closures: entry.positions, matches: entry.matches }))
+    if (rawMaps.length > 0) {
+      const available = summary.maps.find((entry) => rawMaps.includes(entry.mapName))
+      if (!available) {
+        return { map: mapDisplayName(rawMaps[0], labels), period: PERIOD_LABELS[period], message: 'Aucune fin de zone enregistrée sur cette carte pour la période.', otherMaps: mapLines(null) }
+      }
+      if (available.mapName !== summary.selectedMap) summary = await load(available.mapName)
+    }
+    if (!summary.selectedMap || summary.counts.positions === 0) {
+      return { period: PERIOD_LABELS[period], phase: tacticalPhaseLabel(phase), message: 'Aucune fin de zone enregistrée sur la période.' }
+    }
+
+    const memberLine = (member: ZoneClosureMemberStat) => {
+      const shares = bandShares(member.bands)
+      return {
+        player: member.displayName,
+        closures: member.positions,
+        avgDistancePercentOfRadius: ratioPercent(member.averageRatio),
+        centerPercent: Math.round(shares.center),
+        edgePercent: Math.round(shares.edge),
+        outsidePercent: Math.round(shares.outside),
+        profile: memberZoneProfile(member)?.label ?? `trop peu de fermetures (moins de ${MIN_PLAYER_SAMPLE})`,
+      }
+    }
+    const shares = bandShares(summary.bands)
+    const verdict = zoneVerdict(summary.bands)
+    const ranked = rankZoneMembers(summary.members)
+    const you = summary.members.find((member) => member.memberId === resolved.memberId)
+    return {
+      map: mapDisplayName(summary.selectedMap, labels),
+      period: PERIOD_LABELS[period],
+      phase: tacticalPhaseLabel(phase),
+      otherMaps: mapLines(summary.selectedMap),
+      counts: { ...summary.counts, averageSurvivors: round1(summary.counts.averageSurvivors) },
+      lowSample: summary.counts.positions < ZONE_LOW_SAMPLE,
+      since: summary.dataStart,
+      bands: { centerPercent: Math.round(shares.center), edgePercent: Math.round(shares.edge), outsidePercent: Math.round(shares.outside) },
+      avgDistancePercentOfRadius: ratioPercent(summary.averageRatio),
+      verdict: verdict ? { title: verdict.title, sentence: verdict.sentence } : null,
+      titles: zoneTitles(summary.members).map((title) => ({ title: title.title, meaning: title.description, player: title.displayName, value: title.value })),
+      byPhase: summary.byPhase.map((entry) => {
+        const phaseShares = bandShares(entry.bands)
+        return {
+          phase: entry.phase,
+          positions: entry.positions,
+          centerPercent: Math.round(phaseShares.center),
+          edgePercent: Math.round(phaseShares.edge),
+          outsidePercent: Math.round(phaseShares.outside),
+          avgDistancePercentOfRadius: ratioPercent(entry.averageRatio),
+        }
+      }),
+      arrivalCities: summary.topCities.map((city) => ({ city: city.name, positions: city.positions, sharePercent: Math.round(city.share) })),
+      members: ranked.slice(0, ZONE_MEMBERS_MAX).map(memberLine),
+      membersTruncated: ranked.length > ZONE_MEMBERS_MAX,
+      you: you ? memberLine(you) : { player: resolved.memberName, closures: 0 },
+      note: `Une fin de zone = l'instant où le cercle se referme ; position de chaque membre encore en vie : centre (moins de 50 % du rayon), bord intérieur (jusqu'à 100 %), dehors (au-delà). Biais de survie : une escouade éliminée tôt ne pèse que sur les premières fermetures, les phases tardives ne décrivent que les survivants ; sous ${ZONE_LOW_SAMPLE} observations l'échantillon est fragile, et un joueur sous ${MIN_PLAYER_SAMPLE} fermetures n'a ni profil ni titre. Les membres sont classés du plus central au plus excentré. Période calendaire (semaine depuis lundi).`,
+    }
+  }
+
   // Tournois : pages publiques, quel que soit le clan organisateur. Le clan du joueur sert seulement à le situer.
   const isMine = (participant: TournamentStandingSummary['participant']) => participantClanIds(participant).includes(scope.clanId)
   const podiumLine = (entry: TournamentStandingSummary, rank: number) => ({ rank, label: entry.label, points: round1(entry.totalPoints), kills: entry.totalKills, wins: entry.wins })
@@ -1242,6 +1761,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
       .filter((overview) => !search || normalizeText(overview.title).includes(search))
     return {
       total: overviews.length,
+      truncated: overviews.length > take,
       tournaments: overviews.slice(0, take).map(summarizeTournament),
       note: 'Seules les parties personnalisées jouées pendant les dates du tournoi, avec un membre du clan organisateur, comptent. Place du clan du joueur connue en direct ou sur le podium ; sinon, getTournamentResults.',
     }
@@ -1307,6 +1827,8 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
       standings: [...shown, ...mineBeyond].map(standingLine),
       yourClan: standings.filter((row) => mineKeys.has(row.key)).map(standingLine),
       mvp: mvp ? { label: mvp.label, kills: mvp.kills, damage: Math.round(mvp.damage) } : null,
+      standingsTruncated: standings.length > TOURNAMENT_STANDINGS_MAX,
+      roundsTruncated: rounds.length > TOURNAMENT_ROUNDS_MAX,
       rounds: rounds.slice(-TOURNAMENT_ROUNDS_MAX).map((round) => ({
         round: round.index,
         playedAt: round.createdAt,
@@ -1322,6 +1844,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
 
   const handlers: Record<string, (args: ToolArgs) => Promise<unknown>> = {
     getRecentMatches,
+    getSessions,
     getMatchDebrief,
     getWeaponStats,
     getOpponentRecord,
@@ -1336,6 +1859,9 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     getPlayerBenchmark,
     getCareerStats,
     getClanPlaystyle,
+    getClanCareer,
+    getCityInsights,
+    getZoneClosures,
   }
 
   return {

@@ -107,5 +107,7 @@ complet en 132 ms ; parts centre 19 %, bord 54 %, hors zone 28 %.
 
 ## Voir aussi
 
+- [Coach IA](coach-ia.md) — outil `getZoneClosures` : la même lecture (bandes, verdict, titres, profils), en réponse à
+  « on gère bien le cercle ? » (2026-10-25)
 - [Villes et zones de combat](positions-villes.md) — mêmes périmètres de villes, sur les tableaux de bord
 - `docs/TODO/todo.md`, section « Évolution — Densité des positions en fin de zone »

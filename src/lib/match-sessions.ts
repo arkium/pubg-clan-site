@@ -177,3 +177,51 @@ export function sessionDateOf(createdAt: string | Date): string {
   const time = typeof createdAt === 'string' ? Date.parse(createdAt) : createdAt.getTime()
   return PARIS_DATE.format(new Date(time - SESSION_DAY_START_HOUR * 3_600_000))
 }
+
+const PARIS_CLOCK = new Intl.DateTimeFormat('en-US', {
+  timeZone: 'Europe/Paris',
+  hourCycle: 'h23',
+  year: 'numeric',
+  month: '2-digit',
+  day: '2-digit',
+  hour: '2-digit',
+  minute: '2-digit',
+  second: '2-digit',
+})
+
+/** Avance de Paris sur l'UTC à un instant donné (ms) : 2 h en été, 1 h en hiver. */
+function parisOffsetMs(at: Date): number {
+  const parts = PARIS_CLOCK.formatToParts(at)
+  const read = (type: Intl.DateTimeFormatPartTypes) => Number(parts.find((part) => part.type === type)?.value ?? '0')
+  return Date.UTC(read('year'), read('month') - 1, read('day'), read('hour'), read('minute'), read('second')) - at.getTime()
+}
+
+/** Minuit à Paris d'une date `AAAA-MM-JJ`, en instant UTC — juste avant un éventuel changement d'heure (01:00 UTC). */
+function parisMidnight(date: string): Date {
+  const [year, month, day] = date.split('-').map(Number)
+  const utcMidnight = Date.UTC(year, month - 1, day)
+  let instant = utcMidnight - parisOffsetMs(new Date(utcMidnight))
+  const offset = parisOffsetMs(new Date(instant))
+  if (utcMidnight - offset !== instant) instant = utcMidnight - offset
+  return new Date(instant)
+}
+
+/**
+ * Instant où commence la soirée d'une date : l'inverse exact de `sessionDateOf` — minuit à Paris plus six heures
+ * **réelles**. `sessionDateOf(sessionStartOf(d))` vaut `d` et l'instant d'avant appartient à la veille, y compris la
+ * nuit d'un changement d'heure (où la frontière tombe à 05:00 ou 07:00 à l'horloge, comme pour `sessionDateOf`).
+ */
+export function sessionStartOf(date: string): Date {
+  return new Date(parisMidnight(date).getTime() + SESSION_DAY_START_HOUR * 3_600_000)
+}
+
+/** Date `AAAA-MM-JJ` décalée de `days` jours (négatif vers le passé). */
+export function shiftSessionDate(date: string, days: number): string {
+  const [year, month, day] = date.split('-').map(Number)
+  return new Date(Date.UTC(year, month - 1, day + days)).toISOString().slice(0, 10)
+}
+
+/** Bornes `[start, end)` des soirées de `from` à `to` incluses : tout `createdAt` dont `sessionDateOf` tombe dans la plage. */
+export function sessionBoundsOf(from: string, to: string): { start: Date; end: Date } {
+  return { start: sessionStartOf(from), end: sessionStartOf(shiftSessionDate(to, 1)) }
+}

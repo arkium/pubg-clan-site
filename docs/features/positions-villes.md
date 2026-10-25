@@ -72,6 +72,8 @@ Mesure du 2026-09-17 sur le clan 1 : 303 matchs en septembre, Pochinki en tête 
 
 ## Voir aussi
 
+- [Coach IA](coach-ia.md) — outil `getCityInsights` : les mêmes indicateurs, plus la métrique `death` (« dans quelle
+  ville je meurs ? ») ; `loadCityMetricCells` accepte depuis le 2026-10-25 `mapNames` et `sources`
 - [Cartographie tactique](positions.md) — la page vers laquelle pointe le lien préfiltré (`?map=&view=`)
 
 - [Zones de drop](drop-zones.md) — pression au drop, dont le panneau réutilise les conventions visuelles

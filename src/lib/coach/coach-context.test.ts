@@ -32,7 +32,10 @@ describe('reconnaissance du chemin de page', () => {
     expect(parseCoachContextPath('/members/77/stats')).toEqual({ kind: 'member', memberId: 77, page: 'career' })
     expect(parseCoachContextPath('/members/77/playstyle')).toEqual({ kind: 'member', memberId: 77, page: 'playstyle' })
     expect(parseCoachContextPath('/clans/292/stats')).toEqual({ kind: 'clan', clanId: 292, page: 'playstyle' })
-    expect(parseCoachContextPath('/clans/292/stats/career')).toEqual({ kind: 'clan', clanId: 292, page: 'other' })
+    expect(parseCoachContextPath('/clans/292/stats/career')).toEqual({ kind: 'clan', clanId: 292, page: 'career' })
+    expect(parseCoachContextPath('/clans/292/stats/zone-closures')).toEqual({ kind: 'clan', clanId: 292, page: 'zone-closures' })
+    expect(parseCoachContextPath('/clans/292/stats/positions?map=Erangel')).toEqual({ kind: 'clan', clanId: 292, page: 'positions' })
+    expect(parseCoachContextPath('/clans/292/stats/awards')).toEqual({ kind: 'clan', clanId: 292, page: 'other' })
     expect(parseCoachContextPath('/players?tab=compare')).toEqual({ kind: 'players' })
     expect(parseCoachContextPath('/tournaments/ctour1/matches/cmatch9')).toEqual({ kind: 'tournament-match', tournamentId: 'ctour1', matchId: 'cmatch9' })
     expect(parseCoachContextPath('/tournaments/ctour1')).toEqual({ kind: 'tournament', tournamentId: 'ctour1' })
@@ -99,6 +102,9 @@ describe('étiquette, suggestions et bloc de prompt', () => {
       { kind: 'opponents' },
       { kind: 'drop-zones' },
       { kind: 'maps' },
+      { kind: 'clan-career' },
+      { kind: 'zone-closures' },
+      { kind: 'cities' },
       tournament,
       { ...tournament, phase: 'live' },
       { ...tournament, phase: 'upcoming' },
@@ -115,6 +121,13 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextPromptBlock(match)).toContain('getMatchDebrief avec matchId « cmatch123 »')
     expect(coachContextPromptBlock({ ...match, telemetryAnalyzed: false })).toContain('pas encore analysée')
     expect(coachContextPromptBlock({ kind: 'weapons', memberId: 7, memberName: 'NovakTV' })).toContain('getWeaponStats')
+    expect(coachContextPromptBlock({ kind: 'session', date: '2026-10-22' })).toContain('getSessions avec date « 2026-10-22 »')
+    expect(coachContextPromptBlock({ kind: 'clan-career' })).toContain('getClanCareer')
+    expect(coachContextPromptBlock({ kind: 'zone-closures' })).toContain('getZoneClosures')
+    expect(coachContextPromptBlock({ kind: 'cities' })).toContain('getCityInsights avec scope « clan »')
+    expect(coachContextLabel({ kind: 'clan-career' })).toBe('Carrière PUBG du clan')
+    expect(coachContextLabel({ kind: 'zone-closures' })).toBe('Fin de zone')
+    expect(coachContextLabel({ kind: 'cities' })).toBe('Positions et villes')
     expect(coachContextLabel({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toBe('Objets de NovakTV')
     expect(coachContextLabel({ kind: 'maps' })).toBe('Cartes du clan')
     expect(coachContextLabel({ kind: 'schedule', memberId: 7, memberName: 'NovakTV' })).toBe('Activité de NovakTV')

@@ -2,6 +2,7 @@ import 'dotenv/config'
 
 import { resolveCoachContext } from '../src/lib/coach/coach-context-service'
 import { createCoachTools } from '../src/lib/coach/coach-tools'
+import { sessionDateOf, shiftSessionDate } from '../src/lib/match-sessions'
 import { prisma } from '../src/lib/prisma'
 
 /**
@@ -63,6 +64,9 @@ async function main() {
   const results = []
   results.push(await measure('resolveCoachContext (débriefing)', () => resolveCoachContext(`/clans/${scope.clanId}/telemetry/matches/${scope.matchId}/debrief`, scope)))
   results.push(await measure('getRecentMatches', () => tools.run({ name: 'getRecentMatches', args: { limit: 5 } })))
+  results.push(await measure('getSessions (7 soirées)', () => tools.run({ name: 'getSessions', args: {} })))
+  results.push(await measure('getSessions (31 soirées)', () => tools.run({ name: 'getSessions', args: { from: '2000-01-01' } })))
+  results.push(await measure('getSessions (hier, détail)', () => tools.run({ name: 'getSessions', args: { date: shiftSessionDate(sessionDateOf(new Date()), -1) } })))
   results.push(await measure('getMatchDebrief', () => tools.run({ name: 'getMatchDebrief', args: { matchId: scope.matchId } })))
   results.push(await measure('getWeaponStats', () => tools.run({ name: 'getWeaponStats', args: {} })))
   results.push(await measure('getItemUsage', () => tools.run({ name: 'getItemUsage', args: {} })))
@@ -71,6 +75,11 @@ async function main() {
   results.push(await measure('getPlayerBenchmark', () => tools.run({ name: 'getPlayerBenchmark', args: { period: 'month' } })))
   results.push(await measure('getCareerStats', () => tools.run({ name: 'getCareerStats', args: {} })))
   results.push(await measure('getClanPlaystyle', () => tools.run({ name: 'getClanPlaystyle', args: { period: 'month' } })))
+  results.push(await measure('getClanCareer', () => tools.run({ name: 'getClanCareer', args: {} })))
+  results.push(await measure('getClanCareer (combat)', () => tools.run({ name: 'getClanCareer', args: { group: 'combat' } })))
+  results.push(await measure('getCityInsights (joueur)', () => tools.run({ name: 'getCityInsights', args: { period: 'month' } })))
+  results.push(await measure('getCityInsights (clan)', () => tools.run({ name: 'getCityInsights', args: { scope: 'clan', period: 'month' } })))
+  results.push(await measure('getZoneClosures', () => tools.run({ name: 'getZoneClosures', args: { period: 'month' } })))
   results.push(await measure('getOpponentRecord', () => tools.run({ name: 'getOpponentRecord', args: { clanTag: opponentTag } })))
   results.push(await measure('getDropZones', () => tools.run({ name: 'getDropZones', args: { mapName: scope.mapName } })))
   results.push(await measure('getClanLeaderboard', () => tools.run({ name: 'getClanLeaderboard', args: { period: 'week' } })))

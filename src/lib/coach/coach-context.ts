@@ -9,7 +9,7 @@ export type CoachPageContext =
   | { kind: 'tournament'; tournamentId: string }
   | { kind: 'tournament-match'; tournamentId: string; matchId: string }
   | { kind: 'session'; clanId: number; date: string }
-  | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'maps' | 'playstyle' | 'other' }
+  | { kind: 'clan'; clanId: number; page: 'matches' | 'weapons' | 'opponents' | 'drop-zones' | 'maps' | 'playstyle' | 'career' | 'zone-closures' | 'positions' | 'other' }
   | { kind: 'member'; memberId: number; page: 'weapons' | 'nemesis' | 'drop-zones' | 'items' | 'heatmap' | 'career' | 'playstyle' | 'other' }
   | { kind: 'players' }
   | { kind: 'none' }
@@ -45,6 +45,9 @@ export function parseCoachContextPath(path: string | null | undefined): CoachPag
     if (rest[0] === 'matches') return { kind: 'clan', clanId, page: 'matches' }
     if (rest[0] === 'stats' && rest[1] === 'weapons') return { kind: 'clan', clanId, page: 'weapons' }
     if (rest[0] === 'stats' && rest[1] === 'maps') return { kind: 'clan', clanId, page: 'maps' }
+    if (rest[0] === 'stats' && rest[1] === 'career') return { kind: 'clan', clanId, page: 'career' }
+    if (rest[0] === 'stats' && rest[1] === 'zone-closures') return { kind: 'clan', clanId, page: 'zone-closures' }
+    if (rest[0] === 'stats' && rest[1] === 'positions') return { kind: 'clan', clanId, page: 'positions' }
     if (rest[0] === 'stats' && rest.length === 1) return { kind: 'clan', clanId, page: 'playstyle' }
     if (rest[0] === 'stats' && rest[1] === 'opponents') return { kind: 'clan', clanId, page: 'opponents' }
     if (rest[0] === 'drop-zones') return { kind: 'clan', clanId, page: 'drop-zones' }
@@ -96,6 +99,9 @@ export type CoachResolvedContext =
   | { kind: 'opponents' }
   | { kind: 'drop-zones' }
   | { kind: 'maps' }
+  | { kind: 'clan-career' }
+  | { kind: 'zone-closures' }
+  | { kind: 'cities' }
   | { kind: 'tournament'; tournamentId: string; title: string; phase: 'upcoming' | 'live' | 'finished' }
   | { kind: 'none' }
 
@@ -141,6 +147,12 @@ export function coachContextLabel(context: CoachResolvedContext): string | null 
       return 'Zones de largage'
     case 'maps':
       return 'Cartes du clan'
+    case 'clan-career':
+      return 'Carrière PUBG du clan'
+    case 'zone-closures':
+      return 'Fin de zone'
+    case 'cities':
+      return 'Positions et villes'
     case 'tournament':
       return `Tournoi · ${shortTitle(context.title)}`
     case 'none':
@@ -177,6 +189,12 @@ export function coachSuggestions(context: CoachResolvedContext): string[] {
       return ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?']
     case 'maps':
       return ['Quelle est notre pire carte ?', 'Où est-on les plus forts ?', 'Qui porte l’escouade sur Erangel ?']
+    case 'clan-career':
+      return ['Combien de kills le clan a en carrière ?', 'Qui a le plus de victoires ?', 'Je suis où au K/D dans le clan ?']
+    case 'zone-closures':
+      return ['On gère bien le cercle ?', 'Qui court après la zone ?', 'Je suis souvent dehors à la fermeture ?']
+    case 'cities':
+      return ['Où le clan se bat le plus ?', 'Dans quelle ville je meurs ?', 'Où je gagne mes duels ?']
     case 'tournament':
       if (context.phase === 'finished') return ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Quelle manche a fait la différence ?']
       if (context.phase === 'live') return ['Qui est en tête ?', 'Où en est notre clan ?', 'Qui est le MVP pour l’instant ?']
@@ -196,7 +214,7 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
         : `Page consultée : match « ${label} » (identifiant ${context.matchId}) dont la télémétrie n'est pas encore analysée : dis-le si on te demande son déroulé, et propose de revenir demain matin.`
     }
     case 'session':
-      return `Page consultée : soirée du ${context.date} du clan. Appelle getRecentMatches pour ses parties.`
+      return `Page consultée : soirée du ${context.date} du clan. Appelle getSessions avec date « ${context.date} » pour son bilan et la liste de ses parties.`
     case 'weapons':
       return `Page consultée : armes de ${context.memberName}. Appelle getWeaponStats pour ses chiffres.`
     case 'items':
@@ -214,9 +232,15 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
     case 'opponents':
       return 'Page consultée : adversaires du clan. Appelle getOpponentRecord avec le tag du clan adverse demandé.'
     case 'drop-zones':
-      return 'Page consultée : zones de largage du clan. Appelle getDropZones avec la carte demandée.'
+      return 'Page consultée : zones de largage (et, sur la page d’un joueur, ses villes). Appelle getDropZones avec la carte demandée ; pour les villes et zones de combat, getCityInsights.'
     case 'maps':
       return 'Page consultée : cartes du clan (performance carte par carte). Appelle getMapPerformance, avec mapName si la question vise une carte.'
+    case 'clan-career':
+      return 'Page consultée : carrière PUBG du clan (cumuls depuis la création des comptes, podiums par statistique). Appelle getClanCareer, avec group si la question vise une famille.'
+    case 'zone-closures':
+      return 'Page consultée : fin de zone du clan (centre, bord ou dehors à chaque fermeture du cercle). Appelle getZoneClosures, avec mapName si la question vise une carte.'
+    case 'cities':
+      return 'Page consultée : cartographie des positions du clan. Appelle getCityInsights avec scope « clan » pour les villes et zones de combat, getDropZones pour les largages.'
     case 'tournament':
       return `Page consultée : tournoi « ${shortTitle(context.title)} » (identifiant ${context.tournamentId}, ${TOURNAMENT_PHASE_LABELS[context.phase]}). Pour toute question sur ce tournoi (vainqueur, classement, manches, barème, place du clan), appelle getTournamentResults avec tournamentId « ${context.tournamentId} ».`
     case 'none':

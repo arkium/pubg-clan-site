@@ -7,6 +7,7 @@ import {
   cellCenterPercent,
   getCityTimelineStart,
   pickFavoriteCombatCity,
+  rankCellsByCity,
   rankCities,
   withClanComparison,
   type CityMetricCellRow,
@@ -57,6 +58,16 @@ describe('aggregateCityCells', () => {
     const aggregation = aggregateCityCells({ rows: [cell('position', 4, 4, 10)], grid })
     expect(aggregation.cityTotals.presence).toBe(0)
     expect(aggregation.metricTotals.presence).toBe(10)
+  })
+
+  it('classe les villes pour une métrique hors des quatre familles (les morts), le reste hors ville', () => {
+    const ranked = rankCellsByCity([cell('death', 19, 19, 6), cell('death', 21, 19, 2), cell('death', 0, 0, 4)], grid, (mapName) => `Carte ${mapName}`)
+    expect(ranked).toMatchObject({ total: 12, inCities: 8 })
+    expect(ranked.cities).toEqual([
+      { locationId: 'pochinki', name: 'Pochinki', mapName: 'Baltic_Main', mapLabel: 'Carte Baltic_Main', events: 6, share: 75 },
+      { locationId: 'school', name: 'École', mapName: 'Baltic_Main', mapLabel: 'Carte Baltic_Main', events: 2, share: 25 },
+    ])
+    expect(rankCellsByCity([], grid)).toEqual({ total: 0, inCities: 0, cities: [] })
   })
 })
 

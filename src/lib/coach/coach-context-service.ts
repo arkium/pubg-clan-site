@@ -62,6 +62,9 @@ export async function resolveCoachContext(path: string | null | undefined, scope
       if (parsed.page === 'drop-zones') return { kind: 'drop-zones' }
       if (parsed.page === 'maps') return { kind: 'maps' }
       if (parsed.page === 'playstyle') return { kind: 'playstyle', memberId: null, memberName: null }
+      if (parsed.page === 'career') return { kind: 'clan-career' }
+      if (parsed.page === 'zone-closures') return { kind: 'zone-closures' }
+      if (parsed.page === 'positions') return { kind: 'cities' }
       return NONE
     }
     case 'member': {

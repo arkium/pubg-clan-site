@@ -4444,6 +4444,14 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
    Jetons seulement : le conteneur porte `charte game-ui`. Même sélecteurs que la doc, reportés tels quels. */
 .coach-ico { width: 16px; height: 16px; flex-shrink: 0; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
 .coach-trigger[aria-expanded="true"] { border-color: transparent; background: var(--theme-ui-accent-soft); box-shadow: inset 0 0 0 1px var(--theme-ui-accent-ring); color: var(--theme-ui-accent-text); }
+/* Bouton flottant du mobile (2026-10-25) : sous 640 px, où le bouton de l'en-tête est masqué, en bas à droite au-dessus du
+   contenu, sous les toasts et les menus (z 45 < 50) ; masqué par l'attribut hidden quand le panneau est ouvert. */
+.coach-fab { position: fixed; right: 16px; bottom: calc(16px + env(safe-area-inset-bottom, 0px)); z-index: 45; display: none; align-items: center; justify-content: center; width: 52px; height: 52px; border: 1px solid var(--theme-ui-accent); border-radius: 14px; background: linear-gradient(var(--theme-ui-accent-soft), var(--theme-ui-accent-soft)), var(--theme-ui-surface); color: var(--theme-ui-accent-text); box-shadow: 0 12px 28px -12px rgb(2 6 23 / 0.55); transition: transform 120ms ease-out; }
+@media (max-width: 639px) { .coach-fab { display: inline-flex; } }
+.coach-fab[hidden] { display: none; }
+.coach-fab:active { transform: scale(0.96); }
+.coach-fab:focus-visible { outline: 2px solid var(--theme-ui-accent); outline-offset: 2px; }
+.coach-fab .coach-ico { width: 22px; height: 22px; }
 .coach-backdrop { position: fixed; inset: 0; z-index: 60; background: rgb(2 6 23 / 0.45); animation: shellOverlayIn 180ms ease-out; }
 .coach-drawer {
   position: fixed; top: 0; right: 0; bottom: 0; z-index: 61;

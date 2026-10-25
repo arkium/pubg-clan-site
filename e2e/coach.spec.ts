@@ -22,17 +22,57 @@ async function noHorizontalScroll(page: Page) {
   expect(overflow, 'défilement horizontal').toBe(0)
 }
 
-/** Ouvre le tiroir : bouton de l'en-tête sur ordinateur, bouton du débriefing sur mobile (l'en-tête le masque). */
+/** Déclencheur de la largeur courante : bouton de l'en-tête dès 640 px, bouton flottant en dessous (§8.1). */
+const triggerOf = (page: Page, testInfo: TestInfo) => page.getByTestId(isMobile(testInfo) ? 'coach-fab' : 'coach-trigger')
+
+/** Ouvre le tiroir par le déclencheur de la largeur courante. */
 async function openDrawer(page: Page, testInfo: TestInfo) {
-  if (isMobile(testInfo)) await page.getByTestId('coach-context-button').click()
-  else await page.getByTestId('coach-trigger').click()
+  await triggerOf(page, testInfo).click()
   await expect(drawerOf(page)).toBeVisible()
   return drawerOf(page)
 }
 
+test.describe('déclencheurs', () => {
+  test('sous 640 px, bouton flottant en bas à droite, caché quand le panneau est ouvert ; bouton d’en-tête au-delà', async ({ api, page, baseURL }, testInfo) => {
+    await withSessionCookie(page, baseURL!)
+    mockCoachMember(api)
+    mockClanOverview(api)
+    await page.goto(`/clans/${CLAN_ID}/overview`)
+    const fab = page.getByTestId('coach-fab')
+    const trigger = page.getByTestId('coach-trigger')
+    if (!isMobile(testInfo)) {
+      await expect(trigger).toBeVisible()
+      await expect(fab).toBeHidden()
+      return
+    }
+    await expect(trigger).toBeHidden()
+    await expect(fab).toBeVisible()
+    await expect(fab).toHaveAccessibleName('Coach IA')
+    // Bas droite, cible d'au moins 44 px, et fixé : il ne bouge pas quand la page défile.
+    const box = (await fab.boundingBox())!
+    const viewport = page.viewportSize()!
+    expect(viewport.width - (box.x + box.width), 'marge droite').toBeGreaterThanOrEqual(12)
+    expect(viewport.width - (box.x + box.width), 'marge droite').toBeLessThanOrEqual(24)
+    expect(viewport.height - (box.y + box.height), 'marge basse').toBeGreaterThanOrEqual(12)
+    expect(viewport.height - (box.y + box.height), 'marge basse').toBeLessThanOrEqual(40)
+    expect(Math.min(box.width, box.height)).toBeGreaterThanOrEqual(44)
+    await page.evaluate(() => window.scrollTo(0, 600))
+    expect((await fab.boundingBox())!.y).toBeCloseTo(box.y, 0)
+
+    await fab.click()
+    const drawer = drawerOf(page)
+    await expect(drawer).toBeVisible()
+    await expect(fab).toBeHidden()
+    await expect(drawer).toContainText('Salut Joueur Alpha !')
+    await drawer.getByTestId('coach-close').click()
+    await expect(drawer).toBeHidden()
+    await expect(fab).toBeVisible()
+    await noHorizontalScroll(page)
+  })
+})
+
 test.describe('visiteur', () => {
   test('teaser : réponses floutées, inscription et connexion, aucun appel au Coach', async ({ api, page }, testInfo) => {
-    test.skip(isMobile(testInfo), 'le bouton de l’en-tête est masqué sous 640 px')
     mockClanOverview(api)
     await page.goto(`/clans/${CLAN_ID}/overview`)
     const drawer = await openDrawer(page, testInfo)
@@ -44,7 +84,10 @@ test.describe('visiteur', () => {
     expect(api.served.filter((call) => call.url.pathname.includes('/coach'))).toEqual([])
     await page.keyboard.press('Escape')
     await expect(drawer).toBeHidden()
-    await expect(page.getByTestId('coach-trigger')).toBeFocused()
+    await expect(triggerOf(page, testInfo)).toBeVisible()
+    // WebKit ne donne pas le focus à un bouton cliqué (comportement Safari) : le retour du focus se vérifie sur Chromium,
+    // ordinateur, tablette et mobile (où le bouton flottant, masqué à l'ouverture, est relevé avant le rendu — `opener`).
+    if (testInfo.project.name !== 'webkit-iphone') await expect(triggerOf(page, testInfo)).toBeFocused()
   })
 })
 
@@ -142,6 +185,7 @@ test.describe('membre', () => {
     await expect(page.getByTestId('coach-threads')).toContainText(COACH_QUESTION)
     await expect(page.getByTestId('coach-thread')).toContainText('Salut Joueur Alpha !')
     await expect(page.getByTestId('coach-trigger')).toHaveCount(0)
+    await expect(page.getByTestId('coach-fab')).toHaveCount(0)
     await expect(page.getByTestId('coach-context')).toHaveCount(0)
     await noHorizontalScroll(page)
   })

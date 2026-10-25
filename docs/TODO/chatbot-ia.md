@@ -48,7 +48,7 @@ d'inscrire son clan.
 
 | # | Sujet | Proposition | Lot |
 |---|---|---|---|
-| P1 | Déclencheur | Bouton « Coach IA » dans l'en-tête (comme la maquette) + entrée de la palette `Ctrl+K` + bouton contextuel du débriefing. Pas de bouton flottant (il tomberait sur les toasts `fixed bottom-4 right-6`), pas de `Ctrl+J` (téléchargements du navigateur) | 5 |
+| P1 | Déclencheur | Bouton « Coach IA » dans l'en-tête (comme la maquette) + entrée de la palette `Ctrl+K` + bouton contextuel du débriefing. Pas de bouton flottant sur ordinateur (il tomberait sur les toasts `fixed bottom-4 right-6`), pas de `Ctrl+J` (téléchargements du navigateur). **Révisé le 2026-10-25** (retour après la mise en production) : sous 640 px, où le bouton de l'en-tête est masqué, **bouton flottant** `CoachFab` en bas à droite — icône seule, masqué dès que le panneau est ouvert, sous les toasts (z 45 < 50) | 5 |
 | P2 | Tiroir : pousser ou recouvrir | Recouvre la page sous 1 600 px de large (le replay garde sa largeur), la pousse au-delà ; à valider sur le débriefing | 5 |
 | P3 | Conservation des fils | 12 mois, purgés par la maintenance de 01:15 (qui purge déjà le journal des actions au-delà de 12 mois) | 1 |
 | P4 | Ouverture | Interrupteur général seul en V1 (pas de réglage par clan) | 1 |
@@ -459,8 +459,10 @@ respecté, hauteur du header inchangée, aucun `localStorage` lu au premier rend
 ### 8.1 Déclencheurs (P1)
 
 - Bouton « Coach IA » dans l'en-tête du shell, à droite ; teinté quand le tiroir est ouvert. **Masqué sous 640 px**
-  (il passerait à la ligne et grandirait le header) : sur mobile, le Coach s'ouvre par l'entrée « Coach IA » du menu
-  (page plein écran) et par les boutons contextuels.
+  (il passerait à la ligne et grandirait le header) : sur mobile, le **bouton flottant** `CoachFab` prend le relais en
+  bas à droite (icône bouclier seule, bordure accent, 52 px, zone sûre iOS ; masqué par `hidden` tant que le panneau
+  est ouvert, absent de la page plein écran, sous les toasts et les menus — 2026-10-25), et le Coach s'ouvre aussi par
+  l'entrée « Coach IA » du menu (page plein écran) et par les boutons contextuels.
 - Entrée « Coach IA » de la palette `Ctrl+K` (`GlobalCommandPalette`).
 - Bouton contextuel « Débriefer ce match avec le Coach » à côté des onglets du débriefing (`CoachContextButton`).
 - Le tiroir est monté à sa première ouverture puis gardé caché : fermer et rouvrir retrouve le fil en cours.
@@ -820,7 +822,7 @@ Cocher avec la date et le commit : `- [x] … — 2026-11-03, abc1234`.
       `coach-client.ts` (constantes et aides côté navigateur), `coach-markdown.ts` (+ test) — 2026-10-24
 - [x] Déclencheurs (§8.1) : en-tête du shell (**masqué sous 640 px** : il passait à la ligne et grandissait le header ;
       entrée mobile = menu « Coach IA » et boutons contextuels), palette `Ctrl+K`, bouton « Débriefer ce match avec le
-      Coach » dans le bandeau du débriefing — 2026-10-24
+      Coach » dans le bandeau du débriefing — 2026-10-24 ; bouton flottant mobile `CoachFab` — 2026-10-25
 - [x] Plein écran `/clans/[clanId]/coach` (`NavigationTrail`, liste des fils à gauche dès 1 024 px) ; `CLAN_PAGES`
       avec `noindex` (titre « … — Coach IA », `robots: noindex`) et exclue des liens de la vue d'ensemble ; entrée
       `clan.coach` du registre (rôle `member`) + `scripts/seed-coach-nav.ts` **à lancer après déploiement** (la
@@ -908,13 +910,19 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
       sur ordinateur l'ancienne référence reste sous la tolérance de 1 %), et 6 écarts **WebKit seulement** déjà
       connus (requêtes interrompues par une redirection « access control checks », formulaires `/join` et
       `/confidentialite/demande`) — hors Coach, non bloquants
-- [ ] Déploiement : migration (**déjà appliquée** en base le 2026-10-24), clé `GEMINI_API_KEY` dans le `.env` du serveur
-      (**posée** par l'utilisateur le 2026-10-25), `deploy.sh`, puis `seed-coach-admin-nav.ts` et `seed-coach-nav.ts`
-      en `smk`. **Attention :** `coach_enabled` vaut déjà `true` en base (interrupteur ouvert depuis `/settings/coach`
-      en local le 2026-10-24) — le Coach sera ouvert à tous dès le redémarrage, sauf à le refermer avant
+- [x] Déploiement : migration (déjà appliquée en base le 2026-10-24), clé `GEMINI_API_KEY` dans le `.env` du serveur,
+      `deploy.sh`, puis `seed-coach-admin-nav.ts` et `seed-coach-nav.ts` en `smk` — fait le 2026-10-25. `coach_enabled`
+      valait déjà `true` en base (interrupteur ouvert depuis `/settings/coach` en local le 2026-10-24) : le Coach est
+      ouvert à tous les membres depuis le redémarrage, sauf fermeture par le SuperUser
 - [ ] Vérification derrière Nginx : flux mot à mot en production (`/settings/coach` → « Tester », puis une question)
 - [ ] Soirée de test, puis bilan après une semaine : coût réel par question, votes « Inexact », questions hors sujet
       → §0 et §2.3 mis à jour ; `public/vitrine-coach-ia.jpg` à fournir
+
+### Retours de la mise en production
+
+- [x] Bouton flottant « Coach IA » sur mobile (`CoachFab`, sous 640 px : bas droite, masqué quand le panneau est ouvert,
+      absent de la page plein écran ; charte section 44, `e2e/coach.spec.ts` « déclencheurs », captures du classement
+      mobile régénérées) — 2026-10-25
 
 ---
 

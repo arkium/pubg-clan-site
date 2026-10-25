@@ -7,8 +7,9 @@ import { useCoach } from '@/components/coach/CoachContext'
 /**
  * Bouton « Coach IA » de l'en-tête du shell (docs/TODO/chatbot-ia.md §8.1, P1) : teinté quand le tiroir est ouvert,
  * absent sur la page plein écran. Même hauteur que les cartes voisines (46 px à partir de 1 024 px), le header ne
- * change pas de hauteur — sous 640 px il passerait à la ligne et grandirait le header : il est masqué, le Coach s'y
- * ouvre par le menu (entrée « Coach IA ») et les boutons contextuels des pages.
+ * change pas de hauteur — sous 640 px il passerait à la ligne et grandirait le header : il est masqué et le bouton
+ * flottant `CoachFab` (bas droite) prend le relais ; le Coach s'ouvre aussi par le menu (entrée « Coach IA ») et les
+ * boutons contextuels des pages.
  */
 export default function CoachTrigger() {
   const { isOpen, toggle, onFullPage } = useCoach()

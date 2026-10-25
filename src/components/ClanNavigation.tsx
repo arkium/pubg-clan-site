@@ -18,6 +18,7 @@ import { usePageData } from '@/hooks/usePageData'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
 import { DEFAULT_APP_THEME, persistAppTheme, readStoredAppTheme, type AppTheme } from '@/lib/app-theme'
 import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
+import CoachFab from '@/components/coach/CoachFab'
 import CoachTrigger from '@/components/coach/CoachTrigger'
 import { getItemRole, PERSONAL_NAV_KEYS, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
 import { isVisitorState } from '@/lib/shell-bootstrap'
@@ -1124,6 +1125,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <main className="flex flex-1 flex-col">{children}</main>
         </div>
       </div>
+
+      {/* Coach IA sous 640 px, où le bouton de l'en-tête est masqué : bouton flottant en bas à droite (§8.1, 2026-10-25). */}
+      <CoachFab />
 
       {showLogoutConfirm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 px-4 py-6">

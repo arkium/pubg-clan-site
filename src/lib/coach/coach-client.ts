@@ -18,7 +18,7 @@ export function coachProvisionalContext(path: string | null | undefined): { labe
     case 'tournament-match':
       return { label: 'Ce match', suggestions: ['Pourquoi on s’est fait sortir ?', 'Qui a fait les ouvertures ?', 'Quelles armes nous ont fait mal ?'] }
     case 'tournament':
-      return { label: 'Ce tournoi', suggestions: ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Quelle manche a fait la différence ?'] }
+      return { label: 'Ce tournoi', suggestions: ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Détaille mon résultat dans ce tournoi'] }
     case 'session':
       return { label: `Soirée du ${parsed.date.slice(8, 10)}/${parsed.date.slice(5, 7)}`, suggestions: ['Comment s’est passée cette soirée ?', 'Quelle partie a été la meilleure ?', 'Qui a porté l’escouade ?'] }
     case 'clan':
@@ -27,11 +27,14 @@ export function coachProvisionalContext(path: string | null | undefined): { labe
       if (parsed.page === 'drop-zones') return { label: 'Largages', suggestions: ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?'] }
       if (parsed.page === 'maps') return { label: 'Cartes', suggestions: ['Quelle est notre pire carte ?', 'Où est-on les plus forts ?', 'Qui porte l’escouade sur Erangel ?'] }
       if (parsed.page === 'playstyle') return { label: 'Style de jeu', suggestions: ['Qui est notre medic ?', 'On joue trop dispersés ?', 'Quels binômes marchent le mieux ?'] }
+      if (parsed.page === 'career') return { label: 'Carrière du clan', suggestions: ['Combien de kills le clan a en carrière ?', 'Qui a le plus de victoires ?', 'Je suis où au K/D dans le clan ?'] }
+      if (parsed.page === 'zone-closures') return { label: 'Fin de zone', suggestions: ['On gère bien le cercle ?', 'Qui court après la zone ?', 'Je suis souvent dehors à la fermeture ?'] }
+      if (parsed.page === 'positions') return { label: 'Positions', suggestions: ['Où le clan se bat le plus ?', 'Dans quelle ville je meurs ?', 'Où je gagne mes duels ?'] }
       break
     case 'member':
       if (parsed.page === 'weapons') return { label: 'Armes', suggestions: ['Quelle est ma meilleure arme ?', 'Beryl ou M416 ?', 'Je suis plus précis à quelle distance ?'] }
       if (parsed.page === 'nemesis') return { label: 'Adversaires', suggestions: ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?'] }
-      if (parsed.page === 'drop-zones') return { label: 'Largages', suggestions: ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?'] }
+      if (parsed.page === 'drop-zones') return { label: 'Largages', suggestions: ['Où je saute le plus ?', 'Mes hot drops valent-ils le coup ?', 'Quel spot me réussit le mieux ?'] }
       if (parsed.page === 'items') return { label: 'Objets', suggestions: ['Je me soigne assez ?', 'Quels boosts je consomme le plus ?', 'Combien de grenades je lance par partie ?'] }
       if (parsed.page === 'heatmap') return { label: 'Activité', suggestions: ['Quand est-ce que je joue le plus ?', 'Mon horaire de jeu en semaine ?', 'Combien de soirées par semaine ?'] }
       if (parsed.page === 'career') return { label: 'Carrière', suggestions: ['Résume ma carrière PUBG', 'Mon K/D est-il bon ?', 'Où en est mon palier Ranked ?'] }

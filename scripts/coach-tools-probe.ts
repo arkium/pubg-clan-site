@@ -82,6 +82,9 @@ async function main() {
   results.push(await measure('getZoneClosures', () => tools.run({ name: 'getZoneClosures', args: { period: 'month' } })))
   results.push(await measure('getOpponentRecord', () => tools.run({ name: 'getOpponentRecord', args: { clanTag: opponentTag } })))
   results.push(await measure('getDropZones', () => tools.run({ name: 'getDropZones', args: { mapName: scope.mapName } })))
+  results.push(await measure('getDropZones (toutes les cartes)', () => tools.run({ name: 'getDropZones', args: {} })))
+  results.push(await measure('getDropZones (depuis toujours)', () => tools.run({ name: 'getDropZones', args: { mapName: scope.mapName, period: 'all' } })))
+  results.push(await measure('getDropZones (joueur, semaine)', () => tools.run({ name: 'getDropZones', args: { scope: 'player', period: 'week' } })))
   results.push(await measure('getClanLeaderboard', () => tools.run({ name: 'getClanLeaderboard', args: { period: 'week' } })))
   results.push(await measure('getLeagueStanding', () => tools.run({ name: 'getLeagueStanding', args: { period: 'week' } })))
   const tournaments = (await tools.run({ name: 'getTournaments', args: { limit: 5 } })) as { tournaments?: Array<{ tournamentId: string }> }

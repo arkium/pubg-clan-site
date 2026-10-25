@@ -40,7 +40,7 @@ export const COACH_HELP_DOMAINS: CoachHelpDomain[] = [
     id: 'classements',
     title: 'Classement, Ligue et tournois',
     tools: ['getClanLeaderboard', 'getLeagueStanding', 'getTournaments', 'getTournamentResults'],
-    examples: ['Qui est en tête du clan ce mois-ci ?', 'Notre place en Ligue des clans', 'Qui a gagné le dernier tournoi ?'],
+    examples: ['Qui est en tête du clan ce mois-ci ?', 'Notre place en Ligue des clans', 'Qui a gagné le dernier tournoi ?', 'Mes kills et mes armes dans ce tournoi'],
   },
   {
     id: 'clan',

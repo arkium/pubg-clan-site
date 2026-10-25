@@ -6,11 +6,12 @@ import {
   getCityPeriodBounds,
   loadCityMatchCoverage,
   loadCityMetricCells,
-  locationForPercent,
   rankCellsByCity,
   withClanComparison,
 } from '@/lib/city-insights'
 import { CAREER_GROUPS, careerHeadline, careerRefresh, computeCareerGroups, type CareerGroupId, type CareerLifetimeStats, type CareerMember, type CareerMetric } from '@/lib/clan-career'
+import { DROP_PRESSURE_LEVELS, type DropPressureLevel } from '@/lib/drop-zone-pressure'
+import { jumpProfile, levelOfAverage, locationForPoint, mapsByJumps, memberJumpSummaries, spotStats, type LandingPoint } from '@/lib/drop-zones-view'
 import { LEAGUE_MATCH_TYPE_OPTIONS, leagueMatchTypeOption, leagueMatchTypeValues, parseLeagueMatchType } from '@/lib/clan-league'
 import { getClanLeague, type LeagueEntry } from '@/lib/clan-league-service'
 import { loadClanMapStats } from '@/lib/clan-map-stats-service'
@@ -23,7 +24,7 @@ import { statsPeriodKeys } from '@/lib/player-dashboard'
 import { prisma } from '@/lib/prisma'
 import { formatClock, phaseStartTimes } from '@/lib/pubg-telemetry/debrief-view'
 import { loadMatchDebriefPayload } from '@/lib/pubg-telemetry/match-debrief-payload'
-import { getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
+import { clamp01, getMapBounds } from '@/lib/pubg-telemetry/position-heatmap'
 import {
   cooperationSummary,
   cooperationTop,
@@ -122,9 +123,20 @@ const TACTICAL_PHASES = ['all', 'early', 'mid', 'late'] as const
 const DEBRIEF_EVENTS_MAX = 60
 const WEAPONS_MAX = 8
 const OPPONENT_PLAYERS_MAX = 200
-const DROP_ROWS_MAX = 2000
-const DROP_DAYS = 90
+/**
+ * Sauts lus au plus : une ligne par membre et par partie. L'ancienne borne (2 000) couvrait six semaines d'Erangel sur
+ * un clan actif en se disant « 90 jours » (fil 9, 2026-10-25) ; 20 000 couvre « depuis toujours » sur les plus gros.
+ */
+const DROP_ROWS_MAX = 20000
+const DROP_PERIODS = ['days-90', 'week', 'month', 'all'] as const
+type DropPeriod = (typeof DROP_PERIODS)[number]
+const DROP_DEFAULT_PERIOD: DropPeriod = 'days-90'
+const DROP_PERIOD_LABELS: Record<DropPeriod, string> = { 'days-90': 'les 90 derniers jours', week: 'cette semaine', month: 'ce mois', all: 'depuis toujours' }
 const DROP_ZONES_MAX = 8
+const DROP_MAPS_MAX = 8
+const DROP_MEMBERS_MAX = 10
+/** Sous ce nombre de parties, les placements d'un spot ne disent pas grand-chose. */
+const DROP_SPOT_LOW_SAMPLE = 10
 const LEADERBOARD_MAX = 15
 const ITEMS_MAX = 10
 const SCHEDULE_MATCHES_MAX = 3000
@@ -134,6 +146,7 @@ const TOURNAMENTS_DEFAULT = 5
 const TOURNAMENT_STANDINGS_MAX = 20
 const TOURNAMENT_ROUNDS_MAX = 15
 const TOURNAMENT_ROUND_PODIUM = 3
+const TOURNAMENT_WEAPONS_MAX = 6
 const TOURNAMENT_DESCRIPTION_MAX = 300
 const TOURNAMENT_PHASES = ['live', 'upcoming', 'finished'] as const
 const TOURNAMENT_PHASE_LABELS: Record<TournamentPhase, string> = { draft: 'brouillon', upcoming: 'à venir', live: 'en cours', finished: 'terminé' }
@@ -209,11 +222,20 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   },
   {
     name: 'getDropZones',
-    description: `Zones de largage du clan sur une carte (${DROP_DAYS} derniers jours) : villes, fréquence, pression à l'atterrissage, placements obtenus.`,
+    description:
+      "Largages du clan ou d'un joueur (page « Zones de drop ») : où ils atterrissent en parachute. Un saut = l'atterrissage d'un membre ; une partie compte autant de sauts que de membres du clan. Sans carte : chaque carte avec ses sauts, son spot favori et ses trois premiers spots — pour « nos drops favoris », « où je saute ? ». Avec une carte : profil de saut (pression = adversaires à moins de 250 m, part de hot drops), spots du plus fréquenté au moins fréquenté avec pression, roi du spot et placements des parties qui y ont atterri, sauts hors des villes à part (ce n'est pas un spot), et qui saute où. Pour « où atterrir sur Miramar ? », « nos hot drops valent le coup ? ». Pas les combats dans une ville (getCityInsights).",
     parameters: {
       type: 'object',
-      properties: { mapName: { type: 'string', description: 'Carte.' } },
-      required: ['mapName'],
+      properties: {
+        mapName: { type: 'string', description: 'Carte (Erangel, Miramar, Rondo…), facultatif : sans carte, toutes les cartes.' },
+        period: {
+          type: 'string',
+          enum: [...DROP_PERIODS],
+          description: `« ${DROP_DEFAULT_PERIOD} » (les 90 derniers jours, défaut), « week » (cette semaine, depuis lundi), « month » (ce mois) ou « all » (depuis toujours).`,
+        },
+        scope: { type: 'string', enum: ['clan', 'player'], description: '« clan » (tout le clan, défaut) ou « player » (le joueur seul : « mes drops »).' },
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan (implique scope « player »), facultatif.' },
+      },
     },
   },
   {
@@ -253,10 +275,13 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
     name: 'getTournamentResults',
     description:
-      "Détail d'un tournoi : barème, classement complet selon le mode (points, kills, Top 1, place moyenne), place du clan du joueur, chaque manche (carte, vainqueur, MVP, podium de la manche, score du clan du joueur), MVP du tournoi. L'identifiant vient de getTournaments ou de la page consultée.",
+      "Détail d'un tournoi : barème, classement complet selon le mode (points, kills, Top 1, place moyenne), place du clan du joueur, chaque manche (carte, vainqueur, MVP, podium de la manche, score du clan du joueur), MVP du tournoi ; et le joueur lui-même (« you ») — sa place en jeu, ses kills et ses dégâts manche par manche, les manches où il a été MVP, ses armes dans le tournoi — plus les armes de son clan. Pour « mon résultat dans ce tournoi », « mes armes du tournoi », « qui a gagné ? ». L'identifiant vient de getTournaments ou de la page consultée. Les armes de tout son historique, c'est getWeaponStats.",
     parameters: {
       type: 'object',
-      properties: { tournamentId: { type: 'string', description: 'Identifiant du tournoi.' } },
+      properties: {
+        tournamentId: { type: 'string', description: 'Identifiant du tournoi.' },
+        playerName: { type: 'string', description: 'Membre du clan dont donner la ligne (« you ») ; le joueur par défaut.' },
+      },
       required: ['tournamentId'],
     },
   },
@@ -937,55 +962,169 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
   }
 
   async function getDropZones(args: ToolArgs) {
-    const requested = text(args.mapName)
+    const requestedPeriod = text(args.period) as DropPeriod
+    const period: DropPeriod = DROP_PERIODS.includes(requestedPeriod) ? requestedPeriod : DROP_DEFAULT_PERIOD
+    const playerScope = text(args.scope) === 'player' || text(args.playerName) !== ''
+    const resolved = playerScope ? await resolveMember(args.playerName) : null
+    if (resolved && 'error' in resolved) return resolved
+    const memberId = resolved && 'memberId' in resolved ? resolved.memberId : null
     const labels = await getMapLabels()
-    const rawMaps = resolveMapNames(requested, labels)
-    if (rawMaps.length === 0) return { error: 'map_not_found', message: `Carte inconnue : ${requested || '(vide)'}.` }
-    const since = new Date(Date.now() - DROP_DAYS * 24 * 60 * 60 * 1000)
+    const requestedMap = text(args.mapName)
+    const rawMaps = requestedMap ? resolveMapNames(requestedMap, labels) : []
+    if (requestedMap && rawMaps.length === 0) return { error: 'map_not_found', message: `Carte inconnue : ${requestedMap}.` }
+    const range = period === 'all' ? null : getPeriodRange(period)
+
+    // Les plus récents d'abord ; à égalité de date, par partie, pour qu'une coupe tombe entre deux parties.
     const [rows, locations] = await Promise.all([
       prisma.dropPressureStat.findMany({
-        where: { member: { clanId: scope.clanId }, mapName: { in: rawMaps }, matchDate: { gte: since } },
-        orderBy: { matchDate: 'desc' },
-        take: DROP_ROWS_MAX,
-        select: { squadMatchId: true, mapName: true, x: true, y: true, nearbyPlayerCount250m: true, pressureLevel: true, squadMatch: { select: { placement: true } } },
+        where: {
+          member: { clanId: scope.clanId },
+          ...(memberId ? { memberId } : {}),
+          ...(rawMaps.length > 0 ? { mapName: { in: rawMaps } } : {}),
+          ...(range ? { matchDate: { gte: range.start, lt: range.end } } : {}),
+        },
+        orderBy: [{ matchDate: 'desc' }, { squadMatchId: 'asc' }],
+        take: DROP_ROWS_MAX + 1,
+        select: {
+          squadMatchId: true,
+          memberId: true,
+          mapName: true,
+          x: true,
+          y: true,
+          matchDate: true,
+          nearbyPlayerCount250m: true,
+          nearbyOpponentCount250m: true,
+          pressureLevel: true,
+          squadMatch: { select: { placement: true } },
+          member: { select: { displayName: true } },
+        },
       }),
       getMapLocations(),
     ])
-
-    // Une escouade atterrit ensemble : une ligne par partie suffit (la première rencontrée, la plus récente).
-    const byMatch = new Map<string, (typeof rows)[number]>()
-    for (const row of rows) if (!byMatch.has(row.squadMatchId)) byMatch.set(row.squadMatchId, row)
-
-    type Zone = { landings: number; nearby: number; hot: number; placements: number[] }
-    const zones = new Map<string, Zone>()
-    for (const row of byMatch.values()) {
-      const bounds = getMapBounds(row.mapName)
-      const city = locationForPercent((row.x / bounds.width) * 100, (row.y / bounds.height) * 100, locations[row.mapName] ?? [])
-      const key = city?.name ?? 'Hors ville'
-      const zone = zones.get(key) ?? { landings: 0, nearby: 0, hot: 0, placements: [] }
-      zone.landings += 1
-      zone.nearby += row.nearbyPlayerCount250m
-      if (row.pressureLevel === 'hot' || row.pressureLevel === 'very_hot') zone.hot += 1
-      zone.placements.push(row.squadMatch.placement)
-      zones.set(key, zone)
+    let kept = rows
+    const truncated = rows.length > DROP_ROWS_MAX
+    if (truncated) {
+      // La partie coupée en deux est retirée entière : ses sauts ne comptent ni à moitié ni deux fois.
+      const cut = rows[DROP_ROWS_MAX].squadMatchId
+      kept = rows.slice(0, DROP_ROWS_MAX).filter((row) => row.squadMatchId !== cut)
     }
-    const ranked = [...zones.entries()]
-      .sort((a, b) => b[1].landings - a[1].landings)
-      .map(([zone, stats]) => ({
-        zone,
-        landings: stats.landings,
-        avgNearbyPlayers250m: Math.round((stats.nearby / stats.landings) * 10) / 10,
-        hotDropPercent: Math.round((stats.hot / stats.landings) * 100),
-        avgPlacement: Math.round((stats.placements.reduce((sum, value) => sum + value, 0) / stats.placements.length) * 10) / 10,
-        top10Percent: Math.round((stats.placements.filter((placement) => placement <= 10).length / stats.placements.length) * 100),
-        winPercent: Math.round((stats.placements.filter((placement) => placement === 1).length / stats.placements.length) * 100),
-      }))
+    const placementOf = new Map(kept.map((row) => [row.squadMatchId, row.squadMatch.placement]))
+    const points: LandingPoint[] = kept.map((row) => {
+      const bounds = getMapBounds(row.mapName)
+      return {
+        memberId: row.memberId,
+        memberName: row.member.displayName,
+        matchId: row.squadMatchId,
+        mapName: row.mapName,
+        x: row.x,
+        y: row.y,
+        xPct: clamp01(row.x / bounds.width) * 100,
+        yPct: clamp01(row.y / bounds.height) * 100,
+        nearbyPlayerCount250m: row.nearbyPlayerCount250m,
+        nearbyOpponentCount250m: row.nearbyOpponentCount250m,
+        pressureLevel: (DROP_PRESSURE_LEVELS[row.pressureLevel as DropPressureLevel] ? row.pressureLevel : 'calm') as DropPressureLevel,
+      }
+    })
+    /** Placements des parties (pas des sauts : une partie à quatre ne compte qu'une fois). */
+    const placementsOf = (subset: readonly LandingPoint[]) => {
+      const placements = [...new Set(subset.map((point) => point.matchId))].map((id) => placementOf.get(id) ?? 0).filter((placement) => placement > 0)
+      const summary = placementSummary(placements)
+      return summary
+        ? { avgPlacement: summary.avgPlacement, top10Percent: summary.top10Percent, winPercent: summary.winRatePercent, ...(summary.matches < DROP_SPOT_LOW_SAMPLE ? { lowSample: true } : {}) }
+        : {}
+    }
+    const level = (average: number) => DROP_PRESSURE_LEVELS[levelOfAverage(average)].label
+    const base = {
+      scope: resolved && 'memberName' in resolved ? resolved.memberName : 'le clan',
+      period: DROP_PERIOD_LABELS[period],
+      since: kept.length > 0 ? kept[kept.length - 1].matchDate.toISOString() : null,
+      truncated,
+    }
+    const note =
+      "Un saut = l'atterrissage d'un membre (une partie compte autant de sauts que de membres du clan) ; pression = adversaires à moins de 250 m à l'atterrissage, coéquipiers exclus ; « sharePercent » = part des sauts de la carte ; placements calculés par partie, « lowSample » sous " +
+      `${DROP_SPOT_LOW_SAMPLE} parties. Les sauts hors des villes configurées ne sont pas un spot.` +
+      (truncated ? ' Trop de sauts : les plus anciens manquent, « since » dit d’où part la lecture.' : '')
+
+    if (points.length === 0) {
+      return { ...base, map: rawMaps.length > 0 ? mapDisplayName(rawMaps[0], labels) : 'toutes les cartes', jumps: 0, message: 'Aucun saut enregistré sur la période.' }
+    }
+
+    if (rawMaps.length === 0) {
+      // Toutes les cartes : la question « nos drops favoris » n'en nomme aucune.
+      const maps = mapsByJumps(points)
+      return {
+        ...base,
+        map: 'toutes les cartes',
+        jumps: points.length,
+        matches: placementOf.size,
+        maps: maps.slice(0, DROP_MAPS_MAX).map((mapName) => {
+          const mapPoints = points.filter((point) => point.mapName === mapName)
+          const spots = spotStats(mapPoints, locations[mapName] ?? [])
+          const inCities = spots.reduce((sum, spot) => sum + spot.count, 0)
+          return {
+            map: mapDisplayName(mapName, labels),
+            jumps: mapPoints.length,
+            sharePercent: Math.round((mapPoints.length / points.length) * 100),
+            matches: new Set(mapPoints.map((point) => point.matchId)).size,
+            favoriteSpot: spots[0] ? { spot: spots[0].location.name, jumps: spots[0].count, sharePercent: Math.round(spots[0].share), level: level(spots[0].average) } : null,
+            topSpots: spots.slice(0, 3).map((spot) => `${spot.location.name} ${spot.count} (${Math.round(spot.share)} %)`).join(' · '),
+            outsideCitiesPercent: Math.round(((mapPoints.length - inCities) / mapPoints.length) * 100),
+            hotDropPercent: Math.round(jumpProfile(mapPoints).hotDropShare),
+          }
+        }),
+        mapsTruncated: maps.length > DROP_MAPS_MAX,
+        note,
+      }
+    }
+
+    const profile = jumpProfile(points)
+    const spots = spotStats(points, locations[rawMaps[0]] ?? [])
+    const inCities = new Set<LandingPoint>()
+    const enabled = (locations[rawMaps[0]] ?? []).filter((location) => location.enabled)
+    for (const point of points) if (locationForPoint(point, enabled)) inCities.add(point)
+    const outside = points.filter((point) => !inCities.has(point))
+    const members = memberJumpSummaries(points, locations[rawMaps[0]] ?? [])
+    const memberLine = (member: (typeof members)[number]) => ({
+      player: member.name,
+      jumps: member.jumps,
+      favoriteSpot: member.favorite ? `${member.favorite.name} (${member.favorite.count})` : 'hors des villes',
+      avgOpponents250m: round1(member.average),
+      level: DROP_PRESSURE_LEVELS[member.level].label,
+    })
+    const you = members.find((member) => member.memberId === scope.memberId)
     return {
+      ...base,
       map: mapDisplayName(rawMaps[0], labels),
-      days: DROP_DAYS,
-      matches: byMatch.size,
-      zones: ranked.slice(0, DROP_ZONES_MAX),
-      zonesTruncated: ranked.length > DROP_ZONES_MAX,
+      profile: {
+        jumps: profile.jumps,
+        matches: profile.matches,
+        avgOpponents250m: round1(profile.average),
+        maxOpponents250m: profile.maximum,
+        hotDropPercent: Math.round(profile.hotDropShare),
+        distribution: profile.distribution.map((entry) => `${entry.label} ${Math.round(entry.share)} %`).join(' · '),
+      },
+      favoriteSpot: spots[0] ? { spot: spots[0].location.name, jumps: spots[0].count, sharePercent: Math.round(spots[0].share), level: level(spots[0].average), king: spots[0].king ? `${spots[0].king.name} (${spots[0].king.count})` : null } : null,
+      spots: spots.slice(0, DROP_ZONES_MAX).map((spot) => ({
+        spot: spot.location.name,
+        jumps: spot.count,
+        sharePercent: Math.round(spot.share),
+        matches: spot.matches,
+        avgOpponents250m: round1(spot.average),
+        hotDropPercent: Math.round(spot.hotDropShare),
+        level: level(spot.average),
+        king: spot.king ? `${spot.king.name} (${spot.king.count})` : null,
+        ...placementsOf(points.filter((point) => locationForPoint(point, enabled)?.id === spot.location.id)),
+      })),
+      spotsTruncated: spots.length > DROP_ZONES_MAX,
+      outsideCities: outside.length > 0 ? { jumps: outside.length, sharePercent: Math.round((outside.length / points.length) * 100), ...placementsOf(outside) } : null,
+      ...(memberId
+        ? {}
+        : {
+            members: members.slice(0, DROP_MEMBERS_MAX).map(memberLine),
+            membersTruncated: members.length > DROP_MEMBERS_MAX,
+            you: you ? memberLine(you) : null,
+          }),
+      note,
     }
   }
 
@@ -1814,6 +1953,52 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     const mineBeyond = standings.slice(TOURNAMENT_STANDINGS_MAX).filter((row) => mineKeys.has(row.key))
     const mvp = pickMvp(matches, members, clans)
 
+    // « Mon résultat » : la ligne du joueur (ou d'un autre membre du clan) manche par manche, et ses armes — la page du
+    // tournoi classe des clans ou des équipes, pas le joueur (fil 10 du 2026-10-25).
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const matchIds = matches.map((match) => match.id)
+    const killRows = matchIds.length > 0
+      ? await prisma.killEvent.findMany({
+          where: { squadMatchId: { in: matchIds }, killerMemberId: { not: null }, killerMember: { clanId: scope.clanId } },
+          select: { killerMemberId: true, weaponName: true, headshot: true, distance: true },
+        })
+      : []
+    const weaponLabels = killRows.length > 0 ? await getWeaponLabels() : {}
+    const weaponsOf = (rows: typeof killRows) => {
+      const byWeapon = new Map<string, { kills: number; headshots: number; distanceSum: number; distanceCount: number }>()
+      for (const row of rows) {
+        const name = row.weaponName ? weaponDisplayName(row.weaponName, weaponLabels) : 'Arme inconnue'
+        const entry = byWeapon.get(name) ?? { kills: 0, headshots: 0, distanceSum: 0, distanceCount: 0 }
+        entry.kills += 1
+        if (row.headshot) entry.headshots += 1
+        // Distance du kill feed en centimètres, comme les statistiques d'armes.
+        if (typeof row.distance === 'number' && row.distance > 0) {
+          entry.distanceSum += row.distance / 100
+          entry.distanceCount += 1
+        }
+        byWeapon.set(name, entry)
+      }
+      return [...byWeapon.entries()]
+        .sort((a, b) => b[1].kills - a[1].kills || a[0].localeCompare(b[0], 'fr'))
+        .slice(0, TOURNAMENT_WEAPONS_MAX)
+        .map(([weapon, stats]) => ({ weapon, kills: stats.kills, headshots: stats.headshots, ...(stats.distanceCount > 0 ? { avgDistanceM: Math.round(stats.distanceSum / stats.distanceCount) } : {}) }))
+    }
+    const ownRounds = rounds.flatMap((round) => {
+      const line = matches.find((match) => match.id === round.matchId)?.members.find((row) => row.memberId === resolved.memberId)
+      if (!line) return []
+      return [{
+        round: round.index,
+        map: round.mapName ? mapDisplayName(round.mapName, labels) : null,
+        gamePlacement: line.placement,
+        kills: line.kills,
+        damage: Math.round(line.damage),
+        ...(round.mvp?.memberId === resolved.memberId ? { mvpOfRound: true } : {}),
+      }]
+    })
+    const ownKills = killRows.filter((row) => row.killerMemberId === resolved.memberId)
+    const ownPlacements = placementSummary(ownRounds.map((line) => line.gamePlacement))
+
     return {
       tournamentId: tournament.id,
       title: tournament.title,
@@ -1835,10 +2020,29 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         map: round.mapName ? mapDisplayName(round.mapName, labels) : null,
         winner: round.winnerLabel,
         mvp: round.mvp ? { label: round.mvp.label, kills: round.mvp.kills } : null,
-        podium: round.scores.slice(0, TOURNAMENT_ROUND_PODIUM).map((score, index) => ({ rank: index + 1, label: score.label, points: round1(score.points), kills: score.totalKills, placement: score.bestPlacement })),
-        yourClan: round.scores.filter((score) => mineKeys.has(score.key)).map((score) => ({ rank: round.scores.indexOf(score) + 1, label: score.label, points: round1(score.points), kills: score.totalKills, placement: score.bestPlacement })),
+        podium: round.scores.slice(0, TOURNAMENT_ROUND_PODIUM).map((score, index) => ({ roundRank: index + 1, label: score.label, points: round1(score.points), kills: score.totalKills, gamePlacement: score.bestPlacement })),
+        yourClan: round.scores.filter((score) => mineKeys.has(score.key)).map((score) => ({ roundRank: round.scores.indexOf(score) + 1, label: score.label, points: round1(score.points), kills: score.totalKills, gamePlacement: score.bestPlacement })),
       })),
-      note: 'Même calcul que la page du tournoi ; les pseudos des autres clans sont ceux des joueurs suivis par le site.',
+      you: {
+        player: resolved.memberName,
+        roundsPlayed: ownRounds.length,
+        ...(ownPlacements
+          ? {
+              kills: ownRounds.reduce((sum, line) => sum + line.kills, 0),
+              damage: ownRounds.reduce((sum, line) => sum + line.damage, 0),
+              avgGamePlacement: ownPlacements.avgPlacement,
+              bestGamePlacement: ownPlacements.bestPlacement,
+              mvpRounds: ownRounds.filter((line) => line.mvpOfRound).map((line) => line.round),
+            }
+          : {}),
+        rounds: ownRounds,
+        weapons: weaponsOf(ownKills),
+        weaponKills: ownKills.length,
+      },
+      clanWeapons: weaponsOf(killRows),
+      clanWeaponKills: killRows.length,
+      note:
+        "Même calcul que la page du tournoi ; les pseudos des autres clans sont ceux des joueurs suivis par le site. « rank » et « roundRank » : classement aux points du barème (général ou de la manche) ; « placement », « gamePlacement » et leurs moyennes : place en jeu de la partie (Top 1 = 1) — ne pas confondre. « you » : le joueur lui-même, manche par manche ; « yourClan » : son clan. Armes : kills de la télémétrie, qui peuvent être moins nombreux que ceux du tableau de score (« weaponKills », « clanWeaponKills » contre « kills ») : dis-le si l'écart est visible.",
     }
   }
 

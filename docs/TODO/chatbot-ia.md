@@ -44,6 +44,8 @@ d'inscrire son clan.
 | 2026-10-24 | Cartes | Outil `getMapPerformance` (§5.2) pour la page « Cartes » ; panoplie bornée à 11 outils pour éviter la fatigue de sélection du modèle | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Loot | « Mon loot » = les objets consommés et lancés (soins, boosts, grenades), pas les largages : outil `getItemUsage` (§5.2) et vocabulaire dans le prompt ; le site ne connaît pas le contenu du sac et l'outil le dit | Utilisateur |
 | 2026-10-24 | Tournois | Deux outils **publics** (`getTournaments`, `getTournamentResults`, §5.2) et le contexte `/tournaments/[id]` : les tournois sont des pages publiques, le clan du joueur ne sert qu'à le situer ; demandé après l'essai connecté (« qui a gagné le tournoi ? » refusé) | Utilisateur |
+| 2026-10-25 | Tournoi : le joueur | Fil 10, page d'un tournoi : « détaille mon résultat » a rendu le bilan **du clan** au tutoiement (l'outil n'avait aucune ligne pour le joueur), le rang de la manche aux points pris pour la place en jeu (« 5e place » pour une 12e place) ; « les armes les plus utiles ? » a lu les armes de tout l'historique sans le dire ; « je parle du tournoi » : « aucune statistique par arme », alors que le kill feed des quatre manches est en base. **Décidé :** `getTournamentResults` rend `you` (manches, totaux, MVP, armes du tournoi) et `clanWeapons`, champs `roundRank` / `gamePlacement` ; sur la page d'un tournoi, une question porte sur ce tournoi sauf mention contraire, « mon résultat » = `you` | Utilisateur |
+| 2026-10-25 | Largages et outils en échec | Fil 9, suite : « liste des drops favoris ? » puis « et cette semaine ? » ont reçu **le même** résultat (`getDropZones` n'avait pas de période), étiqueté « cette semaine » ; 2 000 lignes lues au lieu de 90 jours ; « Hors ville » en tête. Plus tôt dans le même fil, deux réponses chiffrées après `getSessions` (« 20 parties samedi », « 15 vendredi ») ne correspondent à **aucune** soirée en base, le même appel rendant les bons chiffres 30 s plus tard — outil probablement en échec, chiffres inventés. **Décidé :** `getDropZones` réécrit sur les calculs de la page (période, joueur, toutes les cartes, sauts et non parties, hors-ville à part, pression en adversaires, borne à 20 000) ; règles du prompt « un résultat dit sa période et son périmètre » et « outil en échec : aucun chiffre » ; nombres à la française ; marque `unverified` aussi quand tous les appels ont échoué, issue de chaque appel dans l'audit ; contexte de la page des largages d'un joueur | Utilisateur |
 | 2026-10-25 | Soirées et calculs | Analyse d'un fil de production (clan 25, fil 9) : « combien de Top 1 samedi ? » répondu depuis `getRecentMatches` (10 parties sur 31), « aucune partie vendredi » (55 en base), moyenne fausse (10,9 pour 13,0), « vous » dans les conseils. **Décidé :** outil **`getSessions`** (bilan par soirée calculé par le serveur, date ou plage, 06:00 à 06:00 par `sessionStartOf`) ; `truncated` et résumé calculé (`summary`) dans `getRecentMatches` ; règles du prompt « ne calcule rien toi-même », « une liste bornée ne prouve pas une absence », bloc « Choix de l'outil », tutoiement de la recommandation ; les outils de période gardent la semaine des pages (lundi minuit) et le disent dans leur `note` — le Coach ne contredit pas l'écran | Utilisateur |
 
 **Propositions confirmées le 2026-10-24** (elles ont valeur de décision) :
@@ -364,8 +366,16 @@ affiché dans `/settings/configuration` (section « Coach IA »).
    `aggregateMemberWeapons`, 8 armes au plus ; un autre joueur n'est cherché que dans le clan.
 4. `getOpponentRecord({ clanTag })` — `OpponentClan` → ses joueurs (200 au plus) → `KillEvent` du clan : kills
    échangés, matchs avec combat, tueurs et armes adverses, dernière rencontre (`ClanEncounter`).
-5. `getDropZones({ mapName })` — `DropPressureStat` des 90 derniers jours (une ligne par partie), ville par
-   `locationForPercent`, pression, placement moyen, Top 10 et Top 1 par ville.
+5. `getDropZones({ mapName?, period?, scope?, playerName? })` — `DropPressureStat` (une ligne par saut : membre ×
+   partie) lue par les fonctions de la page (`drop-zones-view.ts` : `spotStats`, `jumpProfile`, `memberJumpSummaries`,
+   `mapsByJumps`). Sans carte : chaque carte, son spot favori et ses trois premiers spots ; avec une carte : profil de
+   saut, spots (pression en **adversaires**, roi du spot, placements **par partie**, `lowSample` sous 10 parties),
+   hors-ville **à part**, qui saute où et la ligne du joueur ; `scope: 'player'` ou `playerName` pour « mes drops ».
+   Période : 90 derniers jours (défaut), semaine, mois, depuis toujours. Borne de 20 000 sauts, la partie coupée retirée
+   entière, `truncated` et `since`. **Réécrit le 2026-10-25** (§0 « Largages ») : l'ancienne version comptait les
+   parties au lieu des sauts, mettait « Hors ville » en tête des spots, mesurait la pression avec les coéquipiers, et
+   s'arrêtait à 2 000 lignes — six semaines d'Erangel sur le clan 25 (877 parties sur 1 373) en se disant « 90 jours ».
+   Mesuré : 300 à 380 ms, ≈ 950 tokens pour une carte, ≈ 670 sans carte, 50 ms pour un joueur sur la semaine.
 6. `getClanLeaderboard({ period?, sortBy? })` — `PlayerStats` de la période (`statsPeriodKeys`, agrégats de 03:00) :
    15 membres au plus, le joueur situé, sans identifiant. Ajouté le 2026-10-24 après l'essai connecté : « quels
    membres freinent le clan en ligue ? » restait sans réponse.
@@ -375,10 +385,15 @@ affiché dans `/settings/configuration` (section « Coach IA »).
 8. `getTournaments({ status?, search?, limit? })` — `listTournamentOverviews` (cache 5 min) : tournois publiés du site,
    vainqueur ou leader, podium, place du clan quand elle est connue. Ajouté le 2026-10-24 après l'essai connecté :
    sur la page d'un tournoi, « qui a gagné le tournoi ? » était refusé (« tournoi extérieur »).
-9. `getTournamentResults({ tournamentId })` — même moteur que la page du tournoi (`computeTournamentModeStandings`,
-   `buildRoundViews`, `pickMvp`) : barème, classement (20 lignes + celle du clan), manches avec podium et score du
-   clan, MVP. Tournois = pages **publiques**, quel que soit l'organisateur ; un brouillon reste invisible. Contexte
-   `/tournaments/[id]` reconnu (étiquette « Tournoi · titre », suggestions selon la phase).
+9. `getTournamentResults({ tournamentId, playerName? })` — même moteur que la page du tournoi
+   (`computeTournamentModeStandings`, `buildRoundViews`, `pickMvp`) : barème, classement (20 lignes + celle du clan),
+   manches avec podium et score du clan, MVP. Tournois = pages **publiques**, quel que soit l'organisateur ; un
+   brouillon reste invisible. Contexte `/tournaments/[id]` reconnu (étiquette « Tournoi · titre », suggestions selon la
+   phase). **Depuis le 2026-10-25** (§0 « Tournoi : le joueur ») : `you` — le joueur lui-même (ou un membre du clan par
+   `playerName`) manche par manche (place en jeu, kills, dégâts, MVP de la manche), ses totaux et **ses armes du
+   tournoi** (`KillEvent` des manches, distances du kill feed en centimètres) — et `clanWeapons` ; champs des manches
+   renommés `roundRank` (rang aux points) et `gamePlacement` (place en jeu), que le modèle confondait. Mesuré sur le
+   clan 25 : ≈ 1 400 tokens, 520 ms.
 10. `getItemUsage({ playerName?, period? })` — `loadItemUseStats` (page « Objets consommés », famille `None` exclue)
     + `MemberThrowableStat` : soins, boosts, carburant, gadgets par famille et par objet, par partie, comparé au clan
     (moyenne par joueur et par partie, rang, plus gros consommateur) ; grenades lancées. Ajouté le 2026-10-24 après
@@ -431,9 +446,11 @@ Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, m
 - **Anti-hallucination :** tout chiffre vient d'un outil. Sans donnée, le Coach le dit.
 - **Hors sujet** (devoirs, code, autre jeu) : refus en une phrase et **une question possible, sans aucun chiffre** —
   « refuse et ramène au jeu » seul a fait inventer une analyse complète à `3.1-flash-lite` (§3.4).
-- **Garde-fou serveur :** une réponse qui contient des chiffres alors qu'aucun outil n'a été appelé dans le tour est
-  marquée `unverified` (`CoachMessage.toolCalls` vide + chiffres) ; le tiroir l'affiche sous un bandeau « Chiffres non
-  vérifiés par les données » et elle remonte dans l'onglet Questions du SuperUser.
+- **Garde-fou serveur :** une réponse qui contient des chiffres alors qu'aucun outil n'a rendu de données dans le tour
+  — aucun appel, ou des appels tous en échec (exception ou résultat `{ error }`) — est marquée `unverified` ; le tiroir
+  l'affiche sous un bandeau « Chiffres non vérifiés par les données » et elle remonte dans l'onglet Questions du
+  SuperUser. L'audit `CoachMessage.toolCalls` garde l'issue de chaque appel (`failed: 'exception'` ou le code d'erreur),
+  depuis le 2026-10-25 : le fil 9 avait des réponses chiffrées introuvables en base après un appel d'outil.
 - **Données ≠ consignes :** pseudos et noms de clan renvoyés par les outils sont saisis par des tiers ; le prompt
   système les traite comme du texte.
 
@@ -978,6 +995,16 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
       zone », « Ta carrière, celle du clan… ») ; prompt : lignes « un lieu » et « carrière » du bloc « Choix de
       l'outil » ; sonde ; tests (`coach-tools.test.ts` : 6 cas, `city-insights.test.ts` : `rankCellsByCity`).
       Dix-neuf outils : au-delà d'une vingtaine, surveiller la fatigue de sélection du modèle (§13)
+- [x] Largages et outils en échec (décision du 2026-10-25, §0) : `getDropZones` réécrit (§5.2 n° 5) ; prompt
+      (périmètre et période annoncés, outil en échec sans chiffre, nombres à la française, « mes drops » et drops sans
+      carte dans « Choix de l'outil ») ; `isUnverifiedAnswer` compte les appels qui ont rendu des données,
+      `toolResultError`, audit `failed` ; contexte `/members/[id]/drop-zones` avec le nom du joueur, suggestions
+      provisoires des pages carrière du clan, fin de zone et positions (`coach-client.ts`). Tests : `coach-tools.test.ts`
+      (4 cas), `coach-route-contracts.test.ts` (outil en échec, résultat en erreur, résultat exploitable), contextes
+- [x] Tournoi : le joueur (décision du 2026-10-25, §0) : `getTournamentResults` avec `you`, `clanWeapons`,
+      `roundRank` / `gamePlacement`, `playerName` (§5.2 n° 9) ; bloc de contexte du tournoi (« mon résultat », « mes
+      armes ») ; suggestion « Détaille mon résultat dans ce tournoi » ; exemple dans l'aide. Tests : `coach-tools.test.ts`
+      (ligne du joueur, armes, autre membre, membre absent), `coach-context.test.ts`
 
 ### Lot 10 — Règles apprises (décision du 2026-10-25, [coach-ia-pistes.md §6.3](coach-ia-pistes.md))
 

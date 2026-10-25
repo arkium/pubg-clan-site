@@ -97,7 +97,8 @@ export type CoachResolvedContext =
   | { kind: 'playstyle'; memberId: number | null; memberName: string | null }
   | { kind: 'players' }
   | { kind: 'opponents' }
-  | { kind: 'drop-zones' }
+  /** `memberName` : la page des largages d'un joueur (`/members/[id]/drop-zones`), vérifié membre du clan. */
+  | { kind: 'drop-zones'; memberName?: string }
   | { kind: 'maps' }
   | { kind: 'clan-career' }
   | { kind: 'zone-closures' }
@@ -144,7 +145,7 @@ export function coachContextLabel(context: CoachResolvedContext): string | null 
     case 'opponents':
       return 'Adversaires du clan'
     case 'drop-zones':
-      return 'Zones de largage'
+      return context.memberName ? `Largages de ${context.memberName}` : 'Zones de largage'
     case 'maps':
       return 'Cartes du clan'
     case 'clan-career':
@@ -186,7 +187,9 @@ export function coachSuggestions(context: CoachResolvedContext): string[] {
     case 'opponents':
       return ['Quel clan nous bat le plus ?', 'Qui est notre pire adversaire ?', 'Comment battre ce clan ?']
     case 'drop-zones':
-      return ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?']
+      return context.memberName
+        ? ['Où je saute le plus ?', 'Mes hot drops valent-ils le coup ?', 'Quel spot me réussit le mieux ?']
+        : ['Où atterrir sur Erangel ?', 'Nos hot drops valent-ils le coup ?', 'Quelle zone nous réussit le mieux ?']
     case 'maps':
       return ['Quelle est notre pire carte ?', 'Où est-on les plus forts ?', 'Qui porte l’escouade sur Erangel ?']
     case 'clan-career':
@@ -196,7 +199,7 @@ export function coachSuggestions(context: CoachResolvedContext): string[] {
     case 'cities':
       return ['Où le clan se bat le plus ?', 'Dans quelle ville je meurs ?', 'Où je gagne mes duels ?']
     case 'tournament':
-      if (context.phase === 'finished') return ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Quelle manche a fait la différence ?']
+      if (context.phase === 'finished') return ['Qui a gagné le tournoi ?', 'Comment s’est classé notre clan ?', 'Détaille mon résultat dans ce tournoi']
       if (context.phase === 'live') return ['Qui est en tête ?', 'Où en est notre clan ?', 'Qui est le MVP pour l’instant ?']
       return ['Quand commence le tournoi ?', 'Quel est le barème ?', 'Qui l’organise ?']
     case 'none':
@@ -232,7 +235,9 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
     case 'opponents':
       return 'Page consultée : adversaires du clan. Appelle getOpponentRecord avec le tag du clan adverse demandé.'
     case 'drop-zones':
-      return 'Page consultée : zones de largage (et, sur la page d’un joueur, ses villes). Appelle getDropZones avec la carte demandée ; pour les villes et zones de combat, getCityInsights.'
+      return context.memberName
+        ? `Page consultée : largages de ${context.memberName}. Appelle getDropZones avec playerName « ${context.memberName} » (et mapName si la question vise une carte) ; pour ses villes et zones de combat, getCityInsights avec le même playerName.`
+        : 'Page consultée : zones de largage du clan. Appelle getDropZones (avec mapName si la question vise une carte) ; pour les villes et zones de combat, getCityInsights.'
     case 'maps':
       return 'Page consultée : cartes du clan (performance carte par carte). Appelle getMapPerformance, avec mapName si la question vise une carte.'
     case 'clan-career':
@@ -242,7 +247,7 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
     case 'cities':
       return 'Page consultée : cartographie des positions du clan. Appelle getCityInsights avec scope « clan » pour les villes et zones de combat, getDropZones pour les largages.'
     case 'tournament':
-      return `Page consultée : tournoi « ${shortTitle(context.title)} » (identifiant ${context.tournamentId}, ${TOURNAMENT_PHASE_LABELS[context.phase]}). Pour toute question sur ce tournoi (vainqueur, classement, manches, barème, place du clan), appelle getTournamentResults avec tournamentId « ${context.tournamentId} ».`
+      return `Page consultée : tournoi « ${shortTitle(context.title)} » (identifiant ${context.tournamentId}, ${TOURNAMENT_PHASE_LABELS[context.phase]}). Sur cette page, une question porte sur ce tournoi tant qu'elle ne dit pas le contraire — vainqueur, classement, manches, barème, place du clan, et le joueur lui-même : « mon résultat » est sa ligne « you » (pas celle du clan), « mes armes » ses armes du tournoi. Appelle getTournamentResults avec tournamentId « ${context.tournamentId} » ; getWeaponStats ne connaît que les armes de tout son historique.`
     case 'none':
       return 'Page consultée : sans contexte particulier. Choisis l’outil selon la question.'
   }

@@ -80,7 +80,7 @@ export async function resolveCoachContext(path: string | null | undefined, scope
       if (parsed.page === 'career') return { kind: 'career', memberId: member.id, memberName: member.displayName }
       if (parsed.page === 'playstyle') return { kind: 'playstyle', memberId: member.id, memberName: member.displayName }
       if (parsed.page === 'nemesis') return { kind: 'opponents' }
-      return { kind: 'drop-zones' }
+      return { kind: 'drop-zones', memberName: member.displayName }
     }
     case 'players':
       return { kind: 'players' }

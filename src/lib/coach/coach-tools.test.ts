@@ -443,33 +443,97 @@ describe('getOpponentRecord', () => {
 })
 
 describe('getDropZones', () => {
-  it('rattache chaque partie à sa ville et mesure ce qu’elle rapporte', async () => {
-    // Erangel fait 819 200 cm de côté : 409 600 = 50 %, au centre de Pochinki.
-    mocks.dropFindMany.mockResolvedValue([
-      { squadMatchId: 'm1', mapName: 'Baltic_Main', x: 409600, y: 409600, nearbyPlayerCount250m: 12, pressureLevel: 'hot', squadMatch: { placement: 1 } },
-      { squadMatchId: 'm1', mapName: 'Baltic_Main', x: 410000, y: 409000, nearbyPlayerCount250m: 12, pressureLevel: 'hot', squadMatch: { placement: 1 } },
-      { squadMatchId: 'm2', mapName: 'Baltic_Main', x: 409600, y: 409600, nearbyPlayerCount250m: 4, pressureLevel: 'calm', squadMatch: { placement: 14 } },
-      { squadMatchId: 'm3', mapName: 'Baltic_Main', x: 100, y: 100, nearbyPlayerCount250m: 0, pressureLevel: 'calm', squadMatch: { placement: 7 } },
+  // Erangel fait 819 200 cm de côté : 409 600 = 50 %, au centre de Pochinki (rayon 5 %).
+  const jump = (squadMatchId: string, memberId: number, displayName: string, mapName: string, x: number, y: number, opponents: number | null, players: number, pressureLevel: string, placement: number, matchDate = '2026-10-24T20:00:00Z') => ({
+    squadMatchId,
+    memberId,
+    mapName,
+    x,
+    y,
+    matchDate: new Date(matchDate),
+    nearbyPlayerCount250m: players,
+    nearbyOpponentCount250m: opponents,
+    pressureLevel,
+    squadMatch: { placement },
+    member: { displayName },
+  })
+  // Renvoyés par la base du plus récent au plus ancien.
+  const jumps = [
+    jump('m1', 100, 'NovakTV', 'Baltic_Main', 409600, 409600, 9, 12, 'hot', 1),
+    jump('m1', 101, 'Menez69', 'Baltic_Main', 410000, 409000, 9, 12, 'hot', 1),
+    jump('m2', 100, 'NovakTV', 'Baltic_Main', 409600, 409600, 2, 5, 'calm', 14),
+    jump('m3', 101, 'Menez69', 'Baltic_Main', 100, 100, 0, 1, 'calm', 7),
+    jump('m4', 100, 'NovakTV', 'Desert_Main', 100, 100, null, 4, 'contested', 20, '2026-10-20T20:00:00Z'),
+  ]
+
+  it('sans carte : toutes les cartes du clan, de la plus sautée à la moins sautée, sur 90 jours', async () => {
+    mocks.dropFindMany.mockResolvedValue(jumps)
+    const result = (await run('getDropZones')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    const query = mocks.dropFindMany.mock.calls[0][0]
+    expect(query.where).toEqual({ member: { clanId: 292 }, matchDate: { gte: expect.any(Date), lt: expect.any(Date) } })
+    // Fenêtre glissante de 90 jours, jusqu'à demain minuit.
+    expect(Math.round((query.where.matchDate.lt.getTime() - query.where.matchDate.gte.getTime()) / 86_400_000)).toBe(91)
+    expect(query.orderBy).toEqual([{ matchDate: 'desc' }, { squadMatchId: 'asc' }])
+    expect(query.take).toBe(20001)
+    expect(result).toMatchObject({ scope: 'le clan', period: 'les 90 derniers jours', map: 'toutes les cartes', jumps: 5, matches: 4, since: '2026-10-20T20:00:00.000Z', truncated: false, mapsTruncated: false })
+    expect(result.maps).toEqual([
+      { map: 'Erangel', jumps: 4, sharePercent: 80, matches: 3, favoriteSpot: { spot: 'Pochinki', jumps: 3, sharePercent: 75, level: 'Contesté' }, topSpots: 'Pochinki 3 (75 %)', outsideCitiesPercent: 25, hotDropPercent: 50 },
+      { map: 'Miramar', jumps: 1, sharePercent: 20, matches: 1, favoriteSpot: null, topSpots: '', outsideCitiesPercent: 100, hotDropPercent: 0 },
     ])
-    const result = await run('getDropZones', { mapName: 'Erangel' })
-    const where = mocks.dropFindMany.mock.calls[0][0].where
-    expect(where.member).toEqual({ clanId: 292 })
-    expect(where.mapName).toEqual({ in: ['Baltic_Main'] })
-    expect(result).toEqual({
-      map: 'Erangel',
-      days: 90,
-      matches: 3,
-      zones: [
-        { zone: 'Pochinki', landings: 2, avgNearbyPlayers250m: 8, hotDropPercent: 50, avgPlacement: 7.5, top10Percent: 50, winPercent: 50 },
-        { zone: 'Hors ville', landings: 1, avgNearbyPlayers250m: 0, hotDropPercent: 0, avgPlacement: 7, top10Percent: 100, winPercent: 0 },
-      ],
-      zonesTruncated: false,
-    })
   })
 
-  it('exige une carte connue', async () => {
-    expect(await run('getDropZones', {})).toMatchObject({ error: 'map_not_found' })
+  it('une carte : profil, spots avec pression en adversaires et placements par partie, hors-ville à part, qui saute où', async () => {
+    mocks.dropFindMany.mockResolvedValue(jumps.filter((row) => row.mapName === 'Baltic_Main'))
+    const result = (await run('getDropZones', { mapName: 'Erangel', period: 'week' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.dropFindMany.mock.calls[0][0].where).toMatchObject({ member: { clanId: 292 }, mapName: { in: ['Baltic_Main'] } })
+    expect(result).toMatchObject({ scope: 'le clan', period: 'cette semaine', map: 'Erangel' })
+    // Pression = adversaires (9, 9, 2, 0) et non tous les joueurs (12, 12, 5, 1).
+    expect(result.profile).toEqual({ jumps: 4, matches: 3, avgOpponents250m: 5, maxOpponents250m: 9, hotDropPercent: 50, distribution: 'Calme 50 % · Contesté 0 % · Hot drop 50 % · Très chaud 0 %' })
+    // Pression moyenne de 6,7 adversaires : « Contesté » (la page arrondit la moyenne avant de lui donner un niveau).
+    expect(result.favoriteSpot).toEqual({ spot: 'Pochinki', jumps: 3, sharePercent: 75, level: 'Contesté', king: 'NovakTV (2)' })
+    // Deux parties à Pochinki (m1 à deux sauts, m2) : place moyenne 7,5 ; « Hors ville » n'est pas un spot.
+    expect(result.spots).toEqual([
+      { spot: 'Pochinki', jumps: 3, sharePercent: 75, matches: 2, avgOpponents250m: 6.7, hotDropPercent: 67, level: 'Contesté', king: 'NovakTV (2)', avgPlacement: 7.5, top10Percent: 50, winPercent: 50, lowSample: true },
+    ])
+    expect(result.outsideCities).toEqual({ jumps: 1, sharePercent: 25, avgPlacement: 7, top10Percent: 100, winPercent: 0, lowSample: true })
+    // À égalité de sauts, l'ordre alphabétique de la page « Qui saute où ».
+    expect(result.members.map((line: { player: string; jumps: number; favoriteSpot: string }) => [line.player, line.jumps, line.favoriteSpot])).toEqual([
+      ['Menez69', 2, 'Pochinki (1)'],
+      ['NovakTV', 2, 'Pochinki (2)'],
+    ])
+    expect(result.you).toMatchObject({ player: 'NovakTV', jumps: 2 })
+    expect(JSON.stringify(result)).not.toMatch(/memberId|matchId|locationId/)
+  })
+
+  it('« mes drops » : le joueur seul, ou un autre membre du clan, sans le tableau des membres', async () => {
+    mocks.dropFindMany.mockResolvedValue([jumps[0], jumps[2]])
+    const own = (await run('getDropZones', { mapName: 'Erangel', scope: 'player' })) as Record<string, unknown>
+    expect(mocks.dropFindMany.mock.calls[0][0].where).toMatchObject({ member: { clanId: 292 }, memberId: 100 })
+    expect(mocks.memberFindFirst).not.toHaveBeenCalled()
+    expect(own).toMatchObject({ scope: 'NovakTV' })
+    expect(own).not.toHaveProperty('members')
+
+    mocks.memberFindFirst.mockResolvedValue({ id: 101, displayName: 'Menez69' })
+    await run('getDropZones', { playerName: 'Menez69', period: 'all' })
+    expect(mocks.dropFindMany.mock.calls[1][0].where).toEqual({ member: { clanId: 292 }, memberId: 101 })
+    mocks.memberFindFirst.mockResolvedValue(null)
+    expect(await run('getDropZones', { playerName: 'Inconnu' })).toMatchObject({ error: 'player_not_found' })
+  })
+
+  it('refuse une carte inconnue, dit quand il n’y a aucun saut, et retire entière la partie coupée par la borne', async () => {
+    expect(await run('getDropZones', { mapName: 'Atlantide' })).toEqual({ error: 'map_not_found', message: 'Carte inconnue : Atlantide.' })
     expect(mocks.dropFindMany).not.toHaveBeenCalled()
+
+    mocks.dropFindMany.mockResolvedValue([])
+    expect(await run('getDropZones', { mapName: 'Erangel' })).toMatchObject({ map: 'Erangel', jumps: 0, message: 'Aucun saut enregistré sur la période.' })
+
+    // 20 001 lignes : la dernière partie lue (« cut ») est à cheval sur la borne, elle disparaît en entier.
+    const many = Array.from({ length: 19_998 }, (_, index) => jump(`k${index}`, 100, 'NovakTV', 'Baltic_Main', 409600, 409600, 1, 2, 'calm', 5))
+    mocks.dropFindMany.mockResolvedValue([...many, jump('cut', 100, 'NovakTV', 'Baltic_Main', 409600, 409600, 1, 2, 'calm', 5), jump('cut', 101, 'Menez69', 'Baltic_Main', 409600, 409600, 1, 2, 'calm', 5), jump('cut', 102, 'Kr4ken', 'Baltic_Main', 409600, 409600, 1, 2, 'calm', 5)])
+    const result = (await run('getDropZones', { mapName: 'Erangel' })) as { truncated: boolean; profile: { jumps: number; matches: number }; note: string }
+    expect(result.truncated).toBe(true)
+    expect(result.profile).toMatchObject({ jumps: 19_998, matches: 19_998 })
+    expect(result.note).toContain('les plus anciens manquent')
   })
 })
 
@@ -1261,10 +1325,18 @@ describe('getTournamentResults', () => {
     placement,
     member: member(memberId, clanId, name),
   })
-  // Deux manches : [SRTY] gagne la première, [FUN] la seconde ; NovakTV finit MVP aux dégâts (kills à égalité).
+  // Deux manches : [SRTY] gagne la première, [FUN] la seconde ; NovakTV (le joueur de la session, membre 100) finit
+  // MVP aux dégâts (kills à égalité).
   const matches = [
-    { id: 'cmB', createdAt: new Date('2026-10-23T21:00:00Z'), mapName: 'Desert_Main', gameMode: 'squad', placement: 1, members: [row(1, 1, 'Alpha', 1, 4, 500), row(2, 292, 'NovakTV', 3, 2, 400), row(3, 3, 'Charlie', 2, 2, 300)] },
-    { id: 'cmA', createdAt: new Date('2026-10-23T20:00:00Z'), mapName: 'Baltic_Main', gameMode: 'squad', placement: 2, members: [row(1, 1, 'Alpha', 2, 3, 350), row(2, 292, 'NovakTV', 1, 5, 900), row(3, 3, 'Charlie', 4, 1, 100)] },
+    { id: 'cmB', createdAt: new Date('2026-10-23T21:00:00Z'), mapName: 'Desert_Main', gameMode: 'squad', placement: 1, members: [row(1, 1, 'Alpha', 1, 4, 500), row(100, 292, 'NovakTV', 3, 2, 400.4), row(3, 3, 'Charlie', 2, 2, 300)] },
+    { id: 'cmA', createdAt: new Date('2026-10-23T20:00:00Z'), mapName: 'Baltic_Main', gameMode: 'squad', placement: 2, members: [row(1, 1, 'Alpha', 2, 3, 350), row(100, 292, 'NovakTV', 1, 5, 900), row(3, 3, 'Charlie', 4, 1, 100), row(101, 292, 'Menez69', 1, 0, 50)] },
+  ]
+  // Kill feed des manches, clan de la session : distances en centimètres.
+  const kills = [
+    { killerMemberId: 100, weaponName: 'WeapBerylM762_C', headshot: true, distance: 4200 },
+    { killerMemberId: 100, weaponName: 'WeapBerylM762_C', headshot: false, distance: 5800 },
+    { killerMemberId: 100, weaponName: 'WeapMk14_C', headshot: false, distance: null },
+    { killerMemberId: 101, weaponName: 'WeapHK416_C', headshot: false, distance: 1000 },
   ]
   const tournament = {
     id: 'ctour1',
@@ -1281,7 +1353,7 @@ describe('getTournamentResults', () => {
   }
   const directories = {
     clans: { 1: { name: 'FunsNRoses', tag: 'FUN' }, 292: { name: 'Serenity', tag: 'SRTY' }, 3: { name: 'Les Furieux', tag: 'FRX' } },
-    members: { 1: { displayName: 'Alpha', clanId: 1 }, 2: { displayName: 'NovakTV', clanId: 292 }, 3: { displayName: 'Charlie', clanId: 3 } },
+    members: { 1: { displayName: 'Alpha', clanId: 1 }, 100: { displayName: 'NovakTV', clanId: 292 }, 3: { displayName: 'Charlie', clanId: 3 }, 101: { displayName: 'Menez69', clanId: 292 } },
   }
 
   it('refuse un identifiant mal formé, un tournoi inconnu ou un brouillon', async () => {
@@ -1298,6 +1370,7 @@ describe('getTournamentResults', () => {
     mocks.tournamentFindUnique.mockResolvedValue(tournament)
     mocks.getTournamentMatches.mockResolvedValue(matches)
     mocks.loadDirectories.mockResolvedValue(directories)
+    mocks.killFindMany.mockResolvedValue(kills)
 
     const result = (await run('getTournamentResults', { tournamentId: 'ctour1' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(result).toMatchObject({
@@ -1322,11 +1395,57 @@ describe('getTournamentResults', () => {
       [1, 'Erangel', '[SRTY] Serenity'],
       [2, 'Miramar', '[FUN] FunsNRoses'],
     ])
-    expect(result.rounds[0].podium[0]).toMatchObject({ rank: 1, label: '[SRTY] Serenity', placement: 1, kills: 5 })
-    expect(result.rounds[0].yourClan).toEqual([expect.objectContaining({ rank: 1, placement: 1, kills: 5 })])
+    // Rang de la manche aux points et place en jeu : deux champs aux noms distincts.
+    expect(result.rounds[0].podium[0]).toMatchObject({ roundRank: 1, label: '[SRTY] Serenity', gamePlacement: 1, kills: 5 })
+    expect(result.rounds[0].yourClan).toEqual([expect.objectContaining({ roundRank: 1, gamePlacement: 1, kills: 5 })])
     expect(result.rounds[0].mvp).toEqual({ label: expect.stringContaining('NovakTV'), kills: 5 })
-    expect(result.rounds[1].yourClan[0]).toMatchObject({ placement: 3, kills: 2 })
+    expect(result.rounds[1].yourClan[0]).toMatchObject({ gamePlacement: 3, kills: 2 })
+    expect(JSON.stringify(result.rounds)).not.toMatch(/"rank"|"placement"/)
+
+    // « Mon résultat » : le joueur lui-même, manche par manche, et ses armes ; celles du clan à part.
+    expect(mocks.killFindMany).toHaveBeenCalledWith({
+      where: { squadMatchId: { in: ['cmB', 'cmA'] }, killerMemberId: { not: null }, killerMember: { clanId: 292 } },
+      select: { killerMemberId: true, weaponName: true, headshot: true, distance: true },
+    })
+    expect(result.you).toEqual({
+      player: 'NovakTV',
+      roundsPlayed: 2,
+      kills: 7,
+      damage: 1300,
+      avgGamePlacement: 2,
+      bestGamePlacement: 1,
+      mvpRounds: [1],
+      rounds: [
+        { round: 1, map: 'Erangel', gamePlacement: 1, kills: 5, damage: 900, mvpOfRound: true },
+        { round: 2, map: 'Miramar', gamePlacement: 3, kills: 2, damage: 400 },
+      ],
+      weapons: [
+        { weapon: 'Beryl M762', kills: 2, headshots: 1, avgDistanceM: 50 },
+        { weapon: 'Mk14', kills: 1, headshots: 0 },
+      ],
+      weaponKills: 3,
+    })
+    expect(result.clanWeapons.map((line: { weapon: string; kills: number }) => [line.weapon, line.kills])).toEqual([['Beryl M762', 2], ['M416', 1], ['Mk14', 1]])
+    expect(result.clanWeaponKills).toBe(4)
+    expect(result.note).toContain('ne pas confondre')
     // Jamais d'identifiant de compte ni d'adresse dans un résultat d'outil.
     expect(JSON.stringify(result)).not.toMatch(/userId|memberId|@/)
+  })
+
+  it('donne la ligne d’un autre membre du clan, et une ligne vide à qui n’a pas joué', async () => {
+    mocks.tournamentFindUnique.mockResolvedValue(tournament)
+    mocks.getTournamentMatches.mockResolvedValue(matches)
+    mocks.loadDirectories.mockResolvedValue(directories)
+    mocks.killFindMany.mockResolvedValue(kills)
+    mocks.memberFindFirst.mockResolvedValueOnce({ id: 101, displayName: 'Menez69' })
+    const other = (await run('getTournamentResults', { tournamentId: 'ctour1', playerName: 'Menez69' })) as { you: Record<string, unknown> }
+    expect(other.you).toMatchObject({ player: 'Menez69', roundsPlayed: 1, kills: 0, mvpRounds: [], weapons: [{ weapon: 'M416', kills: 1, headshots: 0, avgDistanceM: 10 }], weaponKills: 1 })
+
+    mocks.memberFindFirst.mockResolvedValueOnce({ id: 102, displayName: 'Kr4ken' })
+    const absent = (await run('getTournamentResults', { tournamentId: 'ctour1', playerName: 'Kr4ken' })) as { you: Record<string, unknown> }
+    expect(absent.you).toEqual({ player: 'Kr4ken', roundsPlayed: 0, rounds: [], weapons: [], weaponKills: 0 })
+
+    mocks.memberFindFirst.mockResolvedValueOnce(null)
+    expect(await run('getTournamentResults', { tournamentId: 'ctour1', playerName: 'Inconnu' })).toMatchObject({ error: 'player_not_found' })
   })
 })

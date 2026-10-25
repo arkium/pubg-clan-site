@@ -101,6 +101,7 @@ describe('étiquette, suggestions et bloc de prompt', () => {
       { kind: 'players' },
       { kind: 'opponents' },
       { kind: 'drop-zones' },
+      { kind: 'drop-zones', memberName: 'NovakTV' },
       { kind: 'maps' },
       { kind: 'clan-career' },
       { kind: 'zone-closures' },
@@ -125,6 +126,9 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextPromptBlock({ kind: 'clan-career' })).toContain('getClanCareer')
     expect(coachContextPromptBlock({ kind: 'zone-closures' })).toContain('getZoneClosures')
     expect(coachContextPromptBlock({ kind: 'cities' })).toContain('getCityInsights avec scope « clan »')
+    expect(coachContextPromptBlock({ kind: 'drop-zones', memberName: 'NovakTV' })).toContain('getDropZones avec playerName « NovakTV »')
+    expect(coachContextPromptBlock({ kind: 'drop-zones' })).not.toContain('playerName')
+    expect(coachContextLabel({ kind: 'drop-zones', memberName: 'NovakTV' })).toBe('Largages de NovakTV')
     expect(coachContextLabel({ kind: 'clan-career' })).toBe('Carrière PUBG du clan')
     expect(coachContextLabel({ kind: 'zone-closures' })).toBe('Fin de zone')
     expect(coachContextLabel({ kind: 'cities' })).toBe('Positions et villes')
@@ -142,6 +146,8 @@ describe('étiquette, suggestions et bloc de prompt', () => {
     expect(coachContextPromptBlock({ kind: 'maps' })).toContain('getMapPerformance')
     expect(coachContextPromptBlock({ kind: 'items', memberId: 7, memberName: 'NovakTV' })).toContain('getItemUsage')
     expect(coachContextPromptBlock(tournament)).toContain('getTournamentResults avec tournamentId « ctour1 »')
+    // « Mon résultat » sur la page d'un tournoi : la ligne du joueur, et ses armes du tournoi.
+    expect(coachContextPromptBlock(tournament)).toContain('« mon résultat » est sa ligne « you »')
     expect(coachContextPromptBlock(tournament)).toContain('terminé')
     expect(coachContextPromptBlock({ kind: 'none' })).toContain('sans contexte')
   })

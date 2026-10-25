@@ -268,6 +268,35 @@ describe('POST /api/clans/[clanId]/coach/chat — flux', () => {
     expect(streamRequest.system).toContain('getMatchDebrief avec matchId « cmatch1 »')
   })
 
+  it('marque « non vérifié » une réponse chiffrée quand l’outil a échoué, et garde l’échec dans l’audit', async () => {
+    mocks.getSession.mockResolvedValue(session())
+    mocks.runTool.mockRejectedValueOnce(new Error('base injoignable'))
+    mocks.streamAnswer.mockImplementation(async (request: { runTool: (call: unknown) => Promise<unknown> }) => {
+      await request.runTool({ name: 'getSessions', args: { date: '2026-10-24' } }).catch(() => undefined)
+      return { text: '20 parties samedi, 4 Top 1.', toolCalls: [{ name: 'getSessions', args: { date: '2026-10-24' } }], tokensIn: 900, tokensOut: 40, rounds: 2, finishReason: 'STOP' }
+    })
+    const events = await readSse(await chat({ message: 'Combien de Top 1 samedi ?' }))
+    expect(events.at(-1)?.data).toMatchObject({ unverified: true })
+    expect(mocks.messageCreate.mock.calls[1][0].data).toMatchObject({ unverified: true, toolCalls: [{ name: 'getSessions', args: { date: '2026-10-24' }, failed: 'exception' }] })
+
+    // Un résultat en erreur (`{ error }`) seul : pas de donnée, même marque ; un résultat exploitable : rien.
+    mocks.runTool.mockResolvedValueOnce({ error: 'map_not_found', message: 'Carte inconnue : Atlantide.' })
+    mocks.streamAnswer.mockImplementation(async (request: { runTool: (call: unknown) => Promise<unknown> }) => {
+      await request.runTool({ name: 'getDropZones', args: { mapName: 'Atlantide' } })
+      return { text: '12 sauts à Pochinki.', toolCalls: [{ name: 'getDropZones', args: { mapName: 'Atlantide' } }], tokensIn: 900, tokensOut: 40, rounds: 2, finishReason: 'STOP' }
+    })
+    expect((await readSse(await chat({ message: 'Où atterrir sur Atlantide ?' }))).at(-1)?.data).toMatchObject({ unverified: true })
+    expect(mocks.messageCreate.mock.calls[3][0].data.toolCalls).toEqual([{ name: 'getDropZones', args: { mapName: 'Atlantide' }, failed: 'map_not_found' }])
+
+    mocks.runTool.mockResolvedValueOnce({ map: 'Erangel', jumps: 12 })
+    mocks.streamAnswer.mockImplementation(async (request: { runTool: (call: unknown) => Promise<unknown> }) => {
+      await request.runTool({ name: 'getDropZones', args: { mapName: 'Erangel' } })
+      return { text: '12 sauts à Pochinki.', toolCalls: [{ name: 'getDropZones', args: { mapName: 'Erangel' } }], tokensIn: 900, tokensOut: 40, rounds: 2, finishReason: 'STOP' }
+    })
+    expect((await readSse(await chat({ message: 'Où atterrir sur Erangel ?' }))).at(-1)?.data).toMatchObject({ unverified: false })
+    expect(mocks.messageCreate.mock.calls[5][0].data.toolCalls).toEqual([{ name: 'getDropZones', args: { mapName: 'Erangel' } }])
+  })
+
   it('marque « non vérifié » une réponse chiffrée sans appel d’outil et ignore un contexte étranger', async () => {
     mocks.getSession.mockResolvedValue(session())
     mocks.streamAnswer.mockResolvedValue({ text: 'Tu as fait 420 dégâts.', toolCalls: [], tokensIn: 700, tokensOut: 40, rounds: 1, finishReason: 'STOP' })

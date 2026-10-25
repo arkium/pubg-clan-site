@@ -104,6 +104,8 @@ describe('vérification du contexte de page', () => {
     expect(await resolveCoachContext('/members/101/weapons', scope)).toEqual({ kind: 'weapons', memberId: 101, memberName: 'Menez69' })
     expect(mocks.memberFindFirst.mock.calls[0][0].where).toEqual({ id: 101, clanId: 292 })
     expect(await resolveCoachContext('/members/101/nemesis', scope)).toEqual({ kind: 'opponents' })
+    // Les largages d'un joueur gardent son nom : le Coach appelle getDropZones pour lui, pas pour le clan.
+    expect(await resolveCoachContext('/members/101/drop-zones', scope)).toEqual({ kind: 'drop-zones', memberName: 'Menez69' })
 
     mocks.memberFindFirst.mockResolvedValue(null)
     expect(await resolveCoachContext('/members/999/weapons', scope)).toEqual({ kind: 'none' })

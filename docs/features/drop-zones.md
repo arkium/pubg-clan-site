@@ -276,6 +276,12 @@ identifiés par compte PUBG, pas par membre).
 | `src/lib/ui-conformance.test.ts` | Exception nommée du bandeau docké complet sur mobile |
 | `e2e/drop-zones.spec.ts` | Carte ‹ › et points, épingles et zoom, deux lectures, spot favori, profil, top 5, filtre joueur et message vide, « Qui saute où » paginé, glisser pour changer de carte, bandeau docké sur une ligne (aussi sur mobile), période et absence des anciens panneaux ; page joueur : périmètres, panneaux du joueur. Données : `e2e/support/drop-zones.ts` |
 
+### Coach IA
+
+L'outil `getDropZones` du Coach ([coach-ia.md](coach-ia.md)) lit `DropPressureStat` — les mêmes sauts que `points`, persistés
+au parsing — et les passe aux fonctions de `drop-zones-view.ts` (`spotStats`, `jumpProfile`, `memberJumpSummaries`) :
+mêmes spots, même pression, même roi que la page. Il y ajoute les placements des parties par spot (2026-10-25).
+
 ---
 
 ## Limitations

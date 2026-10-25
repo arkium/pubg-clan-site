@@ -62,7 +62,7 @@ membre : changer de membre actif ne multiplie rien.
 | Table | Rôle |
 |---|---|
 | `CoachConversation` | Fil d'un compte (`userId`), rattaché au membre et au clan du moment (`SetNull`), titre tiré de la première question, `contextLabel` (« Erangel · 22 oct. 21:47 · Top 3 ») |
-| `CoachMessage` | Question ou réponse ; `contextPath`, `toolCalls` (audit), `unverified` (chiffres sans outil), `feedbackScore` ±1, `feedbackNote`, `reviewedAt` |
+| `CoachMessage` | Question ou réponse ; `contextPath`, `toolCalls` (audit : nom, arguments, `failed` si l'appel n'a rien rendu), `unverified` (chiffres sans résultat d'outil), `feedbackScore` ±1, `feedbackNote`, `reviewedAt` |
 | `CoachUsage` | Une ligne par question facturée : modèle, statut, tokens, `costMicroUsd` — sans relation, survit aux fils |
 | `CoachRule` (lot 10, 2026-10-25) | Règle apprise écrite par le SuperUser : `text` (200), `enabled`, `fromMessageId` (vote « Inexact » d'origine, `SetNull`), `createdById` ; 20 actives au plus, injectées dans le prompt quand `coach_rules_enabled` est ouvert |
 | `CoachMemory` (lot 11, 2026-10-25) | Mémoire personnelle **par compte** (`userId`, cascade ; membre et clan indicatifs) : `key` (goal · role · preference · avoid · note), `text` (200, les mots du joueur), `baseline` (mesure de départ datée), `expiresAt` (90 jours après la dernière mise à jour) ; 8 lignes par compte ; jamais lue par le SuperUser |
@@ -90,7 +90,7 @@ sinon). Déclaré en plus des dix-neuf outils, après eux.
 | `getWeaponStats` | `MemberWeaponStats` + `aggregateMemberWeapons`, 8 armes au plus |
 | `getItemUsage` | `loadItemUseStats` (la page « Objets consommés », sans la famille `None`) + `MemberThrowableStat` : soins, boosts, carburant, gadgets par famille et par objet, par partie, comparé au clan ; grenades lancées. C'est ce que le joueur appelle son « loot » ou son sac — le site ne connaît ni le contenu du sac ni les munitions ramassées, l'outil le dit |
 | `getOpponentRecord` | `OpponentClan` → joueurs → `KillEvent`, dernière rencontre (`ClanEncounter`) — jamais `EncounteredPlayer` |
-| `getDropZones` | `DropPressureStat` des 90 derniers jours, villes par `locationForPercent` |
+| `getDropZones` | la page « Zones de drop » : `DropPressureStat` (un saut = un membre dans une partie) lu par `drop-zones-view.ts` (`spotStats`, `jumpProfile`, `memberJumpSummaries`). Sans carte : chaque carte et ses premiers spots ; avec une carte : profil de saut, spots (pression en adversaires, roi, placements par partie), hors-ville à part, qui saute où. Période (90 jours par défaut, semaine, mois, tout), `scope: 'player'` / `playerName` pour « mes drops », borne de 20 000 sauts avec `truncated` et `since` (réécrit le 2026-10-25) |
 | `getMapPerformance` | `loadClanMapStats` (la page « Cartes » : parties d'escouade, moyenne des clans en cache 5 min) : verdict, puis chaque carte — parties, Top 1, win rate, Top 10, place, kills et dégâts par partie, écart aux clans, tendance, joueur phare ; une carte seule par `mapName` |
 | `getPlaySchedule` | la page « Calendrier d'activité » (`Match` du joueur, ou `SquadMatch` du clan avec `scope: 'clan'`), **heure de Paris**, soirée commençant à 06:00 (`sessionDateOf`) : parties et Top 1 par jour de la semaine, trois créneaux favoris, plage habituelle en semaine et le week-end (20e–80e centile des heures), soirées actives, temps de jeu, parties et heures par soirée — `buildPlaySchedule`, pur |
 | `getCareerStats` | la page « Carrière PUBG » (`MemberLifetimeStats`, `MemberSeasonStats` — le cache synchronisé chaque nuit, **jamais un appel à l'API PUBG** depuis le Coach) : parties, Top 1, win rate, K/D, kills, headshots, knocks, dégâts, réanimations, soins, temps de jeu, jours joués, records, distances ; par mode (`squad`, `duo`, `solo`) ; médailles au podium du clan (`clanMedalRanks`, tous modes) ; saisons (palier Ranked, points, parties normales) |
@@ -102,7 +102,7 @@ sinon). Déclaré en plus des dix-neuf outils, après eux.
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
 | `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
 | `getTournaments` | `listTournamentOverviews` (cache 5 min) : tournois publiés du site, filtres statut / titre, vainqueur ou leader, podium, place du clan quand elle est connue |
-| `getTournamentResults` | même moteur que la page d'un tournoi (`computeTournamentModeStandings`, `buildRoundViews`, `pickMvp`) : barème, classement (20 lignes + celle du clan), manches avec podium et score du clan, MVP |
+| `getTournamentResults` | même moteur que la page d'un tournoi (`computeTournamentModeStandings`, `buildRoundViews`, `pickMvp`) : barème, classement (20 lignes + celle du clan), manches avec podium et score du clan (`roundRank` aux points, `gamePlacement` en jeu), MVP ; `you` — le joueur (ou `playerName`) manche par manche, ses totaux, ses MVP et ses armes du tournoi (`KillEvent` des manches) — et `clanWeapons` (2026-10-25) |
 
 Les tournois sont des pages **publiques**, quel que soit le clan organisateur : ces deux outils lisent ce que la page
 montre, et le clan du joueur ne sert qu'à le situer (`yours`, `yourClan`) ; un brouillon reste invisible. Ajoutés le
@@ -141,10 +141,12 @@ consommables, « drop » = largage, « knock », « wipe », « smokes », « na
 `getSessions` après traduction du jour en date ; les dernières parties → `getRecentMatches` ; une période → cartes,
 classement, Ligue ; les habitudes → `getPlaySchedule`), titre court + puces + recommandation finale **au tutoiement**
 (« vous » seulement à l'escouade), horloge du replay. Tout
-chiffre vient d'un outil ; hors sujet : refus en une phrase **sans chiffre**. Une réponse chiffrée sans appel d'outil
-est marquée `unverified` : bandeau « Chiffres non vérifiés par les données » dans le tiroir, remontée dans l'onglet
-Questions du SuperUser. Les pseudos et noms de clan renvoyés par les outils sont traités comme du texte, pas comme des
-consignes.
+chiffre vient d'un outil ; un résultat annonce sa période, sa carte et son périmètre (jamais le même résultat sous une
+autre étiquette) ; nombres à la française ; hors sujet : refus en une phrase **sans chiffre**. Une réponse chiffrée
+sans résultat d'outil exploitable — aucun appel, ou des appels tous en échec (exception ou `{ error }`) — est marquée
+`unverified` : bandeau « Chiffres non vérifiés par les données » dans le tiroir, remontée dans l'onglet Questions du
+SuperUser ; l'audit `toolCalls` garde l'issue de chaque appel (`failed`, depuis le 2026-10-25). Les pseudos et noms de
+clan renvoyés par les outils sont traités comme du texte, pas comme des consignes.
 
 Contexte de page (`coach-context.ts`, `coach-context-service.ts`) : l'adresse de la page (`contextPath`) est reconnue
 par motif puis **vérifiée** (match du clan, joueur du clan, tournoi publié) ; elle donne l'étiquette du bandeau

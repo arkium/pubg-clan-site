@@ -112,9 +112,24 @@ export function parseCoachChatBody(body: unknown, maxInputChars: number): CoachC
   }
 }
 
-/** Chiffres dans la réponse sans aucun appel d'outil : le modèle a parlé de mémoire (§6, essai du lot 0). */
-export function isUnverifiedAnswer(text: string, toolCalls: readonly CoachToolCall[]): boolean {
-  return toolCalls.length === 0 && /\d/.test(text)
+/**
+ * Chiffres dans la réponse sans aucun résultat d'outil exploitable : le modèle a parlé de mémoire (§6, essai du lot 0)
+ * — ou malgré un outil en échec, qu'il a été prié de signaler (fil 9 du 2026-10-25 : « 20 parties » samedi, chiffres
+ * introuvables en base, le même appel ayant rendu les bons 30 s plus tard). `answered` : appels qui ont rendu des
+ * données ; à défaut, tous les appels comptent.
+ */
+export function isUnverifiedAnswer(text: string, toolCalls: readonly CoachToolCall[], answered: number = toolCalls.length): boolean {
+  return (toolCalls.length === 0 || answered === 0) && /\d/.test(text)
+}
+
+/** Appel d'outil tel qu'il est gardé pour l'audit : `failed` dit pourquoi il n'a rien rendu (exception ou code d'erreur). */
+export type CoachToolAudit = CoachToolCall & { failed?: string }
+
+/** Code d'erreur d'un résultat d'outil (`{ error: 'map_not_found', … }`), `null` pour un résultat exploitable. */
+export function toolResultError(result: unknown): string | null {
+  if (!result || typeof result !== 'object') return null
+  const error = (result as { error?: unknown }).error
+  return typeof error === 'string' && error.length > 0 ? error : null
 }
 
 function quotaRefusal(decision: CoachQuotaDecision): CoachChatRefusal | null {
@@ -207,11 +222,25 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
   const memoryTool = settings.memoryEnabled
     ? createCoachMemoryTool({ userId: session.userId, memberId: scope.memberId > 0 ? scope.memberId : null, clanId: scope.clanId, message: body.message, toolResults: () => toolResults, now })
     : null
+  // Chaque appel, dans l'ordre, avec son issue : l'audit le garde et la marque « non vérifié » en dépend.
+  const toolAudit: CoachToolAudit[] = []
   const runTool = async (call: CoachToolCall) => {
-    if (memoryTool && call.name === memoryTool.declaration.name) return memoryTool.run(call)
-    const result = await tools.run(call)
-    toolResults.push(result)
-    return result
+    try {
+      if (memoryTool && call.name === memoryTool.declaration.name) {
+        const remembered = await memoryTool.run(call)
+        const failed = toolResultError(remembered)
+        toolAudit.push(failed ? { ...call, failed } : { ...call })
+        return remembered
+      }
+      const result = await tools.run(call)
+      toolResults.push(result)
+      const failed = toolResultError(result)
+      toolAudit.push(failed ? { ...call, failed } : { ...call })
+      return result
+    } catch (error) {
+      toolAudit.push({ ...call, failed: 'exception' })
+      throw error
+    }
   }
   const provider = input.provider ?? createGeminiProvider({ apiKey: process.env.GEMINI_API_KEY ?? '' })
   let partialText = ''
@@ -240,9 +269,13 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
       },
       onToolCall: (call) => emit({ event: 'tool', data: { name: call.name, label: COACH_TOOL_LABELS[call.name] ?? 'Je consulte les données…' } }),
     })
-    const unverified = isUnverifiedAnswer(answer.text, answer.toolCalls)
+    // L'audit vient de nos propres appels quand il les couvre tous (le fournisseur les liste dans le même ordre).
+    const audit: CoachToolAudit[] = toolAudit.length === answer.toolCalls.length ? toolAudit : answer.toolCalls
+    // La mémoire garde la règle d'avant : ses chiffres viennent du joueur, un refus (`not_in_message`) n'en invente pas.
+    const answered = audit.filter((call) => !call.failed || call.name === COACH_MEMORY_TOOL_NAME).length
+    const unverified = isUnverifiedAnswer(answer.text, answer.toolCalls, answered)
     const costMicroUsd = coachCostMicroUsd(model, answer.tokensIn, answer.tokensOut, now)
-    const saved = await saveAnswer(conversationId, answer.text, answer.toolCalls, unverified)
+    const saved = await saveAnswer(conversationId, answer.text, audit, unverified)
     await completeCoachUsage(usageId, { status: 'ok', tokensIn: answer.tokensIn, tokensOut: answer.tokensOut, costMicroUsd })
     // Alerte du plafond global (80 %, atteint) après coup, sans retenir la réponse : `notify…` ne lève jamais.
     void notifyCoachBudgetIfNeeded({

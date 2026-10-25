@@ -2,7 +2,7 @@ import type { AuthSessionContext } from '@/lib/auth-session'
 import { notifyCoachBudgetIfNeeded, notifyCoachProviderErrorsIfNeeded } from '@/lib/coach/coach-alerts'
 import { getCoachSettings, type CoachSettings } from '@/lib/coach/coach-config'
 import { coachContextLabel, coachContextPromptBlock, coachSuggestions } from '@/lib/coach/coach-context'
-import { coachGuardRefusal } from '@/lib/coach/coach-guard'
+import { coachGuardRefusal, redactCoachText } from '@/lib/coach/coach-guard'
 import { resolveCoachContext } from '@/lib/coach/coach-context-service'
 import { coachConversationTitle } from '@/lib/coach/coach-conversation-service'
 import { coachCostMicroUsd } from '@/lib/coach/coach-cost'
@@ -190,7 +190,8 @@ export async function prepareCoachChat(input: Omit<CoachChatRunInput, 'emit' | '
         userId: input.session.userId,
         memberId: input.scope.memberId > 0 ? input.scope.memberId : null,
         clanId: input.scope.clanId,
-        title: coachConversationTitle(input.body.message),
+        // Adresses et liens masqués : aucune adresse e-mail dans les tables du Coach (coach-guard.ts).
+        title: coachConversationTitle(redactCoachText(input.body.message)),
         contextLabel: coachContextLabel(context),
       },
       select: { id: true },
@@ -211,12 +212,13 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
 
   const [usageId, question] = await Promise.all([
     reserveCoachUsage({ userId: session.userId, clanId: scope.clanId, conversationId, model: model.id }),
-    prisma.coachMessage.create({ data: { conversationId, role: 'user', content: body.message, contextPath }, select: { id: true } }),
+    prisma.coachMessage.create({ data: { conversationId, role: 'user', content: redactCoachText(body.message), contextPath }, select: { id: true } }),
   ])
   emit({ event: 'meta', data: { conversationId, questionId: question.id, context: { label: coachContextLabel(context), suggestions: coachSuggestions(context) } } })
 
-  // Garde-fou avant le modèle : une demande qui trafique les chiffres (×1000, chiffres romains…) reçoit un refus fixe,
-  // sans appel ni coût ; elle compte dans la limite horaire (`refused`, coach-quota.ts).
+  // Garde-fou avant le modèle : une demande à risque (lien, adresse, code) ou qui trafique les chiffres (×1000, chiffres
+  // romains…) reçoit un refus fixe, sans appel ni coût — rien ne part chez Google ; elle compte dans la limite horaire
+  // (`refused`, coach-quota.ts).
   const guarded = coachGuardRefusal(body.message)
   if (guarded) {
     try {

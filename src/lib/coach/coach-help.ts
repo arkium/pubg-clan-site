@@ -104,7 +104,7 @@ export function coachHelpLimits(limits: CoachLimits | null): string[] {
     'Il ne lit que les données de ton clan sur le site, plus les tournois : rien sur un autre clan ni sur un joueur absent du site.',
     'Tout chiffre qu’il donne vient d’un outil ci-dessus. Ce qu’aucun outil ne mesure, il ne le sait pas : la cause exacte d’une mort, ce qui s’est dit en vocal, les parties jouées hors du clan.',
     'Une partie dont la télémétrie n’est pas encore analysée n’a rien à lui apprendre avant le lendemain matin.',
-    'Hors PUBG (devoirs, code, vie privée), ou pour trafiquer tes chiffres (les multiplier, les écrire en chiffres romains…), il refuse en une phrase.',
+    'Hors PUBG (devoirs, code, vie privée), pour trafiquer tes chiffres (les multiplier, les écrire en chiffres romains…) ou pour les envoyer ailleurs (lien, e-mail, Discord), il refuse en une phrase.',
     'Ses réponses sont générées par un modèle d’IA : elles peuvent être inexactes. Les statistiques du site font foi.',
     quota,
     question,

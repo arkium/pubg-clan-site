@@ -68,7 +68,9 @@ membre : changer de membre actif ne multiplie rien.
 | `CoachRule` (lot 10, 2026-10-25) | Règle apprise écrite par le SuperUser : `text` (200), `enabled`, `fromMessageId` (vote « Inexact » d'origine, `SetNull`), `createdById` ; 20 actives au plus, injectées dans le prompt quand `coach_rules_enabled` est ouvert |
 | `CoachMemory` (lot 11, 2026-10-25) | Mémoire personnelle **par compte** (`userId`, cascade ; membre et clan indicatifs) : `key` (goal · role · preference · avoid · note), `text` (200, les mots du joueur), `baseline` (mesure de départ datée), `expiresAt` (90 jours après la dernière mise à jour) ; 8 lignes par compte ; jamais lue par le SuperUser |
 
-Aucune adresse e-mail dans ces tables. Conservation (`coach-retention.ts`, maintenance de 01:15) : fil inactif depuis
+Aucune adresse e-mail dans ces tables : celles qu'un joueur tape dans une question sont masquées, avec les liens, avant
+l'enregistrement de la question et du titre du fil (`redactCoachText`, `coach-guard.ts`, depuis le 2026-10-25 ;
+rattrapage : `scripts/redact-coach-pii.ts`). Conservation (`coach-retention.ts`, maintenance de 01:15) : fil inactif depuis
 12 mois supprimé avec ses messages, usage après 13 mois. Demande « Purger mon historique » :
 `npx tsx scripts/purge-coach-history.ts --pubg-name <pseudo>` (simulation), puis `--apply`.
 
@@ -144,9 +146,11 @@ classement, Ligue ; les habitudes → `getPlaySchedule`), titre court + puces + 
 (« vous » seulement à l'escouade), horloge du replay. Tout
 chiffre vient d'un outil ; un résultat annonce sa période, sa carte et son périmètre (jamais le même résultat sous une
 autre étiquette) ; nombres à la française ; hors sujet : refus en une phrase **sans chiffre**. Les **chiffres
-trafiqués** (multipliés ou divisés à la demande, en chiffres romains ou en binaire, inventés) sont du hors sujet : un
-garde-fou avant le modèle (`coach-guard.ts`, motifs étroits) répond par un refus fixe, sans appel ni coût (statut
-`refused`), et la règle du prompt couvre les autres formulations (2026-10-25). Une réponse chiffrée
+trafiqués** (multipliés ou divisés à la demande, en chiffres romains ou en binaire, inventés) et le **contenu à
+risque** (lien, adresse e-mail, `mailto:`, balise HTML, lien Markdown, format de code, envoi par mail ou Discord) sont
+du hors sujet : un garde-fou avant le modèle (`coach-guard.ts`, motifs étroits, caractères invisibles retirés) répond
+par un refus fixe, sans appel ni coût (statut `refused`) — rien ne part chez Google —, et la règle du prompt couvre les
+autres formulations (2026-10-25). L'affichage (`coach-markdown.ts`) ne rend de toute façon ni lien, ni image, ni HTML. Une réponse chiffrée
 sans résultat d'outil exploitable — aucun appel, ou des appels tous en échec (exception ou `{ error }`) — est marquée
 `unverified` : bandeau « Chiffres non vérifiés par les données » dans le tiroir, remontée dans l'onglet Questions du
 SuperUser ; l'audit `toolCalls` garde l'issue de chaque appel (`failed`, depuis le 2026-10-25). Les pseudos et noms de

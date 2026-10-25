@@ -499,6 +499,7 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 | `npx tsx --conditions=react-server scripts/coach-tools-probe.ts [--clan <id> --member <id>] [--tournament <id>]` | Mesure de chaque outil du Coach IA sur la vraie base (lecture seule : durée, taille, tokens estimés) ; la condition `react-server` est requise par `server-only` |
 | `npx tsx scripts/seed-coach-nav.ts`, `scripts/seed-coach-admin-nav.ts` | Entrées de menu du Coach IA (`clan.coach`, `superuser.coach`) — ÉCRIT dans la base, une fois après le déploiement |
 | `npx tsx scripts/purge-coach-history.ts --pubg-name <pseudo> [--apply]` | Demande « Purger mon historique », part Coach IA : fils, messages et usage des comptes liés au pseudo (simulation sans `--apply`) |
+| `npx tsx --conditions=react-server scripts/redact-coach-pii.ts [--apply]` | Masque les adresses e-mail et liens déjà enregistrés dans les questions et titres du Coach IA (simulation sans `--apply`) |
 
 ## Environment & Known Issues
 

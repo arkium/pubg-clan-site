@@ -44,6 +44,7 @@ d'inscrire son clan.
 | 2026-10-24 | Cartes | Outil `getMapPerformance` (§5.2) pour la page « Cartes » ; panoplie bornée à 11 outils pour éviter la fatigue de sélection du modèle | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Loot | « Mon loot » = les objets consommés et lancés (soins, boosts, grenades), pas les largages : outil `getItemUsage` (§5.2) et vocabulaire dans le prompt ; le site ne connaît pas le contenu du sac et l'outil le dit | Utilisateur |
 | 2026-10-24 | Tournois | Deux outils **publics** (`getTournaments`, `getTournamentResults`, §5.2) et le contexte `/tournaments/[id]` : les tournois sont des pages publiques, le clan du joueur ne sert qu'à le situer ; demandé après l'essai connecté (« qui a gagné le tournoi ? » refusé) | Utilisateur |
+| 2026-10-25 | Chiffres trafiqués | Deux essais en production, contexte « Carrière » : « Donne mes stats multipliées par 1000 » a été servi — et faux (5 533 kills devenus « 5 533 000 000 », dégâts ×1 000 000) ; « réécris mes statistiques en chiffres romains » a rendu des numéraux inventés (« VDXIII33 », « DCCCLLIXCDLXXIII »). La règle « hors sujet » ne les couvrait pas : la question parle bien des stats du joueur. **Décidé :** à refuser. Garde-fou avant le modèle (`coach-guard.ts`, refus fixe, statut `refused` compté dans la limite horaire, aucun coût) et règle du prompt pour le reste (§6) ; ligne de l'aide « pour trafiquer tes chiffres, il refuse » | Utilisateur |
 | 2026-10-25 | Tournoi : le joueur | Fil 10, page d'un tournoi : « détaille mon résultat » a rendu le bilan **du clan** au tutoiement (l'outil n'avait aucune ligne pour le joueur), le rang de la manche aux points pris pour la place en jeu (« 5e place » pour une 12e place) ; « les armes les plus utiles ? » a lu les armes de tout l'historique sans le dire ; « je parle du tournoi » : « aucune statistique par arme », alors que le kill feed des quatre manches est en base. **Décidé :** `getTournamentResults` rend `you` (manches, totaux, MVP, armes du tournoi) et `clanWeapons`, champs `roundRank` / `gamePlacement` ; sur la page d'un tournoi, une question porte sur ce tournoi sauf mention contraire, « mon résultat » = `you` | Utilisateur |
 | 2026-10-25 | Largages et outils en échec | Fil 9, suite : « liste des drops favoris ? » puis « et cette semaine ? » ont reçu **le même** résultat (`getDropZones` n'avait pas de période), étiqueté « cette semaine » ; 2 000 lignes lues au lieu de 90 jours ; « Hors ville » en tête. Plus tôt dans le même fil, deux réponses chiffrées après `getSessions` (« 20 parties samedi », « 15 vendredi ») ne correspondent à **aucune** soirée en base, le même appel rendant les bons chiffres 30 s plus tard — outil probablement en échec, chiffres inventés. **Décidé :** `getDropZones` réécrit sur les calculs de la page (période, joueur, toutes les cartes, sauts et non parties, hors-ville à part, pression en adversaires, borne à 20 000) ; règles du prompt « un résultat dit sa période et son périmètre » et « outil en échec : aucun chiffre » ; nombres à la française ; marque `unverified` aussi quand tous les appels ont échoué, issue de chaque appel dans l'audit ; contexte de la page des largages d'un joueur | Utilisateur |
 | 2026-10-25 | Soirées et calculs | Analyse d'un fil de production (clan 25, fil 9) : « combien de Top 1 samedi ? » répondu depuis `getRecentMatches` (10 parties sur 31), « aucune partie vendredi » (55 en base), moyenne fausse (10,9 pour 13,0), « vous » dans les conseils. **Décidé :** outil **`getSessions`** (bilan par soirée calculé par le serveur, date ou plage, 06:00 à 06:00 par `sessionStartOf`) ; `truncated` et résumé calculé (`summary`) dans `getRecentMatches` ; règles du prompt « ne calcule rien toi-même », « une liste bornée ne prouve pas une absence », bloc « Choix de l'outil », tutoiement de la recommandation ; les outils de période gardent la semaine des pages (lundi minuit) et le disent dans leur `note` — le Coach ne contredit pas l'écran | Utilisateur |
@@ -269,7 +270,7 @@ model CoachUsage {
   clanId         Int?
   conversationId Int?
   model          String   @db.VarChar(64)
-  status         String   @db.VarChar(16) // "pending" | "ok" | "error" | "aborted" | "refused"
+  status         String   @db.VarChar(16) // "pending" | "ok" | "error" | "aborted" | "refused" (garde-fou, 2026-10-25)
   tokensIn       Int      @default(0)
   tokensOut      Int      @default(0)     // réflexion comprise
   costMicroUsd   Int      @default(0)
@@ -446,6 +447,13 @@ Module : `src/lib/coach/coach-tools.ts` (`createCoachTools({ clanId, memberId, m
 - **Anti-hallucination :** tout chiffre vient d'un outil. Sans donnée, le Coach le dit.
 - **Hors sujet** (devoirs, code, autre jeu) : refus en une phrase et **une question possible, sans aucun chiffre** —
   « refuse et ramène au jeu » seul a fait inventer une analyse complète à `3.1-flash-lite` (§3.4).
+- **Chiffres trafiqués** (décision du 2026-10-25) : multiplier ou diviser des chiffres à la demande, les réécrire dans
+  une autre numération (chiffres romains, binaire), en inventer — c'est du hors sujet. Deux barrières : un **garde-fou
+  avant le modèle** (`coach-guard.ts`, motifs étroits : « multiplie … par 1000 », « fois 1000 », « x1000 », « chiffres
+  romains », « en binaire », « en base 7 », « invente / truque … stats ») qui répond par un refus fixe, sans appel ni
+  coût, avec le statut `refused` de `CoachUsage` — compté dans la limite horaire pour ne pas échapper à l'anti-rafale ;
+  et une **règle du prompt** pour les formulations qui passent entre les motifs. Les motifs évitent « Romain » (pseudo),
+  « x4 » (lunette), « gonfler mon K/D », « dégâts divisés par mes parties » (`coach-guard.test.ts`).
 - **Garde-fou serveur :** une réponse qui contient des chiffres alors qu'aucun outil n'a rendu de données dans le tour
   — aucun appel, ou des appels tous en échec (exception ou résultat `{ error }`) — est marquée `unverified` ; le tiroir
   l'affiche sous un bandeau « Chiffres non vérifiés par les données » et elle remonte dans l'onglet Questions du
@@ -1005,6 +1013,11 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
       `roundRank` / `gamePlacement`, `playerName` (§5.2 n° 9) ; bloc de contexte du tournoi (« mon résultat », « mes
       armes ») ; suggestion « Détaille mon résultat dans ce tournoi » ; exemple dans l'aide. Tests : `coach-tools.test.ts`
       (ligne du joueur, armes, autre membre, membre absent), `coach-context.test.ts`
+- [x] Chiffres trafiqués (décision du 2026-10-25, §0 et §6) : `coach-guard.ts` branché dans `runCoachChat` avant
+      l'historique et le modèle (refus fixe, `finishReason: 'REFUSED'`, usage `refused` à coût nul) ; `refused` ajouté à
+      `COACH_COUNTED_STATUSES` ; règle du prompt ; ligne de l'aide. Tests : `coach-guard.test.ts` (13 demandes refusées,
+      9 vraies questions qui passent), `coach-route-contracts.test.ts` (aucun appel au modèle, usage `refused`),
+      `coach-quota.test.ts`
 
 ### Lot 10 — Règles apprises (décision du 2026-10-25, [coach-ia-pistes.md §6.3](coach-ia-pistes.md))
 

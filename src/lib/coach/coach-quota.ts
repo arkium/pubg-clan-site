@@ -14,8 +14,12 @@ import { prisma } from '@/lib/prisma'
 
 export type CoachUsageStatus = 'pending' | 'ok' | 'error' | 'aborted' | 'refused'
 
-/** Statuts qui comptent dans la limite horaire : une erreur du fournisseur ne coûte pas de question. */
-export const COACH_COUNTED_STATUSES: readonly CoachUsageStatus[] = ['pending', 'ok', 'aborted']
+/**
+ * Statuts qui comptent dans la limite horaire : une erreur du fournisseur ne coûte pas de question ; une demande
+ * refusée par le garde-fou (`refused`, `coach-guard.ts`) en coûte une, sans dépense — sinon elle échapperait à
+ * l'anti-rafale.
+ */
+export const COACH_COUNTED_STATUSES: readonly CoachUsageStatus[] = ['pending', 'ok', 'aborted', 'refused']
 
 export type CoachQuotaRefusal = 'coach_paused' | 'global_budget' | 'too_fast' | 'hourly_limit' | 'monthly_budget'
 

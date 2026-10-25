@@ -2,6 +2,7 @@ import type { AuthSessionContext } from '@/lib/auth-session'
 import { notifyCoachBudgetIfNeeded, notifyCoachProviderErrorsIfNeeded } from '@/lib/coach/coach-alerts'
 import { getCoachSettings, type CoachSettings } from '@/lib/coach/coach-config'
 import { coachContextLabel, coachContextPromptBlock, coachSuggestions } from '@/lib/coach/coach-context'
+import { coachGuardRefusal } from '@/lib/coach/coach-guard'
 import { resolveCoachContext } from '@/lib/coach/coach-context-service'
 import { coachConversationTitle } from '@/lib/coach/coach-conversation-service'
 import { coachCostMicroUsd } from '@/lib/coach/coach-cost'
@@ -213,6 +214,32 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
     prisma.coachMessage.create({ data: { conversationId, role: 'user', content: body.message, contextPath }, select: { id: true } }),
   ])
   emit({ event: 'meta', data: { conversationId, questionId: question.id, context: { label: coachContextLabel(context), suggestions: coachSuggestions(context) } } })
+
+  // Garde-fou avant le modèle : une demande qui trafique les chiffres (×1000, chiffres romains…) reçoit un refus fixe,
+  // sans appel ni coût ; elle compte dans la limite horaire (`refused`, coach-quota.ts).
+  const guarded = coachGuardRefusal(body.message)
+  if (guarded) {
+    try {
+      emit({ event: 'delta', data: { text: guarded.text } })
+      const saved = await saveAnswer(conversationId, guarded.text, [], false)
+      await completeCoachUsage(usageId, { status: 'refused', tokensIn: 0, tokensOut: 0, costMicroUsd: 0 })
+      emit({
+        event: 'done',
+        data: {
+          messageId: saved,
+          unverified: false,
+          remainingHour: decision.state.remainingHour === null ? null : Math.max(0, decision.state.remainingHour - 1),
+          monthPercent: decision.state.monthPercent,
+          finishReason: 'REFUSED',
+        },
+      })
+    } catch (error) {
+      console.error('[coach/chat] Refus du garde-fou non enregistré :', error)
+      await completeCoachUsage(usageId, { status: 'error', tokensIn: 0, tokensOut: 0, costMicroUsd: 0 }).catch(() => undefined)
+      emit({ event: 'error', data: { code: 'internal', message: errorMessage('internal') } })
+    }
+    return
+  }
 
   const [history, blocks] = await Promise.all([loadHistory(conversationId, question.id, settings.historyMessages), loadCoachPromptBlocks(settings, session.userId, now)])
   const tools = createCoachTools(scope)

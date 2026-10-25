@@ -164,7 +164,7 @@ describe('lecture des faits et réservation', () => {
       periodEnd: PERIOD.end,
     })
     const countWhere = mocks.count.mock.calls[0][0].where
-    expect(countWhere).toEqual({ userId: 7, status: { in: ['pending', 'ok', 'aborted'] }, createdAt: { gte: new Date('2026-10-24T19:00:00Z') } })
+    expect(countWhere).toEqual({ userId: 7, status: { in: ['pending', 'ok', 'aborted', 'refused'] }, createdAt: { gte: new Date('2026-10-24T19:00:00Z') } })
     expect(mocks.aggregate.mock.calls[0][0].where).toEqual({ userId: 7, createdAt: { gte: PERIOD.start, lt: PERIOD.end } })
     expect(mocks.aggregate.mock.calls[1][0].where).toEqual({ createdAt: { gte: PERIOD.start, lt: PERIOD.end } })
   })

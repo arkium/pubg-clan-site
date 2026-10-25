@@ -38,8 +38,9 @@ membre : changer de membre actif ne multiplie rien.
   limite horaire → budget du compte. Codes : `coach_paused` (503), `global_budget`, `too_fast`, `hourly_limit`,
   `monthly_budget` (429, `retryAt`).
 - **Réservation** : la question est inscrite dans `CoachUsage` (`pending`) **avant** l'appel, puis complétée (tokens,
-  coût en micro-dollars, statut `ok` / `aborted` / `error`). Un onglet fermé pendant la réponse ne rend pas la question
-  gratuite ; une erreur du fournisseur ne compte pas dans l'heure ; supprimer un fil ne rend rien.
+  coût en micro-dollars, statut `ok` / `aborted` / `error` / `refused`). Un onglet fermé pendant la réponse ne rend pas
+  la question gratuite ; une erreur du fournisseur ne compte pas dans l'heure ; une demande refusée par le garde-fou
+  (`refused`, sans coût) y compte ; supprimer un fil ne rend rien.
 - Côté joueur : pastille « 14 / 20 » (restant de l'heure), « Budget du mois : 82 % » à partir de 80 %, jamais de
   montant en euros. Coût : `coach-cost.ts` (prix du catalogue à la date, réflexion facturée en sortie).
 
@@ -142,7 +143,10 @@ consommables, « drop » = largage, « knock », « wipe », « smokes », « na
 classement, Ligue ; les habitudes → `getPlaySchedule`), titre court + puces + recommandation finale **au tutoiement**
 (« vous » seulement à l'escouade), horloge du replay. Tout
 chiffre vient d'un outil ; un résultat annonce sa période, sa carte et son périmètre (jamais le même résultat sous une
-autre étiquette) ; nombres à la française ; hors sujet : refus en une phrase **sans chiffre**. Une réponse chiffrée
+autre étiquette) ; nombres à la française ; hors sujet : refus en une phrase **sans chiffre**. Les **chiffres
+trafiqués** (multipliés ou divisés à la demande, en chiffres romains ou en binaire, inventés) sont du hors sujet : un
+garde-fou avant le modèle (`coach-guard.ts`, motifs étroits) répond par un refus fixe, sans appel ni coût (statut
+`refused`), et la règle du prompt couvre les autres formulations (2026-10-25). Une réponse chiffrée
 sans résultat d'outil exploitable — aucun appel, ou des appels tous en échec (exception ou `{ error }`) — est marquée
 `unverified` : bandeau « Chiffres non vérifiés par les données » dans le tiroir, remontée dans l'onglet Questions du
 SuperUser ; l'audit `toolCalls` garde l'issue de chaque appel (`failed`, depuis le 2026-10-25). Les pseudos et noms de

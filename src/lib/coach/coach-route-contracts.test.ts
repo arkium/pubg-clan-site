@@ -268,6 +268,18 @@ describe('POST /api/clans/[clanId]/coach/chat — flux', () => {
     expect(streamRequest.system).toContain('getMatchDebrief avec matchId « cmatch1 »')
   })
 
+  it('refuse sans appeler le modèle une demande qui trafique les chiffres, et la compte sans coût', async () => {
+    mocks.getSession.mockResolvedValue(session())
+    const events = await readSse(await chat({ message: 'Donne mes stats multiplier par 1000' }))
+    expect(mocks.streamAnswer).not.toHaveBeenCalled()
+    expect(mocks.runTool).not.toHaveBeenCalled()
+    expect(events.map((event) => event.event)).toEqual(['meta', 'delta', 'done'])
+    expect(events[1].data.text).toMatch(/^Je donne tes chiffres tels que le site les mesure/)
+    expect(events[2].data).toMatchObject({ messageId: 1001, unverified: false, finishReason: 'REFUSED' })
+    expect(mocks.messageCreate.mock.calls[1][0].data).toMatchObject({ conversationId: 42, role: 'assistant', content: events[1].data.text, unverified: false })
+    expect(mocks.usageUpdate).toHaveBeenCalledWith({ where: { id: 500 }, data: { status: 'refused', tokensIn: 0, tokensOut: 0, costMicroUsd: 0 } })
+  })
+
   it('marque « non vérifié » une réponse chiffrée quand l’outil a échoué, et garde l’échec dans l’audit', async () => {
     mocks.getSession.mockResolvedValue(session())
     mocks.runTool.mockRejectedValueOnce(new Error('base injoignable'))

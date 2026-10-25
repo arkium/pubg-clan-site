@@ -2,12 +2,16 @@
 
 import { useParams } from 'next/navigation'
 
+import CoachHelp from '@/components/coach/CoachHelp'
 import CoachPanel from '@/components/coach/CoachPanel'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import { useAuthSession } from '@/hooks/useAuthSession'
+import { useCoachMemory } from '@/hooks/useCoachMemory'
 
 /**
- * Coach IA en plein écran (docs/TODO/chatbot-ia.md §8.3) : liste des fils à gauche, fil centré sur 760 px. Page
- * personnelle d'un membre connecté ; un visiteur y trouve le teaser. Hors index (`CLAN_PAGES`, `noindex`).
+ * Coach IA en plein écran (docs/TODO/chatbot-ia.md §8.3) : liste des fils à gauche, fil centré sur 760 px, puis la
+ * section « aide » (`#aide`, demande du 2026-10-25) — ce qu'il sait faire avec des questions d'exemple, ses limites,
+ * comment l'améliorer. Page personnelle d'un membre connecté ; un visiteur y trouve le teaser. Hors index (`CLAN_PAGES`).
  */
 
 function parseClanId(value: string | string[] | undefined) {
@@ -19,6 +23,9 @@ function parseClanId(value: string | string[] | undefined) {
 export default function CoachPage() {
   const params = useParams()
   const clanId = parseClanId(params.clanId)
+  const session = useAuthSession()
+  // Le domaine « Ce qu'il retient de toi » n'apparaît que si la mémoire est ouverte : une lecture, membre connecté seulement.
+  const memory = useCoachMemory(!session.loading && session.authenticated)
 
   return (
     <main className="app-container app-main charte game-ui">
@@ -30,6 +37,13 @@ export default function CoachPage() {
         <p className="t-meta m-0 mt-1">Tes parties, tes armes et tes adversaires expliqués à partir de la télémétrie du clan. Réservé aux membres connectés.</p>
       </header>
       {clanId ? <CoachPanel variant="page" active /> : <p className="t-meta">Clan inconnu.</p>}
+      <section id="aide" aria-labelledby="coach-help-heading" className="mt-6 flex flex-col gap-3">
+        <h2 id="coach-help-heading" className="t-card-title m-0">
+          Ce qu’il sait faire, ses limites, comment l’améliorer
+        </h2>
+        <p className="t-meta m-0">Pose-lui des questions que ses outils savent servir : voici lesquelles, et ce qui restera sans réponse.</p>
+        <CoachHelp variant="page" memoryEnabled={memory.enabled === true} />
+      </section>
     </main>
   )
 }

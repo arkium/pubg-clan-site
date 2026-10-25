@@ -946,6 +946,10 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
       …/questions/[id]/note`, journalisé ; 280 caractères, vide = retirée) — demande du 2026-10-25, avant la règle
 - [x] Carte « Coach IA » dans `/account` (lien vers la page du Coach du clan, lignes retenues quand la mémoire est
       ouverte — `CoachAccountCard`, `e2e/account.spec.ts`) — demande du 2026-10-25
+- [x] Aide du Coach : ce qu'il sait faire (domaines = groupes d'outils, questions d'exemple servies par un outil — test
+      de couverture `coach-help.test.ts`), ses limites, comment l'améliorer ; sur la carte de `/account` et en section
+      `#aide` de la page plein écran, reliée depuis le mot d'accueil du tiroir (`coach-help.ts`, `CoachHelp`) —
+      demande du 2026-10-25
 
 ### Lot 11 — Mémoire personnelle (décision du 2026-10-25, [coach-ia-pistes.md §6.2](coach-ia-pistes.md))
 

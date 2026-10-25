@@ -42,6 +42,15 @@ test('carte « Coach IA » : lien vers la page du Coach du clan ; lignes retenue
   const card = page.getByTestId('account-coach')
   await expect(card).toContainText('Coach IA')
   await expect(card.getByTestId('account-coach-link')).toHaveAttribute('href', '/clans/1/coach')
+  // Ce qu'il sait faire, ses limites, comment l'améliorer (source unique `coach-help.ts`), sans les exemples.
+  const help = card.getByTestId('coach-help')
+  await expect(help).toContainText('Ce qu’il sait faire')
+  await expect(help).toContainText('Classement, Ligue et tournois')
+  await expect(help).toContainText('Ses limites')
+  await expect(help).toContainText('Les statistiques du site font foi.')
+  await expect(help).toContainText('Pour l’améliorer')
+  await expect(help).toContainText('Vote « Utile » ou « Inexact »')
+  await expect(help).not.toContainText('Ce qu’il retient de toi')
   // Mémoire personnelle fermée (défaut) : rien n'est dit sur ce que le Coach retient.
   await expect(card.getByTestId('account-coach-memory')).toHaveCount(0)
 
@@ -53,6 +62,7 @@ test('carte « Coach IA » : lien vers la page du Coach du clan ; lignes retenue
   })
   await openAccount(page)
   await expect(card.getByTestId('account-coach-memory')).toContainText('Le Coach retient 2 lignes sur toi')
+  await expect(card.getByTestId('coach-help')).toContainText('Ce qu’il retient de toi')
 })
 
 test('profil : pseudo et avatar modifiés, enregistrés, message de succès', async ({ api, page }) => {

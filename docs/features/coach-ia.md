@@ -173,9 +173,14 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
   —, « Oublier » par ligne, « Tout oublier » ; relue à la fin de chaque réponse (`useCoachMemory`). Dans le tiroir elle
   remplace le fil, sur la page plein écran la liste des fils. Sous 768 px, le bouton « Agrandir » du panneau disparaît
   (`.coach-maximize`) pour lui laisser la place : la page plein écran reste accessible par le menu.
-- **Carte « Coach IA » de `/account`** (`CoachAccountCard`, 2026-10-25) : rappel, lien « Ouvrir le Coach » vers la page
-  du clan du membre (à défaut, le clan choisi dans le menu), et le nombre de lignes retenues quand la mémoire
-  personnelle est ouverte (une lecture de `GET /api/coach/memory`).
+- **Carte « Coach IA » de `/account`** (`CoachAccountCard`, 2026-10-25) : lien « Ouvrir le Coach » vers la page du clan
+  du membre (à défaut, le clan choisi dans le menu), le nombre de lignes retenues quand la mémoire personnelle est
+  ouverte (une lecture de `GET /api/coach/memory`), et l'aide (`CoachHelp` en variante `card`).
+- **Aide** (`src/lib/coach/coach-help.ts`, `CoachHelp`, 2026-10-25) : « Ce qu'il sait faire » — un domaine par groupe
+  d'outils avec des questions d'exemple qu'un outil sait servir (`coach-help.test.ts` vérifie que chaque outil déclaré
+  est couvert, pour ne jamais suggérer une question hors des fonctions) —, « Ses limites », « Pour l'améliorer »
+  (votes, précision, contexte de page, noms du site, fil ; conseil « retiens que… » quand la mémoire est ouverte).
+  Section `#aide` sous le panneau de la page plein écran, reliée depuis le mot d'accueil du tiroir.
 - **Plein écran** `/clans/[clanId]/coach` (`CoachPanel` en variante `page`) : fil de 760 px et liste des fils (nouveau,
   renommer, supprimer). `noindex` (`CLAN_PAGES`, `src/lib/seo/page-seo.ts`).
 - **Teaser** visiteur et **carte de la vitrine** (`CoachRow` de `HomeShowcase.tsx`, rendue seulement quand le Coach est

@@ -254,6 +254,14 @@ export default function CoachPanel({ variant, active, onClose }: Props) {
               <div className="coach-bubble">
                 {playerName ? `Salut ${playerName} ! ` : 'Salut ! '}
                 {contextLabel ? 'J’ai le contexte de ta page sous la main. Que veux-tu décortiquer ?' : 'Pose-moi une question sur tes parties, tes armes ou tes adversaires.'}
+                {clanId ? (
+                  <>
+                    {' '}
+                    <Link href={variant === 'page' ? '#aide' : `/clans/${clanId}/coach#aide`} className="t-accent underline" onClick={variant === 'drawer' ? onClose : undefined} data-testid="coach-help-link">
+                      Ce que je sais faire et mes limites
+                    </Link>
+                  </>
+                ) : null}
               </div>
             </div>
             <div className="coach-suggestions">

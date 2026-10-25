@@ -4576,6 +4576,18 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .coach-memory-meta { font-size: 11px; color: var(--theme-ui-text-muted); }
 .coach-memory-row .coach-icon-btn { width: 28px; height: 28px; }
 .coach-memory-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 6px; margin-top: auto; padding-top: 8px; font-size: 11px; color: var(--theme-ui-text-muted); }
+/* Aide du Coach (2026-10-25) : trois blocs — ce qu'il sait faire (domaines, exemples sur la page), ses limites, pour
+   l'améliorer — sur la carte de /account (variante card) et la page plein écran (variante page, trois colonnes dès 1 024 px). */
+.coach-help { display: grid; gap: 10px; }
+@media (min-width: 1024px) { .coach-help--page { grid-template-columns: 1.4fr 1fr 1fr; } }
+@media (min-width: 768px) { .coach-help--card { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.coach-help-block { display: flex; min-width: 0; flex-direction: column; gap: 8px; padding: 12px 14px; border: 1px solid var(--theme-ui-border); border-radius: 12px; background: var(--theme-ui-surface-soft); }
+.coach-help-title { display: flex; align-items: center; gap: 6px; margin: 0; font-size: 13px; font-weight: 800; letter-spacing: 0.02em; color: var(--theme-ui-text); }
+.coach-help-title svg { color: var(--theme-ui-accent-text); }
+.coach-help-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; line-height: 1.45; color: var(--theme-ui-text-secondary); }
+.coach-help-domains { display: grid; gap: 8px; }
+.coach-help-domain { display: flex; flex-direction: column; gap: 3px; }
+.coach-help-examples { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 2px; font-size: 13px; line-height: 1.4; color: var(--theme-ui-text-secondary); font-style: italic; }
 .coach-page { display: grid; gap: 14px; align-items: start; }
 @media (min-width: 1024px) { .coach-page { grid-template-columns: 280px minmax(0, 1fr); } }
 .coach-page-panel { display: flex; flex-direction: column; min-height: 560px; height: calc(100vh - 220px); border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); overflow: hidden; }

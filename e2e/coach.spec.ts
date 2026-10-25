@@ -108,6 +108,8 @@ test.describe('membre', () => {
     await expect(drawer.getByTestId('coach-context')).toContainText('Sans contexte')
     // Mémoire personnelle fermée (défaut) : pas de bouton « Ce que le Coach sait de toi ».
     await expect(drawer.getByTestId('coach-memory-toggle')).toHaveCount(0)
+    // Le mot d'accueil mène à l'aide de la page plein écran.
+    await expect(drawer.getByTestId('coach-help-link')).toHaveAttribute('href', `/clans/${CLAN_ID}/coach#aide`)
 
     await drawer.getByTestId('coach-input').fill(COACH_QUESTION)
     await drawer.getByTestId('coach-input').press('Enter')
@@ -217,6 +219,13 @@ test.describe('membre', () => {
     await expect(page.getByTestId('coach-trigger')).toHaveCount(0)
     await expect(page.getByTestId('coach-fab')).toHaveCount(0)
     await expect(page.getByTestId('coach-context')).toHaveCount(0)
+    // Section « aide » sous le panneau : domaines avec exemples, limites, conseils ; pas de mémoire (fermée).
+    const help = page.getByTestId('coach-help')
+    await expect(help).toContainText('« Qui a gagné le dernier tournoi ? »')
+    await expect(help).toContainText('Ses limites')
+    await expect(help).toContainText('Pour l’améliorer')
+    await expect(help).not.toContainText('Ce qu’il retient de toi')
+    await expect(page.getByTestId('coach-help-link')).toHaveAttribute('href', '#aide')
     await noHorizontalScroll(page)
   })
 })

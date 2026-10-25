@@ -1008,13 +1008,15 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
           <header ref={headerRef} data-app-header="" className="sticky top-0 z-40 border-b border-slate-200/80 bg-white/90 backdrop-blur">
             <div className="w-full px-4 py-3 sm:px-6">
               <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="flex min-w-0 items-center gap-2 sm:gap-3">
+                {/* Sous 640 px : menu à gauche, cartes Clan et Joueur poussées à droite (`ml-auto` sur la carte Clan, 2026-10-25). */}
+                <div className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3">
                   <button
                     ref={menuButtonRef}
                     type="button"
                     onClick={openMobileDrawer}
                     // Même bouton que la vitrine (carré rayon 10, icône Menu) ; 48 px gardés : c'est lui qui fixe la hauteur du header.
-                    className="inline-flex h-12 w-12 items-center justify-center rounded-[10px] border border-gray-200 bg-white text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ui-accent-ring)] lg:hidden"
+                    // `shrink-0` : sous 640 px il était écrasé à 36 px par les deux cartes (2026-10-25).
+                    className="inline-flex h-12 w-12 shrink-0 items-center justify-center rounded-[10px] border border-gray-200 bg-white text-gray-700 transition-colors hover:bg-gray-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[var(--theme-ui-accent-ring)] lg:hidden"
                     aria-expanded={mobileOpen}
                     aria-controls="mobile-clan-nav"
                     aria-label="Ouvrir la navigation"
@@ -1024,13 +1026,16 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                   </button>
 
                   {/* Bouton / Carte Clan (déclenche la modale de choix de clan). Les deux cartes ont la hauteur du bouton de
-                      menu sous 1024 px (48 px) et gardent leurs 46 px au-delà, où il disparaît : hauteurs du header inchangées. */}
+                      menu sous 1024 px (48 px) et gardent leurs 46 px au-delà, où il disparaît : hauteurs du header inchangées.
+                      Sous 640 px, icône seule (carré de 48 px) : les textes écrasaient le header sur deux lignes (2026-10-25) ;
+                      le nom accessible reste complet par `aria-label`. */}
                   <button
                     type="button"
                     onClick={() => setIsClanSwitchModalOpen(true)}
                     title="Cliquer pour changer de clan"
+                    aria-label={clanId && clan ? `Changer de clan — actuel : ${clan.name} [${clan.tag}]` : 'Choisir un clan'}
                     className={cx(
-                      "group flex h-12 min-w-0 items-center gap-2 rounded-xl border px-3 transition-all text-left cursor-pointer lg:h-[46px]",
+                      "group ml-auto flex h-12 w-12 min-w-0 shrink-0 items-center justify-center gap-2 rounded-xl border px-0 transition-all text-left cursor-pointer sm:ml-0 sm:w-auto sm:justify-start sm:px-3 lg:h-[46px]",
                       appTheme === 'dark'
                         ? 'border-slate-800/80 bg-slate-900/50 hover:bg-slate-800 hover:border-slate-700'
                         : 'border-slate-200 bg-slate-50/50 hover:bg-slate-100 hover:border-slate-300'
@@ -1044,7 +1049,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                         ;(event.currentTarget as HTMLImageElement).src = '/pubg.png'
                       }}
                     />
-                    <div className="flex flex-col min-w-0 justify-center">
+                    <div className="hidden min-w-0 flex-col justify-center sm:flex">
                       <p className={cx("truncate text-xs font-bold leading-tight", appTheme === 'dark' ? 'text-slate-200' : 'text-slate-900')}>
                         {clanId && clan ? `${clan.name} [${clan.tag}]` : 'Aucun clan selectionné'}
                       </p>
@@ -1059,17 +1064,18 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                         <p className={cx("text-[10px] font-bold uppercase tracking-wider", appTheme === 'dark' ? 'text-amber-500' : 'text-amber-700')}>Session non connectée</p>
                       )}
                     </div>
-                    <ChevronsUpDown className="h-3.5 w-3.5 ml-0.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0" />
+                    <ChevronsUpDown className="hidden h-3.5 w-3.5 ml-0.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0 sm:block" />
                   </button>
 
-                  {/* Bouton / Carte Joueur (placée directement à droite du clan) */}
+                  {/* Bouton / Carte Joueur (placée directement à droite du clan) — icône seule sous 640 px, comme la carte Clan. */}
                   {clanId ? (
                     <button
                       type="button"
                       onClick={() => setIsPlayerSwitchModalOpen(true)}
                       title={viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId ? "Cliquer pour changer de joueur" : "Cliquer pour sélectionner un joueur"}
+                      aria-label={viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId ? `Changer de joueur — actuel : ${viewedMemberData.displayName}` : 'Choisir un joueur'}
                       className={cx(
-                        "group flex h-12 items-center gap-2 rounded-xl border px-3 transition-all text-left cursor-pointer lg:h-[46px]",
+                        "group flex h-12 w-12 shrink-0 items-center justify-center gap-2 rounded-xl border px-0 transition-all text-left cursor-pointer sm:w-auto sm:justify-start sm:px-3 lg:h-[46px]",
                         viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
                           ? appTheme === 'dark' 
                             ? 'border-blue-900 bg-blue-950/50 hover:bg-blue-900/60 hover:border-blue-700' 
@@ -1087,7 +1093,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                       )}>
                         <svg viewBox="0 0 20 20" className="h-3.5 w-3.5" aria-hidden="true"><path fill="currentColor" d="M10 4a3 3 0 1 0 0 6 3 3 0 0 0 0-6ZM5.5 7a4.5 4.5 0 1 1 9 0 4.5 4.5 0 0 1-9 0Zm-2 10.5c0-2.31 2.37-4.22 5.09-4.87a6.03 6.03 0 0 1 2.82 0c2.72.65 5.09 2.56 5.09 4.87v.25a.75.75 0 0 1-.75.75H4.25a.75.75 0 0 1-.75-.75v-.25Z"/></svg>
                       </div>
-                      <div className="flex flex-col justify-center min-w-0">
+                      <div className="hidden min-w-0 flex-col justify-center sm:flex">
                         <span className={cx(
                           "text-[9px] font-bold uppercase tracking-wider",
                           viewedMemberId && viewedMemberData && viewedMemberData.clanId === clanId
@@ -1107,13 +1113,14 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
                             : 'Choisir...'}
                         </span>
                       </div>
-                      <ChevronsUpDown className="h-3.5 w-3.5 ml-0.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0" />
+                      <ChevronsUpDown className="hidden h-3.5 w-3.5 ml-0.5 text-slate-400 group-hover:text-slate-600 dark:group-hover:text-slate-200 shrink-0 sm:block" />
                     </button>
                   ) : null}
                 </div>
 
-                <div className="flex flex-wrap items-center justify-end gap-2">
-                  {/* Coach IA (docs/TODO/chatbot-ia.md §8.1) : même hauteur que les cartes, le header ne bouge pas. */}
+                <div className="hidden flex-wrap items-center justify-end gap-2 sm:flex">
+                  {/* Coach IA (docs/TODO/chatbot-ia.md §8.1) : même hauteur que les cartes, le header ne bouge pas ; sous 640 px
+                      le bouton flottant le remplace et ce bloc disparaît (sinon son `gap` décalerait les cartes). */}
                   <CoachTrigger />
                 </div>
               </div>
@@ -1245,6 +1252,7 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
         clanId={clanId}
         clanName={clan?.name}
         currentMemberId={viewedMemberId}
+        ownMemberId={authenticated ? (members.find((member) => member.clanId === clanId)?.memberId ?? null) : null}
         onSelectMember={handleSelectMember}
       />
     </div>

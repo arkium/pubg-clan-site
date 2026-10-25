@@ -170,7 +170,9 @@ export function LifecycleCard({
   return (
     <section className="app-panel flex flex-col gap-4 p-4 sm:p-5" aria-labelledby={id} data-testid={testId}>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-1 items-start gap-3">
+        {/* Base de 16 rem pour le bloc titre : quand l'aside (segmented, bouton) ne tient pas à côté, il passe à la ligne au
+            lieu d'écraser le titre et la description en une colonne d'un mot (/settings/telemetry sur mobile, 2026-10-25). */}
+        <div className="flex min-w-0 grow basis-64 items-start gap-3">
           <IconTile icon={icon} />
           <div className="flex min-w-0 flex-col gap-0.5">
             <h2 id={id} className="t-card-title">

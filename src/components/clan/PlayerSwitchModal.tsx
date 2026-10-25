@@ -21,6 +21,8 @@ export interface PlayerSwitchModalProps {
   clanId: number | null
   clanName?: string
   currentMemberId: number | null
+  /** Membre du compte connecté dans ce clan : toujours en tête de liste (2026-10-25). */
+  ownMemberId?: number | null
   onSelectMember: (memberId: number | null) => void
 }
 
@@ -30,6 +32,7 @@ export function PlayerSwitchModal({
   clanId,
   clanName,
   currentMemberId,
+  ownMemberId = null,
   onSelectMember,
 }: PlayerSwitchModalProps) {
   const [members, setMembers] = useState<RosterMemberItem[]>([])
@@ -93,17 +96,20 @@ export function PlayerSwitchModal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
-  // Filtrage par nom ou pseudo
+  // Filtrage par nom ou pseudo, puis en tête : le membre du compte connecté, puis le joueur consulté (2026-10-25) ;
+  // l'ordre du serveur pour les autres (tri stable).
   const filteredMembers = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    if (!q) return members
-
-    return members.filter((m) => {
-      const matchName = m.displayName.toLowerCase().includes(q)
-      const matchPubg = m.pubgPlayerName?.toLowerCase().includes(q)
-      return matchName || matchPubg
-    })
-  }, [members, searchQuery])
+    const list = q
+      ? members.filter((m) => {
+          const matchName = m.displayName.toLowerCase().includes(q)
+          const matchPubg = m.pubgPlayerName?.toLowerCase().includes(q)
+          return matchName || matchPubg
+        })
+      : members
+    const rank = (m: RosterMemberItem) => (m.id === ownMemberId ? 0 : m.id === currentMemberId ? 1 : 2)
+    return [...list].sort((a, b) => rank(a) - rank(b))
+  }, [members, searchQuery, ownMemberId, currentMemberId])
 
   if (!isOpen) return null
 

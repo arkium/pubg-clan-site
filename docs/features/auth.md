@@ -253,7 +253,8 @@ Le SuperUser est un rôle plateforme (cross-clan) stocké sur `UserAccount.isSup
 ### Ce que le SuperUser peut faire
 
 - Accéder aux routes de tous les clans sans être membre.
-- Changer de clan actif dans l'UI (switch inter-clan).
+- Changer de clan actif dans l'UI (switch inter-clan) — dans la modale, le clan actif est en tête de liste ; dans la
+  modale « Joueur », le membre du compte connecté puis le joueur consulté passent en tête (2026-10-25).
 - Promouvoir / révoquer le rôle Owner.
 - Déclencher des opérations cross-clan.
 

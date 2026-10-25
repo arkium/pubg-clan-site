@@ -89,17 +89,18 @@ export function ClanSwitchModal({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [isOpen, onClose])
 
-  // Filtrage par recherche
+  // Filtrage par recherche, puis le clan actif en tête (2026-10-25) — l'ordre du serveur pour les autres (tri stable).
   const filteredClans = useMemo(() => {
     const q = searchQuery.trim().toLowerCase()
-    if (!q) return clans
-
-    return clans.filter((clan) => {
-      const matchName = clan.name.toLowerCase().includes(q)
-      const matchTag = clan.tag.toLowerCase().includes(q)
-      return matchName || matchTag
-    })
-  }, [clans, searchQuery])
+    const list = q
+      ? clans.filter((clan) => {
+          const matchName = clan.name.toLowerCase().includes(q)
+          const matchTag = clan.tag.toLowerCase().includes(q)
+          return matchName || matchTag
+        })
+      : clans
+    return [...list].sort((a, b) => Number(b.id === currentClanId) - Number(a.id === currentClanId))
+  }, [clans, searchQuery, currentClanId])
 
   if (!isOpen) return null
 

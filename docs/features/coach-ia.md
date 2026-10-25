@@ -140,8 +140,9 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
 
 ## 8. Interface (`src/components/coach/`, `src/app/clans/[clanId]/coach/page.tsx`)
 
-- **Déclencheurs** : bouton « Coach IA » dans l'en-tête (`CoachTrigger`, masqué sous 640 px — le header ne grandit
-  jamais), relayé sous 640 px par le **bouton flottant** `CoachFab` (bas droite, icône seule nommée « Coach IA »,
+- **Déclencheurs** : bouton « Coach IA » dans l'en-tête (`CoachTrigger`, bordure et icône en accent comme le bouton
+  flottant depuis le 2026-10-25, masqué sous 640 px — le header ne grandit jamais), relayé sous 640 px par le
+  **bouton flottant** `CoachFab` (bas droite, icône seule nommée « Coach IA »,
   masqué tant que le panneau est ouvert, absent de la page plein écran, sous les toasts — 2026-10-25), entrée de la
   palette `Ctrl+K`, bouton « Débriefer ce match avec le Coach » du débriefing (`CoachContextButton`), entrée de menu
   `clan.coach` (rôle `member`, seed `scripts/seed-coach-nav.ts`).

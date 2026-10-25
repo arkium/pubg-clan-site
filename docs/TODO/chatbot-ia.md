@@ -923,6 +923,9 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
 - [x] Bouton flottant « Coach IA » sur mobile (`CoachFab`, sous 640 px : bas droite, masqué quand le panneau est ouvert,
       absent de la page plein écran ; charte section 44, `e2e/coach.spec.ts` « déclencheurs », captures du classement
       mobile régénérées) — 2026-10-25
+- [x] Bouton de l'en-tête au même habillage que le bouton flottant (bordure et icône en accent, bordure doublée une fois
+      ouvert — demande de l'utilisateur) ; au passage, cartes Clan et Joueur du header en icône seule sous 640 px (les
+      textes écrasaient le header et le bouton de menu) — 2026-10-25
 
 ---
 

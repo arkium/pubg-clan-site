@@ -42,23 +42,20 @@ test('carte « Coach IA » : lien vers la page du Coach du clan ; lignes retenue
   const card = page.getByTestId('account-coach')
   await expect(card).toContainText('Coach IA')
   await expect(card.getByTestId('account-coach-link')).toHaveAttribute('href', '/clans/1/coach')
-  // Ce qu'il sait faire, ses limites, comment l'améliorer (source unique `coach-help.ts`), sans les exemples :
-  // trois blocs repliables, fermés par défaut, ouverts d'un clic sur leur titre.
+  // Barre « Comment ça marche ? » repliée (source unique `coach-help.ts`) : « Afficher » déplie d'un coup ce qu'il sait
+  // faire (domaines sans exemples), ses limites chiffrées (GET /api/coach/limits) et comment l'améliorer.
   const help = card.getByTestId('coach-help')
-  await expect(help).toContainText('Ce qu’il sait faire')
+  await expect(help).toContainText('Comment ça marche ?')
   await expect(help.getByText('Classement, Ligue et tournois')).toBeHidden()
-  await help.getByText('Ce qu’il sait faire').click()
+  await help.getByText('Afficher').click()
   await expect(help.getByText('Classement, Ligue et tournois')).toBeVisible()
-  await expect(help.getByText('Les statistiques du site font foi.')).toBeHidden()
-  await help.getByText('Ses limites').click()
   await expect(help.getByText('Les statistiques du site font foi.')).toBeVisible()
-  // Limites chiffrées, lues des réglages (GET /api/coach/limits).
   await expect(help.getByTestId('coach-help-limit-rows')).toContainText('20 questions par heure')
   await expect(help.getByTestId('coach-help-limit-rows')).toContainText(/2\s€ de budget par mois/)
   await expect(help.getByTestId('coach-help-limit-rows')).toContainText('au plus 400 caractères')
   await expect(help.getByTestId('coach-help-limit-rows')).not.toContainText('lignes sur toi')
-  await help.getByText('Pour l’améliorer').click()
   await expect(help.getByText(/Vote « Utile » ou « Inexact »/)).toBeVisible()
+  await expect(help.getByText('Masquer')).toBeVisible()
   await expect(help).not.toContainText('Ce qu’il retient de toi')
   // Mémoire personnelle fermée (défaut) : rien n'est dit sur ce que le Coach retient.
   await expect(card.getByTestId('account-coach-memory')).toHaveCount(0)

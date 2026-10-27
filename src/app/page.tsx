@@ -1,4 +1,5 @@
 import { cookies } from 'next/headers'
+import { redirect } from 'next/navigation'
 
 import FirstRunSetup from '@/components/FirstRunSetup'
 import HomeShowcase from '@/components/home/HomeShowcase'
@@ -6,13 +7,15 @@ import PendingActivation from '@/components/PendingActivation'
 import { isAuthDisabled } from '@/lib/auth-mode'
 import { getSessionFromToken } from '@/lib/auth-session'
 import { getCoachSettings, hasCoachApiKey } from '@/lib/coach/coach-config'
+import { homeLandingRedirect, memberProfileHref } from '@/lib/home-landing'
 import { getHomeShowcaseIfReady } from '@/lib/home-showcase-service'
+import { prisma } from '@/lib/prisma'
 import { homeJsonLd, siteUrl } from '@/lib/seo/page-seo'
 import { getSetupState } from '@/lib/setup-service'
 
 export const dynamic = 'force-dynamic'
 
-export default async function Home() {
+export default async function Home({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   const setupState = await getSetupState()
 
   if (setupState === 'first_run') {
@@ -23,16 +26,19 @@ export default async function Home() {
     return <PendingActivation />
   }
 
-  // La vitrine s'affiche à tous, connectés compris (docs/features/accueil.md) : un membre connecté y trouve
-  // « Mon espace » (son tableau de bord, comme après la connexion) au lieu de « Se connecter ».
-  // Un cookie expiré ne donne pas de session : la vitrine s'affiche en visiteur, sans redirection vers /login.
+  // Un membre connecté atterrit sur son profil (décision du 2026-10-27, docs/features/accueil.md) ; il retrouve la
+  // vitrine par l'entrée « Accueil » du menu (`?vitrine`), avec « Mon espace » et « Mon clan » au lieu de
+  // « Se connecter » et « Inscrire mon clan ». Un cookie expiré ne donne pas de session : la vitrine s'affiche en
+  // visiteur, sans redirection vers /login.
   const cookieStore = await cookies()
   const session = await getSessionFromToken(cookieStore.get('pubg_clan_session')?.value ?? null)
-  const accountHref = session
-    ? session.activeMemberId
-      ? `/members/${session.activeMemberId}/dashboard`
-      : '/members'
+  const landing = homeLandingRedirect(session, await searchParams)
+  if (landing) redirect(landing)
+  const accountHref = session ? (session.activeMemberId ? memberProfileHref(session.activeMemberId) : '/members') : null
+  const activeClanId = session?.activeMemberId
+    ? (await prisma.clanMember.findUnique({ where: { id: session.activeMemberId }, select: { clanId: true } }))?.clanId ?? null
     : null
+  const clanHref = activeClanId ? `/clans/${activeClanId}/overview` : null
 
   // Vitrine dans le HTML quand son cache est prêt (docs/TODO/geo-seo-propositions.md, lot 2) ; jamais d'attente d'une
   // lecture à froid : elle continue en arrière-plan et le navigateur charge la vitrine par l'API.
@@ -44,7 +50,7 @@ export default async function Home() {
   return (
     <>
       <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: homeJsonLd(siteUrl()) }} />
-      <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} initialShowcase={initialShowcase} coachOpen={coachOpen} />
+      <HomeShowcase visitorMode={isAuthDisabled()} accountHref={accountHref} clanHref={clanHref} initialShowcase={initialShowcase} coachOpen={coachOpen} />
     </>
   )
 }

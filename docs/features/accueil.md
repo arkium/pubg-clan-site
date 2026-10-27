@@ -25,12 +25,18 @@
 | Nouveautés (ajouté le 2026-10-05) | « Fraîchement largué : deux nouveaux outils » : deux grandes cartes sombres sur photo (`NEWS`, `HomeShowcase.tsx`), Mortier (`/mortier`) et Carte des ressources (`/carte-des-ressources`), tampon « NOUVEAU », lien étendu à toute la carte. Images `public/nouveaute-*.jpg` générées par IA (Gemini, signalé dans les mentions légales). Pas dans la navigation du héros : à 1 024 px, six liens ne tiennent pas à côté de « Se connecter » et « Rejoindre ». Une nouveauté qui n'en est plus une sort de `NEWS` |
 | Pied de page | Même contenu que le footer du site (`LegalFooterContent`, `src/components/SiteFooter.tsx`) : © Arkium (lien vers arkium.eu), les trois liens légaux, logo texte chickendinner.fr, mention KRAFTON complète ([pages-legales.md](pages-legales.md)) ; seules les marges sont celles de la vitrine. Remplace le pied de page du layout, masqué sur cette page |
 
-La vitrine est **plein écran pour tous**, connectés compris : pas de menu latéral. Un membre connecté y trouve
-« Mon espace » (son tableau de bord `/members/<id>/dashboard`, `/members` sans membre actif) à la place de
-« Se connecter ». Un cookie expiré ne donne pas de session : la vitrine s'affiche en visiteur.
+La vitrine est **plein écran pour tous** : pas de menu latéral. Un cookie expiré ne donne pas de session : la vitrine
+s'affiche en visiteur.
 
-Le menu latéral du site porte une entrée **« Accueil »** (`primary.home`, en tête) qui mène à `/`. Après la
-connexion, on arrive toujours sur son tableau de bord, pas sur la vitrine.
+**Membre connecté (décision du 2026-10-27)** : ouvrir `/` le mène à **son profil** (`/members/<id>/dashboard`,
+redirection serveur de `src/app/page.tsx`, règle pure `homeLandingRedirect` de `src/lib/home-landing.ts`) — retour
+d'un membre : la vitrine lui proposait d'abord « Inscrire mon clan », qui ne le concerne pas. Il retrouve la vitrine par
+l'entrée **« Accueil »** du menu latéral (`primary.home`, en tête), qui porte alors `/?vitrine` (`HOME_SHOWCASE_HREF`),
+comme le logo de la vitrine. Il y trouve **« Mon espace »** en bouton principal (haut de page et héros) et **« Mon
+clan »** (`/clans/<clanId>/overview`) à la place de « Se connecter », « Inscrire mon clan » et « Voir le classement » ;
+le menu mobile garde « Inscrire un autre clan », et le bandeau d'inscription reste en bas de page. Un connecté sans
+membre actif (SuperUser seul) garde la vitrine, avec « Mon espace » vers `/members`. Les robots n'ont pas de session :
+ils lisent toujours la vitrine sur `/`.
 
 
 ### Image de la nouveauté Joueurs (`public/vitrine-joueurs.jpg`)
@@ -64,7 +70,7 @@ Déposée le 2026-10-18 (Gemini, 1024 × 572, convertie en JPEG qualité 82 : 42
 | Accès | Mode visiteur actif en production (`DISABLE_AUTH_PERMISSIONS=true`) : les liens de la vitrine (classements, débriefing) fonctionnent sans compte. `/` est ajouté aux chemins publics du proxy : la vitrine reste visible si le mode visiteur est coupé |
 | Victimes du kill feed | **Jamais leur pseudo** : le tag de leur clan s'il est connu (« un joueur [ABC] »), sinon « un adversaire » |
 | Carrousel | Les **3 Top 1 les plus récents**, quel que soit le score |
-| Membres connectés | Voient aussi la vitrine, **en plein écran** (plus de redirection vers `/clans`) ; entrée « Accueil » dans le menu latéral. Page d'arrivée après connexion **inchangée** (tableau de bord) |
+| Membres connectés | Voient aussi la vitrine, **en plein écran** (plus de redirection vers `/clans`) ; entrée « Accueil » dans le menu latéral. Page d'arrivée après connexion **inchangée** (tableau de bord). **Revu le 2026-10-27** : `/` mène un membre connecté à son profil ; la vitrine reste ouverte par « Accueil » (`/?vitrine`), avec « Mon espace » et « Mon clan » en appels à l'action (§1) |
 | « #1 / 26 équipes » (maquette) | **Gardé**, sans migration : la télémétrie l'enregistre déjà (`numAliveTeams` des instantanés de phase). Vérifié contre l'API PUBG (29 `rosters` = 29). Partie sans télémétrie : « #1 » seul |
 | Sous-domaine inconnu | Redirige vers la **vitrine** `/` (au lieu de `/clans`) ; un sous-domaine connu mène toujours à la vue d'ensemble de son clan (`fd.chickendinner.fr` → `/clans/28/overview`) |
 | Métadonnées | Titre, description, adresse canonique, aperçu de partage Open Graph et carte large (image dédiée `public/chickendinnerfr.jpg`, 1024 × 541, ratio ≈ 1,91:1), adresse de base tirée de `NEXT_PUBLIC_APP_URL` |
@@ -138,7 +144,8 @@ pseudo de joueur extérieur au site. Réponse gardée **5 minutes** en mémoire,
 
 | Fichier | Rôle |
 |---|---|
-| `src/app/page.tsx` | États d'installation, puis vitrine ; lit la session pour le lien « Mon espace » ; métadonnées (`generateMetadata`) |
+| `src/app/page.tsx` | États d'installation, puis vitrine ; lit la session : un membre connecté est redirigé vers son profil sauf `?vitrine`, sinon liens « Mon espace » et « Mon clan » ; métadonnées (`generateMetadata`) |
+| `src/lib/home-landing.ts` | Règle pure de l'arrivée d'un connecté (`homeLandingRedirect`, `HOME_SHOWCASE_HREF`), testée par `home-landing.test.ts` |
 | `src/lib/clan-subdomain-host.ts` | Sous-domaine inconnu → vitrine `/` |
 | `src/components/home/HomeShowcase.tsx` | La vitrine (client) ; police Teko par `next/font/google` (variable `--font-teko`) |
 | `src/hooks/useHomeShowcase.ts` | Lecture de l'API |

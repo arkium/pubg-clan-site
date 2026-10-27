@@ -3,12 +3,15 @@ import type { TestInfo } from '@playwright/test'
 import { expect, test } from './support/api'
 import { homeTournaments } from './support/data'
 import { mockClanLeaderboard, mockHomeShowcase } from './support/pages'
+import { mockMemberSession } from './support/session'
 
 /**
  * Vitrine publique de l'accueil (`/`, visiteur sans session) — docs/features/accueil.md.
  * Plein écran sans le shell, compteurs et kill feed, carrousel des Top 1, liens vers /join, /login et /clans, vocabulaire
  * d'inscription des clans (jamais de recrutement) ;
- * entrée « Accueil » du menu latéral. Le cas « membre connecté » (« Mon espace ») exige une session en base : non couvert.
+ * entrée « Accueil » du menu latéral (`/?vitrine` pour un connecté). Le rendu pour un membre connecté (« Mon espace »,
+ * « Mon clan ») et sa redirection vers son profil exigent une session en base : non couverts (règle testée par
+ * `src/lib/home-landing.test.ts`).
  */
 
 const isMobile = (testInfo: TestInfo) => ['chromium-mobile', 'webkit-iphone'].includes(testInfo.project.name)
@@ -190,6 +193,19 @@ test('ordinateur : l’entrée « Accueil » du menu latéral ramène à la vitr
   await page.goto('/clans/1/leaderboard')
   const home = page.locator('aside').getByRole('link', { name: 'Accueil' })
   await expect(home).toHaveAttribute('href', '/')
+  await home.click()
+  await expect(page.getByTestId('home-dinner')).toBeVisible()
+  await expect(page.locator('aside')).toHaveCount(0)
+})
+
+test('ordinateur : pour un membre connecté, l’entrée « Accueil » porte `?vitrine` (sinon `/` mène à son profil)', async ({ api, page }, testInfo) => {
+  test.skip(isNarrow(testInfo), 'le menu latéral n’est affiché en permanence qu’à partir de 1024 px')
+  mockClanLeaderboard(api)
+  mockMemberSession(api)
+  await page.goto('/clans/1/leaderboard')
+  const home = page.locator('aside').getByRole('link', { name: 'Accueil' })
+  await expect(home).toHaveAttribute('href', '/?vitrine')
+  // La session est simulée dans le navigateur seulement : le serveur rend la vitrine, comme pour `?vitrine`.
   await home.click()
   await expect(page.getByTestId('home-dinner')).toBeVisible()
   await expect(page.locator('aside')).toHaveCount(0)

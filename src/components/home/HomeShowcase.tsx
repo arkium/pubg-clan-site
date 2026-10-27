@@ -36,6 +36,7 @@ import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import TeamModeBadge from '@/components/ui/TeamModeBadge'
 import { useHomeShowcase } from '@/hooks/useHomeShowcase'
 import { useHomeTournaments } from '@/hooks/useHomeTournaments'
+import { HOME_SHOWCASE_HREF } from '@/lib/home-landing'
 import { formatMatchDuration, type HomeShowcasePayload, type ShowcaseDinner, type ShowcaseFeedEntry } from '@/lib/home-showcase'
 import { getPeriodStart } from '@/lib/period'
 import { DEBRIEF_TAB_PARAM } from '@/lib/pubg-telemetry/debrief-view'
@@ -838,12 +839,18 @@ function CoachRow({ accountHref }: { accountHref: string | null }) {
 export default function HomeShowcase({
   visitorMode,
   accountHref,
+  clanHref = null,
   initialShowcase = null,
   coachOpen = false,
 }: {
   visitorMode: boolean
   /** Tableau de bord du membre connecté ; `null` pour un visiteur. */
   accountHref: string | null
+  /**
+   * Page du clan du membre connecté : avec « Mon espace », elle remplace « Inscrire mon clan » dans le haut de page et
+   * le héros (décision du 2026-10-27, docs/features/accueil.md) — un membre a déjà son clan, la section reste en bas.
+   */
+  clanHref?: string | null
   /** Vitrine déjà en cache au rendu serveur : compteurs, Top 1 et kill feed dans le HTML. */
   initialShowcase?: HomeShowcasePayload | null
   /** Coach IA ouvert aux membres (clé posée et interrupteur ouvert) : la carte « Coach IA » s'affiche. */
@@ -876,7 +883,7 @@ export default function HomeShowcase({
         <div className="home-hero-shade absolute inset-0" aria-hidden="true" />
 
         <header className="absolute inset-x-0 top-0 z-[3] flex items-center gap-4 px-4 py-3 md:px-8 lg:px-14 lg:py-5">
-          <Link href="/" className="flex items-center text-white">
+          <Link href={accountHref ? HOME_SHOWCASE_HREF : '/'} className="flex items-center text-white">
             <span className="home-display whitespace-nowrap text-[22px] font-semibold leading-none tracking-[0.02em] lg:text-[28px]">
               chickendinner<span className="text-amber-400">.fr</span>
             </span>
@@ -890,12 +897,23 @@ export default function HomeShowcase({
             ))}
           </nav>
           <div className="ml-auto flex items-center gap-2">
-            <Link
-              href={accountHref ?? '/login'}
-              className="home-glass hidden h-[38px] items-center whitespace-nowrap rounded-[10px] px-3.5 text-sm font-semibold text-white lg:inline-flex"
-            >
-              {accountHref ? 'Mon espace' : 'Se connecter'}
-            </Link>
+            {accountHref ? (
+              clanHref ? (
+                <Link
+                  href={clanHref}
+                  className="home-glass hidden h-[38px] items-center whitespace-nowrap rounded-[10px] px-3.5 text-sm font-semibold text-white lg:inline-flex"
+                >
+                  Mon clan
+                </Link>
+              ) : null
+            ) : (
+              <Link
+                href="/login"
+                className="home-glass hidden h-[38px] items-center whitespace-nowrap rounded-[10px] px-3.5 text-sm font-semibold text-white lg:inline-flex"
+              >
+                Se connecter
+              </Link>
+            )}
             <Link
               href={accountHref ?? '/login'}
               aria-label={accountHref ? 'Mon espace' : 'Se connecter'}
@@ -907,11 +925,20 @@ export default function HomeShowcase({
                 <LogIn className="h-[18px] w-[18px]" aria-hidden="true" />
               )}
             </Link>
-            <a href="#inscription" className="hidden h-[38px] items-center whitespace-nowrap rounded-[10px] bg-amber-400 px-4 text-sm font-bold text-amber-950 hover:bg-amber-300 lg:inline-flex">
-              {/* De 1 024 à 1 279 px, le libellé long ne laisse pas le menu tenir sur une ligne. */}
-              <span className="xl:hidden">Inscription</span>
-              <span className="hidden xl:inline">Inscrire mon clan</span>
-            </a>
+            {accountHref ? (
+              <Link
+                href={accountHref}
+                className="hidden h-[38px] items-center whitespace-nowrap rounded-[10px] bg-amber-400 px-4 text-sm font-bold text-amber-950 hover:bg-amber-300 lg:inline-flex"
+              >
+                Mon espace
+              </Link>
+            ) : (
+              <a href="#inscription" className="hidden h-[38px] items-center whitespace-nowrap rounded-[10px] bg-amber-400 px-4 text-sm font-bold text-amber-950 hover:bg-amber-300 lg:inline-flex">
+                {/* De 1 024 à 1 279 px, le libellé long ne laisse pas le menu tenir sur une ligne. */}
+                <span className="xl:hidden">Inscription</span>
+                <span className="hidden xl:inline">Inscrire mon clan</span>
+              </a>
+            )}
             <button
               type="button"
               className="home-glass inline-flex h-[38px] w-[38px] items-center justify-center rounded-[10px] text-white lg:hidden"
@@ -937,9 +964,25 @@ export default function HomeShowcase({
                 {link.href === '/tournaments' ? <TournamentsNavBadge data={tournaments} /> : null}
               </Link>
             ))}
-            <a href="#inscription" onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-bold text-amber-300">
-              Inscrire mon clan
-            </a>
+            {accountHref ? (
+              <>
+                <Link href={accountHref} className="rounded-lg px-3 py-2.5 text-sm font-bold text-amber-300">
+                  Mon espace
+                </Link>
+                {clanHref ? (
+                  <Link href={clanHref} className="home-hero-link rounded-lg px-3 py-2.5 text-sm font-medium">
+                    Mon clan
+                  </Link>
+                ) : null}
+                <a href="#inscription" onClick={() => setMenuOpen(false)} className="home-hero-link rounded-lg px-3 py-2.5 text-sm font-medium">
+                  Inscrire un autre clan
+                </a>
+              </>
+            ) : (
+              <a href="#inscription" onClick={() => setMenuOpen(false)} className="rounded-lg px-3 py-2.5 text-sm font-bold text-amber-300">
+                Inscrire mon clan
+              </a>
+            )}
           </nav>
         ) : null}
 
@@ -969,20 +1012,32 @@ export default function HomeShowcase({
             Le QG des clans PUBG : chaque partie importée, chaque kill compté, chaque top 1 fêté. Stats, classements et
             soirées squad au même endroit.
           </p>
-          <div className="flex flex-wrap gap-2.5">
-            <a
-              href="#inscription"
-              className="relative inline-flex h-12 items-center gap-2 rounded-xl bg-amber-400 px-[22px] text-base font-bold text-amber-950 hover:bg-amber-300"
-            >
-              <span className="home-cta-glow absolute -inset-1 rounded-2xl" aria-hidden="true" />
-              <Plane className="relative h-[18px] w-[18px]" aria-hidden="true" />
-              <span className="relative">Inscrire mon clan</span>
-            </a>
+          <div className="flex flex-wrap gap-2.5" data-testid="home-hero-actions">
+            {accountHref ? (
+              <Link
+                href={accountHref}
+                className="relative inline-flex h-12 items-center gap-2 rounded-xl bg-amber-400 px-[22px] text-base font-bold text-amber-950 hover:bg-amber-300"
+              >
+                <span className="home-cta-glow absolute -inset-1 rounded-2xl" aria-hidden="true" />
+                <User className="relative h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="relative">Mon espace</span>
+              </Link>
+            ) : (
+              <a
+                href="#inscription"
+                className="relative inline-flex h-12 items-center gap-2 rounded-xl bg-amber-400 px-[22px] text-base font-bold text-amber-950 hover:bg-amber-300"
+              >
+                <span className="home-cta-glow absolute -inset-1 rounded-2xl" aria-hidden="true" />
+                <Plane className="relative h-[18px] w-[18px]" aria-hidden="true" />
+                <span className="relative">Inscrire mon clan</span>
+              </a>
+            )}
+            {/* Deux boutons au plus : une troisième ligne remonterait le texte du héros sur la boussole (mobile). */}
             <Link
-              href="/clans-leaderboard"
+              href={accountHref && clanHref ? clanHref : '/clans-leaderboard'}
               className="home-glass inline-flex h-12 items-center rounded-xl px-5 text-[15px] font-semibold text-white"
             >
-              Voir le classement
+              {accountHref && clanHref ? 'Mon clan' : 'Voir le classement'}
             </Link>
           </div>
         </div>

@@ -343,8 +343,9 @@ Session is **cookie-based** with server-side validation:
 - `POST /api/auth/logout` → clears cookie
 - `POST /api/auth/activate` → sets up SuperUser (first run only)
 
-**Accueil `/`:** vitrine publique plein écran, sans shell, pour tous (un connecté y trouve « Mon espace » ; entrée
-« Accueil » du menu latéral), alimentée par la route publique `GET /api/home/showcase` (cache mémoire 5 min). Elle ne doit jamais exposer le
+**Accueil `/`:** vitrine publique plein écran, sans shell, alimentée par la route publique `GET /api/home/showcase`
+(cache mémoire 5 min). Un membre connecté qui ouvre `/` est redirigé vers son profil (2026-10-27,
+`src/lib/home-landing.ts`) ; l'entrée « Accueil » du menu lui ouvre la vitrine par `/?vitrine` (« Mon espace », « Mon clan »). Elle ne doit jamais exposer le
 pseudo ni le compte d'un joueur extérieur au site — voir [accueil.md](docs/features/accueil.md).
 
 **Joueurs `/players`:** classement inter-clans des joueurs (parties officielles **de clan**, mode lu dans le `gameMode`

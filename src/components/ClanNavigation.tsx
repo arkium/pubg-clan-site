@@ -18,6 +18,7 @@ import { usePageData } from '@/hooks/usePageData'
 import { useNavPermissions } from '@/hooks/useNavPermissions'
 import { DEFAULT_APP_THEME, persistAppTheme, readStoredAppTheme, type AppTheme } from '@/lib/app-theme'
 import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
+import { HOME_SHOWCASE_HREF } from '@/lib/home-landing'
 import CoachFab from '@/components/coach/CoachFab'
 import CoachTrigger from '@/components/coach/CoachTrigger'
 import { getItemRole, PERSONAL_NAV_KEYS, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
@@ -360,8 +361,9 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
   }, [urlMemberId, viewedMemberId])
 
   const primaryLinks: NavItem[] = ([
-      // Vitrine du site (docs/features/accueil.md) : plein écran, elle quitte le shell.
-      { navKey: 'primary.home', label: 'Accueil', href: '/', tone: 'neutral' },
+      // Vitrine du site (docs/features/accueil.md) : plein écran, elle quitte le shell. Un connecté ouvrant `/` atterrit
+      // sur son profil : l'entrée porte `?vitrine` pour lui montrer la vitrine (src/lib/home-landing.ts).
+      { navKey: 'primary.home', label: 'Accueil', href: authenticated ? HOME_SHOWCASE_HREF : '/', tone: 'neutral' },
       { navKey: 'primary.dashboard', label: 'Les clans', href: '/clans', tone: 'blue' },
       { navKey: 'primary.ligue', label: 'Ligue', href: '/clans-leaderboard', tone: 'brand' },
       // Classement et comparateur des joueurs (docs/features/joueurs.md) : icône médaille (NavIcon, libellé « Joueurs »).

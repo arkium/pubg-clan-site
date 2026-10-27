@@ -27,6 +27,7 @@ import Pagination from '@/components/ui/Pagination'
 import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import type { CronScheduleSource } from '@/lib/cron-schedule-runner'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -107,8 +108,10 @@ type CronScheduleEntry = {
   key: string
   expression: string
   timezone: string
-  source: 'db' | 'env'
+  source: CronScheduleSource
 }
+
+const SCHEDULE_SOURCE_LABELS: Record<CronScheduleSource, string> = { db: 'personnalisé', env: '.env', default: 'défaut' }
 
 // ---------------------------------------------------------------------------
 // Constants
@@ -340,7 +343,7 @@ function ScheduleEditor({
                 <div className="flex min-w-0 flex-col gap-0.5 md:max-w-[34rem]">
                   <span className="flex flex-wrap items-center gap-1.5">
                     <span className="t-body font-semibold text-gray-900">{SCHEDULE_LABELS[entry.key] ?? entry.key}</span>
-                    <Tag tone={entry.source === 'db' ? 'pos' : 'neutral'}>{entry.source === 'db' ? 'personnalisé' : '.env'}</Tag>
+                    <Tag tone={entry.source === 'db' ? 'pos' : 'neutral'}>{SCHEDULE_SOURCE_LABELS[entry.source] ?? entry.source}</Tag>
                   </span>
                   <span className="t-meta">{SCHEDULE_DESCRIPTIONS[entry.key] ?? 'Tâche planifiée automatique.'}</span>
                 </div>
@@ -754,7 +757,7 @@ export default function CronSettingsPage() {
           setScheduleDrafts((prev) => ({ ...prev, [key]: updated.expression }))
         }
       }
-      setScheduleFeedback((prev) => ({ ...prev, [key]: { type: 'success', message: 'Appliqué' } }))
+      setScheduleFeedback((prev) => ({ ...prev, [key]: { type: 'success', message: 'Enregistré · repris dans la minute' } }))
     } catch {
       setScheduleFeedback((prev) => ({
         ...prev,
@@ -794,7 +797,7 @@ export default function CronSettingsPage() {
           setScheduleDrafts((prev) => ({ ...prev, [key]: updated.expression }))
         }
       }
-      setScheduleFeedback((prev) => ({ ...prev, [key]: { type: 'success', message: 'Réinitialisé' } }))
+      setScheduleFeedback((prev) => ({ ...prev, [key]: { type: 'success', message: 'Réinitialisé · repris dans la minute' } }))
     } catch {
       setScheduleFeedback((prev) => ({
         ...prev,
@@ -1248,7 +1251,7 @@ export default function CronSettingsPage() {
           id="cron-schedules"
           icon={Clock}
           title="Horaires des tâches"
-          meta={`Expressions cron actives (fuseau ${schedules[0]?.timezone ?? 'UTC'}), modifiables sans redémarrage : appliquées aussitôt au processus en cours.`}
+          meta={`Expressions cron actives (fuseau ${schedules[0]?.timezone ?? 'UTC'}) : réglage personnalisé, sinon .env, sinon défaut. Modifiables sans redémarrage : le service des tâches reprend un changement dans la minute.`}
           aside={
             <Link href="/settings/configuration" className="app-btn app-btn--sm app-btn--secondary">
               Configuration du site

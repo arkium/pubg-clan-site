@@ -1,6 +1,7 @@
 import { requireNavPermission } from '@/middleware/auth-permission'
 import type { CareerLifetimeStats } from '@/lib/clan-career'
 import { getCronRunsPerDay } from '@/lib/cron-frequency'
+import { resolveCronSchedule } from '@/lib/cron-schedule-runner'
 import { prisma } from '@/lib/prisma'
 import { SCHEDULE_VARIABLES } from '@/lib/site-config'
 
@@ -59,7 +60,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
       prisma.cronSchedule.findUnique({ where: { key: LIFETIME_SYNC_KEY }, select: { expression: true, timezone: true } }),
     ])
 
-    const expression = syncSchedule?.expression ?? process.env.CLAN_LIFETIME_STATS_SYNC_CRON ?? LIFETIME_SYNC_DEFAULT
+    const { expression } = resolveCronSchedule(
+      { envVar: 'CLAN_LIFETIME_STATS_SYNC_CRON', defaultExpression: LIFETIME_SYNC_DEFAULT },
+      syncSchedule?.expression,
+      process.env
+    )
 
     return Response.json({
       clan,

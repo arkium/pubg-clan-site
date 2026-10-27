@@ -5,6 +5,7 @@ import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { getDiscordSettings, updateDiscordSettings } from '@/lib/discord/discord-config-service'
 import { describeTop1Delay } from '@/lib/discord/discord-sync-delay'
+import { resolveCronSchedule } from '@/lib/cron-schedule-runner'
 import { prisma } from '@/lib/prisma'
 import { SCHEDULE_VARIABLES } from '@/lib/site-config'
 
@@ -106,7 +107,11 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
       settings,
       clanLabel: clan ? `[${clan.tag}] ${clan.name}` : null,
       top1Delay: describeTop1Delay(
-        syncSchedule?.expression ?? process.env.CLAN_MATCH_SYNC_CRON ?? SCHEDULE_VARIABLES.CLAN_MATCH_SYNC_CRON
+        resolveCronSchedule(
+          { envVar: 'CLAN_MATCH_SYNC_CRON', defaultExpression: SCHEDULE_VARIABLES.CLAN_MATCH_SYNC_CRON },
+          syncSchedule?.expression,
+          process.env
+        ).expression
       ),
     })
   } catch (error) {

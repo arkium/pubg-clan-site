@@ -71,10 +71,10 @@ Règles apprises et mémoire personnelle (2026-10-25, lots 10 et 11) : la migrat
 | `ENABLE_CRON_BOOTSTRAP` | `false` | Legacy, à laisser `false` — le bootstrap passe désormais par `POST /api/internal/cron/bootstrap` (voir `ExecStartPost` du worker cron) |
 | `CRON_BOOTSTRAP_SECRET` | — | Web worker ET worker cron (partagé) — protège `/api/internal/cron/bootstrap` et `/api/internal/cron/status` |
 | `INTERNAL_CRON_STATUS_URL` | `http://127.0.0.1:3001/api/internal/cron/status` | Web worker uniquement — permet au dashboard `/clans/[clanId]/settings/cron` de sonder l'état du worker cron |
-| `CLAN_MATCH_SYNC_CRON` | `0 2 * * *` | Optionnel |
+| `CLAN_MATCH_SYNC_CRON` | `*/30 * * * *` | Optionnel — à ne pas fixer : un réglage de `/settings/cron` l'emporte, et une valeur ici l'emporte sur le défaut du code |
 | `CLAN_MATCH_SYNC_TIMEZONE` | `UTC` | Optionnel |
 | `CLAN_STATS_RECALC_CRON` | `0 3 * * *` | Optionnel |
-| `CLAN_LIFETIME_STATS_SYNC_CRON` | `0 4 * * *` | Optionnel |
+| `CLAN_LIFETIME_STATS_SYNC_CRON` | `0 */4 * * *` | Optionnel — même remarque |
 | `CLAN_SEASON_STATS_SYNC_CRON` | `0 5 * * *` | Optionnel |
 | `CLAN_ONLINE_REMINDER_CRON` | `0 18 * * *` | Optionnel |
 | `WEEKLY_REPORT_REMINDER_CRON` | `0 9 * * *` | Optionnel |

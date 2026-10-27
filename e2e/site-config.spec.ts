@@ -62,6 +62,15 @@ test('Tâches planifiées : horaires gardés, configuration déplacée, décompt
   const schedules = page.locator('#cron-schedules').locator('xpath=ancestor::section[1]')
   await expect(page.getByRole('heading', { level: 2, name: 'Horaires des tâches' })).toBeVisible()
   await expect(schedules.getByRole('link', { name: 'Configuration du site' })).toHaveAttribute('href', '/settings/configuration')
+  // D'où vient chaque horaire, et quand un changement est repris (par le service des tâches, pas par le web).
+  await expect(schedules.getByText('le service des tâches reprend un changement dans la minute')).toBeVisible()
+  for (const [label, source] of [
+    ['Sync des parties des clans', 'personnalisé'],
+    ['Recalcul stats quotidien', '.env'],
+    ['Sync carrière (lifetime)', 'défaut'],
+  ]) {
+    await expect(schedules.getByRole('listitem').filter({ hasText: label }).getByText(source, { exact: true })).toBeVisible()
+  }
   // Plus de section « Configuration » ni de variables du .env ici.
   await expect(page.getByRole('heading', { level: 2, name: 'Configuration' })).toHaveCount(0)
   await expect(page.getByText('PUBG_API_KEY')).toHaveCount(0)

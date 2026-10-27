@@ -1,5 +1,5 @@
 import 'server-only'
-import cron, { type ScheduledTask } from 'node-cron'
+import cron from 'node-cron'
 
 import { precomputeClanAwards } from '@/lib/awards-service'
 import { precomputeClanMatchesStats } from '@/lib/matches-cache-service'
@@ -15,6 +15,13 @@ import { archiveMembers, listArchiveCandidates } from '@/lib/clan-lifecycle/ungr
 import { closeStaleLifecycleRuns, runMembershipSyncPass } from '@/lib/clan-lifecycle/membership-sync'
 import { syncClanLifetimeStats, syncTrackedClanStats } from '@/lib/clan-service'
 import { finishCronExecution, startCronExecution } from '@/lib/cron-observability'
+import {
+  CRON_SCHEDULE_REFRESH_MS,
+  createCronScheduleRunner,
+  resolveCronSchedule,
+  type CronScheduleRunner,
+  type CronScheduleSpec,
+} from '@/lib/cron-schedule-runner'
 import {
   ENCOUNTERED_PLAYER_MAX_RESOLVE_ATTEMPTS,
   ENCOUNTERED_PLAYER_MIN_ENCOUNTERS_BEFORE_RESOLUTION,
@@ -73,30 +80,20 @@ type ChallengeService = {
 }
 
 const globalForCron = globalThis as typeof globalThis & {
-  clanSyncCronTask?: ScheduledTask
+  /** Tâches planifiées de ce processus (le service cron seul, `initCronJobs`). */
+  cronScheduleRunner?: CronScheduleRunner<CronScheduleKey>
+  cronScheduleRefreshTimer?: ReturnType<typeof setInterval>
   clanSyncCronInitialized?: boolean
   clanSyncFailures?: Map<number, number>
   clanSyncInProgress?: boolean
-  statsRecalcCronTask?: ScheduledTask
   statsRecalcInProgress?: boolean
-  lifetimeStatsSyncCronTask?: ScheduledTask
   lifetimeStatsSyncInProgress?: boolean
-  seasonStatsSyncCronTask?: ScheduledTask
   seasonStatsSyncInProgress?: boolean
-  clanReminderCronTask?: ScheduledTask
-  challengeProcessingCronTask?: ScheduledTask
   challengeProcessingInProgress?: boolean
-  encounteredPlayerResolutionCronTask?: ScheduledTask
   encounteredPlayerResolutionInProgress?: boolean
-  // Pas de booleen d'execution ici : le verrou du cycle de vie est en base
+  // Pas de booleen d'execution pour le cycle de vie : son verrou est en base
   // (ClanLifecycleRun), pour tenir entre plusieurs process.
-  clanLifecycleMembershipSyncCronTask?: ScheduledTask
-  dbMaintenanceCronTask?: ScheduledTask
-  geoPurgeCountCronTask?: ScheduledTask
-  resourceVehicleSpotsCronTask?: ScheduledTask
   resourceVehicleSpotsInProgress?: boolean
-  adminDailyDigestCronTask?: ScheduledTask
-  homeShowcaseWarmCronTask?: ScheduledTask
   homeShowcaseWarmSecretWarned?: boolean
   /** Dernier échec journalisé du préchauffage (`null` : en ordre). */
   homeShowcaseWarmFailure?: string | null
@@ -1449,77 +1446,47 @@ export type CronScheduleKey =
   | 'admin_daily_digest'
   | 'home_showcase_warm'
 
-type CronScheduleGlobalKey =
-  | 'clanLifecycleMembershipSyncCronTask'
-  | 'clanSyncCronTask'
-  | 'statsRecalcCronTask'
-  | 'lifetimeStatsSyncCronTask'
-  | 'seasonStatsSyncCronTask'
-  | 'clanReminderCronTask'
-  | 'challengeProcessingCronTask'
-  | 'encounteredPlayerResolutionCronTask'
-  | 'dbMaintenanceCronTask'
-  | 'geoPurgeCountCronTask'
-  | 'resourceVehicleSpotsCronTask'
-  | 'adminDailyDigestCronTask'
-  | 'homeShowcaseWarmCronTask'
-
-type CronScheduleDefinition = {
-  key: CronScheduleKey
-  envVar: string
-  defaultExpression: string
-  globalKey: CronScheduleGlobalKey
-  run: () => Promise<void>
-}
-
-const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
+const CRON_SCHEDULE_DEFINITIONS: CronScheduleSpec<CronScheduleKey>[] = [
   {
     key: 'daily_sync',
     envVar: 'CLAN_MATCH_SYNC_CRON',
     defaultExpression: '*/30 * * * *',
-    globalKey: 'clanSyncCronTask',
     run: runDailyClanSync,
   },
   {
     key: 'daily_stats_recalc',
     envVar: 'CLAN_STATS_RECALC_CRON',
     defaultExpression: '0 3 * * *',
-    globalKey: 'statsRecalcCronTask',
     run: recalculateStatsDaily,
   },
   {
     key: 'daily_lifetime_stats_sync',
     envVar: 'CLAN_LIFETIME_STATS_SYNC_CRON',
     defaultExpression: '0 */4 * * *',
-    globalKey: 'lifetimeStatsSyncCronTask',
     run: syncLifetimeStatsDaily,
   },
   {
     key: 'daily_season_stats_sync',
     envVar: 'CLAN_SEASON_STATS_SYNC_CRON',
     defaultExpression: '0 5 * * *',
-    globalKey: 'seasonStatsSyncCronTask',
     run: syncSeasonStatsDaily,
   },
   {
     key: 'clan_online_reminder',
     envVar: 'CLAN_ONLINE_REMINDER_CRON',
     defaultExpression: '0 18 * * *',
-    globalKey: 'clanReminderCronTask',
     run: () => sendNotificationsReminders('clan_online'),
   },
   {
     key: 'challenge_processing',
     envVar: 'CHALLENGE_PROCESSING_CRON',
     defaultExpression: '0 0 * * *',
-    globalKey: 'challengeProcessingCronTask',
     run: processChallenges,
   },
   {
     key: 'encountered_player_clan_resolution',
     envVar: 'ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON',
     defaultExpression: '*/30 * * * *',
-    globalKey: 'encounteredPlayerResolutionCronTask',
     run: resolveEncounteredPlayerClans,
   },
   {
@@ -1529,7 +1496,6 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     key: 'clan_lifecycle_membership_sync',
     envVar: 'CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON',
     defaultExpression: '45 1 * * *',
-    globalKey: 'clanLifecycleMembershipSyncCronTask',
     run: runClanLifecycleMembershipSync,
   },
   {
@@ -1537,7 +1503,6 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     envVar: 'DB_MAINTENANCE_CRON',
     // 01:15, avant daily_sync (02:00) : les tableaux de bord du matin sont à jour.
     defaultExpression: '15 1 * * *',
-    globalKey: 'dbMaintenanceCronTask',
     run: runDbMaintenance,
   },
   {
@@ -1546,7 +1511,6 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     key: 'telemetry_geo_purge_count',
     envVar: 'TELEMETRY_GEO_PURGE_COUNT_CRON',
     defaultExpression: '0 6 * * *',
-    globalKey: 'geoPurgeCountCronTask',
     run: runGeoPurgeCount,
   },
   {
@@ -1556,7 +1520,6 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     key: 'resource_vehicle_spots',
     envVar: 'RESOURCE_VEHICLE_SPOTS_CRON',
     defaultExpression: '30 6 * * *',
-    globalKey: 'resourceVehicleSpotsCronTask',
     run: runResourceVehicleSpots,
   },
   {
@@ -1564,7 +1527,6 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     key: 'admin_daily_digest',
     envVar: 'ADMIN_DAILY_DIGEST_CRON',
     defaultExpression: '0 9 * * *',
-    globalKey: 'adminDailyDigestCronTask',
     run: runAdminDailyDigest,
   },
   {
@@ -1572,25 +1534,35 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
     key: 'home_showcase_warm',
     envVar: 'HOME_SHOWCASE_WARM_CRON',
     defaultExpression: '*/4 * * * *',
-    globalKey: 'homeShowcaseWarmCronTask',
     run: runHomeShowcaseWarm,
   },
 ]
 
-async function resolveEffectiveCronExpressions(): Promise<Map<CronScheduleKey, string>> {
-  const overrides = await prisma.cronSchedule.findMany()
-  const overrideByKey = new Map(overrides.map((row) => [row.key, row.expression]))
+async function loadCronScheduleOverrides(): Promise<Map<string, string>> {
+  const overrides = await prisma.cronSchedule.findMany({ select: { key: true, expression: true } })
+  return new Map(overrides.map((row) => [row.key, row.expression]))
+}
 
-  const effective = new Map<CronScheduleKey, string>()
-  for (const definition of CRON_SCHEDULE_DEFINITIONS) {
-    const expression =
-      overrideByKey.get(definition.key) ??
-      process.env[definition.envVar] ??
-      definition.defaultExpression
-    effective.set(definition.key, expression)
-  }
+function cronScheduleRunner() {
+  globalForCron.cronScheduleRunner ??= createCronScheduleRunner({
+    specs: CRON_SCHEDULE_DEFINITIONS,
+    loadOverrides: loadCronScheduleOverrides,
+    schedule: (expression, run) =>
+      cron.schedule(
+        expression,
+        async () => {
+          await run()
+        },
+        { timezone: DAILY_SYNC_TIMEZONE }
+      ),
+    validate: (expression) => cron.validate(expression),
+    timezone: DAILY_SYNC_TIMEZONE,
+  })
+  return globalForCron.cronScheduleRunner
+}
 
-  return effective
+export function isCronScheduleKey(key: string): key is CronScheduleKey {
+  return CRON_SCHEDULE_DEFINITIONS.some((definition) => definition.key === key)
 }
 
 export async function initCronJobs() {
@@ -1609,62 +1581,32 @@ export async function initCronJobs() {
   // both pass this guard and create duplicate ScheduledTasks.
   globalForCron.clanSyncCronInitialized = true
 
-  const effectiveExpressions = await resolveEffectiveCronExpressions()
+  await cronScheduleRunner().start()
 
-  for (const definition of CRON_SCHEDULE_DEFINITIONS) {
-    const expression = effectiveExpressions.get(definition.key) ?? definition.defaultExpression
-
-    globalForCron[definition.globalKey] = cron.schedule(
-      expression,
-      async () => {
-        await definition.run()
-      },
-      {
-        timezone: DAILY_SYNC_TIMEZONE,
-      }
-    )
-
-    console.info(`[Cron] "${definition.key}" scheduled with "${expression}" (${DAILY_SYNC_TIMEZONE})`)
-  }
+  // Un horaire changé depuis /settings/cron est enregistré en base par le web : ce processus le reprend ici.
+  globalForCron.cronScheduleRefreshTimer ??= setInterval(() => {
+    void cronScheduleRunner().refresh()
+  }, CRON_SCHEDULE_REFRESH_MS)
+  globalForCron.cronScheduleRefreshTimer.unref?.()
 }
 
-export function rescheduleJob(key: string, newExpression: string): boolean {
-  const definition = CRON_SCHEDULE_DEFINITIONS.find((entry) => entry.key === key)
-  if (!definition) {
-    return false
-  }
-
-  globalForCron[definition.globalKey]?.stop()
-
-  globalForCron[definition.globalKey] = cron.schedule(
-    newExpression,
-    async () => {
-      await definition.run()
-    },
-    {
-      timezone: DAILY_SYNC_TIMEZONE,
-    }
-  )
-
-  console.info(`[Cron] "${definition.key}" rescheduled to "${newExpression}" (${DAILY_SYNC_TIMEZONE})`)
-  return true
+/**
+ * Replanifie aussitôt, dans le processus qui porte les tâches, celles dont l'horaire a changé en base. Sans effet
+ * ailleurs (le web en production) : le service cron le reprend dans la minute. Ne jamais planifier depuis une route.
+ */
+export async function refreshCronSchedules(): Promise<CronScheduleKey[]> {
+  if (!isCronJobsInitialized()) return []
+  return cronScheduleRunner().refresh()
 }
 
 export async function getEffectiveCronSchedules() {
-  const overrides = await prisma.cronSchedule.findMany()
-  const overrideByKey = new Map(overrides.map((row) => [row.key, row.expression]))
+  const overrides = await loadCronScheduleOverrides()
 
-  return CRON_SCHEDULE_DEFINITIONS.map((definition) => {
-    const dbExpression = overrideByKey.get(definition.key)
-    const expression = dbExpression ?? process.env[definition.envVar] ?? definition.defaultExpression
-
-    return {
-      key: definition.key,
-      expression,
-      timezone: DAILY_SYNC_TIMEZONE,
-      source: dbExpression ? ('db' as const) : ('env' as const),
-    }
-  })
+  return CRON_SCHEDULE_DEFINITIONS.map((definition) => ({
+    key: definition.key,
+    ...resolveCronSchedule(definition, overrides.get(definition.key), process.env),
+    timezone: DAILY_SYNC_TIMEZONE,
+  }))
 }
 
 export function isCronJobsInitialized() {

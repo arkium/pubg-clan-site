@@ -486,6 +486,11 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 */4 * * * *  →  Home showcase warm (appelle le web pour recalculer la vitrine avant l'expiration de son cache)
 ```
 
+**Schedules:** effective = `CronSchedule` row (`/settings/cron`), else env var, else code default (`resolveCronSchedule`,
+`src/lib/cron-schedule-runner.ts`). Only the cron worker (`ENABLE_CRON_JOBS=true`) holds tasks: routes write the row,
+the worker re-reads it every minute. **Never call `cron.schedule` from a route** — the web would run a second copy
+(double clan sync on 2026-10-27; static check in `cron-schedules-route-contracts.test.ts`). Web and cron read
+`.next/standalone/.env`, not the root `.env`.
 **Observability:** `/clans/[clanId]/settings/cron` dashboard shows last run time & errors.
 **Tracking:** `CronExecution` table stores execution logs.
 **Database health:** `npx tsx scripts/db-health.ts status|report` (read-only) — measured state, index review and

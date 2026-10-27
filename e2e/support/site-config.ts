@@ -104,8 +104,9 @@ export function mockCronSettings(api: ApiMock) {
       body: {
         ok: true,
         schedules: [
-          { key: 'clan_match_sync', expression: '0 2,11,13 * * *', timezone: 'Europe/Paris', source: 'env' },
-          { key: 'clan_stats_recalc', expression: '0 3,12 * * *', timezone: 'Europe/Paris', source: 'db' },
+          { key: 'daily_sync', expression: '*/30 * * * *', timezone: 'Europe/Paris', source: 'db' },
+          { key: 'daily_stats_recalc', expression: '0 3,12 * * *', timezone: 'Europe/Paris', source: 'env' },
+          { key: 'daily_lifetime_stats_sync', expression: '0 */4 * * *', timezone: 'Europe/Paris', source: 'default' },
         ],
       },
     })

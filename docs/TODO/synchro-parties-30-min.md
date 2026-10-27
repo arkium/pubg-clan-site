@@ -2,7 +2,7 @@
 
 > Plan du 2026-10-27, à la suite d'une question de joueur : « un Chicken Dinner à 18 h, rien sur Discord à 18 h 30,
 > c'est normal ? ». Mesures et vérifications faites en production (lecture seule, et 14 appels directs à l'API PUBG
-> pour la vérification du §2). **Implémenté le 2026-10-27, non déployé** : état au §8. *Destiné à l'utilisateur et à
+> pour la vérification du §2). **Implémenté et déployé le 2026-10-27** : état au §8, suites du déploiement au §6. *Destiné à l'utilisateur et à
 > l'équipe de développement.*
 
 ## 1. Constat
@@ -95,9 +95,20 @@ du clan dans le tour — **15 à 45 minutes** au lieu de 2 à 4 heures.
 
 ## 6. Après le déploiement
 
-1. Dans `/settings/cron-schedules` : `daily_sync` à `*/30 * * * *`. Vérifier que le `.env` du serveur ne fixe pas
-   `CLAN_LIFETIME_STATS_SYNC_CRON` (sinon le passer à `0 */4 * * *`).
-2. Le lendemain : `npx tsx --conditions=react-server --tsconfig ./tsconfig.json scripts/measure-sync-latency.ts` et
+Déployé le 2026-10-27 vers 21 h 55 (premiers appels groupés `clan-match-sync` à 22:00, heure de Paris).
+
+1. **Fait** : dans `/settings/cron`, `daily_sync` à `*/30 * * * *` (21:56).
+2. **Doublon relevé** : la route `PUT /api/settings/cron-schedules` replanifiait la tâche dans le processus qui la
+   recevait — le **web** — en plus du worker cron : de 22:00 à 22:19, chaque clan a été synchronisé deux fois (deux
+   boucles décalées, aucun 429, aucune alerte Discord en double grâce à `claimNotification`). Arrêté par le redémarrage
+   du web et du cron à 22:19 ; corrigé dans le code le même soir (le worker cron relit `CronSchedule` chaque minute,
+   les routes n'écrivent qu'en base — [cron.md](../ops/cron.md), « Schedules éditables »), **à déployer**.
+3. **`.env` du serveur** : il fixait `CLAN_MATCH_SYNC_CRON="0 2,11,13,…,23 * * *"` (sans effet, la base l'emporte) et
+   `CLAN_LIFETIME_STATS_SYNC_CRON="0 4 * * *"` (carrière une fois par jour au lieu de toutes les 4 h). Retirées du
+   `.env` racine à 22:19, mais le web et le cron lisent **`.next/standalone/.env`** : la carrière restait à `0 4 * * *`
+   après le redémarrage. Le déploiement suivant recopie le `.env` (build) ; contrôle dans le journal du cron :
+   `"daily_lifetime_stats_sync" scheduled with "0 */4 * * *"`. `.env.example` ne fixe plus aucun horaire.
+4. Le lendemain : `npx tsx --conditions=react-server --tsconfig ./tsconfig.json scripts/measure-sync-latency.ts` et
    comparer au §1 (délai des alertes, intervalle par clan, aucun 429).
 
 ## 7. Hors de ce plan
@@ -132,3 +143,10 @@ résolu, rattrapage), `pubg-sync-reads.test.ts` (cache, `recentMatchIds`, priori
 (priorité basse, rattrapage sans faire échouer la carrière), `discord-sync-delay.test.ts`, `discord-route-contracts.test.ts`
 (`top1Delay`), `clan-stats-route-contracts.test.ts` et `tournament-round-discovery.test.ts` mis à jour ; Playwright
 `e2e/discord-settings.spec.ts` (délai à 30 min et à l'heure, rien sans délai connu ; 4 projets).
+
+**Correction du 2026-10-27 au soir** (après le doublon du §6, **non déployée**) : `src/lib/cron-schedule-runner.ts`
+(`resolveCronSchedule` : base, sinon .env, sinon défaut — une seule règle, reprise par les routes Discord et carrière ;
+`createCronScheduleRunner` : planification au démarrage, relecture chaque minute dans le worker cron) ; routes
+`cron-schedules` sans planification (tâche inconnue refusée avant écriture) ; source « défaut » affichée sur
+`/settings/cron`. Tests : `cron-schedule-runner.test.ts`, `cron-schedules-route-contracts.test.ts` (dont le contrôle
+statique : `cron.schedule(` seulement dans `cron-jobs.ts`), Playwright `e2e/site-config.spec.ts` (sources affichées).

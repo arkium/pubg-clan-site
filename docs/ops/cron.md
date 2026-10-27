@@ -339,12 +339,14 @@ Snapshot rate limit PUBG API en pied de section.
 
 ### Schedules éditables
 
-Les 9 schedules du tableau "Jobs planifiés" sont stockés en base dans la table `CronSchedule` (`key`, `expression`, `timezone`, `updatedAt`, `updatedBy`) et pilotables sans redémarrage depuis la section "Schedules cron" de `/settings/cron` :
+Les 13 schedules du tableau "Jobs planifiés" sont stockés en base dans la table `CronSchedule` (`key`, `expression`, `timezone`, `updatedAt`, `updatedBy`) et pilotables sans redémarrage depuis la section "Schedules cron" de `/settings/cron` :
 
-- La valeur effective est : ligne `CronSchedule` si elle existe, sinon la variable d'environnement, sinon le défaut codé en dur. Badge "personnalisé" (vert) vs `.env` (neutre) selon la source.
-- `PUT /api/settings/cron-schedules` (SuperUser) : valide l'expression (`node-cron` `cron.validate`), upsert `CronSchedule`, reprogramme immédiatement la tâche dans le process courant via `rescheduleJob()`.
-- `DELETE /api/settings/cron-schedules/[key]` (SuperUser) : supprime l'override, revient à la valeur `.env`/défaut.
-- **Limite connue** : `rescheduleJob()` ne modifie que le `ScheduledTask` du process Next.js qui a reçu la requête. Sur une infrastructure multi-instances, les autres instances gardent l'ancienne expression jusqu'à leur prochain redémarrage (qui relira alors `CronSchedule` à jour au bootstrap). Pas de synchronisation inter-instances en temps réel.
+- La valeur effective est : ligne `CronSchedule` si elle existe, sinon la variable d'environnement (une valeur vide ne compte pas), sinon le défaut codé en dur (`resolveCronSchedule`, `src/lib/cron-schedule-runner.ts`). Badge « personnalisé » (vert), « .env » ou « défaut » (neutres) selon la source.
+- `PUT /api/settings/cron-schedules` (SuperUser) : refuse une tâche inconnue et une expression invalide (`node-cron` `cron.validate`), puis upsert `CronSchedule`. **Rien n'est planifié par la route** : le web ne porte aucune tâche.
+- `DELETE /api/settings/cron-schedules/[key]` (SuperUser) : supprime l'override ; la tâche revient au `.env`, sinon au défaut.
+- **Reprise par le worker cron** (depuis le 2026-10-27) : le worker cron (`ENABLE_CRON_JOBS=true`) relit `CronSchedule` **chaque minute** et replanifie les tâches dont l'horaire effectif a changé (`refreshCronSchedules`, `CRON_SCHEDULE_REFRESH_MS`) — l'ancienne tâche est arrêtée, une seule nouvelle part. Une expression invalide en base garde l'horaire en cours (signalée une fois dans le journal) ; une base injoignable ne touche à rien. En développement (un seul processus), le changement est appliqué aussitôt.
+- **Pourquoi** : jusqu'au 2026-10-27, la route replanifiait la tâche dans le processus qui recevait la requête — le **web**, qui n'en porte aucune —, et le worker cron gardait l'ancien horaire jusqu'à son redémarrage. Passer `daily_sync` à 30 minutes avait ainsi lancé une **seconde** synchronisation des parties dans le web (chaque clan synchronisé deux fois, coût PUBG doublé). Contrôle statique : `src/lib/cron-schedules-route-contracts.test.ts` échoue si `cron.schedule(` apparaît hors de `cron-jobs.ts`.
+- **`.env` des services** : le web et le worker cron lisent `.next/standalone/.env` (copie faite au build), pas le `.env` racine — voir [deployment.md](deployment.md), « Propriétaire du `.env` et du build ». Une variable `*_CRON` restée dans cette copie l'emporte sur le défaut du code.
 
 ### Bloc historique
 
@@ -444,4 +446,4 @@ Voir `.env.example` pour la liste complète des variables disponibles avec leurs
 - En cas d'incident télémétrie, désactiver d'abord `TELEMETRY_SYNC_ENABLED` avant toute action plus intrusive.
 - Traiter les warnings de configuration dans le bloc checks avant de considérer la supervision comme fiable.
 - **Blocage event-loop résolu** : `daily_sync` ne télécharge/parse plus la télémétrie en-process. Quand `TELEMETRY_SYNC_ENABLED=true`, il se contente d'enfiler les matchs éligibles (action `telemetry_live_sync`) ; le téléchargement + parsing stream a lieu dans `npm run telemetry:worker`, un process séparé du serveur HTTP. Ce worker doit tourner pour que la télémétrie automatique progresse — si absent, les jobs s'accumulent en `queued` (visible dans le panneau `telemetry:worker` de `/settings/cron`) sans jamais bloquer le site.
-- **Éditer un schedule affecte uniquement le process courant** : si l'app tourne sur plusieurs instances Next.js, `rescheduleJob()` ne touche que celle qui a reçu la requête `PUT` — voir "Schedules éditables" ci-dessus.
+- **Éditer un schedule** : enregistré en base par le web, repris dans la minute par le worker cron — voir "Schedules éditables" ci-dessus.

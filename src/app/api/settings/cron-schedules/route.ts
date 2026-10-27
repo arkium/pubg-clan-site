@@ -2,11 +2,7 @@ import 'server-only'
 import cron from 'node-cron'
 
 import { withAdminActionLog } from '@/lib/admin-action-log'
-import {
-  getEffectiveCronSchedules,
-  rescheduleJob,
-  type CronScheduleKey,
-} from '@/lib/cron-jobs'
+import { getEffectiveCronSchedules, isCronScheduleKey, refreshCronSchedules } from '@/lib/cron-jobs'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { rememberSessionActor } from '@/lib/auth/admin-actor'
 import { isSuperUserSession } from '@/middleware/auth-permission'
@@ -38,6 +34,10 @@ async function handlePut(request: Request) {
     return Response.json({ error: 'key et expression sont requis' }, { status: 400 })
   }
 
+  if (!isCronScheduleKey(key)) {
+    return Response.json({ error: `Tâche inconnue : ${key}` }, { status: 400 })
+  }
+
   if (!cron.validate(expression)) {
     return Response.json({ error: 'Expression cron invalide' }, { status: 400 })
   }
@@ -51,13 +51,8 @@ async function handlePut(request: Request) {
     create: { key, expression, updatedBy: session?.userId ?? null },
   })
 
-  const rescheduled = rescheduleJob(key as CronScheduleKey, expression)
-  if (!rescheduled) {
-    return Response.json(
-      { error: `Clé de schedule inconnue: ${key} (enregistrée en base mais pas appliquée au process courant)` },
-      { status: 400 }
-    )
-  }
+  // Rien n'est planifié ici : le service cron relit la base dans la minute (sans effet dans le web).
+  await refreshCronSchedules()
 
   const schedules = await getEffectiveCronSchedules()
   return Response.json({ ok: true, schedules })

@@ -7,6 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => ({
   squadMatchFindMany: vi.fn(),
+  squadMemberFindMany: vi.fn(),
   memberFindFirst: vi.fn(),
   weaponsFindMany: vi.fn(),
   opponentFindFirst: vi.fn(),
@@ -64,6 +65,7 @@ vi.mock('@/lib/prisma', () => ({
   prisma: {
     $queryRaw: mocks.queryRaw,
     squadMatch: { findMany: mocks.squadMatchFindMany },
+    squadMember: { findMany: mocks.squadMemberFindMany },
     clanMember: { findFirst: mocks.memberFindFirst, count: mocks.memberCount, findUnique: mocks.memberFindUnique },
     positionMetricCell: { aggregate: mocks.cellAggregate },
     zoneClosurePosition: { aggregate: mocks.closureAggregate },
@@ -127,6 +129,18 @@ const scope = { clanId: 292, memberId: 100, memberName: 'NovakTV' }
 const tools = createCoachTools(scope)
 const run = (name: string, args: Record<string, unknown> = {}) => tools.run({ name, args })
 
+/** Membres actifs du clan 292 (le filtre des requêtes) ; la place est celle de leur équipe. */
+const ACTIVE_292 = { clanId: 292, isActive: true, joinStatus: 'active' }
+const CLAN_WHERE = { clanId: 292, isActive: true, joinStatus: 'active' }
+const squadEntry = (displayName: string, kills: number, damage: number, knockouts: number, placement: number, memberId?: number) => ({
+  ...(memberId !== undefined ? { memberId } : {}),
+  kills,
+  damage,
+  knockouts,
+  placement,
+  member: { displayName, ...ACTIVE_292 },
+})
+
 beforeEach(() => {
   for (const mock of Object.values(mocks)) mock.mockReset()
   resetCoachLeagueCache()
@@ -169,24 +183,27 @@ describe('déclarations', () => {
 })
 
 describe('getRecentMatches', () => {
+  // Place, kills et dégâts : ceux des membres du clan (18 kills, 2 846,4 de dégâts, 3e).
+  const membersAt = (placement: number) => [squadEntry('NovakTV', 11, 1846.4, 4, placement), squadEntry('Menez69', 7, 1000, 2, placement)]
   const match = {
     id: 'cmatch1',
     mapName: 'Baltic_Main',
     gameMode: 'squad',
     matchType: 'official',
-    placement: 3,
     createdAt: new Date('2026-10-22T23:30:00Z'),
-    totalKills: 18,
-    totalDamage: 2846.4,
-    members: [{ member: { displayName: 'NovakTV' } }, { member: { displayName: 'Menez69' } }],
+    members: membersAt(3),
     telemetry: { status: 'success' },
   }
 
   it('lit les parties du clan de la fermeture, bornées, par soirée de jeu, avec un résumé calculé', async () => {
-    mocks.squadMatchFindMany.mockResolvedValue([match, { ...match, id: 'cmatch0', placement: 14, createdAt: new Date('2026-10-22T22:50:00Z') }])
+    mocks.squadMatchFindMany.mockResolvedValue([match, { ...match, id: 'cmatch0', members: membersAt(14), createdAt: new Date('2026-10-22T22:50:00Z') }])
     const result = (await run('getRecentMatches', { limit: 50 })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
     const query = mocks.squadMatchFindMany.mock.calls[0][0]
-    expect(query.where).toEqual({ members: { some: { member: { clanId: 292 } } } })
+    expect(query.where).toEqual({ members: { some: { member: CLAN_WHERE } } })
+    // Escouade, place et totaux : les seuls membres actifs du clan, jamais les colonnes de la ligne.
+    expect(query.select.members.where).toEqual({ member: CLAN_WHERE })
+    expect(query.select).not.toHaveProperty('placement')
+    expect(query.select).not.toHaveProperty('totalKills')
     // Une ligne de plus que la borne : elle dit s'il existe des parties avant la liste.
     expect(query.take).toBe(11)
     // 01:30 à Paris le 23 : c'est encore la soirée du 22.
@@ -205,6 +222,14 @@ describe('getRecentMatches', () => {
     expect(result.note).toContain('d’autres avant')
   })
 
+  it('partie partagée : la place du clan, même quand un autre clan a créé la ligne et gagné', async () => {
+    // La ligne d'un autre clan (place 1 pour lui) : ce clan-ci a fini 6e, sa victoire n'est pas comptée.
+    mocks.squadMatchFindMany.mockResolvedValue([{ ...match, placement: 1, totalKills: 30, members: membersAt(6) }])
+    const result = (await run('getRecentMatches')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(result.matches[0]).toMatchObject({ placement: 6, squadKills: 18, squad: ['NovakTV', 'Menez69'] })
+    expect(result.summary).toMatchObject({ wins: 0, bestPlacement: 6 })
+  })
+
   it('filtre par carte d’après son nom affiché, et refuse une carte inconnue', async () => {
     mocks.squadMatchFindMany.mockResolvedValue([])
     const empty = (await run('getRecentMatches', { mapName: 'erangel' })) as { summary: unknown; listed: number }
@@ -219,19 +244,14 @@ describe('getRecentMatches', () => {
 describe('getSessions', () => {
   // Heure d'été jusqu'au dimanche 25 octobre 2026 à 03:00 (01:00 UTC). Une soirée = six heures réelles après minuit à
   // Paris, comme `sessionDateOf` : celle du samedi 24 finit donc à 05:00 heure d'hiver (04:00 UTC).
-  const row =(id: string, iso: string, placement: number, overrides: Record<string, unknown> = {}) => ({
+  // `placement` : celle des membres du clan (leur équipe) ; la ligne n'en porte plus.
+  const row = (id: string, iso: string, placement: number, overrides: Record<string, unknown> = {}) => ({
     id,
     mapName: 'Baltic_Main',
     gameMode: 'squad',
     matchType: 'official',
-    placement,
     createdAt: new Date(iso),
-    totalKills: 6,
-    totalDamage: 812.4,
-    members: [
-      { kills: 4, damage: 500.2, knockouts: 3, member: { displayName: 'NovakTV' } },
-      { kills: 2, damage: 312.2, knockouts: 1, member: { displayName: 'Menez69' } },
-    ],
+    members: [squadEntry('NovakTV', 4, 500.2, 3, placement), squadEntry('Menez69', 2, 312.2, 1, placement)],
     telemetry: { status: 'success' },
     ...overrides,
   })
@@ -239,7 +259,7 @@ describe('getSessions', () => {
   const saturday = [
     row('s4', '2026-10-25T00:35:00Z', 1, { mapName: 'Desert_Main', matchType: 'airoyale' }), // 02:35 dimanche : soirée du samedi
     row('s3', '2026-10-24T22:16:00Z', 1),
-    row('s2', '2026-10-24T21:31:00Z', 25, { members: [{ kills: 0, damage: 22, knockouts: 0, member: { displayName: 'NovakTV' } }] }),
+    row('s2', '2026-10-24T21:31:00Z', 25, { members: [squadEntry('NovakTV', 0, 22, 0, 25)] }),
     row('s1', '2026-10-24T19:05:00Z', 7),
   ]
   const friday = [row('f1', '2026-10-23T20:00:00Z', 12)]
@@ -257,12 +277,14 @@ describe('getSessions', () => {
     expect(query.where).toEqual({
       // Du lundi 19 à 06:00 (04:00 UTC, heure d'été) au lundi 26 à 06:00 (05:00 UTC, heure d'hiver).
       createdAt: { gte: new Date('2026-10-19T04:00:00Z'), lt: new Date('2026-10-26T05:00:00Z') },
-      members: { some: { member: { clanId: 292, isActive: true } } },
+      members: { some: { member: CLAN_WHERE } },
     })
+    // Escouade : les seuls membres actifs du clan.
+    expect(query.select.members.where).toEqual({ member: CLAN_WHERE })
     expect(query.orderBy).toEqual({ createdAt: 'desc' })
     expect(query.take).toBe(3001)
     expect(result).toMatchObject({ from: '2026-10-19', to: '2026-10-25', days: 7, today: '2026-10-25', matchType: 'toutes les parties', truncated: false })
-    expect(result.totals).toEqual({ sessionsPlayed: 2, matches: 5, wins: 2, top10: 3, winRatePercent: 40, top10Percent: 60, avgPlacement: 9.2, bestPlacement: 1, worstPlacement: 25, squadKills: 30 })
+    expect(result.totals).toEqual({ sessionsPlayed: 2, matches: 5, wins: 2, top10: 3, winRatePercent: 40, top10Percent: 60, avgPlacement: 9.2, bestPlacement: 1, worstPlacement: 25, squadKills: 24 })
     expect(result.sessions.map((session: { date: string }) => session.date)).toEqual(['2026-10-23', '2026-10-24'])
     expect(result.sessionsWithoutPlay).toEqual(['2026-10-19', '2026-10-20', '2026-10-21', '2026-10-22', '2026-10-25'])
     // Plusieurs soirées : une ligne compacte par soirée, sans liste de parties ; jamais d'identifiant interne.
@@ -277,9 +299,9 @@ describe('getSessions', () => {
       avgPlacement: 8.5,
       bestPlacement: 1,
       worstPlacement: 25,
-      squadKills: 24,
-      killsPerMatch: 6,
-      damagePerMatch: 812,
+      squadKills: 18,
+      killsPerMatch: 4.5,
+      damagePerMatch: 615,
       firstMatchAt: '21:05',
       lastMatchAt: '02:35',
       mostPlayedMap: 'Erangel',
@@ -319,14 +341,13 @@ describe('getSessions', () => {
   it('« mes soirées » : les parties du joueur seul, avec ses kills et ses dégâts, ou celles d’un autre membre', async () => {
     const withMe = (id: string, iso: string, placement: number) =>
       row(id, iso, placement, {
-        members: [
-          { memberId: 100, kills: 3, damage: 410.6, knockouts: 2, member: { displayName: 'NovakTV' } },
-          { memberId: 101, kills: 1, damage: 90, knockouts: 0, member: { displayName: 'Menez69' } },
-        ],
+        members: [squadEntry('NovakTV', 3, 410.6, 2, placement, 100), squadEntry('Menez69', 1, 90, 0, placement, 101)],
       })
     mocks.squadMatchFindMany.mockResolvedValue([withMe('p2', '2026-10-24T21:00:00Z', 1), withMe('p1', '2026-10-24T19:00:00Z', 9)])
     const result = (await run('getSessions', { date: '2026-10-24', scope: 'player' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(mocks.squadMatchFindMany.mock.calls[0][0].where.members).toEqual({ some: { memberId: 100 } })
+    // Le joueur et les membres actifs de son clan, jamais les autres clans du lobby.
+    expect(mocks.squadMatchFindMany.mock.calls[0][0].select.members.where).toEqual({ OR: [{ memberId: 100 }, { member: CLAN_WHERE }] })
     expect(mocks.memberFindFirst).not.toHaveBeenCalled()
     expect(result).toMatchObject({ scope: 'NovakTV', totals: { matches: 2, wins: 1 } })
     expect(result.sessions[0]).toMatchObject({ matches: 2, yourKills: 6, yourDamage: 821 })
@@ -340,6 +361,17 @@ describe('getSessions', () => {
     const clan = (await run('getSessions', { date: '2026-10-24' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(clan.scope).toBe('le clan')
     expect(clan.sessions[0]).not.toHaveProperty('yourKills')
+  })
+
+  it('deux équipes du clan dans la partie : le clan prend la meilleure place, le joueur la sienne', async () => {
+    const twoTeams = row('t1', '2026-10-24T20:00:00Z', 9, {
+      members: [squadEntry('NovakTV', 2, 300, 1, 9, 100), squadEntry('Menez69', 5, 700, 3, 1, 101)],
+    })
+    mocks.squadMatchFindMany.mockResolvedValue([twoTeams])
+    const clan = (await run('getSessions', { date: '2026-10-24' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(clan.totals).toMatchObject({ matches: 1, wins: 1, bestPlacement: 1, squadKills: 7 })
+    const mine = (await run('getSessions', { date: '2026-10-24', scope: 'player' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mine.totals).toMatchObject({ matches: 1, wins: 0, bestPlacement: 9, squadKills: 2 })
   })
 
   it('accepte une plage, la remet dans l’ordre, la borne à 31 soirées, refuse une date invalide', async () => {
@@ -566,8 +598,19 @@ describe('getDropZones', () => {
     nearbyPlayerCount250m: players,
     nearbyOpponentCount250m: opponents,
     pressureLevel,
-    squadMatch: { placement },
+    // Place du membre dans sa partie : relue par `squadMember.findMany` (simulé ci-dessous), jamais sur la ligne.
+    placement,
     member: { displayName },
+  })
+  // La lecture des places : les `SquadMember` des parties demandées, d'après les sauts rendus par la base.
+  beforeEach(() => {
+    mocks.squadMemberFindMany.mockImplementation(async ({ where }: { where: { squadMatchId: { in: string[] }; memberId?: number } }) => {
+      const rows = ((await mocks.dropFindMany.mock.results.at(-1)?.value) ?? []) as Array<ReturnType<typeof jump>>
+      const ids = new Set(where.squadMatchId.in)
+      return rows
+        .filter((row) => ids.has(row.squadMatchId) && (where.memberId === undefined || row.memberId === where.memberId))
+        .map((row) => ({ squadMatchId: row.squadMatchId, placement: row.placement, member: ACTIVE_292 }))
+    })
   })
   // Renvoyés par la base du plus récent au plus ancien.
   const jumps = [
@@ -615,12 +658,18 @@ describe('getDropZones', () => {
     ])
     expect(result.you).toMatchObject({ player: 'NovakTV', jumps: 2 })
     expect(JSON.stringify(result)).not.toMatch(/memberId|matchId|locationId/)
+    // Places des parties : une lecture des membres actifs du clan, jamais `SquadMatch.placement`.
+    expect(mocks.dropFindMany.mock.calls[0][0].select).not.toHaveProperty('squadMatch')
+    expect(mocks.squadMemberFindMany).toHaveBeenCalledTimes(1)
+    expect(mocks.squadMemberFindMany.mock.calls[0][0].where).toEqual({ squadMatchId: { in: ['m1', 'm2', 'm3'] }, member: CLAN_WHERE })
   })
 
   it('« mes drops » : le joueur seul, ou un autre membre du clan, sans le tableau des membres', async () => {
     mocks.dropFindMany.mockResolvedValue([jumps[0], jumps[2]])
     const own = (await run('getDropZones', { mapName: 'Erangel', scope: 'player' })) as Record<string, unknown>
     expect(mocks.dropFindMany.mock.calls[0][0].where).toMatchObject({ member: { clanId: 292 }, memberId: 100 })
+    // Le joueur : sa propre place dans chaque partie.
+    expect(mocks.squadMemberFindMany.mock.calls[0][0].where).toEqual({ squadMatchId: { in: ['m1', 'm2'] }, memberId: 100 })
     expect(mocks.memberFindFirst).not.toHaveBeenCalled()
     expect(own).toMatchObject({ scope: 'NovakTV' })
     expect(own).not.toHaveProperty('members')
@@ -941,12 +990,24 @@ describe('getPlaySchedule', () => {
     )
     expect(own).toMatchObject({ scope: 'NovakTV', period: 'ce mois', matches: 6 })
 
-    mocks.squadMatchFindMany.mockResolvedValue([{ createdAt: new Date('2026-10-23T19:30:00Z'), placement: 2, members: [{ timeSurvived: 1200 }, { timeSurvived: 1700 }] }])
-    const clan = await run('getPlaySchedule', { scope: 'clan' })
+    // Un vendredi : la place du clan (1, par ses membres) donne la victoire, quelle que soit la ligne.
+    mocks.squadMatchFindMany.mockResolvedValue([
+      {
+        createdAt: new Date('2026-10-23T19:30:00Z'),
+        placement: 9,
+        members: [
+          { timeSurvived: 1200, placement: 1, member: ACTIVE_292 },
+          { timeSurvived: 1700, placement: 1, member: ACTIVE_292 },
+        ],
+      },
+    ])
+    const clan = (await run('getPlaySchedule', { scope: 'clan' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(mocks.squadMatchFindMany).toHaveBeenCalledWith(
-      expect.objectContaining({ where: expect.objectContaining({ matchType: 'official', members: { some: { member: { clanId: 292, isActive: true } } } }) })
+      expect.objectContaining({ where: expect.objectContaining({ matchType: 'official', members: { some: { member: CLAN_WHERE } } }) })
     )
+    expect(mocks.squadMatchFindMany.mock.calls[0][0].select).not.toHaveProperty('placement')
     expect(clan).toMatchObject({ scope: 'le clan', period: 'depuis toujours', matches: 1, playtimeHours: 0.5 })
+    expect(clan.byWeekday[4]).toMatchObject({ day: 'Vendredi', matches: 1, wins: 1 })
   })
 })
 

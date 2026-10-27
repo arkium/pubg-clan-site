@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf, clanPlacementTeam, playerTeamOf } from '@/lib/clan-placement'
 import { mapDisplayName, getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
@@ -84,9 +85,25 @@ function isMatchingMode(memberCount: number, mode: BestMode) {
   return memberCount >= 4
 }
 
+const TEAM_MEMBER_SELECT = { memberId: true, placement: true, member: { select: { displayName: true, ...CLAN_PLACEMENT_MEMBER_SELECT } } } as const
+
+/** Le joueur et les membres actifs de son clan (sans clan, tous les joueurs suivis) : son équipe en est extraite. */
+const teamCandidatesWhere = (memberId: number, clanId: number | null) =>
+  clanId ? { OR: [{ memberId }, { member: clanPlacementMemberWhere(clanId) }] } : {}
+
+/**
+ * Une partie vue du joueur : son équipe (`playerTeamOf`) et sa place à lui. Jamais `SquadMatch.placement`, place du
+ * clan qui a créé la ligne d'une partie partagée (docs/TODO/place-partie-partagee.md).
+ */
+function playerTeamMatch<T extends { memberId: number; placement: number }>(match: { id: string; members: T[] }, memberId: number) {
+  const members = playerTeamOf(match.members, memberId)
+  return { id: match.id, placement: members.find((entry) => entry.memberId === memberId)?.placement ?? 0, members }
+}
+
 function aggregateTeams(
   squadMatches: Array<{
     id: string
+    /** Place de l'équipe : celle du joueur, ou celle du clan (`clanPlacementOf`). */
     placement: number
     members: Array<{
       memberId: number
@@ -286,21 +303,14 @@ export async function GET(
         },
         select: {
           id: true,
-          placement: true,
           members: {
-            select: {
-              memberId: true,
-              member: {
-                select: {
-                  displayName: true,
-                },
-              },
-            },
+            where: teamCandidatesWhere(memberId, member.clanId),
+            select: TEAM_MEMBER_SELECT,
           },
         },
       })
 
-      const bestTeam = aggregateTeams(squadMatches, bestMode, memberId)[0]
+      const bestTeam = aggregateTeams(squadMatches.map((match) => playerTeamMatch(match, memberId)), bestMode, memberId)[0]
 
       if (!bestTeam) {
         scopeLabel = `Meilleur ${bestMode} indisponible`
@@ -448,49 +458,38 @@ export async function GET(
           ? memberId
           : null
 
-    const compositionSquadMatches = await prisma.squadMatch.findMany({
+    const compositionClanId = scope === 'clan' ? member.clanId : null
+    const compositionMemberId = bestCompositionsScopeMemberId ?? memberId
+    const compositionRows = await prisma.squadMatch.findMany({
       where: {
         ...(periodBounds
           ? { createdAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
           : {}),
-        members:
-          scope === 'clan' && member.clanId
-            ? {
-                some: {
-                  member: {
-                    clanId: member.clanId,
-                    isActive: true,
-                  },
-                },
-              }
-            : {
-                some: {
-                  memberId: bestCompositionsScopeMemberId ?? memberId,
-                },
-              },
+        members: compositionClanId
+          ? { some: { member: clanPlacementMemberWhere(compositionClanId) } }
+          : { some: { memberId: compositionMemberId } },
       },
       select: {
         id: true,
-        placement: true,
         members: {
-          select: {
-            memberId: true,
-            member: {
-              select: {
-                displayName: true,
-              },
-            },
-          },
+          where: compositionClanId ? { member: clanPlacementMemberWhere(compositionClanId) } : teamCandidatesWhere(compositionMemberId, member.clanId),
+          select: TEAM_MEMBER_SELECT,
         },
       },
     })
+    // Clan : l'équipe classée à la place du clan ; joueur : son équipe et sa place.
+    const compositionSquadMatches = compositionRows.map((match) =>
+      compositionClanId
+        ? { id: match.id, placement: clanPlacementOf(match, compositionClanId) ?? 0, members: clanPlacementTeam(match.members, compositionClanId) }
+        : playerTeamMatch(match, compositionMemberId)
+    )
 
     const bestCompositions = (['duo', 'trio', 'squad'] as const)
       .map((mode) => {
         const best = aggregateTeams(
           compositionSquadMatches,
           mode,
-          scope === 'clan' ? undefined : bestCompositionsScopeMemberId ?? memberId
+          compositionClanId ? undefined : compositionMemberId
         )[0]
 
         if (!best) {

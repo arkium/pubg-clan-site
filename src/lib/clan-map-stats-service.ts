@@ -3,6 +3,7 @@ import 'server-only'
 import { Prisma } from '@prisma/client'
 
 import { leagueMatchTypeValues, type LeagueMatchType } from '@/lib/clan-league'
+import { CLAN_PLACEMENT_SQL } from '@/lib/clan-placement-sql'
 import {
   buildClanMapRows,
   buildClanMapsVerdict,
@@ -21,7 +22,8 @@ import { prisma } from '@/lib/prisma'
 /**
  * Données de la page « Cartes » d'un clan (docs/TODO/cartes-clan.md) : par carte et pour la période, les parties
  * d'escouade du clan, la même période juste avant (tendance du Top 10), la moyenne de tous les clans suivis et le joueur
- * phare. Mêmes règles que la Ligue (`loadLeagueRows`) : une ligne par clan et par partie, placement de l'équipe, kills
+ * phare. Mêmes règles que la Ligue (`loadLeagueRows`) : une ligne par clan et par partie, place du clan (celle de ses
+ * membres actifs, `CLAN_PLACEMENT_SQL` — jamais `SquadMatch.placement`, place du seul clan qui a créé la ligne), kills
  * et dégâts des seuls membres actifs, clans actifs ayant un clan PUBG.
  */
 
@@ -67,13 +69,13 @@ async function loadClanAggregates(clanId: number, matchType: LeagueMatchType, ra
     SELECT t.mapName AS mapName, COUNT(*) AS matches, SUM(t.placement = 1) AS wins, SUM(t.placement <= 10) AS top10,
            SUM(t.placement) AS placementSum, SUM(t.kills) AS killsSum, SUM(t.damage) AS damageSum
       FROM (
-        SELECT sm.id, sm.mapName, sm.placement, SUM(sq.kills) AS kills, SUM(sq.damage) AS damage
+        SELECT sm.id, sm.mapName, ${CLAN_PLACEMENT_SQL} AS placement, SUM(sq.kills) AS kills, SUM(sq.damage) AS damage
           FROM SquadMember sq
           INNER JOIN SquadMatch sm ON sm.id = sq.squadMatchId
           INNER JOIN ClanMember cm ON cm.id = sq.memberId
          WHERE cm.clanId = ${clanId} AND cm.isActive = 1 AND cm.joinStatus = 'active'
            AND ${typeSql(matchType)} ${rangeSql(range)}
-         GROUP BY sm.id, sm.mapName, sm.placement
+         GROUP BY sm.id, sm.mapName
       ) t
      GROUP BY t.mapName
   `)
@@ -89,14 +91,14 @@ async function loadLeagueAverages(matchType: LeagueMatchType, range: PeriodRange
     prisma.$queryRaw<Array<{ mapName: string; top10Rate: number | null; avgPlacement: number | null; killsPerMatch: number | null }>>(Prisma.sql`
       SELECT t.mapName AS mapName, AVG(t.placement <= 10) AS top10Rate, AVG(t.placement) AS avgPlacement, AVG(t.kills) AS killsPerMatch
         FROM (
-          SELECT cm.clanId, sm.id, sm.mapName, sm.placement, SUM(sq.kills) AS kills
+          SELECT cm.clanId, sm.id, sm.mapName, ${CLAN_PLACEMENT_SQL} AS placement, SUM(sq.kills) AS kills
             FROM SquadMember sq
             INNER JOIN SquadMatch sm ON sm.id = sq.squadMatchId
             INNER JOIN ClanMember cm ON cm.id = sq.memberId
             INNER JOIN Clan c ON c.id = cm.clanId
            WHERE cm.isActive = 1 AND cm.joinStatus = 'active' AND c.isActive = 1 AND c.pubgClanId IS NOT NULL
              AND ${typeSql(matchType)} ${rangeSql(range)}
-           GROUP BY cm.clanId, sm.id, sm.mapName, sm.placement
+           GROUP BY cm.clanId, sm.id, sm.mapName
         ) t
        GROUP BY t.mapName
     `),

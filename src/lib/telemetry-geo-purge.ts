@@ -49,13 +49,15 @@ export const GEO_PURGE_NOTICE_TTL_MS = 24 * 60 * 60 * 1000
 /**
  * Matchs gardés plus longtemps par la purge de conservation (`GEO_PROTECTED_RETENTION_DAYS`, `src/lib/geo-retention.ts`)
  * et jamais touchés par la purge manuelle, à la demande de l'exploitant :
- *  - **Top 1** (`placement = 1`) : les victoires sont les replays qu'on rejoue.
+ *  - **Top 1** (un joueur suivi classé 1er, `SquadMember.placement = 1`) : les victoires sont les replays qu'on
+ *    rejoue. Jamais `SquadMatch.placement`, place du seul clan qui a créé la ligne : la victoire d'un autre clan du
+ *    lobby serait purgée (docs/TODO/place-partie-partagee.md). Plus large que la place d'un clan : toute équipe suivie.
  *  - **Matchs personnalisés** (`matchType = 'custom'`) : support des tournois. On protège tous les
  *    customs, pas seulement ceux d'un tournoi existant, parce qu'un tournoi se déclare *après* les
  *    parties : il sélectionne les customs d'une fenêtre de dates (`getTournamentMatches`). Purger
  *    un custom parce qu'aucun tournoi ne le réclame encore interdirait de créer ce tournoi ensuite.
  */
-const PROTECTED = Prisma.sql`(m.placement = 1 OR m.matchType = 'custom')`
+const PROTECTED = Prisma.sql`(m.matchType = 'custom' OR EXISTS (SELECT 1 FROM SquadMember w WHERE w.squadMatchId = m.id AND w.placement = 1))`
 /** Les deux formats de stockage coexistent le temps du rattrapage : les quatre colonnes comptent. */
 const HAS_GEO = Prisma.sql`(t.positionSamples IS NOT NULL OR t.trajectorySegments IS NOT NULL
   OR t.positionSamplesGz IS NOT NULL OR t.trajectorySegmentsGz IS NOT NULL)`

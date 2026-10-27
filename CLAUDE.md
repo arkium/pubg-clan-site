@@ -644,6 +644,15 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
   que le serveur sait déjà.
 - **Jamais de faux zéro** pendant un chargement : « — » ou rien, le HTML est lu tel quel par les robots.
 
+#### 14. **Place d'un clan — jamais `SquadMatch.placement`**
+- **Règle:** depuis le 2026-10-27, la place d'un clan dans une partie = la plus petite `SquadMember.placement` non
+  nulle de ses **membres actifs** (`clanId`, `isActive`, `joinStatus = 'active'`) : `clanPlacementOf` en mémoire
+  (`src/lib/clan-placement.ts`), `CLAN_PLACEMENT_SQL` en SQL (`clan-placement-sql.ts`). La place d'un joueur est la
+  sienne (`SquadMember.placement` ou `Match.placement`). `SquadMatch` est partagé par tous les clans suivis du lobby :
+  sa place et ses totaux ne sont que ceux du clan qui a créé la ligne. `src/lib/clan-placement-reads.test.ts` échoue
+  sur toute nouvelle lecture — y compris un `prisma.squadMatch.find…` **sans `select`**, qui ramène la colonne
+  ([place-partie-partagee.md](docs/TODO/place-partie-partagee.md)).
+
 ## Gotchas connus
 
 ### Node.js 22 — `Readable.toWeb()` bug

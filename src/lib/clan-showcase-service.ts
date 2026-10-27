@@ -1,3 +1,4 @@
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf, clanPlacementTeam } from '@/lib/clan-placement'
 import { computeClansLeaderboard } from '@/lib/clans-leaderboard'
 import { getMapLabels } from '@/lib/map-label-service'
 import { matchDebriefPath } from '@/lib/match-links'
@@ -55,18 +56,18 @@ async function loadClanShowcase(clanId: number, now: Date): Promise<ClanShowcase
     prisma.squadMatch.findMany({
       where: {
         createdAt: { gte: from, lt: now },
-        members: { some: { member: { clanId, isActive: true } } },
+        members: { some: { member: clanPlacementMemberWhere(clanId) } },
       },
       orderBy: { createdAt: 'desc' },
       select: {
         id: true,
-        placement: true,
         createdAt: true,
         mapName: true,
-        // Un SquadMatch peut être partagé entre clans : seuls les membres de ce clan comptent.
+        // Un SquadMatch peut être partagé entre clans : seuls les membres de ce clan comptent, pour les kills comme
+        // pour la place (jamais `SquadMatch.placement`, place du clan qui a créé la ligne).
         members: {
-          where: { member: { clanId, isActive: true } },
-          select: { kills: true, member: { select: { displayName: true } } },
+          where: { member: clanPlacementMemberWhere(clanId) },
+          select: { kills: true, placement: true, member: { select: { displayName: true, ...CLAN_PLACEMENT_MEMBER_SELECT } } },
         },
       },
     }),
@@ -91,9 +92,13 @@ async function loadClanShowcase(clanId: number, now: Date): Promise<ClanShowcase
     }),
   ])
 
+  // Place du clan et l'équipe qui l'a obtenue (un clan peut en aligner deux dans la même partie).
   const simplified = matches.map((match) => ({
-    ...match,
-    members: match.members.map((member) => ({ kills: member.kills, name: member.member.displayName })),
+    id: match.id,
+    createdAt: match.createdAt,
+    mapName: match.mapName,
+    placement: clanPlacementOf(match, clanId) ?? 0,
+    members: clanPlacementTeam(match.members, clanId).map((member) => ({ kills: member.kills, name: member.member.displayName })),
   }))
   const monthMatches = simplified.filter((match) => match.createdAt >= month.start)
   const weekMatches = simplified.filter((match) => match.createdAt >= week.start)

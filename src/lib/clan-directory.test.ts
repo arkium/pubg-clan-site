@@ -5,21 +5,39 @@ import { aggregateActivity, CLAN_STYLE_MIN_MATCHES, clanStyleOf, isSleeping, mat
 const NOW = new Date('2026-09-26T20:30:00.000Z') // samedi 22:30 à Paris
 
 describe('clan-directory — activité', () => {
+  const active = { isActive: true, joinStatus: 'active' }
+
   it('compte parties et top 1 sur 7 jours, et les joueurs distincts de la soirée en cours', () => {
     const { byClan, tonightPlayers } = aggregateActivity(
       [
         // Deux membres du clan 1 dans la même partie : une seule partie.
-        { clanId: 1, memberId: 10, squadMatchId: 'a', placement: 1, createdAt: '2026-09-26T19:00:00.000Z' },
-        { clanId: 1, memberId: 11, squadMatchId: 'a', placement: 1, createdAt: '2026-09-26T19:00:00.000Z' },
+        { clanId: 1, memberId: 10, squadMatchId: 'a', placement: 1, createdAt: '2026-09-26T19:00:00.000Z', ...active },
+        { clanId: 1, memberId: 11, squadMatchId: 'a', placement: 1, createdAt: '2026-09-26T19:00:00.000Z', ...active },
         // 02:00 à Paris le 26 : soirée du 25, pas ce soir.
-        { clanId: 1, memberId: 12, squadMatchId: 'b', placement: 7, createdAt: '2026-09-26T00:00:00.000Z' },
-        { clanId: 2, memberId: 20, squadMatchId: 'c', placement: 3, createdAt: '2026-09-22T19:00:00.000Z' },
+        { clanId: 1, memberId: 12, squadMatchId: 'b', placement: 7, createdAt: '2026-09-26T00:00:00.000Z', ...active },
+        { clanId: 2, memberId: 20, squadMatchId: 'c', placement: 3, createdAt: '2026-09-22T19:00:00.000Z', ...active },
       ],
       '2026-09-26'
     )
     expect(byClan.get(1)).toEqual({ games7: 2, wins7: 1, playedTonight: 2 })
     expect(byClan.get(2)).toEqual({ games7: 1, wins7: 0, playedTonight: 0 })
     expect(tonightPlayers).toBe(2)
+  })
+
+  it('partie partagée : chaque clan compte sa propre place, celle de ses membres actifs', () => {
+    const { byClan } = aggregateActivity(
+      [
+        // Partie gagnée par le clan 2 dans un lobby où le clan 1 finit 12e.
+        { clanId: 1, memberId: 10, squadMatchId: 'shared', placement: 12, createdAt: '2026-09-24T19:00:00.000Z', ...active },
+        { clanId: 2, memberId: 20, squadMatchId: 'shared', placement: 1, createdAt: '2026-09-24T19:00:00.000Z', ...active },
+        // Un membre au suivi arrêté (0 / 1 du SQL brut) ne donne pas un top 1 au clan.
+        { clanId: 1, memberId: 13, squadMatchId: 'other', placement: 1, createdAt: '2026-09-24T20:00:00.000Z', isActive: 0, joinStatus: 'active' },
+        { clanId: 1, memberId: 10, squadMatchId: 'other', placement: 4, createdAt: '2026-09-24T20:00:00.000Z', isActive: 1, joinStatus: 'active' },
+      ],
+      '2026-09-26'
+    )
+    expect(byClan.get(1)).toMatchObject({ games7: 2, wins7: 0 })
+    expect(byClan.get(2)).toMatchObject({ games7: 1, wins7: 1 })
   })
 
   it('élit le clan du moment : top 1 sur 7 jours, au moins 5 parties, jamais le clan technique', () => {

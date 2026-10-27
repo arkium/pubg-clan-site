@@ -3,6 +3,7 @@
  * jours, joueurs de la soirée, clan du moment, tri, recherche, clans en sommeil. Module pur, importable côté client.
  */
 
+import { clanPlacementOf, type ClanPlacementMember } from '@/lib/clan-placement'
 import { sessionDateOf } from '@/lib/match-sessions'
 import { dominantRole, type RosterRoleId } from '@/lib/member-roster'
 
@@ -63,16 +64,30 @@ export interface ClanDirectoryPayload {
   activity: ClanActivity[]
 }
 
-export type ActivityRow = { clanId: number; memberId: number; squadMatchId: string; placement: number; createdAt: Date | string }
+/** Un membre dans une partie : `placement` est **sa** place (`SquadMember.placement`), pas celle de la ligne. */
+export type ActivityRow = {
+  clanId: number
+  memberId: number
+  squadMatchId: string
+  placement: number
+  isActive: boolean | number
+  joinStatus: string
+  createdAt: Date | string
+}
 
-/** Agrège les parties des 7 derniers jours par clan, et les joueurs de la soirée en cours. */
+/**
+ * Agrège les parties des 7 derniers jours par clan, et les joueurs de la soirée en cours. Un top 1 du clan = sa place
+ * dans la partie (`clanPlacementOf`, ses membres actifs) : une partie partagée compte pour chaque clan avec la sienne.
+ */
 export function aggregateActivity(rows: readonly ActivityRow[], tonight: string) {
-  const byClan = new Map<number, { games: Set<string>; wins: Set<string>; tonight: Set<number> }>()
+  const byClan = new Map<number, { games: Set<string>; members: Map<string, ClanPlacementMember[]>; tonight: Set<number> }>()
   const tonightPlayers = new Set<number>()
   for (const row of rows) {
-    const entry = byClan.get(row.clanId) ?? { games: new Set<string>(), wins: new Set<string>(), tonight: new Set<number>() }
+    const entry = byClan.get(row.clanId) ?? { games: new Set<string>(), members: new Map<string, ClanPlacementMember[]>(), tonight: new Set<number>() }
     entry.games.add(row.squadMatchId)
-    if (row.placement === 1) entry.wins.add(row.squadMatchId)
+    const matchMembers = entry.members.get(row.squadMatchId) ?? []
+    matchMembers.push({ placement: row.placement, member: { clanId: row.clanId, isActive: row.isActive, joinStatus: row.joinStatus } })
+    entry.members.set(row.squadMatchId, matchMembers)
     if (sessionDateOf(row.createdAt) === tonight) {
       entry.tonight.add(row.memberId)
       tonightPlayers.add(row.memberId)
@@ -83,7 +98,11 @@ export function aggregateActivity(rows: readonly ActivityRow[], tonight: string)
     byClan: new Map(
       Array.from(byClan.entries()).map(([clanId, entry]) => [
         clanId,
-        { games7: entry.games.size, wins7: entry.wins.size, playedTonight: entry.tonight.size },
+        {
+          games7: entry.games.size,
+          wins7: Array.from(entry.members.values()).filter((members) => clanPlacementOf({ members }, clanId) === 1).length,
+          playedTonight: entry.tonight.size,
+        },
       ])
     ),
     tonightPlayers: tonightPlayers.size,

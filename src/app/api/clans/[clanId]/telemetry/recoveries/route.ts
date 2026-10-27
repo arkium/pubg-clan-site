@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 
 import { withAdminActionLog } from '@/lib/admin-action-log'
+import { clanPlacementSubquery } from '@/lib/clan-placement-sql'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
 import {
@@ -48,7 +49,8 @@ export async function GET(
     const limit = parseLimit(url.searchParams.get('limit'))
 
     // Couverture du seul clan demandé (docs/TODO/administration.md §8) : l'état du moteur, commun à tous les clans,
-    // est sur /settings/telemetry, et le backlog global n'est plus calculé pour n'en garder qu'une ligne.
+    // est sur /settings/telemetry, et le backlog global n'est plus calculé pour n'en garder qu'une ligne. La place est
+    // celle du clan par ses membres : celle de la ligne n'est que celle du clan qui l'a créée.
     const [rows, clanBacklog, clan] = await Promise.all([
       prisma.$queryRaw<Array<{
         id: string
@@ -56,7 +58,7 @@ export async function GET(
         pubgMatchId: string
         gameMode: string
         mapName: string
-        placement: number
+        placement: number | bigint | null
         squadCreatedAt: Date
         status: string
         parserVersion: string
@@ -76,7 +78,7 @@ export async function GET(
           sm.pubgMatchId,
           sm.gameMode,
           sm.mapName,
-          sm.placement,
+          ${clanPlacementSubquery(parsedClanId)} AS placement,
           sm.createdAt AS squadCreatedAt,
           t.status,
           t.parserVersion,
@@ -161,7 +163,7 @@ export async function GET(
       pubgMatchId: row.pubgMatchId,
       gameMode: row.gameMode,
       mapName: row.mapName,
-      placement: row.placement,
+      placement: Number(row.placement ?? 0),
       squadCreatedAt: row.squadCreatedAt.toISOString(),
       status: row.status === 'success' || row.status === 'failed' ? row.status : 'pending',
       parserVersion: row.parserVersion,

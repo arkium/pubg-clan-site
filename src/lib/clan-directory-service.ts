@@ -32,8 +32,11 @@ async function loadClanDirectory(now: Date): Promise<ClanDirectoryPayload> {
   const since = new Date(now.getTime() - 7 * 86_400_000)
   const [clans, rows, league, styleRows] = await Promise.all([
     prisma.clan.findMany({ where: { isActive: true }, select: { id: true, isSystem: true, lastMatchAt: true } }),
+    // La place de chaque membre, jamais `sm.placement` (place du clan qui a créé la ligne d'une partie partagée) :
+    // `aggregateActivity` en tire la place de chaque clan (docs/TODO/place-partie-partagee.md).
     prisma.$queryRaw<ActivityRow[]>(Prisma.sql`
-      SELECT cm.clanId AS clanId, cm.id AS memberId, sm.id AS squadMatchId, sm.placement AS placement, sm.createdAt AS createdAt
+      SELECT cm.clanId AS clanId, cm.id AS memberId, sm.id AS squadMatchId, s.placement AS placement,
+             cm.isActive AS isActive, cm.joinStatus AS joinStatus, sm.createdAt AS createdAt
       FROM SquadMatch sm
       INNER JOIN SquadMember s ON s.squadMatchId = sm.id
       INNER JOIN ClanMember cm ON cm.id = s.memberId

@@ -164,9 +164,18 @@ describe('GET /api/members/[id]/dashboard', () => {
       pubgMatchId: 'pm-1', mapName: 'Baltic_Main', gameMode: 'squad-fpp', kills: 12, damageDealt: 1840, placement: 1,
       pubgCreatedAt: new Date('2026-09-21T20:00:00Z'),
     })
+    // Coéquipiers : même place que le joueur (son équipe) ; l'autre équipe du lobby n'en fait pas partie.
     mocks.squadMemberFindFirst.mockResolvedValue({
       timeSurvived: 1860,
-      squadMatch: { id: 'sm-1', telemetry: { id: 't-1' }, members: [{ member: { displayName: 'Joueur Bravo' } }] },
+      placement: 1,
+      squadMatch: {
+        id: 'sm-1',
+        telemetry: { id: 't-1' },
+        members: [
+          { placement: 1, member: { displayName: 'Joueur Bravo' } },
+          { placement: 14, member: { displayName: 'Autre équipe' } },
+        ],
+      },
     })
     mocks.telemetryFindMany
       .mockResolvedValueOnce([
@@ -177,9 +186,11 @@ describe('GET /api/members/[id]/dashboard', () => {
         { memberId: 8, aggressionScore: 34, supportScore: 28, zoneDisciplineScore: 76 },
       ])
     mocks.squadMemberFindMany
-      .mockResolvedValueOnce([{ squadMatchId: 'sm-1', timeSurvived: 1860 }])
+      .mockResolvedValueOnce([{ squadMatchId: 'sm-1', timeSurvived: 1860, placement: 1 }])
       .mockResolvedValueOnce([
-        { memberId: 8, squadMatchId: 'sm-1', timeSurvived: 1200, squadMatch: { placement: 1 }, member: { displayName: 'Joueur Bravo', identities: [] } },
+        { memberId: 8, squadMatchId: 'sm-1', timeSurvived: 1200, placement: 1, member: { displayName: 'Joueur Bravo', identities: [] } },
+        // Même partie, autre équipe (14e) : pas un frère d'armes.
+        { memberId: 9, squadMatchId: 'sm-1', timeSurvived: 900, placement: 14, member: { displayName: 'Autre équipe', identities: [] } },
       ])
   })
 
@@ -201,6 +212,10 @@ describe('GET /api/members/[id]/dashboard', () => {
     expect(body.mates).toEqual([
       { memberId: 8, displayName: 'Joueur Bravo', avatarUrl: null, matchCount: 1, winRate: 1, sharedPlayTimeSeconds: 1200, role: 'ghost' },
     ])
+    // Partenaires : membres actifs de son clan seulement, place lue sur les membres (jamais `SquadMatch.placement`).
+    const coPlayersQuery = mocks.squadMemberFindMany.mock.calls[1][0]
+    expect(coPlayersQuery.where).toMatchObject({ memberId: { not: 7 }, member: { clanId: 3, isActive: true, joinStatus: 'active' } })
+    expect(coPlayersQuery.select).not.toHaveProperty('squadMatch')
     expect(body.playstyle).toEqual({
       current: { aggression: 82, support: 40, zoneDiscipline: 66, safeZonePercent: 86, healCoveragePercent: 71, firstContactPhase: 2.1, matchesPlayed: 22 },
       previous: null,

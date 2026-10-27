@@ -973,8 +973,9 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
 
 Relevé des 128 questions réelles du 2026-10-27 ([coach-ia-pistes.md §7](coach-ia-pistes.md)), dans l'ordre conseillé :
 
-- [ ] **Préalable hors Coach** : place d'un clan dans une partie partagée ([place-partie-partagee.md](place-partie-partagee.md))
-      — 6 % de places fausses, 85 Top 1 en trop et 90 manqués depuis le 1er octobre, alertes Discord comprises
+- [x] **Préalable hors Coach** : place d'un clan dans une partie partagée ([place-partie-partagee.md](place-partie-partagee.md))
+      — 6 % de places fausses, 85 Top 1 en trop et 90 manqués depuis le 1er octobre, alertes Discord comprises.
+      Corrigé le 2026-10-27 (place des membres actifs, outils du Coach compris) ; reste le déploiement et les recalculs (§8)
 - [ ] Coéquipiers `getTeammates` (7a) : parties dans la même équipe, Top 1 et place ensemble, place sans lui, synergie,
       meilleure composition — 9 questions, 2 votes « Inexact »
 - [ ] Fraîcheur dans `getDataCoverage` (7b) : dernière synchronisation, dernière partie, analyses en attente

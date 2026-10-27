@@ -40,31 +40,29 @@ function settings(overrides: Partial<DiscordSettings['top1']> = {}) {
   }
 }
 
+/** Un membre de la partie : la place est celle de son équipe (`SquadMember.placement`). */
+function squadMember(displayName: string, placement: number, overrides: { id?: number; clanId?: number; kills?: number } = {}) {
+  return {
+    kills: overrides.kills ?? 4,
+    damage: 410,
+    assists: 0,
+    revives: 1,
+    timeSurvived: 1834,
+    placement,
+    member: { id: overrides.id, displayName, clanId: overrides.clanId ?? CLAN_ID, isActive: true, joinStatus: 'active' },
+  }
+}
+
 function squadMatch(overrides: Record<string, unknown> = {}) {
   return {
     id: SQUAD_MATCH_ID,
-    placement: 1,
     matchType: 'official',
     gameMode: 'squad-fpp',
     mapName: 'Baltic_Main',
     createdAt: new Date('2026-09-13T20:15:00.000Z'),
     members: [
-      {
-        kills: 7,
-        damage: 820,
-        assists: 2,
-        revives: 0,
-        timeSurvived: 1834,
-        member: { displayName: 'Alpha' },
-      },
-      {
-        kills: 4,
-        damage: 410,
-        assists: 0,
-        revives: 1,
-        timeSurvived: 1834,
-        member: { displayName: 'Bravo' },
-      },
+      { ...squadMember('Alpha', 1, { kills: 7 }), damage: 820, assists: 2, revives: 0 },
+      squadMember('Bravo', 1),
     ],
     ...overrides,
   }
@@ -107,10 +105,7 @@ describe('notifyTop1IfEligible', () => {
     arrange({
       match: squadMatch({
         id: LINKED_MATCH_ID,
-        members: [
-          { kills: 7, damage: 820, assists: 2, revives: 0, timeSurvived: 1834, member: { id: 11, displayName: 'Alpha' } },
-          { kills: 4, damage: 410, assists: 0, revives: 1, timeSurvived: 1834, member: { id: 12, displayName: 'Bravo' } },
-        ],
+        members: [squadMember('Alpha', 1, { id: 11, kills: 7 }), squadMember('Bravo', 1, { id: 12 })],
       }),
     })
     vi.mocked(prisma.clan.findUnique).mockResolvedValue({ name: 'Les Poulets', tag: 'PLT', subdomain: 'plt' } as never)
@@ -132,13 +127,78 @@ describe('notifyTop1IfEligible', () => {
   })
 
   it('ignore un match qui n est pas un top 1', async () => {
-    arrange({ match: squadMatch({ placement: 3 }) })
+    arrange({ match: squadMatch({ members: [squadMember('Alpha', 3), squadMember('Bravo', 3)] }) })
 
     await expect(notifyTop1IfEligible(CLAN_ID, SQUAD_MATCH_ID)).resolves.toEqual({
       sent: false,
       reason: 'not-a-win',
     })
     expect(sendDiscordWebhook).not.toHaveBeenCalled()
+  })
+
+  describe('partie partagée par plusieurs clans (docs/TODO/place-partie-partagee.md)', () => {
+    const OTHER_CLAN = 8
+
+    it('le clan qui rejoint une partie gagnée par un autre ne reçoit pas d’alerte', async () => {
+      // Ligne créée par le clan gagnant ; ce clan-ci n'y a fini que 12e.
+      arrange({
+        match: squadMatch({
+          placement: 1,
+          members: [squadMember('Winner', 1, { clanId: OTHER_CLAN }), squadMember('Alpha', 12), squadMember('Bravo', 12)],
+        }),
+      })
+
+      await expect(notifyTop1IfEligible(CLAN_ID, SQUAD_MATCH_ID)).resolves.toEqual({ sent: false, reason: 'not-a-win' })
+      expect(prisma.discordNotificationLog.create).not.toHaveBeenCalled()
+      expect(sendDiscordWebhook).not.toHaveBeenCalled()
+    })
+
+    it('le clan qui gagne une partie créée par un autre reçoit l’alerte, avec ses seuls membres', async () => {
+      // La ligne porte la place du clan qui l'a créée (24e) : elle ne compte plus.
+      arrange({
+        match: squadMatch({
+          placement: 24,
+          members: [squadMember('Creator', 24, { clanId: OTHER_CLAN }), squadMember('Alpha', 1, { kills: 7 }), squadMember('Bravo', 1)],
+        }),
+      })
+
+      await expect(notifyTop1IfEligible(CLAN_ID, SQUAD_MATCH_ID)).resolves.toEqual({ sent: true })
+      const [, payload] = vi.mocked(sendDiscordWebhook).mock.calls[0]
+      const roster = JSON.stringify(payload.embeds[0].fields)
+      expect(roster).toContain('Alpha')
+      expect(roster).not.toContain('Creator')
+    })
+
+    it('deux équipes du clan : seule l’équipe gagnante compte (seuil de membres, mode, liste)', async () => {
+      arrange({
+        settings: settings({ minClanMembers: 2 }),
+        match: squadMatch({ members: [squadMember('Alpha', 1), squadMember('Bravo', 1), squadMember('Charlie', 9), squadMember('Delta', 9)] }),
+      })
+
+      await expect(notifyTop1IfEligible(CLAN_ID, SQUAD_MATCH_ID)).resolves.toEqual({ sent: true })
+      const roster = JSON.stringify(vi.mocked(sendDiscordWebhook).mock.calls[0][1].embeds[0].fields)
+      expect(roster).toContain('Bravo')
+      expect(roster).not.toContain('Charlie')
+    })
+
+    it('pas de doublon : un 2e passage sur la même partie ne renvoie rien', async () => {
+      arrange()
+      vi.mocked(prisma.discordNotificationLog.create)
+        .mockResolvedValueOnce({} as never)
+        .mockRejectedValueOnce(Object.assign(new Error('Unique constraint failed'), { code: 'P2002' }))
+
+      await expect(notifyTop1IfEligible(CLAN_ID, SQUAD_MATCH_ID)).resolves.toEqual({ sent: true })
+      await expect(notifyTop1IfEligible(CLAN_ID, SQUAD_MATCH_ID)).resolves.toEqual({ sent: false, reason: 'already-sent' })
+      expect(sendDiscordWebhook).toHaveBeenCalledTimes(1)
+    })
+
+    it('ne lit plus `SquadMatch.placement` et ne sélectionne que les membres actifs du clan', async () => {
+      arrange()
+      await notifyTop1IfEligible(CLAN_ID, SQUAD_MATCH_ID)
+      const query = vi.mocked(prisma.squadMatch.findUnique).mock.calls[0][0] as { select: Record<string, unknown> & { members: { where: unknown } } }
+      expect(query.select).not.toHaveProperty('placement')
+      expect(query.select.members.where).toEqual({ member: { clanId: CLAN_ID, isActive: true, joinStatus: 'active' } })
+    })
   })
 
   it('ignore quand les alertes sont desactivees', async () => {

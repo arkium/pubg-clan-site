@@ -176,11 +176,13 @@ export async function refreshChallengeProgressForClan(clanId: number) {
           break
         }
         case 'win_streak': {
+          // La place du joueur (son équipe), pas celle de la ligne : sur une partie partagée par plusieurs clans,
+          // `SquadMatch.placement` n'est que la place du clan qui l'a créée (docs/TODO/place-partie-partagee.md).
           progress = await prisma.squadMember.count({
             where: {
               memberId: participant.memberId,
+              placement: 1,
               squadMatch: {
-                placement: 1,
                 createdAt: { gte: challenge.startDate, lte: challenge.endDate },
               },
             },

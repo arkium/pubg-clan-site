@@ -2,6 +2,7 @@ import { prisma } from '@/lib/prisma'
 import { SquadPeriod, ClanMatchTypeFilter } from '@/types/squad-matches'
 import { matchTypeMatchesFilter } from '@/lib/match-type-filter'
 import { teamModeFromMemberCount } from '@/lib/team-mode'
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf } from '@/lib/clan-placement'
 
 const CLAN_MATCH_TYPE_FILTERS: ClanMatchTypeFilter[] = ['official', 'casual', 'custom', 'all']
 
@@ -110,41 +111,65 @@ export type CachedClanMatchesPayload = {
   >
 }
 
+const CACHE_PERIODS: SquadPeriod[] = ['week', 'month', 'all']
+
+/** Parties d'une période du clan, réduites à ce que le cache lit : type, membres actifs du clan et leur place. */
+async function loadClanPeriodMatches(clanId: number, period: SquadPeriod, referenceDate: Date): Promise<CacheMatch[]> {
+  const bounds = getPeriodBounds(period, referenceDate)
+  const squadMatches = await prisma.squadMatch.findMany({
+    where: {
+      createdAt: { gte: bounds.gte, lte: bounds.lte },
+      members: { some: { member: clanPlacementMemberWhere(clanId) } },
+    },
+    select: {
+      matchType: true,
+      // Un SquadMatch peut être partagé entre plusieurs clans (voir
+      // analyzeMatchForSquads dans squad-detector.ts) : sans ce filtre, un
+      // match croisé renverrait aussi les SquadMember de l'autre clan.
+      members: {
+        where: { member: clanPlacementMemberWhere(clanId) },
+        include: { member: { select: { id: true, displayName: true, ...CLAN_PLACEMENT_MEMBER_SELECT } } },
+        orderBy: { memberId: 'asc' },
+      },
+    },
+  })
+  // Place du clan = celle de ses membres actifs, jamais `SquadMatch.placement` (place du clan qui a créé la ligne).
+  return squadMatches.map((match) => ({ ...match, placement: clanPlacementOf(match, clanId) ?? 0 }))
+}
+
+type CachePayloadEntry = { period: SquadPeriod; matchType: ClanMatchTypeFilter; periodKey: string; payload: CachedClanMatchesPayload }
+
+/** Charges d'une période, une par type de partie, sans rien écrire. */
+async function buildPeriodPayloads(clanId: number, period: SquadPeriod, referenceDate: Date): Promise<CachePayloadEntry[]> {
+  const squadMatches = await loadClanPeriodMatches(clanId, period, referenceDate)
+  const periodKey = getPeriodKey(period, referenceDate)
+  return CLAN_MATCH_TYPE_FILTERS.map((matchType) => ({
+    period,
+    matchType,
+    periodKey,
+    payload: processMatchesForCache(
+      matchType === 'all' ? squadMatches : squadMatches.filter((match) => matchTypeMatchesFilter(match.matchType, matchType))
+    ),
+  }))
+}
+
+/**
+ * Charges du cache des matchs (période × type de partie), calculées sans rien écrire : `precomputeClanMatchesStats`
+ * les enregistre, le script de recalcul (`scripts/recalc-shared-placement.ts`) les compare au cache en simulation.
+ */
+export async function buildClanMatchesCachePayloads(clanId: number, referenceDate = new Date()) {
+  const entries: CachePayloadEntry[] = []
+  for (const period of CACHE_PERIODS) entries.push(...(await buildPeriodPayloads(clanId, period, referenceDate)))
+  return entries
+}
+
 export async function precomputeClanMatchesStats(clanId: number) {
-  const periods: SquadPeriod[] = ['week', 'month', 'all']
   const referenceDate = new Date()
 
-  for (const period of periods) {
+  for (const period of CACHE_PERIODS) {
     try {
-      const bounds = getPeriodBounds(period, referenceDate)
-      const periodKey = getPeriodKey(period, referenceDate)
-
-      const squadMatches = await prisma.squadMatch.findMany({
-        where: {
-          createdAt: { gte: bounds.gte, lte: bounds.lte },
-          members: { some: { member: { clanId, isActive: true, joinStatus: 'active' } } },
-        },
-        include: {
-          // Un SquadMatch peut être partagé entre plusieurs clans (voir
-          // analyzeMatchForSquads dans squad-detector.ts) : sans ce filtre, un
-          // match croisé renverrait aussi les SquadMember de l'autre clan.
-          members: {
-            where: { member: { clanId, isActive: true, joinStatus: 'active' } },
-            include: { member: { select: { id: true, displayName: true } } },
-            orderBy: { memberId: 'asc' },
-          },
-        },
-      })
-
-      for (const matchType of CLAN_MATCH_TYPE_FILTERS) {
+      for (const { matchType, periodKey, payload } of await buildPeriodPayloads(clanId, period, referenceDate)) {
         try {
-          const filteredMatches =
-            matchType === 'all'
-              ? squadMatches
-              : squadMatches.filter((match) => matchTypeMatchesFilter(match.matchType, matchType))
-
-          const payload = processMatchesForCache(filteredMatches)
-
           await prisma.clanMatchesCache.upsert({
             where: { clanId_period_matchType: { clanId, period, matchType } },
             create: {
@@ -174,7 +199,14 @@ export async function precomputeClanMatchesStats(clanId: number) {
   }
 }
 
-function processMatchesForCache(matches: any[]): CachedClanMatchesPayload {
+type CacheMatch = {
+  matchType: string
+  /** Place du clan (`clanPlacementOf`), 0 sans membre classé. */
+  placement: number
+  members: Array<{ memberId: number; kills: number; damage: number; assists: number; revives: number; member: { displayName: string } }>
+}
+
+function processMatchesForCache(matches: CacheMatch[]): CachedClanMatchesPayload {
   const globalStats = { totalKills: 0, totalDamage: 0, wins: 0, matchCount: 0, totalAssists: 0, winRate: 0 }
   
   const modePerformance = {

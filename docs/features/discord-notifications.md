@@ -110,15 +110,22 @@ Les deux aperçus de la page ne sont pas des maquettes : ils appellent les vrais
 
 Le second chemin compte : sans lui, le deuxième clan d'un match croisé n'aurait jamais son alerte.
 
+**Place du clan, pas celle de la ligne** (2026-10-27, [place-partie-partagee.md](../TODO/place-partie-partagee.md)) :
+`SquadMatch.placement` n'est que la place du clan qui a créé la ligne. Jusqu'au 2026-10-27, un clan qui rejoignait une
+partie gagnée par un autre recevait une fausse alerte, et un clan qui gagnait une partie créée par un autre n'en recevait
+aucune (octobre : 85 Top 1 comptés à tort, 90 manqués, tous usages confondus). L'alerte lit désormais la place des
+**membres actifs du clan** (`clanPlacementTeam`, `src/lib/clan-placement.ts`) et ne cite que **l'équipe gagnante** si le
+clan en alignait deux. Les alertes déjà parties ne se rattrapent pas.
+
 ### Conditions cumulatives
 
 L'envoi n'a lieu que si toutes ces conditions sont réunies :
 
 1. `top1.enabled` est vrai ;
 2. `top1.webhookUrl` est une URL de webhook Discord valide ;
-3. `squadMatch.placement === 1` ;
+3. la place **du clan** (ses membres actifs, `clanId` + `isActive` + `joinStatus = 'active'`) vaut 1 ;
 4. `squadMatch.matchType` fait partie des types cochés ;
-5. le nombre de membres **du clan** dans l'escouade atteint `minClanMembers` ;
+5. le nombre de membres **du clan dans l'équipe gagnante** atteint `minClanMembers` ;
 6. le mode d'équipe déduit de ce nombre (`teamModeFromMemberCount`) est coché ;
 7. aucune ligne `DiscordNotificationLog` n'existe déjà pour ce couple clan/match.
 

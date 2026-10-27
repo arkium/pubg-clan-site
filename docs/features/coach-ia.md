@@ -112,6 +112,13 @@ Les tournois sont des pages **publiques**, quel que soit le clan organisateur : 
 montre, et le clan du joueur ne sert qu'à le situer (`yours`, `yourClan`) ; un brouillon reste invisible. Ajoutés le
 2026-10-24 après l'essai connecté : sur la page d'un tournoi, « qui a gagné le tournoi ? » était refusé.
 
+**Place et escouade du clan** (2026-10-27, [place-partie-partagee.md](../TODO/place-partie-partagee.md)) : une partie
+partagée par plusieurs clans suivis n'a qu'une ligne `SquadMatch`, dont la place et les totaux ne sont que ceux du clan
+qui l'a créée (fil 5 : « ils ne sont pas de mon clan »). `getRecentMatches`, `getSessions`, `getPlaySchedule` (clan),
+`getDropZones`, `getMatchDebrief` et le contexte de page « match » lisent donc la place, les kills et l'escouade des
+**membres actifs du clan** (`clanSquadRow`, `clanPlacementOf`) ; en `scope: 'player'`, la place et l'équipe du joueur
+lui-même. `getMapPerformance` et `getLeagueStanding` suivent la Ligue et les Cartes (`CLAN_PLACEMENT_SQL`).
+
 Chaque outil se borne (nombre de parties, période) ; jamais le bilan complet de télémétrie. Résultats sans donnée
 d'authentification. Mesure sur la vraie base : `npx tsx --conditions=react-server scripts/coach-tools-probe.ts`
 (lecture seule).

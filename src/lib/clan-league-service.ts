@@ -15,6 +15,7 @@ import {
   type LeagueSettings,
   type LeagueStanding,
 } from '@/lib/clan-league'
+import { CLAN_PLACEMENT_SQL } from '@/lib/clan-placement-sql'
 import { getLeagueSettings } from '@/lib/league-settings-service'
 import { sessionDateOf } from '@/lib/match-sessions'
 import { getPeriodRange, type StandardPeriod } from '@/lib/period'
@@ -57,7 +58,7 @@ const CACHE_TTL_MS = 5 * 60 * 1000
 const cache = new Map<string, { expiresAt: number; payload: ClanLeaguePayload }>()
 const FEED_DAYS = 7
 
-type RawRow = { clanId: number; matchId: string; createdAt: Date; placement: number; damage: number | null; kills: number | bigint | null; knocks: number | bigint | null }
+type RawRow = { clanId: number; matchId: string; createdAt: Date; placement: number | null; damage: number | null; kills: number | bigint | null; knocks: number | bigint | null }
 
 export async function loadLeagueClans(): Promise<LeagueClan[]> {
   const clans = await prisma.clan.findMany({
@@ -70,10 +71,13 @@ export async function loadLeagueClans(): Promise<LeagueClan[]> {
 /** Filtre SQL du type de partie (`leagueMatchTypeValues` : Casual couvre aussi les lobbies de bots `airoyale`). */
 const matchTypeSql = (matchType: LeagueMatchType) => Prisma.sql`sm.matchType IN (${Prisma.join(leagueMatchTypeValues(matchType))})`
 
-/** Une ligne par clan et par partie du type, stats des seuls membres actifs du clan (règle du comparateur). */
+/**
+ * Une ligne par clan et par partie du type, stats des seuls membres actifs du clan (règle du comparateur). La place est
+ * celle de ces membres (`CLAN_PLACEMENT_SQL`) : une partie partagée compte pour chaque clan avec sa propre place.
+ */
 export async function loadLeagueRows(since: Date | null, matchType: LeagueMatchType = 'official'): Promise<LeagueMatchRow[]> {
   const rows = await prisma.$queryRaw<RawRow[]>(Prisma.sql`
-    SELECT cm.clanId AS clanId, sm.id AS matchId, sm.createdAt AS createdAt, sm.placement AS placement,
+    SELECT cm.clanId AS clanId, sm.id AS matchId, sm.createdAt AS createdAt, ${CLAN_PLACEMENT_SQL} AS placement,
            SUM(sq.damage) AS damage, SUM(sq.kills) AS kills, SUM(sq.knockouts) AS knocks
     FROM SquadMember sq
     INNER JOIN SquadMatch sm ON sm.id = sq.squadMatchId
@@ -83,13 +87,14 @@ export async function loadLeagueRows(since: Date | null, matchType: LeagueMatchT
       AND cm.isActive = 1 AND cm.joinStatus = 'active'
       AND c.isActive = 1 AND c.pubgClanId IS NOT NULL
       ${since ? Prisma.sql`AND sm.createdAt >= ${since}` : Prisma.empty}
-    GROUP BY cm.clanId, sm.id, sm.createdAt, sm.placement
+    GROUP BY cm.clanId, sm.id, sm.createdAt
   `)
   return rows.map((row) => ({
     clanId: Number(row.clanId),
     matchId: row.matchId,
     createdAt: new Date(row.createdAt),
-    placement: Number(row.placement),
+    // NULL sans membre classé (place inconnue) : 0, qui ne rapporte aucun point (`placementPoints`).
+    placement: Number(row.placement ?? 0),
     damage: Number(row.damage ?? 0),
     kills: Number(row.kills ?? 0),
     knocks: Number(row.knocks ?? 0),

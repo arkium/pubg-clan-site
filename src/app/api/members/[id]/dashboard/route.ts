@@ -1,3 +1,4 @@
+import { clanPlacementMemberWhere } from '@/lib/clan-placement'
 import { getMapLabels } from '@/lib/map-label-service'
 import { matchDebriefPath } from '@/lib/match-links'
 import { dominantRole } from '@/lib/member-roster'
@@ -54,6 +55,12 @@ type TelemetryRow = {
 }
 
 const scoresOf = (row: TelemetryRow) => ({ aggression: row.aggressionScore, support: row.supportScore, zoneDiscipline: row.zoneDisciplineScore })
+
+/** Coéquipiers possibles du joueur : les autres membres actifs de son clan (sans clan, les autres joueurs suivis). */
+const teammateWhere = (memberId: number, clanId: number | null) => ({
+  memberId: { not: memberId },
+  ...(clanId ? { member: clanPlacementMemberWhere(clanId) } : {}),
+})
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
@@ -119,7 +126,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         : Promise.resolve([]),
       prisma.squadMember.findMany({
         where: { memberId, ...(period === 'all' ? {} : { squadMatch: { createdAt: { gte: rangeStart } } }) },
-        select: { squadMatchId: true, timeSurvived: true },
+        select: { squadMatchId: true, timeSurvived: true, placement: true },
       }),
       getMapLabels(),
     ])
@@ -168,11 +175,12 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         where: { memberId, squadMatch: { pubgMatchId: bestCandidate.pubgMatchId } },
         select: {
           timeSurvived: true,
+          placement: true,
           squadMatch: {
             select: {
               id: true,
               telemetry: { select: { id: true } },
-              members: { where: { memberId: { not: memberId } }, select: { member: { select: { displayName: true } } } },
+              members: { where: teammateWhere(memberId, member.clanId), select: { placement: true, member: { select: { displayName: true } } } },
             },
           },
         },
@@ -186,25 +194,31 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         placement: bestCandidate.placement,
         createdAt: bestCandidate.pubgCreatedAt.toISOString(),
         timeSurvived: squadEntry && squadEntry.timeSurvived > 0 ? squadEntry.timeSurvived : null,
-        teammates: squadEntry?.squadMatch.members.map((entry) => entry.member.displayName) ?? [],
+        // Son équipe : même place que lui (la ligne réunit tous les joueurs suivis du lobby, d'autres clans compris).
+        teammates: squadEntry?.squadMatch.members.filter((entry) => entry.placement === squadEntry.placement).map((entry) => entry.member.displayName) ?? [],
         debriefHref:
           member.clanId && squadEntry?.squadMatch.telemetry ? matchDebriefPath(member.clanId, squadEntry.squadMatch.id, { period }) : null,
       }
     }
 
     // ── Frères d'armes : les partenaires de clan les plus fréquents ──
+    // Un partenaire = un membre actif du clan dans **son** équipe (même place) ; une victoire = sa place à lui. La ligne
+    // de la partie réunit tous les joueurs suivis du lobby et sa place n'est que celle du clan qui l'a créée.
     const playTimeByMatch = new Map(squadRows.map((row) => [row.squadMatchId, row.timeSurvived]))
+    const ownPlacementByMatch = new Map(squadRows.map((row) => [row.squadMatchId, row.placement]))
     const coPlayers = squadRows.length
-      ? await prisma.squadMember.findMany({
-          where: { squadMatchId: { in: squadRows.map((row) => row.squadMatchId) }, memberId: { not: memberId } },
-          select: {
-            memberId: true,
-            squadMatchId: true,
-            timeSurvived: true,
-            squadMatch: { select: { placement: true } },
-            member: { select: { displayName: true, identities: { select: { user: { select: { avatarUrl: true } } }, take: 1 } } },
-          },
-        })
+      ? (
+          await prisma.squadMember.findMany({
+            where: { squadMatchId: { in: squadRows.map((row) => row.squadMatchId) }, ...teammateWhere(memberId, member.clanId) },
+            select: {
+              memberId: true,
+              squadMatchId: true,
+              timeSurvived: true,
+              placement: true,
+              member: { select: { displayName: true, identities: { select: { user: { select: { avatarUrl: true } } }, take: 1 } } },
+            },
+          })
+        ).filter((row) => row.placement === ownPlacementByMatch.get(row.squadMatchId))
       : []
     const mateMap = new Map<number, { displayName: string; avatarUrl: string | null; matchCount: number; wins: number; sharedPlayTimeSeconds: number }>()
     for (const row of coPlayers) {
@@ -216,7 +230,7 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
         sharedPlayTimeSeconds: 0,
       }
       entry.matchCount += 1
-      if (row.squadMatch.placement === 1) entry.wins += 1
+      if (ownPlacementByMatch.get(row.squadMatchId) === 1) entry.wins += 1
       entry.sharedPlayTimeSeconds += Math.min(playTimeByMatch.get(row.squadMatchId) ?? 0, row.timeSurvived)
       mateMap.set(row.memberId, entry)
     }

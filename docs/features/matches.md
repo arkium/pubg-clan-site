@@ -36,8 +36,18 @@ Représente un match joué par plusieurs membres du clan ensemble. Un `SquadMatc
 | `pubgMatchId` | ID PUBG du match |
 | `mapName` | Carte |
 | `gameMode` | Mode PUBG brut |
-| `placement` | Position finale de l'équipe |
+| `placement` | Position finale de l'équipe **du clan qui a créé la ligne** — à ne jamais lire pour un clan (voir ci-dessous) |
 | `createdAt` | Date du match |
+
+**Partie partagée par plusieurs clans suivis** (2026-10-27, [place-partie-partagee.md](../TODO/place-partie-partagee.md)) :
+`pubgMatchId` est unique, donc tous les clans suivis du lobby partagent la même ligne. Le premier clan qui synchronise la
+crée avec **sa** place et **ses** totaux ; les suivants n'ajoutent que leurs `SquadMember`. La place d'un clan est donc
+celle de ses **membres actifs** — la plus petite `SquadMember.placement` non nulle : `clanPlacementOf` en mémoire,
+`CLAN_PLACEMENT_SQL` en SQL (`src/lib/clan-placement.ts`, `clan-placement-sql.ts`) — et la place d'un joueur reste la
+sienne. La route `/api/clans/[clanId]/matches`, les soirées (`match-sessions.ts`) et le cache `ClanMatchesCache` lisent
+cette place ; `src/lib/clan-placement-reads.test.ts` refuse toute nouvelle lecture de `SquadMatch.placement`. Un clan
+peut aligner deux équipes dans la même partie (membres attachés quand l'effectif du clan différait) : sa place est celle
+de la meilleure.
 
 ### Table `SquadMember`
 

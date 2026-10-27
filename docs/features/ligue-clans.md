@@ -105,7 +105,10 @@ classement des joueurs ([joueurs.md](joueurs.md)).
 
 Une requête groupée par **clan et par partie du type demandé** (`SquadMatch.matchType IN (…)`), stats des seuls
 membres actifs du clan (`isActive`, `joinStatus = 'active'`) — la règle du comparateur de clans. Clans retenus : actifs
-et reliés à un clan PUBG. Mesuré le 2026-09-27 : ≈ 21 000 lignes sur tout l'historique en 1,2 s ; 5 minutes en mémoire
+et reliés à un clan PUBG. **Place du clan** = celle de ces mêmes membres (`CLAN_PLACEMENT_SQL`,
+`src/lib/clan-placement-sql.ts`), jamais `SquadMatch.placement` : une partie partagée par plusieurs clans suivis compte
+pour chacun avec sa propre place (2026-10-27, [place-partie-partagee.md](../TODO/place-partie-partagee.md) — sur le mois
+d'octobre, 24 clans classés changeaient de nombre de Top 1). Mesuré le 2026-09-27 : ≈ 21 000 lignes sur tout l'historique en 1,2 s ; 5 minutes en mémoire
 par période **et par type** (clé `période:type`).
 
 Power score : voir §1 bis.

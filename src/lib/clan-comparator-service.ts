@@ -1,5 +1,6 @@
 import type { Prisma } from '@prisma/client'
 
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementOf } from '@/lib/clan-placement'
 import { prisma } from '@/lib/prisma'
 import type { SquadPeriod } from '@/types/squad-matches'
 
@@ -103,7 +104,8 @@ export async function computeClanComparatorStats(clanId: number, referenceDate =
   }
 }
 
-async function buildClanComparatorPayload(
+/** Charge du comparateur d'un clan pour une période, sans rien écrire (simulation de `scripts/recalc-shared-placement.ts`). */
+export async function buildClanComparatorPayload(
   clanId: number,
   period: 'week' | 'month' | 'all',
   referenceDate: Date
@@ -124,8 +126,8 @@ async function buildClanComparatorPayload(
         ...(bounds ? { createdAt: { gte: bounds.gte, lte: bounds.lte } } : {}),
         members: { some: { member: activeMemberFilter } },
       },
+      // Pas de `SquadMatch.placement` (place du clan qui a créé la ligne) : la place du clan vient de ses membres actifs.
       select: {
-        placement: true,
         createdAt: true,
         // La taille d'équipe (duo/trio/squad) doit refléter la composition réelle
         // du match : on inclut tous les membres du clan (isActive, peu importe
@@ -146,7 +148,8 @@ async function buildClanComparatorPayload(
             knockouts: true,
             revives: true,
             timeSurvived: true,
-            member: { select: { joinStatus: true } },
+            placement: true,
+            member: { select: CLAN_PLACEMENT_MEMBER_SELECT },
           },
         },
       },
@@ -202,8 +205,9 @@ async function buildClanComparatorPayload(
     if (match.members.length === 0) continue
 
     matchCount++
-    if (match.placement === 1) wins++
-    if (match.placement <= 10) top10Count++
+    const placement = clanPlacementOf(match, clanId)
+    if (placement === 1) wins++
+    if (placement !== null && placement <= 10) top10Count++
 
     const dayOfWeek = match.createdAt.getDay()
     const hour = match.createdAt.getHours()
@@ -237,7 +241,7 @@ async function buildClanComparatorPayload(
       const bucket = modePerformanceMap[mode]
       bucket.matches++
       bucket.totalKills += matchKills
-      if (match.placement === 1) bucket.wins++
+      if (placement === 1) bucket.wins++
     }
   }
 

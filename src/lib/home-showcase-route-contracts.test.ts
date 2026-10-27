@@ -52,17 +52,20 @@ import {
 
 const ACTIVE = { isActive: true, isSystem: false, archivedAt: null }
 
-function squadMember(memberId: number, clanId: number, tag: string, kills: number, damage: number, clan = ACTIVE) {
+function squadMember(memberId: number, clanId: number, tag: string, kills: number, damage: number, clan = ACTIVE, placement = 1) {
   return {
     memberId,
     kills,
     damage,
     revives: 0,
     longestKill: 120 + memberId,
+    placement,
     member: {
       displayName: `Joueur ${memberId}`,
       pubgPlayerName: `pubg${memberId}`,
       clanId,
+      isActive: true,
+      joinStatus: 'active',
       clan: { name: `Clan ${tag}`, tag, ...clan },
     },
   }
@@ -76,8 +79,6 @@ function win(id: string, members: ReturnType<typeof squadMember>[], mapName = 'D
     matchType: 'official',
     mapName,
     createdAt: new Date('2026-09-26T20:00:00Z'),
-    totalKills: 12,
-    totalDamage: 1834.6,
     members,
   }
 }
@@ -169,7 +170,8 @@ describe('GET /api/home/showcase', () => {
       durationSeconds: 1654,
       teamCount: 29,
       teamMode: 'squad',
-      damage: 1835,
+      kills: 12,
+      damage: 1702,
       longestKillMeters: 123,
       debriefPath: '/clans/10/telemetry/matches/w1/debrief',
     })
@@ -190,7 +192,7 @@ describe('GET /api/home/showcase', () => {
     await GET()
     expect(mocks.squadMatchFindMany).toHaveBeenCalledWith(
       expect.objectContaining({
-        where: expect.objectContaining({ placement: 1, matchType: { in: ['official', 'competitive'] } }),
+        where: expect.objectContaining({ matchType: { in: ['official', 'competitive'] } }),
       })
     )
     const [strings, ...values] = mocks.queryRaw.mock.calls[0] as [TemplateStringsArray, ...unknown[]]
@@ -198,6 +200,25 @@ describe('GET /api/home/showcase', () => {
     // `Prisma.join` : un fragment SQL qui porte ses propres paramètres.
     const types = values.find((value) => Array.isArray((value as { values?: unknown } | null)?.values)) as { values: unknown[] } | undefined
     expect(types?.values).toEqual(['official', 'competitive'])
+  })
+
+  it('partie partagée : le Top 1 revient au clan classé 1er, avec sa seule équipe, ses kills et ses dégâts', async () => {
+    mocks.squadMatchFindMany.mockResolvedValue([
+      // Ligne créée par FUN (12e) ; SMK a gagné. Les totaux de la ligne ne comptent plus.
+      win('shared', [
+        squadMember(3, 20, 'FUN', 4, 590, ACTIVE, 12),
+        squadMember(1, 10, 'SMK', 6, 812),
+        squadMember(2, 10, 'SMK', 2, 300),
+      ]),
+    ])
+    const body = await (await GET()).json()
+    expect(body.dinners).toHaveLength(1)
+    expect(body.dinners[0]).toMatchObject({ clanId: 10, clanTag: 'SMK', kills: 8, damage: 1112 })
+    expect(body.dinners[0].squad.map((member: { memberId: number }) => member.memberId)).toEqual([1, 2])
+    // La requête cherche un membre actif classé 1er, jamais `SquadMatch.placement`.
+    const where = mocks.squadMatchFindMany.mock.calls[0][0].where
+    expect(where).not.toHaveProperty('placement')
+    expect(where.members.some).toMatchObject({ placement: 1, member: { isActive: true, joinStatus: 'active' } })
   })
 
   it('réduit chaque victime au tag de son clan, jamais à son pseudo ni à son compte', async () => {

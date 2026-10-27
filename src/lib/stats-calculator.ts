@@ -82,7 +82,7 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
     },
     include: {
       squadMatch: {
-        select: { placement: true, createdAt: true },
+        select: { createdAt: true },
       },
     },
   })
@@ -93,7 +93,9 @@ export async function calculatePlayerStats(memberId: number, period: StatsPeriod
   const totalDamage = squadMembers.reduce((sum, m) => sum + m.damage, 0)
   const totalAssists = squadMembers.reduce((sum, m) => sum + m.assists, 0)
   const totalRevives = squadMembers.reduce((sum, m) => sum + m.revives, 0)
-  const matchesWon = squadMembers.filter((m) => m.squadMatch.placement === 1).length
+  // La place du joueur, celle de son équipe : `SquadMatch.placement` n'est que celle du clan qui a créé la ligne d'une
+  // partie partagée par plusieurs clans suivis (docs/TODO/place-partie-partagee.md).
+  const matchesWon = squadMembers.filter((m) => m.placement === 1).length
   const timePlayedSeconds = squadMembers.reduce((sum, m) => sum + m.timeSurvived, 0)
 
   const activeDaysSet = new Set<string>()

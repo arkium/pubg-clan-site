@@ -17,7 +17,18 @@ vi.mock('@/lib/map-label-service', () => ({
 import { resolveCoachContext } from '@/lib/coach/coach-context-service'
 
 const scope = { clanId: 292, memberId: 100, memberName: 'NovakTV' }
-const match = { id: 'cmatch1', mapName: 'Baltic_Main', createdAt: new Date('2026-10-22T19:47:00Z'), placement: 3, totalKills: 18, telemetry: { status: 'success' } }
+const active = { clanId: 292, isActive: true, joinStatus: 'active' }
+// Les membres actifs du clan (le filtre de la requête) : place 3, 18 kills.
+const match = {
+  id: 'cmatch1',
+  mapName: 'Baltic_Main',
+  createdAt: new Date('2026-10-22T19:47:00Z'),
+  members: [
+    { kills: 11, placement: 3, member: active },
+    { kills: 7, placement: 3, member: active },
+  ],
+  telemetry: { status: 'success' },
+}
 
 beforeEach(() => {
   mocks.squadMatchFindFirst.mockReset()
@@ -45,6 +56,15 @@ describe('vérification du contexte de page', () => {
   it('accepte une manche de tournoi si le clan y a joué', async () => {
     mocks.squadMatchFindFirst.mockResolvedValue({ ...match, telemetry: null })
     expect(await resolveCoachContext('/tournaments/ctour1/matches/cmatch1', scope)).toMatchObject({ kind: 'match', telemetryAnalyzed: false })
+  })
+
+  it('partie partagée : la place et les kills du clan de la session, jamais ceux de la ligne', async () => {
+    mocks.squadMatchFindFirst.mockResolvedValue({ ...match, members: [{ kills: 4, placement: 1, member: active }] })
+    expect(await resolveCoachContext('/clans/292/telemetry/matches/cmatch1/debrief', scope)).toMatchObject({ placement: 1, squadKills: 4 })
+    const { select } = mocks.squadMatchFindFirst.mock.calls[0][0]
+    expect(select).not.toHaveProperty('placement')
+    expect(select).not.toHaveProperty('totalKills')
+    expect(select.members.where).toEqual({ member: active })
   })
 
   it('reconnaît la page des cartes du clan de la session seulement', async () => {

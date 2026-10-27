@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { clanPlacementMemberWhere, playerTeamOf } from '@/lib/clan-placement'
 import { getMapLabels } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
 import { getPeriodStart } from '@/lib/period'
@@ -239,14 +240,17 @@ export async function GET(
             },
           },
         },
+        // Pas de `SquadMatch.placement` (place du clan qui a créé la ligne d'une partie partagée) : l'équipe du joueur
+        // et sa place viennent de ses `SquadMember` (`playerTeamOf`), parmi le joueur et les membres actifs de son clan.
         select: {
-          placement: true,
           createdAt: true,
           mapName: true,
           members: {
+            where: member.clanId ? { OR: [{ memberId }, { member: clanPlacementMemberWhere(member.clanId) }] } : { memberId },
             select: {
               memberId: true,
               timeSurvived: true,
+              placement: true,
               member: {
                 select: {
                   displayName: true,
@@ -270,7 +274,8 @@ export async function GET(
       const aggregates = new Map<string, TeamAggregate>()
 
       for (const match of squadMatches) {
-        const members = match.members
+        const members = playerTeamOf(match.members, memberId)
+        const placement = members.find((entry) => entry.memberId === memberId)?.placement ?? 0
 
         const isMatchingMode =
           (bestMode === 'duo' && members.length === 2) ||
@@ -298,8 +303,8 @@ export async function GET(
         }
 
         existing.matches += 1
-        existing.wins += match.placement === 1 ? 1 : 0
-        existing.placements += match.placement
+        existing.wins += placement === 1 ? 1 : 0
+        existing.placements += placement
         
         const playtime = members.reduce((s, m) => s + m.timeSurvived, 0)
         existing.createdAtEntries.push({ createdAt: match.createdAt, mapName: match.mapName, playtime })

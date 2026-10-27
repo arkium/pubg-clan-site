@@ -7,6 +7,7 @@ import {
   type DropPressureLevel,
   type DropPressureSample,
 } from '@/lib/drop-zone-pressure'
+import { clanPlacementMemberWhere, playerTeamOf } from '@/lib/clan-placement'
 import { getMapLocations } from '@/lib/map-location-service'
 import { prisma } from '@/lib/prisma'
 import {
@@ -275,12 +276,15 @@ export async function GET(
             some: { memberId },
           },
         },
+        // Pas de `SquadMatch.placement` (place du clan qui a créé la ligne d'une partie partagée) : l'équipe du joueur
+        // et sa place viennent de ses `SquadMember` (`playerTeamOf`), parmi le joueur et les membres actifs de son clan.
         select: {
           id: true,
-          placement: true,
           members: {
+            where: member.clanId ? { OR: [{ memberId }, { member: clanPlacementMemberWhere(member.clanId) }] } : { memberId },
             select: {
               memberId: true,
+              placement: true,
             },
             orderBy: { memberId: 'asc' },
           },
@@ -290,7 +294,8 @@ export async function GET(
       const aggregates = new Map<string, TeamAggregate>()
 
       for (const match of squadMatches) {
-        const members = match.members
+        const members = playerTeamOf(match.members, memberId)
+        const placement = members.find((entry) => entry.memberId === memberId)?.placement ?? 0
         const isMatchingMode =
           (bestMode === 'duo' && members.length === 2) ||
           (bestMode === 'trio' && members.length === 3) ||
@@ -316,8 +321,8 @@ export async function GET(
         }
 
         current.matches += 1
-        current.wins += match.placement === 1 ? 1 : 0
-        current.placements += match.placement
+        current.wins += placement === 1 ? 1 : 0
+        current.placements += placement
         current.matchIds.push(match.id)
         aggregates.set(key, current)
       }

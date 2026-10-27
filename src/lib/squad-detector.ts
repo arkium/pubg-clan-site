@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf } from '@/lib/clan-placement'
 import type { ResolvedPubgMatch } from '@/lib/pubg'
 import { notifySquadDetected } from '@/lib/notification-service'
 import { notifyTop1IfEligible } from '@/lib/discord/discord-service'
@@ -160,30 +161,34 @@ async function getClanMembers(clanId: number) {
 async function getClanSquadMatches(clanId: number, period?: SquadPeriod) {
   const createdAtFilter = period ? { gte: getPeriodStart(period) } : undefined
 
-  return prisma.squadMatch.findMany({
+  const squadMatches = await prisma.squadMatch.findMany({
     where: {
       matchType: 'official',
       ...(createdAtFilter ? { createdAt: createdAtFilter } : {}),
       members: {
         some: {
-          member: {
-            clanId,
-          },
+          member: clanPlacementMemberWhere(clanId),
         },
       },
     },
-    include: {
+    select: {
+      id: true,
+      pubgMatchId: true,
+      gameMode: true,
+      mapName: true,
+      createdAt: true,
       // Un SquadMatch peut désormais être partagé entre plusieurs clans (voir
       // analyzeMatchForSquads) : sans ce filtre, un match croisé renverrait
       // aussi les SquadMember de l'autre clan, faussant les paires/squads de
       // synergie et les totaux ci-dessous.
       members: {
-        where: { member: { clanId } },
+        where: { member: clanPlacementMemberWhere(clanId) },
         include: {
           member: {
             select: {
               id: true,
               displayName: true,
+              ...CLAN_PLACEMENT_MEMBER_SELECT,
             },
           },
         },
@@ -192,12 +197,15 @@ async function getClanSquadMatches(clanId: number, period?: SquadPeriod) {
     },
     orderBy: { createdAt: 'desc' },
   })
+
+  // Place du clan = celle de ses membres actifs, jamais SquadMatch.placement (place du clan qui a créé la ligne).
+  return squadMatches.map((squadMatch) => ({ ...squadMatch, placement: clanPlacementOf(squadMatch, clanId) ?? 0 }))
 }
 
 export async function calculateSquadStats(squadMatchId: string) {
   const squadMatch = await prisma.squadMatch.findUnique({
     where: { id: squadMatchId },
-    include: {
+    select: {
       members: true,
     },
   })
@@ -222,18 +230,13 @@ export async function calculateSquadStats(squadMatchId: string) {
     }
   )
 
-  const updated = await prisma.squadMatch.update({
+  // Totaux du clan qui crée la ligne (le seul présent à ce moment) ; pas de taux de victoire tiré de
+  // SquadMatch.placement, que les autres clans de la partie ne partagent pas (docs/TODO/place-partie-partagee.md).
+  return prisma.squadMatch.update({
     where: { id: squadMatchId },
     data: totals,
-    include: {
-      members: true,
-    },
+    select: { id: true, members: true },
   })
-
-  return {
-    ...updated,
-    winRate: updated.placement === 1 ? 1 : 0,
-  }
 }
 
 type DetectedSquad = {
@@ -344,7 +347,7 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
     if (!detectedSquad) {
       return prisma.squadMatch.findUnique({
         where: { id: existing.id },
-        include: { members: true },
+        select: { id: true, members: true },
       })
     }
 
@@ -354,12 +357,18 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
     // jusqu'ici jamais leurs propres membres, rendant le Head-to-Head
     // structurellement impossible (aucun match n'avait jamais de membres de
     // deux clans différents). On complète donc les SquadMember manquants pour
-    // ce clan, SANS recalculer les colonnes dénormalisées totalKills/
+    // ce clan, SANS recalculer les colonnes dénormalisées placement/totalKills/
     // totalDamage/totalAssists/totalRevives du SquadMatch : elles restent
-    // scopées au premier clan qui a créé la ligne. Tout consommateur doit
+    // celles du premier clan qui a créé la ligne. Tout consommateur doit
     // recalculer ses propres totaux depuis les SquadMember filtrés par clan
     // (voir matches-cache-service.ts, matches/route.ts, report-generator.ts,
-    // et findBestSquads/getSquadWinRates/getClanSquadAnalysis ci-dessous).
+    // et findBestSquads/getSquadWinRates/getClanSquadAnalysis ci-dessous), et
+    // la place du clan depuis ses membres actifs : `clanPlacementOf` en
+    // mémoire, `CLAN_PLACEMENT_SQL` en SQL (docs/TODO/place-partie-partagee.md,
+    // contrôle statique clan-placement-reads.test.ts). La place d'un joueur
+    // reste sa propre SquadMember.placement. Un clan peut avoir deux équipes
+    // dans la partie (membres attachés quand l'effectif différait) : sa place
+    // est celle de la meilleure.
     const existingMemberIds = new Set(existing.members.map((member) => member.memberId))
     const newMembers = detectedSquad.members.filter((member) => !existingMemberIds.has(member.memberId))
 
@@ -369,11 +378,12 @@ export async function analyzeMatchForSquads(clanId: number, matchDetails: Resolv
       })
     }
 
+    // Ce clan peut avoir gagné une partie créée par un autre : l'alerte lit sa place à lui.
     await notifyTop1IfEligible(clanId, existing.id)
 
     return prisma.squadMatch.findUnique({
       where: { id: existing.id },
-      include: { members: true },
+      select: { id: true, members: true },
     })
   }
 

@@ -4,6 +4,7 @@ import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { readSubdomainRoot } from '@/lib/clan-subdomain-host'
 import { getPublicSiteBaseUrl } from '@/lib/public-base-url'
 import { teamModeFromMemberCount } from '@/lib/team-mode'
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementTeam } from '@/lib/clan-placement'
 
 import { sendDiscordWebhook, type DiscordSendResult } from '@/lib/discord/discord-client'
 import {
@@ -58,22 +59,24 @@ async function loadTop1Context(clanId: number, squadMatchId: string) {
   const [squadMatch, clan] = await Promise.all([
     prisma.squadMatch.findUnique({
       where: { id: squadMatchId },
+      // Pas de `SquadMatch.placement` : la ligne est partagée par tous les clans du lobby et sa place n'est que celle
+      // du clan qui l'a créée (docs/TODO/place-partie-partagee.md). La place vient des membres actifs du clan.
       select: {
         id: true,
-        placement: true,
         matchType: true,
         gameMode: true,
         mapName: true,
         createdAt: true,
         members: {
-          where: { member: { clanId } },
+          where: { member: clanPlacementMemberWhere(clanId) },
           select: {
             kills: true,
             damage: true,
             assists: true,
             revives: true,
             timeSurvived: true,
-            member: { select: { id: true, displayName: true } },
+            placement: true,
+            member: { select: { id: true, displayName: true, ...CLAN_PLACEMENT_MEMBER_SELECT } },
           },
           orderBy: { kills: 'desc' },
         },
@@ -103,13 +106,16 @@ export async function notifyTop1IfEligible(
     const { squadMatch, clan } = await loadTop1Context(clanId, squadMatchId)
 
     if (!squadMatch || !clan) return { sent: false, reason: 'not-found' }
-    if (squadMatch.placement !== 1) return { sent: false, reason: 'not-a-win' }
+    // L'équipe du clan classée à sa place. Appelée aussi quand un 2e clan rejoint une partie existante : l'alerte ne
+    // part que si **ce** clan l'a gagnée, et ne cite que l'équipe gagnante s'il en alignait deux.
+    const winners = clanPlacementTeam(squadMatch.members, clanId)
+    if (winners[0]?.placement !== 1) return { sent: false, reason: 'not-a-win' }
 
     if (!isDiscordMatchType(squadMatch.matchType) || !top1.matchTypes[squadMatch.matchType]) {
       return { sent: false, reason: 'match-type-filtered' }
     }
 
-    const memberCount = squadMatch.members.length
+    const memberCount = winners.length
     if (memberCount < top1.minClanMembers) {
       return { sent: false, reason: 'below-member-threshold' }
     }
@@ -133,7 +139,7 @@ export async function notifyTop1IfEligible(
       gameModeLabel: gameModeDisplayName(squadMatch.gameMode),
       matchTypeLabel: MATCH_TYPE_LABELS[squadMatch.matchType] ?? squadMatch.matchType,
       playedAt: squadMatch.createdAt,
-      members: squadMatch.members.map((member) => ({
+      members: winners.map((member) => ({
         memberId: member.member.id,
         displayName: member.member.displayName,
         kills: member.kills,

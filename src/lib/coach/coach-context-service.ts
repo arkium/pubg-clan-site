@@ -1,3 +1,4 @@
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf } from '@/lib/clan-placement'
 import { parseCoachContextPath, type CoachResolvedContext } from '@/lib/coach/coach-context'
 import { getMapLabels, mapDisplayName } from '@/lib/map-label-service'
 import { prisma } from '@/lib/prisma'
@@ -14,9 +15,17 @@ export type CoachContextScope = { clanId: number; memberId: number; memberName: 
 const NONE: CoachResolvedContext = { kind: 'none' }
 
 async function matchContext(matchId: string, clanId: number): Promise<CoachResolvedContext> {
+  // Place et kills du clan par ses membres actifs : la ligne réunit tous les joueurs suivis du lobby, et sa place comme
+  // ses totaux ne sont que ceux du clan qui l'a créée (docs/TODO/place-partie-partagee.md).
   const match = await prisma.squadMatch.findFirst({
     where: { id: matchId, members: { some: { member: { clanId } } } },
-    select: { id: true, mapName: true, createdAt: true, placement: true, totalKills: true, telemetry: { select: { status: true } } },
+    select: {
+      id: true,
+      mapName: true,
+      createdAt: true,
+      members: { where: { member: clanPlacementMemberWhere(clanId) }, select: { kills: true, placement: true, member: { select: CLAN_PLACEMENT_MEMBER_SELECT } } },
+      telemetry: { select: { status: true } },
+    },
   })
   if (!match) return NONE
   const labels = await getMapLabels()
@@ -26,8 +35,8 @@ async function matchContext(matchId: string, clanId: number): Promise<CoachResol
     mapName: match.mapName,
     mapLabel: mapDisplayName(match.mapName, labels),
     createdAt: match.createdAt,
-    placement: match.placement,
-    squadKills: match.totalKills,
+    placement: clanPlacementOf(match, clanId) ?? 0,
+    squadKills: match.members.reduce((sum, member) => sum + member.kills, 0),
     telemetryAnalyzed: match.telemetry?.status === 'success',
   }
 }

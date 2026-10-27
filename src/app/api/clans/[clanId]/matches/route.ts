@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { Prisma } from '@prisma/client'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf } from '@/lib/clan-placement'
 import { teamCountFromPhaseSnapshots } from '@/lib/home-showcase'
 import { getMapLabels } from '@/lib/map-label-service'
 import { sessionDateOf } from '@/lib/match-sessions'
@@ -267,10 +268,7 @@ export async function GET(
       },
       members: {
         some: {
-          member: {
-            clanId: parsedClanId,
-            isActive: true,
-          },
+          member: clanPlacementMemberWhere(parsedClanId),
         },
       },
     }
@@ -287,9 +285,16 @@ export async function GET(
       return Response.json({ error: 'Clan not found' }, { status: 404 })
     }
 
+    // `select` et non `include` : `SquadMatch.placement` (place du seul clan qui a créé la ligne) n'est pas lu.
     const squadMatches = await prisma.squadMatch.findMany({
       where: baseWhere,
-      include: {
+      select: {
+        id: true,
+        pubgMatchId: true,
+        gameMode: true,
+        mapName: true,
+        matchType: true,
+        createdAt: true,
         telemetry: {
           select: {
             status: true,
@@ -304,12 +309,13 @@ export async function GET(
         // analyzeMatchForSquads dans squad-detector.ts) : sans ce filtre, un
         // match croisé renverrait aussi les SquadMember de l'autre clan.
         members: {
-          where: { member: { clanId: parsedClanId, isActive: true } },
+          where: { member: clanPlacementMemberWhere(parsedClanId) },
           include: {
             member: {
               select: {
                 id: true,
                 displayName: true,
+                ...CLAN_PLACEMENT_MEMBER_SELECT,
               },
             },
           },
@@ -365,63 +371,68 @@ export async function GET(
       }
     }
 
-    const squads: SquadMatch[] = squadMatches.map((match) => ({
-      id: match.id,
-      pubgMatchId: match.pubgMatchId,
-      gameMode: match.gameMode,
-      mapName: match.mapName,
-      matchType: match.matchType,
-      placement: match.placement,
-      createdAt: match.createdAt.toISOString(),
-      durationSeconds: durationByMatchId.get(match.pubgMatchId) ?? 0,
-      // Équipes au départ (« #3 / 26 »), lues dans la télémétrie ; `null` sans télémétrie analysée.
-      teamCount: teamCountFromPhaseSnapshots(telemetryExtraByMatchId.get(match.id)?.phaseSnapshots),
-      // Recalculé depuis les SquadMember (déjà filtrés par clan ci-dessus)
-      // plutôt que depuis SquadMatch.totalKills/totalDamage/totalAssists/
-      // totalRevives — ces colonnes ne reflètent que le clan ayant créé la
-      // ligne en premier sur un match potentiellement partagé entre plusieurs
-      // clans (voir analyzeMatchForSquads dans squad-detector.ts).
-      totalKills: match.members.reduce((sum, member) => sum + member.kills, 0),
-      totalDamage: match.members.reduce((sum, member) => sum + member.damage, 0),
-      totalAssists: match.members.reduce((sum, member) => sum + member.assists, 0),
-      totalRevives: match.members.reduce((sum, member) => sum + member.revives, 0),
-      members: match.members.map((member) => ({
-        memberId: member.member.id,
-        displayName: member.member.displayName,
-        kills: member.kills,
-        damage: member.damage,
-        assists: member.assists,
-        revives: member.revives,
-        placement: member.placement,
-      })),
-      isWin: match.placement === 1,
-      telemetry: match.telemetry
-        ? {
-            status:
-              match.telemetry.status === 'success' || match.telemetry.status === 'failed'
-                ? match.telemetry.status
-                : 'pending',
-            parserVersion: match.telemetry.parserVersion,
-            parsedAt: match.telemetry.parsedAt.toISOString(),
-            bytesDownloaded: match.telemetry.bytesDownloaded,
-            summary: asTelemetrySummary(telemetryExtraByMatchId.get(match.id)?.summary),
-            topWeapons: asTelemetryWeaponStats(telemetryExtraByMatchId.get(match.id)?.weaponStats),
-            memberStats: asTelemetryMemberStats(telemetryExtraByMatchId.get(match.id)?.memberStats),
-            errorCode: match.telemetry.errorCode,
-            errorMessage: match.telemetry.errorMessage,
-          }
-        : {
-            status: 'pending',
-            parserVersion: null,
-            parsedAt: null,
-            bytesDownloaded: null,
-            summary: null,
-            topWeapons: [],
-            memberStats: [],
-            errorCode: null,
-            errorMessage: null,
-          },
-    }))
+    const squads: SquadMatch[] = squadMatches.map((match) => {
+      // Place du clan = celle de ses membres actifs : la partie peut être partagée avec d'autres clans suivis, et la
+      // place de la ligne n'est que celle du clan qui l'a créée (docs/TODO/place-partie-partagee.md).
+      const placement = clanPlacementOf(match, parsedClanId) ?? 0
+      return {
+        id: match.id,
+        pubgMatchId: match.pubgMatchId,
+        gameMode: match.gameMode,
+        mapName: match.mapName,
+        matchType: match.matchType,
+        placement,
+        createdAt: match.createdAt.toISOString(),
+        durationSeconds: durationByMatchId.get(match.pubgMatchId) ?? 0,
+        // Équipes au départ (« #3 / 26 »), lues dans la télémétrie ; `null` sans télémétrie analysée.
+        teamCount: teamCountFromPhaseSnapshots(telemetryExtraByMatchId.get(match.id)?.phaseSnapshots),
+        // Recalculé depuis les SquadMember (déjà filtrés par clan ci-dessus)
+        // plutôt que depuis SquadMatch.totalKills/totalDamage/totalAssists/
+        // totalRevives — ces colonnes ne reflètent que le clan ayant créé la
+        // ligne en premier sur un match potentiellement partagé entre plusieurs
+        // clans (voir analyzeMatchForSquads dans squad-detector.ts).
+        totalKills: match.members.reduce((sum, member) => sum + member.kills, 0),
+        totalDamage: match.members.reduce((sum, member) => sum + member.damage, 0),
+        totalAssists: match.members.reduce((sum, member) => sum + member.assists, 0),
+        totalRevives: match.members.reduce((sum, member) => sum + member.revives, 0),
+        members: match.members.map((member) => ({
+          memberId: member.member.id,
+          displayName: member.member.displayName,
+          kills: member.kills,
+          damage: member.damage,
+          assists: member.assists,
+          revives: member.revives,
+          placement: member.placement,
+        })),
+        isWin: placement === 1,
+        telemetry: match.telemetry
+          ? {
+              status:
+                match.telemetry.status === 'success' || match.telemetry.status === 'failed'
+                  ? match.telemetry.status
+                  : 'pending',
+              parserVersion: match.telemetry.parserVersion,
+              parsedAt: match.telemetry.parsedAt.toISOString(),
+              bytesDownloaded: match.telemetry.bytesDownloaded,
+              summary: asTelemetrySummary(telemetryExtraByMatchId.get(match.id)?.summary),
+              topWeapons: asTelemetryWeaponStats(telemetryExtraByMatchId.get(match.id)?.weaponStats),
+              memberStats: asTelemetryMemberStats(telemetryExtraByMatchId.get(match.id)?.memberStats),
+              errorCode: match.telemetry.errorCode,
+              errorMessage: match.telemetry.errorMessage,
+            }
+          : {
+              status: 'pending',
+              parserVersion: null,
+              parsedAt: null,
+              bytesDownloaded: null,
+              summary: null,
+              topWeapons: [],
+              memberStats: [],
+              errorCode: null,
+              errorMessage: null,
+            },
+      }
+    })
 
     const filteredSquads = gameModeFilter
       ? squads.filter((match) => teamModeFromMemberCount(match.members.length) === gameModeFilter)

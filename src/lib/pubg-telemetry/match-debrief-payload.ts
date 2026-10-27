@@ -1,5 +1,6 @@
 import { Prisma } from '@prisma/client'
 
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementOf } from '@/lib/clan-placement'
 import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import { getPhaseLabels } from '@/lib/phase-label-service'
@@ -48,14 +49,9 @@ type MatchTelemetryRow = {
   gameMode: string
   matchType: string
   mapName: string
-  placement: number
   createdAt: Date
   /** `MAX(Match.duration)` des membres suivis ; `null` si aucune ligne `Match` (import incomplet). */
   durationSeconds: number | null
-  totalKills: number
-  totalDamage: number
-  totalAssists: number
-  totalRevives: number
   status: string
   attemptCount: number
   lastAttemptAt: Date | null
@@ -373,13 +369,8 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
       sm.gameMode,
       sm.matchType,
       sm.mapName,
-      sm.placement,
       sm.createdAt,
       (SELECT MAX(m.duration) FROM \`Match\` m WHERE m.pubgMatchId = sm.pubgMatchId) AS durationSeconds,
-      sm.totalKills,
-      sm.totalDamage,
-      sm.totalAssists,
-      sm.totalRevives,
       t.status,
       t.attemptCount,
       t.lastAttemptAt,
@@ -491,7 +482,7 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
           select: {
             displayName: true,
             pubgAccountId: true,
-            clanId: true,
+            ...CLAN_PLACEMENT_MEMBER_SELECT,
             clan: { select: { tag: true, name: true } },
           },
         },
@@ -545,9 +536,9 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
   // Équipe mise en avant. Sans memberStats exploitable (très anciens matchs), aucune équipe n'est
   // connue : on retombe sur le comportement historique, centré sur le clan consulté.
   const trackedPlacements: Record<string, number> = {}
-  for (const sm of allTrackedSquadMembers) {
-    const key = sm.member.pubgAccountId?.toLowerCase()
-    if (key && sm.placement > 0) trackedPlacements[key] = sm.placement
+  for (const tracked of allTrackedSquadMembers) {
+    const key = tracked.member.pubgAccountId?.toLowerCase()
+    if (key && tracked.placement > 0) trackedPlacements[key] = tracked.placement
   }
   const teams = listMatchTeams({
     memberStats: parsedMemberStats,
@@ -771,13 +762,15 @@ export async function loadMatchDebriefPayload(request: MatchDebriefRequest) {
       durationSeconds: row.durationSeconds !== null && Number(row.durationSeconds) > 0 ? Number(row.durationSeconds) : null,
       clanTag,
       otherTrackedClans,
-      // Classement de l'équipe mise en avant (une manche de tournoi réunit plusieurs équipes suivies).
-      placement: focusTeam?.placement ?? row.placement,
+      // Classement de l'équipe mise en avant (une manche de tournoi réunit plusieurs équipes suivies) ; sans équipe connue
+      // (très anciens matchs), la place du clan consulté par ses membres. Place et totaux ne viennent jamais de la ligne
+      // `SquadMatch` : ce ne sont que ceux du clan qui l'a créée (docs/TODO/place-partie-partagee.md).
+      placement: focusTeam?.placement ?? (focusClanId !== null ? clanPlacementOf({ members: focusMembers }, focusClanId) : null) ?? 0,
       createdAt: row.createdAt.toISOString(),
-      totalKills: row.totalKills,
-      totalDamage: row.totalDamage,
-      totalAssists: row.totalAssists,
-      totalRevives: row.totalRevives,
+      totalKills: focusMembers.reduce((sum, entry) => sum + entry.kills, 0),
+      totalDamage: focusMembers.reduce((sum, entry) => sum + entry.damage, 0),
+      totalAssists: focusMembers.reduce((sum, entry) => sum + entry.assists, 0),
+      totalRevives: focusMembers.reduce((sum, entry) => sum + entry.revives, 0),
       members: focusMembers.map((entry) => ({
         memberId: entry.memberId,
         displayName: entry.member.displayName,

@@ -1,5 +1,7 @@
 import { Prisma } from '@prisma/client'
 
+import { clanPlacementSubquery } from '@/lib/clan-placement-sql'
+import { GEO_PROTECTED_RETENTION_DAYS, GEO_RETENTION_DAYS } from '@/lib/geo-retention'
 import { decodeTelemetryRow } from '@/lib/pubg-telemetry/json-codec'
 import { prisma } from '@/lib/prisma'
 import { mapAssetUrl, resolveGameMode, resolveMapAssetKey, resolveMapName } from '@/lib/pubg-assets'
@@ -24,7 +26,8 @@ type ReplayRow = {
   pubgMatchId: string
   gameMode: string
   mapName: string
-  placement: number
+  /** Place du clan mis en avant (`currentClanId`), par ses membres ; `null` sans clan ni membre classé. */
+  placement: number | bigint | null
   createdAt: Date
   positionSamples: unknown
   positionSamplesGz: unknown
@@ -55,7 +58,7 @@ export async function loadMatchReplay(input: {
       sm.pubgMatchId,
       sm.gameMode,
       sm.mapName,
-      sm.placement,
+      ${input.currentClanId ? clanPlacementSubquery(input.currentClanId) : Prisma.sql`NULL`} AS placement,
       sm.createdAt,
       t.positionSamples,
       t.positionSamplesGz,
@@ -181,7 +184,8 @@ export async function loadMatchReplay(input: {
       mapWidth: bounds.width,
       mapHeight: bounds.height,
       gameMode: resolveGameMode(row.gameMode),
-      placement: row.placement,
+      // Jamais `SquadMatch.placement` : celle du seul clan qui a créé la ligne d'une partie partagée.
+      placement: Number(row.placement ?? 0),
       createdAt: row.createdAt,
     },
     matchStartEpochSeconds,
@@ -202,8 +206,8 @@ export async function loadMatchReplay(input: {
     flightPath: computeFlightPathFromJumps(jumps, row.mapName) ?? computeFlightPath(row.landingSamples, row.mapName),
   })
 
-  // Les positions sont purgeables depuis l'admin base de données : sans elles,
-  // le match reste consultable mais n'a plus de replay à jouer.
+  // Les positions sont effacées après leur durée de conservation (src/lib/geo-retention.ts) ou depuis l'admin base de
+  // données : sans elles, le match reste consultable mais n'a plus de replay à jouer.
   if (payload.players.length === 0) return { status: 'no_positions' }
 
   return {
@@ -212,5 +216,4 @@ export async function loadMatchReplay(input: {
   }
 }
 
-export const REPLAY_NO_POSITIONS_MESSAGE =
-  'Aucune position enregistrée pour ce match — le replay est indisponible (télémétrie de géolocalisation purgée ou match trop ancien).'
+export const REPLAY_NO_POSITIONS_MESSAGE = `Aucune position enregistrée pour ce match — le replay est indisponible : les positions ne sont gardées que ${GEO_RETENTION_DAYS} jours (${GEO_PROTECTED_RETENTION_DAYS} pour un Top 1 ou une partie custom).`

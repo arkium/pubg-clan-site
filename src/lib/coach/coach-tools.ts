@@ -12,6 +12,7 @@ import {
   withClanComparison,
 } from '@/lib/city-insights'
 import { CAREER_GROUPS, careerHeadline, careerRefresh, computeCareerGroups, type CareerGroupId, type CareerLifetimeStats, type CareerMember, type CareerMetric } from '@/lib/clan-career'
+import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf, playerTeamOf } from '@/lib/clan-placement'
 import { DROP_PRESSURE_LEVELS, type DropPressureLevel } from '@/lib/drop-zone-pressure'
 import { jumpProfile, levelOfAverage, locationForPoint, mapsByJumps, memberJumpSummaries, spotStats, type LandingPoint } from '@/lib/drop-zones-view'
 import { LEAGUE_MATCH_TYPE_OPTIONS, leagueMatchTypeOption, leagueMatchTypeValues, parseLeagueMatchType } from '@/lib/clan-league'
@@ -557,6 +558,44 @@ export function placementSummary(placements: readonly number[]) {
   }
 }
 
+const CLAN_SQUAD_MEMBER_SELECT = {
+  memberId: true,
+  kills: true,
+  damage: true,
+  knockouts: true,
+  placement: true,
+  member: { select: { displayName: true, ...CLAN_PLACEMENT_MEMBER_SELECT } },
+} as const
+
+type ClanSquadMember = {
+  memberId: number
+  kills: number
+  damage: number
+  knockouts: number
+  placement: number
+  member: { displayName: string; clanId: number | null; isActive: boolean; joinStatus: string }
+}
+
+type ClanSquadRow<T> = T & { placement: number; totalKills: number; totalDamage: number; members: ClanSquadMember[] }
+
+/**
+ * Une partie vue du clan, ou d'un de ses joueurs (`playerId`) : place, kills, dégâts et escouade de **ses** membres
+ * (docs/TODO/place-partie-partagee.md). La ligne `SquadMatch` réunit tous les joueurs suivis du lobby et ses colonnes
+ * `placement` / `totalKills` ne sont que celles du clan qui l'a créée. Clan : ses membres actifs et sa place
+ * (`clanPlacementOf`) ; joueur : son équipe (`playerTeamOf`) et sa place à lui. Exportée pour les tests.
+ */
+export function clanSquadRow<T extends { members: ClanSquadMember[] }>(row: T, clanId: number, playerId: number | null = null): ClanSquadRow<T> {
+  const members = playerId !== null ? playerTeamOf(row.members, playerId) : row.members
+  const placement = (playerId !== null ? members.find((entry) => entry.memberId === playerId)?.placement : clanPlacementOf(row, clanId)) ?? 0
+  return {
+    ...row,
+    members,
+    placement,
+    totalKills: members.reduce((sum, entry) => sum + entry.kills, 0),
+    totalDamage: members.reduce((sum, entry) => sum + entry.damage, 0),
+  }
+}
+
 /**
  * La Ligue se recalcule pour tous les clans à chaque lecture (~1,4 s mesuré) et ne change qu'à l'import des parties :
  * cinq minutes de cache par période, partagées par toutes les questions.
@@ -627,9 +666,10 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     if (requestedMap && rawMaps.length === 0) return { error: 'map_not_found', message: `Carte inconnue : ${requestedMap}.` }
 
     // Une ligne de plus que demandé : dit s'il existe des parties avant la liste, sans compter tout l'historique.
+    // Place, kills et escouade : ceux des membres actifs du clan, jamais la ligne (partagée par tous les clans du lobby).
     const rows = await prisma.squadMatch.findMany({
       where: {
-        members: { some: { member: { clanId: scope.clanId } } },
+        members: { some: { member: clanPlacementMemberWhere(scope.clanId) } },
         ...(rawMaps.length > 0 ? { mapName: { in: rawMaps } } : {}),
       },
       orderBy: { createdAt: 'desc' },
@@ -639,16 +679,13 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         mapName: true,
         gameMode: true,
         matchType: true,
-        placement: true,
         createdAt: true,
-        totalKills: true,
-        totalDamage: true,
-        members: { select: { member: { select: { displayName: true } } } },
+        members: { where: { member: clanPlacementMemberWhere(scope.clanId) }, select: CLAN_SQUAD_MEMBER_SELECT },
         telemetry: { select: { status: true } },
       },
     })
     const truncated = rows.length > take
-    const matches = truncated ? rows.slice(0, take) : rows
+    const matches = (truncated ? rows.slice(0, take) : rows).map((row) => clanSquadRow(row, scope.clanId))
     const summary = placementSummary(matches.map((match) => match.placement))
     return {
       listed: matches.length,
@@ -672,18 +709,14 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
-  type SessionRow = {
+  type SessionRow = ClanSquadRow<{
     id: string
     mapName: string
     gameMode: string
     matchType: string
-    placement: number
     createdAt: Date
-    totalKills: number
-    totalDamage: number
-    members: Array<{ memberId?: number; kills: number; damage: number; knockouts: number; member: { displayName: string } }>
     telemetry: { status: string } | null
-  }
+  }>
 
   /**
    * Bilan d'une soirée (la page « Soirée » du clan, en chiffres). Compact par défaut (une plage de 31 soirées faisait
@@ -800,7 +833,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
           createdAt: { gte: start, lt: end },
           ...(matchType === 'all' ? {} : { matchType: { in: leagueMatchTypeValues(matchType) } }),
           // Le joueur seul : ses parties avec le clan, qu'il soit encore actif ou non.
-          members: { some: memberId ? { memberId } : { member: { clanId: scope.clanId, isActive: true } } },
+          members: { some: memberId ? { memberId } : { member: clanPlacementMemberWhere(scope.clanId) } },
         },
         orderBy: { createdAt: 'desc' },
         take: SESSION_MATCHES_MAX + 1,
@@ -809,18 +842,19 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
           mapName: true,
           gameMode: true,
           matchType: true,
-          placement: true,
           createdAt: true,
-          totalKills: true,
-          totalDamage: true,
-          members: { select: { memberId: true, kills: true, damage: true, knockouts: true, member: { select: { displayName: true } } } },
+          // Membres actifs du clan (et le joueur demandé) : la ligne réunit tous les joueurs suivis du lobby.
+          members: {
+            where: memberId ? { OR: [{ memberId }, { member: clanPlacementMemberWhere(scope.clanId) }] } : { member: clanPlacementMemberWhere(scope.clanId) },
+            select: CLAN_SQUAD_MEMBER_SELECT,
+          },
           telemetry: { select: { status: true } },
         },
       }),
       getMapLabels(),
     ])
     const truncated = rows.length > SESSION_MATCHES_MAX
-    const matches = (truncated ? rows.slice(0, SESSION_MATCHES_MAX) : rows).reverse()
+    const matches = (truncated ? rows.slice(0, SESSION_MATCHES_MAX) : rows).reverse().map((row) => clanSquadRow(row, scope.clanId, memberId))
     const byDate = new Map<string, SessionRow[]>()
     for (const row of matches) {
       const date = sessionDateOf(row.createdAt)
@@ -1120,7 +1154,6 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
           nearbyPlayerCount250m: true,
           nearbyOpponentCount250m: true,
           pressureLevel: true,
-          squadMatch: { select: { placement: true } },
           member: { select: { displayName: true } },
         },
       }),
@@ -1133,7 +1166,23 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
       const cut = rows[DROP_ROWS_MAX].squadMatchId
       kept = rows.slice(0, DROP_ROWS_MAX).filter((row) => row.squadMatchId !== cut)
     }
-    const placementOf = new Map(kept.map((row) => [row.squadMatchId, row.squadMatch.placement]))
+    // Place de chaque partie : celle du clan (ses membres actifs) ou du joueur, jamais `SquadMatch.placement` (place du
+    // clan qui a créé la ligne d'une partie partagée). Une lecture pour toutes les parties gardées.
+    const keptMatchIds = [...new Set(kept.map((row) => row.squadMatchId))]
+    const placementRows = keptMatchIds.length
+      ? await prisma.squadMember.findMany({
+          where: { squadMatchId: { in: keptMatchIds }, ...(memberId ? { memberId } : { member: clanPlacementMemberWhere(scope.clanId) }) },
+          select: { squadMatchId: true, placement: true, member: { select: CLAN_PLACEMENT_MEMBER_SELECT } },
+        })
+      : []
+    const membersByMatch = new Map<string, typeof placementRows>()
+    for (const row of placementRows) membersByMatch.set(row.squadMatchId, [...(membersByMatch.get(row.squadMatchId) ?? []), row])
+    const placementOf = new Map(
+      keptMatchIds.map((id) => {
+        const members = membersByMatch.get(id) ?? []
+        return [id, (memberId ? members[0]?.placement : clanPlacementOf({ members }, scope.clanId)) ?? 0]
+      })
+    )
     const points: LandingPoint[] = kept.map((row) => {
       const bounds = getMapBounds(row.mapName)
       return {
@@ -1486,13 +1535,24 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         where: {
           matchType: 'official',
           ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
-          members: { some: { member: { clanId: scope.clanId, isActive: true } } },
+          members: { some: { member: clanPlacementMemberWhere(scope.clanId) } },
         },
         orderBy: { createdAt: 'desc' },
         take: SCHEDULE_MATCHES_MAX,
-        select: { createdAt: true, placement: true, members: { select: { timeSurvived: true } } },
+        // La place du clan (ses membres actifs), jamais celle de la ligne : la partie peut être partagée.
+        select: {
+          createdAt: true,
+          members: {
+            where: { member: clanPlacementMemberWhere(scope.clanId) },
+            select: { timeSurvived: true, placement: true, member: { select: CLAN_PLACEMENT_MEMBER_SELECT } },
+          },
+        },
       })
-      const plays = rows.map((row) => ({ playedAt: row.createdAt, durationSeconds: Math.max(0, ...row.members.map((member) => member.timeSurvived)), placement: row.placement }))
+      const plays = rows.map((row) => ({
+        playedAt: row.createdAt,
+        durationSeconds: Math.max(0, ...row.members.map((member) => member.timeSurvived)),
+        placement: clanPlacementOf(row, scope.clanId) ?? 0,
+      }))
       return { scope: 'le clan', period: PERIOD_LABELS[period], ...buildPlaySchedule(plays), note: 'Parties officielles d’escouade du clan, heure de Paris ; une soirée commence à 06:00.' }
     }
     const resolved = await resolveMember(args.playerName)

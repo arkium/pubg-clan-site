@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client'
 
 import { getClanLeague } from '@/lib/clan-league-service'
+import { CLAN_PLACEMENT_MEMBER_SELECT, countsForClanPlacement } from '@/lib/clan-placement'
+import { CLAN_PLACEMENT_SQL } from '@/lib/clan-placement-sql'
 import { getMapLabels } from '@/lib/map-label-service'
 import { matchDebriefPath } from '@/lib/match-links'
 import { getPeriodStart } from '@/lib/period'
@@ -139,13 +141,27 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
     prisma.clanMember.count({ where: { isActive: true, joinStatus: 'active', clan: ACTIVE_CLAN } }),
     // Normal et Ranked seulement (2026-10-11) : un tournoi range tout son lobby sous une seule ligne, dont la « victoire »
     // mêlerait tous les clans et dont les kills gonfleraient les compteurs de la semaine ; Casual se joue contre des bots.
+    // Top 1 de la semaine : parties qu'au moins un clan a gagnées, chacun avec **sa** place (`CLAN_PLACEMENT_SQL`) —
+    // `SquadMatch.placement` n'est que celle du clan qui a créé la ligne (docs/TODO/place-partie-partagee.md).
     prisma.$queryRaw<Array<{ kills: bigint | number | null; wins: bigint | number | null }>>`
-      SELECT COALESCE(SUM(totalKills), 0) AS kills, COALESCE(SUM(placement = 1), 0) AS wins
-      FROM SquadMatch
-      WHERE createdAt >= ${weekStart} AND matchType IN (${Prisma.join(SHOWCASE_MATCH_TYPES)})
+      SELECT
+        (SELECT COALESCE(SUM(sm.totalKills), 0) FROM SquadMatch sm
+          WHERE sm.createdAt >= ${weekStart} AND sm.matchType IN (${Prisma.join(SHOWCASE_MATCH_TYPES)})) AS kills,
+        (SELECT COUNT(DISTINCT t.id) FROM (
+           SELECT sm.id, ${CLAN_PLACEMENT_SQL} AS placement
+             FROM SquadMember sq
+             INNER JOIN SquadMatch sm ON sm.id = sq.squadMatchId
+             INNER JOIN ClanMember cm ON cm.id = sq.memberId
+            WHERE sm.createdAt >= ${weekStart} AND sm.matchType IN (${Prisma.join(SHOWCASE_MATCH_TYPES)}) AND cm.clanId IS NOT NULL
+            GROUP BY cm.clanId, sm.id
+         ) t WHERE t.placement = 1) AS wins
     `,
+    // Une victoire = une partie où un membre actif d'un clan actif a fini premier ; l'équipe affichée est celle-là.
     prisma.squadMatch.findMany({
-      where: { placement: 1, matchType: { in: SHOWCASE_MATCH_TYPES }, members: { some: { member: { clan: ACTIVE_CLAN } } } },
+      where: {
+        matchType: { in: SHOWCASE_MATCH_TYPES },
+        members: { some: { placement: 1, member: { isActive: true, joinStatus: 'active', clan: ACTIVE_CLAN } } },
+      },
       orderBy: { createdAt: 'desc' },
       take: WIN_CANDIDATES,
       select: {
@@ -155,8 +171,6 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
         matchType: true,
         mapName: true,
         createdAt: true,
-        totalKills: true,
-        totalDamage: true,
         members: {
           select: {
             memberId: true,
@@ -164,11 +178,12 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
             damage: true,
             revives: true,
             longestKill: true,
+            placement: true,
             member: {
               select: {
                 displayName: true,
                 pubgPlayerName: true,
-                clanId: true,
+                ...CLAN_PLACEMENT_MEMBER_SELECT,
                 clan: { select: { name: true, tag: true, isActive: true, isSystem: true, archivedAt: true } },
               },
             },
@@ -187,16 +202,23 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
     }),
   ])
 
-  // Clan de chaque victoire, parmi les seuls membres d'un clan actif.
+  // L'équipe gagnante (membres classés 1ers) et son clan, parmi les seuls membres actifs d'un clan actif : la ligne
+  // réunit tous les joueurs suivis du lobby, d'autres clans compris.
   const resolvedWins = wins
     .map((win) => {
-      const refs: ClanRef[] = win.members.flatMap(({ member }) =>
-        member.clan && member.clanId !== null && member.clan.isActive && !member.clan.isSystem && !member.clan.archivedAt
+      const team = win.members.filter((entry) => entry.placement === 1)
+      const refs: ClanRef[] = team.flatMap(({ member }) =>
+        member.clan &&
+        member.clanId !== null &&
+        countsForClanPlacement(member, member.clanId) &&
+        member.clan.isActive &&
+        !member.clan.isSystem &&
+        !member.clan.archivedAt
           ? [{ clanId: member.clanId, clanName: member.clan.name, clanTag: member.clan.tag }]
           : []
       )
       const clan = pickSquadClan(refs)
-      return clan ? { win, clan, mapLabel: mapLabels[win.mapName] ?? win.mapName } : null
+      return clan ? { win: { ...win, members: team }, clan, mapLabel: mapLabels[win.mapName] ?? win.mapName } : null
     })
     .filter((entry): entry is NonNullable<typeof entry> => entry !== null)
     .slice(0, FEED_WIN_COUNT)
@@ -290,8 +312,9 @@ async function loadHomeShowcase(now: Date): Promise<HomeShowcasePayload> {
       teamCount: teamCountByMatch.get(win.id) ?? null,
       teamMode: teamModeFromGameMode(win.gameMode, win.members.length),
       matchType: win.matchType,
-      kills: win.totalKills,
-      damage: Math.round(win.totalDamage),
+      // Kills et dégâts de l'équipe gagnante, pas les totaux de la ligne (ceux du clan qui l'a créée).
+      kills: win.members.reduce((sum, member) => sum + member.kills, 0),
+      damage: Math.round(win.members.reduce((sum, member) => sum + member.damage, 0)),
       longestKillMeters: Math.round(Math.max(0, ...win.members.map((member) => member.longestKill))),
       debriefPath: matchDebriefPath(clan.clanId, win.id),
       replayAvailable: analyzedMatchIds.has(win.id),

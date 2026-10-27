@@ -25,8 +25,11 @@ Où le clan gagne, où il perd des places et qui porte l'escouade, carte par car
 
 ## 2. Règles de calcul (`src/lib/clan-maps.ts`, pur et testé)
 
-- **Une partie = une partie d'escouade du clan** (une ligne par `SquadMatch`) : placement de l'équipe, kills et dégâts
-  des seuls membres actifs. C'est la règle de la Ligue des clans ; compter par joueur multiplierait les parties.
+- **Une partie = une partie d'escouade du clan** (une ligne par `SquadMatch`) : place du clan, kills et dégâts des seuls
+  membres actifs. C'est la règle de la Ligue des clans ; compter par joueur multiplierait les parties. La place est celle
+  des membres actifs (`CLAN_PLACEMENT_SQL`), jamais `SquadMatch.placement`, qui n'est que celle du clan ayant créé la
+  ligne d'une partie partagée (2026-10-27, [place-partie-partagee.md](../TODO/place-partie-partagee.md)) ; la moyenne des
+  clans compte chaque clan d'une partie partagée avec sa propre place.
 - **Moyenne des clans** : même règle sur tous les clans actifs ayant un clan PUBG, même période, même type de partie.
 - **Échantillon** : sous `CLAN_MAPS_MIN_SAMPLE` (10) parties sur une carte, la tuile est estompée, marquée « Échantillon
   faible », rangée en fin de liste. Elle n'a ni écart, ni tendance, ni joueur phare, et n'entre pas dans le verdict.

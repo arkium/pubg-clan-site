@@ -145,8 +145,12 @@ export async function createNotificationForMember({
 export async function notifySquadDetected(squadMatchId: string) {
   const squadMatch = await prisma.squadMatch.findUnique({
     where: { id: squadMatchId },
-    include: {
+    select: {
+      id: true,
+      pubgMatchId: true,
+      mapName: true,
       members: {
+        select: { memberId: true, placement: true },
         orderBy: { memberId: 'asc' },
       },
     },
@@ -157,19 +161,20 @@ export async function notifySquadDetected(squadMatchId: string) {
   }
 
   const mapLabel = mapDisplayName(squadMatch.mapName, await getMapLabels())
-  const placement = squadMatch.placement ? ` — top ${squadMatch.placement}` : ''
 
+  // Chaque joueur reçoit la place de **son** équipe : la ligne d'une partie partagée par plusieurs clans suivis ne
+  // porte que celle du clan qui l'a créée (docs/TODO/place-partie-partagee.md).
   await Promise.all(
     squadMatch.members.map((member) =>
       createNotificationForMember({
         memberId: member.memberId,
         type: 'squad_detected',
         title: 'Nouvelle partie en escouade',
-        message: `Ton escouade a joué ensemble sur ${mapLabel}${placement}.`,
+        message: `Ton escouade a joué ensemble sur ${mapLabel}${member.placement ? ` — top ${member.placement}` : ''}.`,
         data: {
           squadMatchId: squadMatch.id,
           pubgMatchId: squadMatch.pubgMatchId,
-          placement: squadMatch.placement,
+          placement: member.placement,
           mapName: squadMatch.mapName,
         },
       })

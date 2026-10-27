@@ -8,6 +8,12 @@ import type { StandardPeriod } from '@/lib/period'
  * `player-dashboard.test.ts`.
  */
 
+/**
+ * « Frères d'armes » : parties jouées ensemble, dans la même équipe, sur la période, avant qu'un coéquipier y figure
+ * (demande du 2026-10-27 — une seule partie de 3 minutes en faisait un frère d'armes).
+ */
+export const MATES_MIN_MATCHES = 3
+
 // ── Clés de période des agrégats (PlayerStats, MemberTelemetryStats) ─────────────────────────────────────
 
 function isoWeek(date: Date) {

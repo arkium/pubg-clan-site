@@ -186,11 +186,22 @@ describe('GET /api/members/[id]/dashboard', () => {
         { memberId: 8, aggressionScore: 34, supportScore: 28, zoneDisciplineScore: 76 },
       ])
     mocks.squadMemberFindMany
-      .mockResolvedValueOnce([{ squadMatchId: 'sm-1', timeSurvived: 1860, placement: 1 }])
+      .mockResolvedValueOnce([
+        { squadMatchId: 'sm-1', timeSurvived: 1860, placement: 1 },
+        { squadMatchId: 'sm-2', timeSurvived: 600, placement: 8 },
+        { squadMatchId: 'sm-3', timeSurvived: 180, placement: 22 },
+      ])
       .mockResolvedValueOnce([
         { memberId: 8, squadMatchId: 'sm-1', timeSurvived: 1200, placement: 1, member: { displayName: 'Joueur Bravo', identities: [] } },
+        { memberId: 8, squadMatchId: 'sm-2', timeSurvived: 900, placement: 8, member: { displayName: 'Joueur Bravo', identities: [] } },
+        { memberId: 8, squadMatchId: 'sm-3', timeSurvived: 100, placement: 22, member: { displayName: 'Joueur Bravo', identities: [] } },
+        // Deux parties ensemble seulement : sous le seuil des frères d'armes.
+        { memberId: 10, squadMatchId: 'sm-1', timeSurvived: 1500, placement: 1, member: { displayName: 'Joueur Charlie', identities: [] } },
+        { memberId: 10, squadMatchId: 'sm-2', timeSurvived: 500, placement: 8, member: { displayName: 'Joueur Charlie', identities: [] } },
         // Même partie, autre équipe (14e) : pas un frère d'armes.
         { memberId: 9, squadMatchId: 'sm-1', timeSurvived: 900, placement: 14, member: { displayName: 'Autre équipe', identities: [] } },
+        { memberId: 9, squadMatchId: 'sm-2', timeSurvived: 900, placement: 3, member: { displayName: 'Autre équipe', identities: [] } },
+        { memberId: 9, squadMatchId: 'sm-3', timeSurvived: 900, placement: 5, member: { displayName: 'Autre équipe', identities: [] } },
       ])
   })
 
@@ -209,8 +220,9 @@ describe('GET /api/members/[id]/dashboard', () => {
       createdAt: '2026-09-21T20:00:00.000Z', timeSurvived: 1860, teammates: ['Joueur Bravo'],
       debriefHref: '/clans/3/telemetry/matches/sm-1/debrief?period=week',
     })
+    // Trois parties dans la même équipe (une victoire) ; Charlie, deux parties, et l'autre équipe ne comptent pas.
     expect(body.mates).toEqual([
-      { memberId: 8, displayName: 'Joueur Bravo', avatarUrl: null, matchCount: 1, winRate: 1, sharedPlayTimeSeconds: 1200, role: 'ghost' },
+      { memberId: 8, displayName: 'Joueur Bravo', avatarUrl: null, matchCount: 3, winRate: 1 / 3, sharedPlayTimeSeconds: 1200 + 600 + 100, role: 'ghost' },
     ])
     // Partenaires : membres actifs de son clan seulement, place lue sur les membres (jamais `SquadMatch.placement`).
     const coPlayersQuery = mocks.squadMemberFindMany.mock.calls[1][0]

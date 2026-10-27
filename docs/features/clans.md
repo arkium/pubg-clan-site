@@ -176,6 +176,15 @@ Ses particularités, toutes assumées :
 
 Les membres peuvent être ajoutés manuellement par un Owner (dans son clan, sans faire suivre un nouveau clan PUBG) ou par le SuperUser. L'ajout crée un enregistrement `ClanMember` avec le `pubgPlayerName`. Le `pubgAccountId` est résolu au premier appel API (sync matchs ou lifetime stats).
 
+**Joueur déjà suivi sans clan (depuis le 2026-10-27).** Un joueur actif du clan technique `Ungrouped` (§4bis) n'est plus
+refusé (409 « déjà membre actif du clan "Ungrouped" ») : l'Owner l'ajoute à son clan, avec tout son historique, aux
+mêmes conditions qu'un nouveau joueur (son clan PUBG, s'il en a un, doit être celui de l'Owner, sinon 403).
+`POST /api/members` déplace sa ligne `ClanMember` et écrit la trace `PlayerClanChange` (source
+`ungrouped_promotion`, auteur = l'Owner) **dans la même transaction**, puis réaligne son identité d'adversaire
+(`syncOpponentIdentityForMemberId`). L'aperçu le signale (`fromUngrouped`) et la confirmation le dit. Un joueur actif
+d'un **vrai** clan reste refusé (409) ; un SuperUser qui n'indique pas de clan reçoit un 409 explicite (« suivi sans
+clan, choisis le clan où l'ajouter »). Tests : `src/lib/members-route-contracts.test.ts`.
+
 **Endpoint invitation :** `POST /api/clans/[clanId]/members/[memberId]/invite`  
 **Permission requise :** `manage_members`
 

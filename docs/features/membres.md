@@ -81,7 +81,9 @@ quand le lecteur n'a pas `manage_members`. Chaque membre : `memberId`, `displayN
   rapport à la période précédente (aucune pour « Tous »). Remplace les jauges, l'évolution du style de jeu et le
   radar. En pied : temps en zone sûre, part des dégâts soignés, phase du premier contact.
 - **Arsenal** (top 3 des armes, % de headshots et précision → Armes), **Frères d'armes** (3 partenaires du clan les
-  plus fréquents : rôle, temps ensemble, parties, WR → leur tableau de bord), **Némésis** (bourreau, victime préférée,
+  plus fréquents : rôle, temps ensemble, parties, WR → leur tableau de bord ; un partenaire actif du clan, dans **son**
+  équipe, et au moins `MATES_MIN_MATCHES` = 3 parties ensemble sur la période depuis le 2026-10-27 — une seule partie
+  de 3 minutes en faisait un frère d'armes), **Némésis** (bourreau, victime préférée,
   bots neutralisés → Némésis), **Au drop** (ville favorite, drops analysés, drops chauds, adversaires à 250 m → Zones
   de drop).
 - **5 dernières parties** (débriefing quand il existe), puis « Tout l'historique → » (`/members/[id]/matches`).

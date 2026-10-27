@@ -14,6 +14,8 @@ import {
 } from '@/lib/clan-service'
 import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
 import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
+import { PLAYER_CLAN_CHANGE_SOURCES, PLAYER_CLAN_CHANGE_STATUSES, recordPlayerClanChange } from '@/lib/player-clan-change'
+import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 import { z } from 'zod'
 
 /**
@@ -95,6 +97,7 @@ async function handlePost(request: Request) {
       detectedPubgClanId: detectedClan?.pubgClan.id ?? null,
     })
 
+    const usedFallbackUngrouped = !detectedClan?.clan?.id && !validated.clanId
     const resolvedClanId =
       detectedClan?.clan?.id ??
       validated.clanId ??
@@ -104,7 +107,7 @@ async function handlePost(request: Request) {
       pubgPlayerName: pubgPlayer.playerName,
       platformShard: validated.platformShard,
       resolvedClanId,
-      usedFallbackUngrouped: !detectedClan?.clan?.id && !validated.clanId,
+      usedFallbackUngrouped,
     })
 
     // Vérifier si le joueur existe déjà en base
@@ -117,15 +120,24 @@ async function handlePost(request: Request) {
       },
       include: {
         clan: {
-          select: { id: true, name: true, tag: true },
+          select: { id: true, name: true, tag: true, isSystem: true },
         },
       },
     })
 
-    if (existingMember && existingMember.isActive && existingMember.joinStatus === 'active') {
+    const existingIsActive = Boolean(existingMember?.isActive && existingMember.joinStatus === 'active')
+    // Un joueur suivi sans clan est rangé dans le clan technique (« non groupé ») : ce n'est pas un vrai clan, il
+    // rejoint celui qui l'ajoute — même règle de clan PUBG qu'un nouveau joueur, vérifiée plus haut (demande du
+    // 2026-10-27 : « il me marque qu'il est toujours dans son ancien clan »).
+    const fromUngrouped =
+      existingIsActive && Boolean(existingMember?.clan?.isSystem) && existingMember?.clanId !== resolvedClanId && !usedFallbackUngrouped
+
+    if (existingMember && existingIsActive && !fromUngrouped) {
       return Response.json(
         {
-          error: `Ce joueur est déjà membre actif du clan ${existingMember.clan?.name ? `"${existingMember.clan.name}"` : 'sur cette plateforme'}.`,
+          error: existingMember.clan?.isSystem
+            ? 'Ce joueur est déjà suivi sans clan (« non groupé ») : choisis le clan où l’ajouter.'
+            : `Ce joueur est déjà membre actif du clan ${existingMember.clan?.name ? `"${existingMember.clan.name}"` : 'sur cette plateforme'}.`,
         },
         { status: 409 }
       )
@@ -146,58 +158,54 @@ async function handlePost(request: Request) {
               tag: detectedClan.clan.tag,
             }
           : null,
+        fromUngrouped,
       })
     }
 
-    // Créer ou réactiver le membre du clan en base
-    const member = existingMember
+    const memberData = {
+      displayName: validated.displayName,
+      pubgPlayerName: pubgPlayer.playerName,
+      pubgAccountId: pubgPlayer.accountId,
+      platformShard: validated.platformShard,
+      clanId: resolvedClanId,
+      isActive: true,
+      joinStatus: 'active',
+    }
+    const memberInclude = {
+      clan: { select: { id: true, name: true, tag: true, pubgClanId: true, platformShard: true } },
+    } as const
+
+    // Créer, réactiver, ou sortir du clan technique : ce dernier mouvement et sa trace s'écrivent ensemble, comme
+    // la promotion automatique (`pending-promotions.ts`, source `ungrouped_promotion`).
+    const member = existingMember && fromUngrouped
+      ? await prisma.$transaction(async (tx) => {
+          const moved = await tx.clanMember.update({ where: { id: existingMember.id }, data: memberData, include: memberInclude })
+          await recordPlayerClanChange(tx, {
+            clanMemberId: existingMember.id,
+            pubgAccountId: pubgPlayer.accountId,
+            platformShard: validated.platformShard,
+            previousClanId: existingMember.clanId,
+            previousPubgClanTag: existingMember.clan?.tag ?? null,
+            newClanId: resolvedClanId,
+            newPubgClanId: detectedClan?.pubgClan.id ?? null,
+            newPubgClanTag: moved.clan?.tag ?? null,
+            source: PLAYER_CLAN_CHANGE_SOURCES.ungroupedPromotion,
+            status: PLAYER_CLAN_CHANGE_STATUSES.applied,
+            triggeredByUserId: session.userId,
+          })
+          return moved
+        })
+      : existingMember
       ? await prisma.clanMember.update({
           where: { id: existingMember.id },
-          data: {
-            displayName: validated.displayName,
-            pubgPlayerName: pubgPlayer.playerName,
-            pubgAccountId: pubgPlayer.accountId,
-            platformShard: validated.platformShard,
-            clanId: resolvedClanId,
-            isActive: true,
-            joinStatus: 'active',
-          },
-          include: {
-            clan: {
-              select: {
-                id: true,
-                name: true,
-                tag: true,
-                pubgClanId: true,
-                platformShard: true,
-              },
-            },
-          },
+          data: memberData,
+          include: memberInclude,
         })
-      : await prisma.clanMember.create({
-          data: {
-            displayName: validated.displayName,
-            pubgPlayerName: pubgPlayer.playerName,
-            pubgAccountId: pubgPlayer.accountId,
-            platformShard: validated.platformShard,
-            clanId: resolvedClanId,
-            isActive: true,
-            joinStatus: 'active',
-          },
-          include: {
-            clan: {
-              select: {
-                id: true,
-                name: true,
-                tag: true,
-                pubgClanId: true,
-                platformShard: true,
-              },
-            },
-          },
-        })
+      : await prisma.clanMember.create({ data: memberData, include: memberInclude })
 
     await ensurePlayerLinkForMember(member.id)
+    // Sorti du clan technique : son identité d'adversaire suit son nouveau clan (sinon il resterait candidat ailleurs).
+    if (fromUngrouped) await syncOpponentIdentityForMemberId(member.id)
     await initializeDefaultRoles(resolvedClanId)
     await assignDefaultMemberRole(member.id, resolvedClanId)
 

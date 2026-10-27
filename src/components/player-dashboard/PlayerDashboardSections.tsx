@@ -12,7 +12,7 @@ import { matchDebriefPath } from '@/lib/match-links'
 import { sessionDateOf } from '@/lib/match-sessions'
 import { playedTonight, rosterInitials, rosterRole, type RosterRoleId } from '@/lib/member-roster'
 import { PERIOD_OF_LABELS, type StandardPeriod } from '@/lib/period'
-import { barHeights, clanGap, clanGapLabel, profileRows, trendLabel } from '@/lib/player-dashboard'
+import { barHeights, clanGap, clanGapLabel, MATES_MIN_MATCHES, profileRows, trendLabel } from '@/lib/player-dashboard'
 import { mapAssetUrl, weaponWhiteIconUrl } from '@/lib/pubg-assets'
 import type { CityInsights } from '@/types/city-insights'
 import type { DashboardMatch, PlayerDashboardResponse, PlayerPlaystyle } from '@/types/dashboard'
@@ -447,7 +447,7 @@ export function MatesCard({ mates }: { mates: PlayerDashboardResponse['mates'] }
           })}
         </ol>
       ) : (
-        <EmptyNote>Aucune partie avec un membre du clan sur la période.</EmptyNote>
+        <EmptyNote>Pas encore de frère d’armes sur la période : il faut {MATES_MIN_MATCHES} parties ensemble, dans la même équipe.</EmptyNote>
       )}
     </DashboardCard>
   )

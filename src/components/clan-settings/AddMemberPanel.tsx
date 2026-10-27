@@ -27,6 +27,8 @@ type AddMemberPreviewResponse = {
     name: string
     tag: string
   } | null
+  /** Suivi jusqu'ici sans clan (clan technique « non groupé ») : il rejoint ce clan avec son historique. */
+  fromUngrouped?: boolean
 }
 
 /**
@@ -331,7 +333,11 @@ export default function AddMemberPanel({ clanId }: { clanId: number }) {
               )}
             </dd>
           </dl>
-          <p className="t-meta m-0 mt-2">Le joueur est rattaché au clan et le suivi de ses parties commence.</p>
+          <p className="t-meta m-0 mt-2" data-testid="add-member-outcome">
+            {previewData.fromUngrouped
+              ? 'Le site le suivait déjà sans clan (« non groupé ») : il rejoint ton clan avec tout son historique de parties.'
+              : 'Le joueur est rattaché au clan et le suivi de ses parties commence.'}
+          </p>
         </ConfirmDialog>
       ) : null}
     </div>

@@ -2,7 +2,7 @@ import { clanPlacementMemberWhere } from '@/lib/clan-placement'
 import { getMapLabels } from '@/lib/map-label-service'
 import { matchDebriefPath } from '@/lib/match-links'
 import { dominantRole } from '@/lib/member-roster'
-import { activityBuckets, statsPeriodKeys } from '@/lib/player-dashboard'
+import { activityBuckets, MATES_MIN_MATCHES, statsPeriodKeys } from '@/lib/player-dashboard'
 import { prisma } from '@/lib/prisma'
 import { getPeriodStart, type StandardPeriod } from '@/lib/period'
 import type { PlayerDashboardResponse, PlayerPlaystyle } from '@/types/dashboard'
@@ -235,7 +235,9 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
       mateMap.set(row.memberId, entry)
     }
     const clanTelemetryByMember = new Map(clanTelemetry.map((row) => [row.memberId, row]))
+    // Un frère d'armes se mérite : `MATES_MIN_MATCHES` parties ensemble au moins sur la période.
     const mates = Array.from(mateMap.entries())
+      .filter(([, entry]) => entry.matchCount >= MATES_MIN_MATCHES)
       .sort((a, b) => b[1].matchCount - a[1].matchCount || a[1].displayName.localeCompare(b[1].displayName, 'fr'))
       .slice(0, 3)
       .map(([mateId, entry]) => {

@@ -474,7 +474,7 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 0 18 * * *  →  Send online reminders (if enabled)
 */30 * * * *  →  Encountered players PUBG clan resolution (one `Player` row per identity, priority index) — kill feed names first (« Joueur inconnu »)
 45 1 * * *  →  Clan membership sync (per-player clan check — observe mode by default)
-15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h ; only deletions: admin action log rows > 12 months, Coach IA conversations idle > 12 months and usage rows > 13 months)
+15 1 * * *  →  DB maintenance (closes runs stuck in `running` > 6 h ; only deletions: admin action log rows > 12 months, Coach IA conversations idle > 12 months and usage rows > 13 months, telemetry geolocation (replay 2D) > 30 days — 90 for Top 1 / custom, `src/lib/geo-retention.ts`, only once the « Conservation automatique » switch of `/settings/database` is on — off by default)
 0 6 * * *  →  Geo-purge count (volume purgeable des tracés GPS, tous seuils, lecture seule — ~247 s)
 30 6 * * *  →  Resource map vehicle spots (véhicules observés de la Carte des ressources, 90 derniers jours — docs/features/carte-ressources.md)
 0 9 * * *  →  Admin daily digest (boîte « À traiter » vers le Discord d'administration, seulement si une action attend)

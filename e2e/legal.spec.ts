@@ -64,11 +64,18 @@ test('À propos mène à la méthodologie, datée, avec les réglages en vigueur
 
   await page.getByRole('link', { name: 'méthodologie' }).click()
   await expect(page).toHaveURL(/\/a-propos\/methodologie$/)
-  await expect(page.locator('main time').first()).toHaveAttribute('datetime', '2026-10-20')
+  await expect(page.locator('main time').first()).toHaveAttribute('datetime', '2026-10-27')
   const powerScore = page.locator('#power-score')
   await expect(powerScore).toContainText('Score brut')
   await expect(powerScore).toContainText(/score moyen de la ligue/)
   await expect(page.locator('#soirees-periodes')).toContainText('heure de Paris')
+
+  // Deux conservations distinctes : celle de PUBG (environ 14 jours), celle du site (src/lib/geo-retention.ts).
+  const data = page.locator('#donnees')
+  await expect(data).toContainText('environ 14 jours')
+  await expect(data).toContainText('jusqu’à une demande de retrait')
+  await expect(data).toContainText('replay 2D et tracés : 30 jours, 90 pour un Top 1 ou une partie custom')
+  await expect(data.getByRole('link', { name: 'Confidentialité' })).toHaveAttribute('href', '/confidentialite')
 })
 
 test('le footer mène d’une page légale à l’autre', async ({ page }) => {
@@ -86,6 +93,9 @@ test('confidentialité : le sommaire mène aux sections, « Tes droits » au for
   await toc.getByRole('link', { name: /Tes droits/ }).click()
   await expect(page).toHaveURL(/#droits$/)
   await expect(page.getByRole('heading', { level: 2, name: /Tes droits/ })).toBeInViewport()
+
+  await expect(page.locator('#finalite')).toContainText('Statistiques de jeu : jusqu’à une demande de retrait.')
+  await expect(page.locator('#finalite')).toContainText('(replay 2D, tracés) : 30 jours, 90 pour un Top 1 ou une partie custom.')
 
   const rights = page.locator('#droits')
   await expect(rights).toContainText('Autorité de protection des données (APD)')

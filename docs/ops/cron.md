@@ -23,7 +23,7 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 | `challenge_processing` | `CHALLENGE_PROCESSING_CRON` | `0 0 * * *` | Traitement des challenges expirés |
 | `encountered_player_clan_resolution` | `ENCOUNTERED_PLAYER_CLAN_RESOLUTION_CRON` | `*/30 * * * *` | Résolution du clan PUBG des joueurs croisés (lot configurable) ; **en priorité**, nom et clan des adversaires du kill feed sans nom (« Joueur inconnu ») |
 | `clan_lifecycle_membership_sync` | `CLAN_LIFECYCLE_MEMBERSHIP_SYNC_CRON` | `45 1 * * *` | Vérifie l'appartenance de clan de chaque membre suivi, joueur par joueur |
-| `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h ; purges : journal des actions > 12 mois, historique du Coach IA (fils inactifs > 12 mois, usage > 13 mois) |
+| `db_maintenance` | `DB_MAINTENANCE_CRON` | `15 1 * * *` | Clôture des exécutions orphelines restées `running` > 6 h ; purges : journal des actions > 12 mois, historique du Coach IA (fils inactifs > 12 mois, usage > 13 mois), géolocalisation de la télémétrie > 30 jours (90 pour un Top 1 ou un custom), si l'interrupteur de `/settings/database` est ouvert (fermé par défaut) |
 | `telemetry_geo_purge_count` | `TELEMETRY_GEO_PURGE_COUNT_CRON` | `0 6 * * *` | Compte ce que la purge de géolocalisation retirerait, tous seuils confondus — lecture seule |
 | `resource_vehicle_spots` | `RESOURCE_VEHICLE_SPOTS_CRON` | `30 6 * * *` | Recalcule les emplacements des véhicules observés de la carte des ressources (90 derniers jours) |
 | `admin_daily_digest` | `ADMIN_DAILY_DIGEST_CRON` | `0 9 * * *` | Veille du matin : envoie la boîte « À traiter » au salon Discord d'administration, seulement si une décision ou un incident attend |
@@ -127,7 +127,7 @@ Compare, pour chaque `ClanMember` actif, le clan enregistré sur le site au clan
 
 ### `db_maintenance` — Maintenance nocturne
 
-À 01:15, avant `daily_sync`. Clôt en `failed` les lignes `CronExecution` et `EncounteredPlayerResolutionRun` restées `running` depuis plus de 6 h (processus arrêté en cours d'exécution), pour que les tableaux de bord ne les affichent plus « en cours ». **Ne supprime aucune donnée de jeu** : ni jobs échoués (dead letter), ni jobs en attente, ni captures de télémétrie — voir [database-performance.md](database-performance.md#34-ce-qui-nest-volontairement-pas-automatisé). Seules purges, chacune isolée : le journal des actions d'administration au-delà de 12 mois (`purgeExpiredAdminActions`) et l'historique du Coach IA — fils inactifs depuis 12 mois (messages en cascade) et lignes d'usage de plus de 13 mois (`purgeExpiredCoachHistory`, [docs/TODO/chatbot-ia.md](../TODO/chatbot-ia.md) §4.3). Journal : `[Cron] DB maintenance — orphaned runs finalized: …`, `… admin action log purged: …`, `… coach history purged: …`.
+À 01:15, avant `daily_sync`. Clôt en `failed` les lignes `CronExecution` et `EncounteredPlayerResolutionRun` restées `running` depuis plus de 6 h (processus arrêté en cours d'exécution), pour que les tableaux de bord ne les affichent plus « en cours ». **Ne supprime aucune donnée de jeu** : ni jobs échoués (dead letter), ni jobs en attente, ni captures de télémétrie — voir [database-performance.md](database-performance.md#34-ce-qui-nest-volontairement-pas-automatisé). Seules purges, chacune isolée : le journal des actions d'administration au-delà de 12 mois (`purgeExpiredAdminActions`), l'historique du Coach IA — fils inactifs depuis 12 mois (messages en cascade) et lignes d'usage de plus de 13 mois (`purgeExpiredCoachHistory`, [docs/TODO/chatbot-ia.md](../TODO/chatbot-ia.md) §4.3) — et, depuis le 2026-10-27, la géolocalisation de la télémétrie (`positionSamples`, `trajectorySegments`) au-delà de 30 jours, 90 pour un Top 1 ou un custom (`applyGeoRetention`, durées dans `src/lib/geo-retention.ts`, décision dans [database-performance.md](database-performance.md) §4.4) — seulement si l'interrupteur « Conservation automatique » de `/settings/database` est ouvert (`AppConfig.telemetry_geo_retention_enabled`, fermé par défaut). Journal : `[Cron] DB maintenance — orphaned runs finalized: …`, `… admin action log purged: …`, `… coach history purged: …`, `… geolocation purged: …` (ou `… geolocation purge skipped: switch off`).
 
 ### `telemetry_geo_purge_count` — Volume purgeable des tracés GPS
 
@@ -147,13 +147,14 @@ N jours ». Le nombre annoncé ne bouge pas de la journée, la journée en cours
 cible, et la purge applique exactement la borne affichée.
 
 **Protections :** les matchs **Top 1** (`placement = 1`) et les **parties personnalisées**
-(`matchType = 'custom'`, support des tournois) sont comptés à part et jamais purgés. Tous les customs
-sont protégés, pas seulement ceux d'un tournoi déjà créé : un tournoi se déclare *après* les parties,
-sur une fenêtre de dates.
+(`matchType = 'custom'`, support des tournois) sont comptés à part et jamais touchés par la purge manuelle ; la
+conservation automatique les garde 90 jours au lieu de 30. Tous les customs sont protégés, pas seulement ceux d'un
+tournoi déjà créé : un tournoi se déclare *après* les parties, sur une fenêtre de dates.
 
-**Purge elle-même :** elle n'est **pas** automatique. Elle se déclenche depuis
-`/settings/database` et s'exécute côté serveur : son état vit dans `AppConfig`
-(`telemetry_geo_purge_run`), la page ne fait que le lire, on peut donc la quitter. Un run dont le
+**Purge elle-même :** depuis le 2026-10-27, `db_maintenance` (01:15) applique chaque nuit la conservation (30 jours,
+90 pour les matchs protégés) une fois ouvert l'interrupteur « Conservation automatique » de la page (fermé par
+défaut) : les seuils de 30 jours et plus n'ont alors plus rien à purger. La purge manuelle sert à aller plus loin ; elle se déclenche depuis `/settings/database` et s'exécute côté serveur : son état vit dans
+`AppConfig` (`telemetry_geo_purge_run`), la page ne fait que le lire, on peut donc la quitter. Un run dont le
 battement de cœur dépasse 10 min est requalifié « interrompu ».
 
 **Durée :** **22 s** depuis la compression de la géolocalisation (2026-09-24). Elle était de ~247 s tant que les

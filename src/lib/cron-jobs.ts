@@ -34,7 +34,8 @@ import { finalizeOrphanedRuns } from '@/lib/db-maintenance'
 import { purgeExpiredAdminActions } from '@/lib/admin-action-log'
 import { notifyCoachModelNoticeIfNeeded } from '@/lib/coach/coach-alerts'
 import { purgeExpiredCoachHistory } from '@/lib/coach/coach-retention'
-import { refreshGeoPurgeCounts } from '@/lib/telemetry-geo-purge'
+import { GEO_PROTECTED_RETENTION_DAYS, GEO_RETENTION_DAYS } from '@/lib/geo-retention'
+import { applyGeoRetention, refreshGeoPurgeCounts } from '@/lib/telemetry-geo-purge'
 import { computeResourceVehicleSpots, formatResourceVehicleMapSummary } from '@/lib/resources/resource-vehicle-spots'
 import { getLatestPubgRateLimitSnapshot } from '@/lib/pubg-api-call-log-service'
 import {
@@ -1149,8 +1150,8 @@ async function runDbMaintenance() {
     console.error('[Cron] DB maintenance — admin action log purge failed', error)
   }
 
-  // … et l'historique du Coach IA (docs/TODO/chatbot-ia.md §4.3) : fils inactifs depuis 12 mois, messages en cascade,
-  // lignes d'usage de plus de 13 mois.
+  // … l'historique du Coach IA (docs/TODO/chatbot-ia.md §4.3) : fils inactifs depuis 12 mois, messages en cascade,
+  // lignes d'usage de plus de 13 mois…
   try {
     const purgedCoach = await purgeExpiredCoachHistory()
     console.info(
@@ -1158,6 +1159,20 @@ async function runDbMaintenance() {
     )
   } catch (error) {
     console.error('[Cron] DB maintenance — coach history purge failed', error)
+  }
+
+  // … et la géolocalisation de la télémétrie (replay, tracés) : 30 jours, 90 pour un Top 1 ou un custom
+  // (docs/ops/database-performance.md §4.4, décision du 2026-10-27), seulement si l'interrupteur de /settings/database
+  // est ouvert — il est fermé par défaut.
+  try {
+    const geo = await applyGeoRetention()
+    console.info(
+      geo.enabled
+        ? `[Cron] DB maintenance — geolocation purged: ${geo.purged} match(es) older than ${GEO_RETENTION_DAYS} days (${GEO_PROTECTED_RETENTION_DAYS} for Top 1 / custom)`
+        : '[Cron] DB maintenance — geolocation purge skipped: switch off (/settings/database)'
+    )
+  } catch (error) {
+    console.error('[Cron] DB maintenance — geolocation purge failed', error)
   }
 }
 

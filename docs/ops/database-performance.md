@@ -123,6 +123,10 @@ Cron `db_maintenance` (`DB_MAINTENANCE_CRON`, défaut `15 1 * * *`, `src/lib/db-
 
 Actif après déploiement uniquement : le déploiement de production tourne avec du code plus ancien.
 
+Depuis, la tâche porte aussi les purges de conservation, chacune isolée : journal des actions d'administration
+(12 mois), historique du Coach IA (12 et 13 mois) et, depuis le 2026-10-27, géolocalisation de la télémétrie (30 jours,
+90 pour un Top 1 ou un custom — §4.4).
+
 ### 3.3 bis Cartographie tactique : une requête de 15 s réécrite (2026-10-04)
 
 Route `telemetry/positions` : 17 à 21 s par appel, dont 15 à 17 s pour une seule requête — comptage des matchs sans
@@ -262,12 +266,36 @@ Préalables, à lire dans le rapport de `scripts/db-server-diagnostic.sh` avant 
   par mois. Au rythme actuel, le disque passe 90 % vers **début octobre** et se remplit vers la mi-octobre. Le rattrapage
   des cellules des 8 172 matchs anciens (~800 Mo) ne pèse que deux jours de croissance ; la vraie question est la
   **rétention du JSON brut**.
-- **Décision en attente — rétention** : `/settings/database` sait déjà vider `positionSamples` et
-  `trajectorySegments` au-delà de N jours (`UPDATE … SET NULL`, pages réutilisées par InnoDB sans reconstruction).
-  Ces colonnes servent au replay 2D, mais aussi au débriefing (`match-debrief-payload.ts`, `match-teams.ts`,
-  `squad-mates.ts`), à la page Positions pour les matchs sans cellules et au rattrapage des cellules : **rattraper les
-  cellules avant toute purge**, puis choisir la durée pendant laquelle replay et débriefing complets restent
-  disponibles. Ordre de grandeur : ~40 jours de matchs tiennent aujourd'hui dans 16 Go.
+- **Rétention — décidée le 2026-10-27** (elle était « en attente » depuis le 2026-09-17) :
+  - **Statistiques et événements de jeu** (résultats, kills, tirs, dégâts, réanimations, véhicules, cellules de
+    positions, positions de fin de zone) : **sans limite de durée, jusqu'à une demande de retrait**.
+  - **Géolocalisation** (`positionSamples`, `trajectorySegments`, et leurs colonnes `*Gz`) — ce qui prend la place,
+    pour le replay 2D et les tracés : **30 jours**, **90 jours** pour les matchs protégés (Top 1, parties custom, support
+    des tournois). Durées dans `src/lib/geo-retention.ts`, lues par `/a-propos/methodologie` et `/confidentialite`.
+  - **Application** : chaque nuit par `db_maintenance` (01:15), `applyGeoRetention` puis `purgeExpiredGeolocation`
+    (`src/lib/telemetry-geo-purge.ts`), par lots de 250 et jusqu'à épuisement — **seulement si l'interrupteur est
+    ouvert**. La purge manuelle de `/settings/database` reste pour aller plus loin ; elle ne touche jamais les matchs
+    protégés.
+  - **Interrupteur — fermé par défaut** (décision du 2026-10-27) : « Conservation automatique » en tête de la section
+    « Purger les tracés GPS » de `/settings/database` (SuperUser), clé `AppConfig.telemetry_geo_retention_enabled` ;
+    seule la valeur `true` l'ouvre. Ouvrir demande une confirmation qui annonce le volume de la première nuit
+    (`retentionTargetOf`, d'après le comptage de 06:00) ; fermer ne demande rien. Chaque bascule entre au journal des
+    actions d'administration (`superuser/database/purge-telemetry`, résultat `retentionEnabled`). Fermé, la maintenance
+    saute l'étape : `[Cron] DB maintenance — geolocation purge skipped: switch off`. Tant qu'il reste fermé, les pages
+    publiques annoncent 30 jours alors que les positions restent plus longtemps.
+  - **Durées en constantes, pas en réglage** (décision du 2026-10-27) : la durée est un engagement daté de
+    `/confidentialite`. La changer = modifier `src/lib/geo-retention.ts` (valeurs parmi 7, 14, 30, 60, 90 : les seuils
+    du comptage de 06:00, sinon `tsc` refuse), mettre à jour les deux tests qui figent 30 / 90
+    (`telemetry-geo-purge.test.ts`, `e2e/legal.spec.ts`), avancer `LEGAL_UPDATED_AT` et `METHODOLOGY_UPDATED_AT`, puis
+    déployer.
+  - **Volume** (comptage du 2026-10-27) : 25 627 matchs portent une géolocalisation sur 37 743 ; la première nuit après
+    l'ouverture en vide **7 609** (antérieurs au 27/09, protégés exclus), aucun match protégé n'a plus de 90 jours.
+    Une nuit ordinaire n'en vide ensuite que les matchs d'une journée (~600).
+  - **Ce qui disparaît au-delà** : le replay 2D (message « les positions ne sont gardées que 30 jours… ») et les tracés
+    du débriefing. Le reste du débriefing tient : les équipes viennent de `memberStats` d'abord, les positions n'en sont
+    que le repli. Les cellules de la page Positions (`PositionMetricCell`, rattrapage terminé le 2026-10-04) et les
+    positions de fin de zone (`zone-closure-positions.ts`) sont écrites au parsing et survivent à la purge.
+  - Un match d'un tournoi déclaré plus de 90 jours après ses parties n'a plus de replay.
 - Hypothèse écartée : la production **n'a aucun répertoire `.telemetry-captured`** ; le doublon de 16,76 Go sous `.next/standalone` n'existait que sur le poste de développement (supprimé le 2026-09-15).
 
 ### 4.5 Exposition réseau

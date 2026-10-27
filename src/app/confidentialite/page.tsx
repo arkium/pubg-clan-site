@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { EyeOff, Mail, Shield, X } from 'lucide-react'
 
 import { LegalDocument, LegalFacts, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
+import { GEO_PROTECTED_RETENTION_DAYS, GEO_RETENTION_DAYS } from '@/lib/geo-retention'
 import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, HOSTING, LEGAL_UPDATED_AT, PRIVACY_REQUEST_PATH } from '@/lib/legal/legal-info'
 
 /**
@@ -9,8 +10,8 @@ import { CONTACT_EMAIL, DATA_PROTECTION_AUTHORITY, HOSTING, LEGAL_UPDATED_AT, PR
  * (schéma Prisma, cookies, stockage du navigateur) le 05/10/2026, journal d'administration ajouté le 07/10/2026, e-mail de
  * contact des demandes d'accès sans compte le 10/10/2026 (src/lib/join-request-access.ts), notifications, préférences et
  * e-mails de notification le 10/10/2026 (docs/features/notifications.md), cookie de thème le 18/10/2026
- * (src/lib/app-theme.ts), Coach IA le 24/10/2026 (docs/features/coach-ia.md) : à revoir quand le site collecte une
- * donnée nouvelle.
+ * (src/lib/app-theme.ts), Coach IA le 24/10/2026 (docs/features/coach-ia.md), conservation des statistiques et des
+ * positions le 27/10/2026 (src/lib/geo-retention.ts) : à revoir quand le site collecte une donnée nouvelle.
  */
 
 
@@ -154,7 +155,7 @@ const SECTIONS: LegalSection[] = [
           {
             label: 'Conservation',
             value:
-              'Statistiques : tant que le joueur est suivi par un clan du site. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Notifications et préférences : jusqu’à ce que tu les supprimes, au plus avec la fiche du joueur. Coach IA : un fil 12 mois après sa dernière question (tu le supprimes avant si tu veux), la consommation 13 mois, ce que tu lui demandes de retenir 90 jours après sa dernière mise à jour (ou dès que tu l’effaces). Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.',
+              `Statistiques de jeu : jusqu’à une demande de retrait. Positions sur la carte (replay 2D, tracés) : ${GEO_RETENTION_DAYS} jours, ${GEO_PROTECTED_RETENTION_DAYS} pour un Top 1 ou une partie custom. Compte : jusqu’à sa suppression. E-mail de contact d’une demande : avec la fiche du joueur. Notifications et préférences : jusqu’à ce que tu les supprimes, au plus avec la fiche du joueur. Coach IA : un fil 12 mois après sa dernière question (tu le supprimes avant si tu veux), la consommation 13 mois, ce que tu lui demandes de retenir 90 jours après sa dernière mise à jour (ou dès que tu l’effaces). Connexion : 7 jours. Journal des actions d’administration : 12 mois. Effacement possible à tout moment sur demande.`,
           },
         ]}
       />

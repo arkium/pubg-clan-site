@@ -87,7 +87,7 @@ describe('pageJsonLd', () => {
     const methodology = parse(pageJsonLd('/a-propos/methodologie', pageSeo('/a-propos/methodologie'), {}, BASE))!['@graph']
     expect(methodology.map((node) => node['@type'])).toEqual(['BreadcrumbList', 'Article'])
     expect(methodology[0].itemListElement.map((item: { name: string }) => item.name)).toEqual(['Accueil', 'À propos', 'Méthodologie'])
-    expect(methodology[1]).toMatchObject({ dateModified: '2026-10-20', author: { name: 'Arkium' }, publisher: { name: 'Arkium' } })
+    expect(methodology[1]).toMatchObject({ dateModified: '2026-10-27', author: { name: 'Arkium' }, publisher: { name: 'Arkium' } })
   })
 
   it('rien pour l’accueil (il a les siennes) ni pour une page hors index', () => {

@@ -15,8 +15,10 @@ import { prisma } from '@/lib/prisma'
  * 14 jours de rétention du CDN PUBG) — voir docs/ops/database-performance.md.
  *
  * Seules exceptions, hors de ce module : la tâche de maintenance (`runDbMaintenance`, `src/lib/cron-jobs.ts`) purge le
- * journal des actions d'administration au-delà de 12 mois (`purgeExpiredAdminActions`) et l'historique du Coach IA —
- * fils inactifs depuis 12 mois, lignes d'usage de plus de 13 mois (`purgeExpiredCoachHistory`).
+ * journal des actions d'administration au-delà de 12 mois (`purgeExpiredAdminActions`), l'historique du Coach IA —
+ * fils inactifs depuis 12 mois, lignes d'usage de plus de 13 mois (`purgeExpiredCoachHistory`) — et la géolocalisation
+ * de la télémétrie au-delà de 30 jours, 90 pour un Top 1 ou un custom (`applyGeoRetention`, derrière un interrupteur
+ * fermé par défaut).
  */
 
 /**

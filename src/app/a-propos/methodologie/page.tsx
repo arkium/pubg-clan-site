@@ -1,7 +1,9 @@
+import Link from 'next/link'
 import { Calculator } from 'lucide-react'
 
 import { LegalDocument, LegalFacts, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
 import { LEAGUE_MATCH_TYPE_OPTIONS } from '@/lib/clan-league'
+import { GEO_PROTECTED_RETENTION_DAYS, GEO_RETENTION_DAYS } from '@/lib/geo-retention'
 import { METHODOLOGY_PATH, METHODOLOGY_UPDATED_AT, SITE_DOMAIN } from '@/lib/legal/legal-info'
 import { getLeagueSettings } from '@/lib/league-settings-service'
 import { SESSION_DAY_START_HOUR } from '@/lib/match-sessions'
@@ -14,7 +16,8 @@ import { figuresDate } from '@/lib/site-figures'
  * réglages du Power score sont lus en direct (`getLeagueSettings`) : le texte suit un changement fait sur
  * /settings/league. Chaque formule renvoie à son module de calcul, seule source de vérité :
  * Power score `src/lib/clan-league.ts`, rôles du clan `src/lib/pubg-telemetry/period-aggregates.ts`, rôles entre clans
- * `src/lib/players-ranking.ts`, distinctions `src/lib/distinctions.ts`, soirée `src/lib/match-sessions.ts`.
+ * `src/lib/players-ranking.ts`, distinctions `src/lib/distinctions.ts`, soirée `src/lib/match-sessions.ts`, conservation des
+ * positions `src/lib/geo-retention.ts` (appliquée par `purgeExpiredGeolocation`).
  */
 
 const integer = new Intl.NumberFormat('fr-FR')
@@ -119,21 +122,56 @@ export default async function MethodologyPage() {
       ),
     },
     {
-      id: 'limites',
-      title: 'Limites des données',
+      id: 'donnees',
+      title: 'Données : ce que garde PUBG, ce que garde le site',
       content: (
         <>
           <LegalText>
-            Tout vient de l’API officielle PUBG, importé après la fin de chaque partie : rien n’est lu pendant la partie. Le
-            site ne voit que les parties des clans qu’il suit, et seulement les comptes de ces clans.
+            Tout vient de l’API officielle PUBG (KRAFTON), importé après la fin de chaque partie : rien n’est lu pendant la
+            partie. Le site suit les comptes des clans inscrits ; la télémétrie de leurs parties nomme aussi les autres
+            joueurs du lobby, dont il garde le pseudo et le clan (kill feed, Némésis).
+          </LegalText>
+          <LegalText>
+            <strong>Chez PUBG</strong>, tout s’efface au bout d’environ 14 jours :
           </LegalText>
           <LegalFacts
             rows={[
-              { label: 'Télémétrie', value: 'gardée environ 14 jours par PUBG : une partie non importée à temps ne peut plus être analysée' },
+              {
+                label: 'Parties et télémétrie',
+                value: 'la liste des parties d’un joueur, le détail de chaque partie et son fichier de télémétrie restent environ 14 jours, puis PUBG les supprime',
+              },
+              { label: 'Partie manquée', value: 'une partie que le site n’a pas importée à temps est perdue pour de bon' },
+            ]}
+          />
+          <LegalText>
+            <strong>Sur le site</strong>, ce qui a été importé reste, sauf les positions sur la carte :
+          </LegalText>
+          <LegalFacts
+            rows={[
+              { label: 'Import', value: 'chaque nuit, et à la demande quand un clan arrive ; la télémétrie est analysée dans la foulée, en file d’attente' },
+              {
+                label: 'Fichier de télémétrie',
+                value: 'jamais conservé tel quel : le site en extrait les positions, tirs, dégâts, kills, réanimations et véhicules, puis jette le reste',
+              },
+              {
+                label: 'Résultats et événements',
+                value: 'gardés partie par partie, sans limite de durée, jusqu’à une demande de retrait : classements et débriefings durent bien après les 14 jours de PUBG',
+              },
+              {
+                label: 'Positions sur la carte',
+                value: `replay 2D et tracés : ${GEO_RETENTION_DAYS} jours, ${GEO_PROTECTED_RETENTION_DAYS} pour un Top 1 ou une partie custom (tournois compris), puis effacés`,
+              },
               { label: 'Quotas', value: 'quelques appels par minute, mis en file d’attente : un résultat peut arriver avec un peu de retard' },
               { label: 'Parties analysées', value: 'une analyse par escouade suivie et par partie ; la vitrine ne compte que les parties normales et classées' },
             ]}
           />
+          <LegalText>
+            Ton compte, tes droits et le retrait de tes données :{' '}
+            <Link href="/confidentialite" className="app-link">
+              Confidentialité
+            </Link>
+            .
+          </LegalText>
         </>
       ),
     },

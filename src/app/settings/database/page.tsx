@@ -22,10 +22,11 @@ import {
 import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
 import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
 import { ADMIN_PAGE_CLASS, AdminPageLoading, FormFeedback } from '@/components/settings/AdminPageStates'
-import { Callout, ConfirmDialog, ListSkeleton, SectionCard, Tag } from '@/components/ui/CharteKit'
+import { Callout, ConfirmDialog, ListSkeleton, SectionCard, Switch, Tag } from '@/components/ui/CharteKit'
 import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { GEO_PROTECTED_RETENTION_DAYS, GEO_RETENTION_DAYS } from '@/lib/geo-retention'
 
 function formatGo(mb: number | null | undefined) {
   if (mb === null || mb === undefined) return '—'
@@ -118,15 +119,19 @@ type OptimizeRun = {
   error?: string
 }
 
+/** Interrupteur de la conservation automatique et volume de sa prochaine nuit (`retentionTargetOf`), `null` sans comptage. */
+type RetentionState = { enabled: boolean; nextTarget: number | null }
+
 type PurgeStatusResponse = {
   counts: PurgeCounts | null
   run: PurgeRun | null
   recounting: boolean
   totalRows: number
+  retention: RetentionState
 }
 
 const AGE_OPTIONS = [
-  { value: '14', label: 'Plus de 14 jours', desc: 'Recommandé : garde tous les tracés récents', badge: 'Standard PUBG' },
+  { value: '14', label: 'Plus de 14 jours', desc: 'Garde les deux dernières semaines', badge: 'Standard PUBG' },
   { value: '30', label: 'Plus de 30 jours', desc: 'Garde le dernier mois complet', badge: '1 mois' },
   { value: '60', label: 'Plus de 60 jours', desc: 'Garde les deux derniers mois', badge: '2 mois' },
   { value: '90', label: 'Plus de 90 jours', desc: 'Garde le dernier trimestre', badge: '1 trimestre' },
@@ -195,6 +200,12 @@ export default function DatabaseStatsPage() {
   const [loadingPurgeStatus, setLoadingPurgeStatus] = useState(false)
   const [purgeError, setPurgeError] = useState('')
 
+  // Conservation automatique : `null` tant que le statut n'est pas lu, l'interrupteur reste alors inactif.
+  const [retention, setRetention] = useState<RetentionState | null>(null)
+  const [retentionSaving, setRetentionSaving] = useState(false)
+  const [retentionError, setRetentionError] = useState('')
+  const [retentionConfirmOpen, setRetentionConfirmOpen] = useState(false)
+
   // Table optimization state
   const [optimizeAssessment, setOptimizeAssessment] = useState<OptimizeAssessment | null>(null)
   const [optimizeRun, setOptimizeRun] = useState<OptimizeRun | null>(null)
@@ -222,6 +233,7 @@ export default function DatabaseStatsPage() {
         // Un statut indisponible reste indisponible : le traduire en « 0 match » ferait croire
         // qu'il n'y a rien à purger.
         setPurgeCounts(null)
+        setRetention(null)
         setPurgeStatusError(`Statut de purge indisponible (HTTP ${res.status}).`)
         return
       }
@@ -230,6 +242,7 @@ export default function DatabaseStatsPage() {
       setPurgeCounts(data.counts)
       setPurgeRun(data.run)
       setRecounting(data.recounting)
+      setRetention(data.retention ?? null)
       setPurgeStatusError('')
     } catch (err) {
       console.error('Erreur lecture statut de purge:', err)
@@ -375,6 +388,37 @@ export default function DatabaseStatsPage() {
       setPurgeError(err instanceof Error ? err.message : 'Impossible d’interrompre la purge')
     }
   }
+
+  /** Ouvre ou ferme la conservation automatique. Rien n'est effacé sur le moment : la maintenance de 01:15 s'en charge. */
+  const saveRetention = async (enabled: boolean) => {
+    setRetentionSaving(true)
+    setRetentionError('')
+    try {
+      const res = await fetch('/api/superuser/database/purge-telemetry', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'retention', enabled }),
+      })
+      const payload = (await res.json().catch(() => null)) as { error?: string } | null
+      if (!res.ok) throw new Error(payload?.error ?? `Erreur serveur HTTP ${res.status}`)
+      setRetention((current) => ({ enabled, nextTarget: current?.nextTarget ?? null }))
+    } catch (err) {
+      setRetentionError(err instanceof Error ? err.message : 'Réglage impossible')
+    } finally {
+      setRetentionSaving(false)
+    }
+  }
+
+  // Ouvrir efface des tracés dès la nuit suivante, sans retour possible : confirmé dans la page. Fermer ne demande rien.
+  const handleRetentionChange = (enabled: boolean) => {
+    if (enabled) setRetentionConfirmOpen(true)
+    else void saveRetention(false)
+  }
+
+  const retentionTargetLabel =
+    retention?.nextTarget === null || retention?.nextTarget === undefined
+      ? 'volume inconnu tant qu’aucun comptage n’est publié'
+      : `environ ${retention.nextTarget.toLocaleString('fr-FR')} match${retention.nextTarget > 1 ? 's' : ''}`
 
   // Le comptage complet coûte ~4 min de lecture disque : il est normalement produit chaque nuit
   // par le cron, et ce bouton ne sert qu'à le rafraîchir à la demande.
@@ -721,10 +765,35 @@ export default function DatabaseStatsPage() {
             meta={
               <>
                 Vide les colonnes <code className="font-mono">positionSamples</code> et <code className="font-mono">trajectorySegments</code> de{' '}
-                <code className="font-mono">SquadMatchTelemetry</code>, qui pèsent d’ordinaire plus de 90 % de la base.
+                <code className="font-mono">SquadMatchTelemetry</code>, qui pèsent l’essentiel de la télémétrie.
               </>
             }
           >
+            {/* Conservation automatique (src/lib/geo-retention.ts) : fermée par défaut, ouverte après lecture du volume. */}
+            <div className="flex flex-col gap-1.5">
+              <div className="app-panel-muted flex items-center justify-between gap-3 px-3 py-2.5">
+                <div className="flex min-w-0 flex-col gap-0.5">
+                  <span id="geo-retention-label" className="t-body t-strong text-gray-900">
+                    Conservation automatique
+                  </span>
+                  <span id="geo-retention-desc" className="t-meta">
+                    {retention?.enabled
+                      ? `Ouverte : chaque nuit à 01:15, la maintenance vide les tracés de plus de ${GEO_RETENTION_DAYS} jours (${GEO_PROTECTED_RETENTION_DAYS} pour les Top 1 et parties personnalisées).`
+                      : `Fermée : aucun tracé n’est vidé automatiquement. Ouverte, la maintenance de 01:15 vide les tracés de plus de ${GEO_RETENTION_DAYS} jours (${GEO_PROTECTED_RETENTION_DAYS} pour les Top 1 et parties personnalisées) — ${retentionTargetLabel} la première nuit.`}
+                  </span>
+                </div>
+                <Switch
+                  checked={retention?.enabled ?? false}
+                  onChange={handleRetentionChange}
+                  disabled={!retention || retentionSaving}
+                  labelledBy="geo-retention-label"
+                  describedBy="geo-retention-desc"
+                  testId="geo-retention-switch"
+                />
+              </div>
+              <FormFeedback error={retentionError} />
+            </div>
+
             <Callout tone="warn" icon={AlertTriangle} title="Statistiques préservées">
               Kills, dégâts, recalls, armes et trophées ne sont pas touchés. En revanche, le tracé continu des joueurs sur la carte
               disparaît pour les matchs purgés.
@@ -1052,6 +1121,27 @@ export default function DatabaseStatsPage() {
           Les tracés de {ageLabel} ({matchesToPurge.toLocaleString('fr-FR')} matchs) seront effacés définitivement.{' '}
           {(selectedCount?.protectedMatches ?? 0).toLocaleString('fr-FR')} matchs protégés (Top 1 et parties personnalisées) sont conservés.
           La purge tourne sur le serveur : quitter la page ne l’interrompt pas.
+        </ConfirmDialog>
+      ) : null}
+
+      {retentionConfirmOpen ? (
+        <ConfirmDialog
+          icon={Trash2}
+          title="Ouvrir la conservation automatique ?"
+          confirmLabel="Ouvrir"
+          tone="danger"
+          busy={false}
+          testId="geo-retention-confirm"
+          onCancel={() => setRetentionConfirmOpen(false)}
+          onConfirm={() => {
+            setRetentionConfirmOpen(false)
+            void saveRetention(true)
+          }}
+        >
+          Dès la nuit prochaine, à 01:15, la maintenance effacera définitivement les tracés de {retentionTargetLabel}, puis chaque
+          nuit ceux qui dépassent {GEO_RETENTION_DAYS} jours ({GEO_PROTECTED_RETENTION_DAYS} pour les Top 1 et parties
+          personnalisées). PUBG n’a plus ces fichiers : rien ne pourra les recréer. Statistiques, kills, dégâts et armes ne sont
+          pas touchés.
         </ConfirmDialog>
       ) : null}
 

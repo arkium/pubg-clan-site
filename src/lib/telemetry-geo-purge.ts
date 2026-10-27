@@ -1,4 +1,5 @@
 import { Prisma } from '@prisma/client'
+import { GEO_PROTECTED_RETENTION_DAYS, GEO_RETENTION_DAYS } from '@/lib/geo-retention'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -46,7 +47,8 @@ export const GEO_PURGE_RUN_STALE_MS = 10 * 60 * 1000
 export const GEO_PURGE_NOTICE_TTL_MS = 24 * 60 * 60 * 1000
 
 /**
- * Matchs soustraits à la purge, à la demande de l'exploitant :
+ * Matchs gardés plus longtemps par la purge de conservation (`GEO_PROTECTED_RETENTION_DAYS`, `src/lib/geo-retention.ts`)
+ * et jamais touchés par la purge manuelle, à la demande de l'exploitant :
  *  - **Top 1** (`placement = 1`) : les victoires sont les replays qu'on rejoue.
  *  - **Matchs personnalisés** (`matchType = 'custom'`) : support des tournois. On protège tous les
  *    customs, pas seulement ceux d'un tournoi existant, parce qu'un tournoi se déclare *après* les
@@ -411,4 +413,99 @@ export async function startGeoPurgeRun(
   void runPurgeLoop(selection, cutoff, target, startedAt)
 
   return { started: true, state }
+}
+
+// --------------------------------------------------------------------------------------------
+// Conservation — purge automatique de la maintenance nocturne
+// --------------------------------------------------------------------------------------------
+
+/**
+ * Interrupteur de la conservation automatique, dans `AppConfig` : fermé par défaut (décision du 2026-10-27), ouvert
+ * par le SuperUser depuis /settings/database une fois vérifié le volume de la première nuit. Seule la valeur `'true'`
+ * l'ouvre : une clé absente ou illisible laisse la purge à l'arrêt.
+ */
+export const GEO_RETENTION_ENABLED_KEY = 'telemetry_geo_retention_enabled'
+
+export async function readGeoRetentionEnabled(): Promise<boolean> {
+  const row = await prisma.appConfig.findUnique({ where: { key: GEO_RETENTION_ENABLED_KEY } })
+  return row?.value === 'true'
+}
+
+export async function writeGeoRetentionEnabled(enabled: boolean): Promise<void> {
+  const value = enabled ? 'true' : 'false'
+  await prisma.appConfig.upsert({
+    where: { key: GEO_RETENTION_ENABLED_KEY },
+    update: { value },
+    create: { key: GEO_RETENTION_ENABLED_KEY, value },
+  })
+}
+
+/**
+ * Ce que la prochaine purge de conservation viderait, d'après le comptage publié : les matchs ordinaires au-delà de
+ * 30 jours et les protégés au-delà de 90 ; `null` sans comptage. Ordre de grandeur seulement : le comptage date de
+ * 06:00 et la purge de 01:15 avance sa borne d'une journée.
+ */
+export function retentionTargetOf(counts: GeoPurgeCounts | null): number | null {
+  const standard = counts?.byThreshold?.[String(GEO_RETENTION_DAYS)]
+  const protectedPast = counts?.byThreshold?.[String(GEO_PROTECTED_RETENTION_DAYS)]
+  if (!standard || !protectedPast) return null
+  return standard.purgeable + protectedPast.protectedMatches
+}
+
+export type GeoRetentionCutoffs = { standardCutoff: Date; protectedCutoff: Date }
+
+/**
+ * Bornes de conservation (`src/lib/geo-retention.ts`), figées au dernier minuit comme celles de la purge manuelle. Les
+ * deux durées doivent rester des seuils de `GEO_PURGE_THRESHOLDS` : la page SuperUser compte ce qui reste au-delà.
+ */
+export function resolveRetentionCutoffs(now: Date = new Date()): GeoRetentionCutoffs {
+  return {
+    standardCutoff: resolveCutoff(GEO_RETENTION_DAYS, now)!,
+    protectedCutoff: resolveCutoff(GEO_PROTECTED_RETENTION_DAYS, now)!,
+  }
+}
+
+export async function selectRetentionBatch(cutoffs: GeoRetentionCutoffs, batchSize: number): Promise<string[]> {
+  const rows = await prisma.$queryRaw<Array<{ id: string }>>`
+    SELECT t.id FROM SquadMatchTelemetry t
+    JOIN SquadMatch m ON m.id = t.squadMatchId
+    WHERE ${HAS_GEO} AND ${ROW_DATE} < ${cutoffs.standardCutoff}
+      AND (NOT ${PROTECTED} OR ${ROW_DATE} < ${cutoffs.protectedCutoff})
+    LIMIT ${batchSize}
+  `
+  return rows.map((row) => row.id)
+}
+
+/**
+ * Vide, par lots, la géolocalisation des matchs au-delà de leur durée de conservation. Une nuit ordinaire ne trouve que
+ * les matchs d'une journée (~600, trois lots) ; la première après l'ouverture de l'interrupteur, tout le stock au-delà
+ * des bornes (7 609 matchs au comptage du 2026-10-27).
+ */
+export async function purgeExpiredGeolocation(
+  now: Date = new Date(),
+  options: { pauseMs?: number } = {}
+): Promise<number> {
+  const cutoffs = resolveRetentionCutoffs(now)
+  const pauseMs = options.pauseMs ?? 250
+  let purged = 0
+  for (;;) {
+    const ids = await selectRetentionBatch(cutoffs, GEO_PURGE_BATCH_SIZE)
+    if (ids.length > 0) {
+      await purgeBatch(ids)
+      purged += ids.length
+    }
+    if (ids.length < GEO_PURGE_BATCH_SIZE) return purged
+    await sleep(pauseMs)
+  }
+}
+
+export type GeoRetentionResult = { enabled: false } | { enabled: true; purged: number }
+
+/** Point d'entrée de la maintenance de 01:15 (`runDbMaintenance`) : ne touche à rien tant que l'interrupteur est fermé. */
+export async function applyGeoRetention(
+  now: Date = new Date(),
+  options: { pauseMs?: number } = {}
+): Promise<GeoRetentionResult> {
+  if (!(await readGeoRetentionEnabled())) return { enabled: false }
+  return { enabled: true, purged: await purgeExpiredGeolocation(now, options) }
 }

@@ -8,17 +8,22 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 //    proxy_read_timeout de Nginx, ce qui faisait afficher « Aucun match ne correspond au filtre »
 //    alors que des milliers de matchs attendaient) ;
 //  - sans comptage publié, démarrer une purge est refusé plutôt que lancé à l'aveugle ;
-//  - la purge démarre côté serveur et la réponse ne l'attend pas.
-// Voir docs/TODO/todo.md, Administration, Lot 2.
+//  - la purge démarre côté serveur et la réponse ne l'attend pas ;
+//  - l'interrupteur de la conservation automatique (fermé par défaut) ne s'ouvre que sur un booléen, et sa bascule
+//    entre au journal des actions d'administration.
+// Voir docs/TODO/todo.md, Administration, Lot 2, et docs/ops/database-performance.md §4.4.
 
 const mocks = vi.hoisted(() => ({
   getSessionFromRequest: vi.fn(),
   queryRaw: vi.fn(),
+  adminActionLogCreate: vi.fn(),
   readGeoPurgeCounts: vi.fn(),
   readGeoPurgeRunForDisplay: vi.fn(),
+  readGeoRetentionEnabled: vi.fn(),
   refreshGeoPurgeCounts: vi.fn(),
   requestGeoPurgeCancel: vi.fn(),
   startGeoPurgeRun: vi.fn(),
+  writeGeoRetentionEnabled: vi.fn(),
 }))
 
 vi.mock('@/lib/auth-session', () => ({
@@ -26,7 +31,7 @@ vi.mock('@/lib/auth-session', () => ({
 }))
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { $queryRaw: mocks.queryRaw },
+  prisma: { $queryRaw: mocks.queryRaw, adminActionLog: { create: mocks.adminActionLogCreate } },
 }))
 
 vi.mock('@/lib/telemetry-geo-purge', async () => {
@@ -35,11 +40,14 @@ vi.mock('@/lib/telemetry-geo-purge', async () => {
   )
   return {
     parseSelection: actual.parseSelection,
+    retentionTargetOf: actual.retentionTargetOf,
     readGeoPurgeCounts: mocks.readGeoPurgeCounts,
     readGeoPurgeRunForDisplay: mocks.readGeoPurgeRunForDisplay,
+    readGeoRetentionEnabled: mocks.readGeoRetentionEnabled,
     refreshGeoPurgeCounts: mocks.refreshGeoPurgeCounts,
     requestGeoPurgeCancel: mocks.requestGeoPurgeCancel,
     startGeoPurgeRun: mocks.startGeoPurgeRun,
+    writeGeoRetentionEnabled: mocks.writeGeoRetentionEnabled,
   }
 })
 
@@ -68,17 +76,22 @@ const counts = (purgeable: number, protectedMatches = 211) => ({
   protectedMatches,
   byThreshold: {
     '14': { cutoff: '2026-09-09T00:00:00.000Z', targeted: purgeable + protectedMatches, protectedMatches, purgeable },
+    '30': { cutoff: '2026-09-27T00:00:00.000Z', targeted: 900, protectedMatches: 120, purgeable: 780 },
+    '90': { cutoff: '2026-07-29T00:00:00.000Z', targeted: 9, protectedMatches: 9, purgeable: 0 },
   },
 })
 
 beforeEach(() => {
   vi.clearAllMocks()
-  mocks.getSessionFromRequest.mockResolvedValue({ isSuperUser: true })
+  mocks.getSessionFromRequest.mockResolvedValue({ userId: 7, activeMemberId: null, isSuperUser: true })
   mocks.queryRaw.mockResolvedValue([{ total: BigInt(18030) }])
+  mocks.adminActionLogCreate.mockResolvedValue({})
   mocks.readGeoPurgeCounts.mockResolvedValue(null)
   mocks.readGeoPurgeRunForDisplay.mockResolvedValue(null)
+  mocks.readGeoRetentionEnabled.mockResolvedValue(false)
   mocks.refreshGeoPurgeCounts.mockResolvedValue(counts(2932))
   mocks.requestGeoPurgeCancel.mockResolvedValue(true)
+  mocks.writeGeoRetentionEnabled.mockResolvedValue(undefined)
 })
 
 describe('GET /api/superuser/database/purge-telemetry', () => {
@@ -122,6 +135,24 @@ describe('GET /api/superuser/database/purge-telemetry', () => {
     mocks.getSessionFromRequest.mockResolvedValue({ isSuperUser: false })
     const { GET } = await freshRoute()
     expect((await GET(getRequest() as never)).status).toBe(403)
+  })
+
+  it('expose l’interrupteur de conservation et le volume de sa prochaine nuit (30 jours + protégés au-delà de 90)', async () => {
+    mocks.readGeoPurgeCounts.mockResolvedValue(counts(2932))
+
+    const { GET } = await freshRoute()
+    const body = await (await GET(getRequest() as never)).json()
+
+    expect(body.retention).toEqual({ enabled: false, nextTarget: 780 + 9 })
+  })
+
+  it('volume de la prochaine nuit inconnu sans comptage publié, jamais 0', async () => {
+    mocks.readGeoRetentionEnabled.mockResolvedValue(true)
+
+    const { GET } = await freshRoute()
+    const body = await (await GET(getRequest() as never)).json()
+
+    expect(body.retention).toEqual({ enabled: true, nextTarget: null })
   })
 })
 
@@ -190,5 +221,45 @@ describe('POST /api/superuser/database/purge-telemetry', () => {
     expect(body).toMatchObject({ ok: true, started: true })
     expect(mocks.refreshGeoPurgeCounts).toHaveBeenCalled()
     resolveCount(counts(2932))
+  })
+
+  it('ouvre et ferme la conservation automatique sans rien effacer sur le moment', async () => {
+    const { POST } = await freshRoute()
+
+    expect(await (await POST(postRequest({ action: 'retention', enabled: true }) as never)).json()).toEqual({
+      ok: true,
+      retentionEnabled: true,
+    })
+    expect(await (await POST(postRequest({ action: 'retention', enabled: false }) as never)).json()).toEqual({
+      ok: true,
+      retentionEnabled: false,
+    })
+
+    expect(mocks.writeGeoRetentionEnabled.mock.calls).toEqual([[true], [false]])
+    expect(mocks.startGeoPurgeRun).not.toHaveBeenCalled()
+  })
+
+  it('refuse une valeur qui n’est pas un booléen : « "true" » n’ouvre rien', async () => {
+    const { POST } = await freshRoute()
+
+    for (const enabled of ['true', 1, null, undefined]) {
+      const res = await POST(postRequest({ action: 'retention', enabled }) as never)
+      expect(res.status).toBe(400)
+    }
+    expect(mocks.writeGeoRetentionEnabled).not.toHaveBeenCalled()
+  })
+
+  it('inscrit la bascule au journal des actions d’administration, avec son acteur et son état', async () => {
+    const { POST } = await freshRoute()
+    await POST(postRequest({ action: 'retention', enabled: true }) as never)
+
+    expect(mocks.adminActionLogCreate).toHaveBeenCalledTimes(1)
+    expect(mocks.adminActionLogCreate.mock.calls[0][0].data).toMatchObject({
+      userId: 7,
+      action: 'superuser/database/purge-telemetry',
+      method: 'POST',
+      status: 200,
+      summary: { result: { ok: true, retentionEnabled: true } },
+    })
   })
 })

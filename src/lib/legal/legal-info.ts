@@ -4,7 +4,7 @@
  */
 
 /** Date affichée en tête des mentions légales et de la confidentialité : à changer à chaque modification du texte. */
-export const LEGAL_UPDATED_AT = '25 octobre 2026'
+export const LEGAL_UPDATED_AT = '27 octobre 2026'
 
 export const SITE_DOMAIN = 'chickendinner.fr'
 export const PUBLISHER_NAME = 'Arkium'
@@ -44,7 +44,7 @@ export const PRIVACY_REQUEST_PATH = '/confidentialite/demande'
 /** Méthodologie (docs/TODO/geo-seo-propositions.md, 4.2) : liée depuis « À propos », pas depuis le footer. */
 export const METHODOLOGY_PATH = '/a-propos/methodologie'
 /** Date de mise à jour de la méthodologie (`AAAA-MM-JJ`) : à changer à chaque modification du texte. */
-export const METHODOLOGY_UPDATED_AT = '2026-10-20'
+export const METHODOLOGY_UPDATED_AT = '2026-10-27'
 
 /** Chemins ouverts sans session, même hors mode visiteur (src/proxy.ts). */
 export const LEGAL_PATHS: readonly string[] = [...LEGAL_LINKS.map((link) => link.href), PRIVACY_REQUEST_PATH, METHODOLOGY_PATH]

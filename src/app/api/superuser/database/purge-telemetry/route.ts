@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 import { withAdminActionLog } from '@/lib/admin-action-log'
+import { rememberSessionActor } from '@/lib/auth/admin-actor'
 import { prisma } from '@/lib/prisma'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import {
@@ -7,9 +8,12 @@ import {
   parseSelection,
   readGeoPurgeCounts,
   readGeoPurgeRunForDisplay,
+  readGeoRetentionEnabled,
   refreshGeoPurgeCounts,
   requestGeoPurgeCancel,
+  retentionTargetOf,
   startGeoPurgeRun,
+  writeGeoRetentionEnabled,
 } from '@/lib/telemetry-geo-purge'
 
 /**
@@ -23,6 +27,9 @@ import {
  *
  * La purge, elle, s'exécute côté serveur : `POST { action: 'start' }` lance la boucle et rend la
  * main. La page ne fait que lire l'avancement, on peut donc la quitter.
+ *
+ * `POST { action: 'retention', enabled }` ouvre ou ferme la conservation automatique (purge de la maintenance de
+ * 01:15, `applyGeoRetention`) : rien n'est effacé sur le moment.
  */
 
 /** Un recomptage manuel à la fois : deux scans simultanés se disputeraient les mêmes 22 Go. */
@@ -39,7 +46,11 @@ export async function GET(req: NextRequest) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 })
     }
 
-    const [counts, run] = await Promise.all([readGeoPurgeCounts(), readGeoPurgeRunForDisplay()])
+    const [counts, run, retentionEnabled] = await Promise.all([
+      readGeoPurgeCounts(),
+      readGeoPurgeRunForDisplay(),
+      readGeoRetentionEnabled(),
+    ])
 
     // Sert de repère quand aucun comptage n'a encore été publié (première installation du cron).
     const totalRowsRes = await prisma.$queryRaw<Array<{ total: bigint }>>`
@@ -51,6 +62,7 @@ export async function GET(req: NextRequest) {
       run,
       recounting: recountInFlight,
       totalRows: Number(totalRowsRes[0]?.total ?? 0),
+      retention: { enabled: retentionEnabled, nextTarget: retentionTargetOf(counts) },
     })
   } catch (err: unknown) {
     console.error('Error fetching purge status:', err)
@@ -61,13 +73,25 @@ export async function GET(req: NextRequest) {
 
 async function handlePost(req: NextRequest) {
   try {
-    if (!(await requireSuperUser(req))) {
+    const session = await requireSuperUser(req)
+    if (!session) {
       return Response.json({ error: 'Unauthorized' }, { status: 403 })
     }
+    // La route vérifie la session elle-même : sans acteur noté, le journal des actions ne verrait rien.
+    rememberSessionActor(req, session)
 
     const body = (await req.json().catch(() => ({}))) as {
-      action?: 'start' | 'cancel' | 'recount' | 'dismiss'
+      action?: 'start' | 'cancel' | 'recount' | 'dismiss' | 'retention'
       olderThanDays?: number | string
+      enabled?: unknown
+    }
+
+    if (body.action === 'retention') {
+      if (typeof body.enabled !== 'boolean') {
+        return Response.json({ error: 'Indique enabled : true ou false.' }, { status: 400 })
+      }
+      await writeGeoRetentionEnabled(body.enabled)
+      return Response.json({ ok: true, retentionEnabled: body.enabled })
     }
 
     // Efface le compte rendu de la derniere purge : purement cosmetique, rien n'est annule.

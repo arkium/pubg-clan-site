@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'node:path'
 
 import { getTelemetryLiveSyncQueueStats, TelemetryLiveSyncQueueStats } from '@/lib/pubg-telemetry/live-sync-queue'
 import { prisma } from '@/lib/prisma'
+import { SCHEDULE_VARIABLES } from '@/lib/site-config'
 
 export type TelemetryWorkerStatus = {
   alive: boolean
@@ -65,7 +66,7 @@ async function resolveNextDailySyncEstimate(): Promise<string> {
   const override = await prisma.cronSchedule
     .findUnique({ where: { key: 'daily_sync' } })
     .catch(() => null)
-  const expr = (override?.expression ?? process.env.CLAN_MATCH_SYNC_CRON ?? '0 2 * * *').trim()
+  const expr = (override?.expression ?? process.env.CLAN_MATCH_SYNC_CRON ?? SCHEDULE_VARIABLES.CLAN_MATCH_SYNC_CRON).trim()
 
   const now = new Date()
   const parts = expr.split(/\s+/)
@@ -73,6 +74,16 @@ async function resolveNextDailySyncEstimate(): Promise<string> {
     const [minStr, hourStr] = parts
     const minute = Number(minStr)
     const hour = Number(hourStr)
+
+    // Toutes les N minutes (ex: "*/30 * * * *") : le prochain multiple de N.
+    const step = /^\*\/(\d+)$/.exec(minStr)
+    if (step && hourStr === '*' && Number(step[1]) > 0) {
+      const every = Number(step[1])
+      const next = new Date(now)
+      next.setSeconds(0, 0)
+      next.setMinutes((Math.floor(now.getMinutes() / every) + 1) * every)
+      return next.toISOString()
+    }
 
     // Si minute fixe et heure répétée (ex: "0 * * * *")
     if (!Number.isNaN(minute) && hourStr === '*') {

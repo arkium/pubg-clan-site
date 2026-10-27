@@ -110,6 +110,13 @@ Les deux aperçus de la page ne sont pas des maquettes : ils appellent les vrais
 
 Le second chemin compte : sans lui, le deuxième clan d'un match croisé n'aurait jamais son alerte.
 
+**Délai** (2026-10-27, [synchro-parties-30-min.md](../TODO/synchro-parties-30-min.md)) : l'alerte n'est pas en direct,
+elle part quand la synchronisation des parties (`daily_sync`) importe la partie. Avant le 2026-10-27, un clan n'était
+relu que toutes les 4 h 20 en médiane (file PUBG pleine) : alerte 2,3 h après la partie en médiane. La synchronisation lit
+désormais les parties par lots de 10 joueurs en priorité haute, toutes les 30 minutes : **jusqu'à 45 minutes**. La page
+`/clans/[clanId]/settings/discord` affiche ce délai, calculé d'après le réglage réel de la synchronisation
+(`describeTop1Delay`, `src/lib/discord/discord-sync-delay.ts`, renvoyé par `GET …/settings/discord` en `top1Delay`).
+
 **Place du clan, pas celle de la ligne** (2026-10-27, [place-partie-partagee.md](../TODO/place-partie-partagee.md)) :
 `SquadMatch.placement` n'est que la place du clan qui a créé la ligne. Jusqu'au 2026-10-27, un clan qui rejoignait une
 partie gagnée par un autre recevait une fausse alerte, et un clan qui gagnait une partie créée par un autre n'en recevait

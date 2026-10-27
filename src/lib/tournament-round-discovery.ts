@@ -172,7 +172,7 @@ export async function discoverTournamentRounds(input: {
   )
   if (members.length === 0) return EMPTY_DISCOVERY
 
-  const context: PubgApiCallContext = { clanId: input.organizerClanId, source: 'tournament-sync' }
+  const context: PubgApiCallContext = { clanId: input.organizerClanId, source: 'tournament-sync', priority: 'high' }
   const errors: string[] = []
   const lists: Array<{ member: DiscoveryMember; matchIds: string[] }> = []
   const shards = Array.from(new Set(members.map((member) => member.platformShard)))

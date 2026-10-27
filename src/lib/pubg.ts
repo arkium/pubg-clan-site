@@ -1,6 +1,6 @@
 import axios, { type AxiosRequestConfig } from 'axios'
 
-import { enqueuePubgApiRequestWithMetadata } from '@/lib/api-throttle'
+import { enqueuePubgApiRequestWithMetadata, type PubgApiPriority } from '@/lib/api-throttle'
 import { prisma } from '@/lib/prisma'
 
 // Fenêtre de fraîcheur du cache Player pour searchPlayerByName — plus courte
@@ -20,6 +20,9 @@ export type PubgApiCallContext = {
   // Distingue l'origine d'un appel dans PubgApiCallLog (ex. 'encountered-player-resolution-cron'
   // vs 'encountered-player-resolution-manual') — remplace le 'pubg-lib' par défaut si fourni.
   source?: string
+  // Place dans la file des endpoints limités (`api-throttle.ts`) : `high` pour la synchronisation des parties, `low`
+  // pour les tâches de fond ; `normal` par défaut.
+  priority?: PubgApiPriority
 }
 
 const PUBG_API_KEY = process.env.PUBG_API_KEY
@@ -41,6 +44,7 @@ async function queuedPubgGet<T>(url: string, config?: AxiosRequestConfig, contex
     shard: extractShardFromEndpoint(url),
     clanId: context?.clanId ?? null,
     memberId: context?.memberId ?? null,
+    priority: context?.priority,
   })
 }
 
@@ -726,20 +730,19 @@ export async function fetchRecentMatchIds(
     undefined,
     context
   )
-  const relationships = response.data.data?.relationships ?? {}
-  const matchIds: string[] = []
+  return lifetimeMatchIds(response.data)
+}
 
-  Object.values(relationships).forEach((modeMatches) => {
-    if (Array.isArray(modeMatches.data)) {
-      modeMatches.data.forEach((match) => {
-        if (match.id && !matchIds.includes(match.id)) {
-          matchIds.push(match.id)
-        }
-      })
+/** Parties référencées par une réponse `/seasons/lifetime` (une relation par mode), sans doublon. */
+function lifetimeMatchIds(body: PubgLifetimeMatchesResponse) {
+  const matchIds = new Set<string>()
+  for (const modeMatches of Object.values(body.data?.relationships ?? {})) {
+    if (!Array.isArray(modeMatches.data)) continue
+    for (const match of modeMatches.data) {
+      if (match.id) matchIds.add(match.id)
     }
-  })
-
-  return matchIds
+  }
+  return [...matchIds]
 }
 
 // Complement de fetchRecentMatchIds : /seasons/lifetime ne referme que les
@@ -747,9 +750,10 @@ export async function fetchRecentMatchIds(
 // matchType='custom' (scrims/tournois). Le endpoint de base /players/{id}
 // expose lui une relation 'matches' qui referme aussi les matchs custom —
 // voir docs/TODO/todo.md, section "Idees - Tournois entre clans" (Phase 0).
-// Ne pas fusionner dans fetchRecentMatchIds : les deux appelants existants
-// (sync-matches, members/[id]/matches) doivent fusionner explicitement les
-// deux listes pour rester maitres de la deduplication.
+// Ne pas fusionner dans fetchRecentMatchIds. La synchronisation des parties
+// ne lit plus ni l'un ni l'autre : elle passe par fetchRecentMatchIdsForPlayers
+// (10 joueurs par appel, docs/TODO/synchro-parties-30-min.md), et la carriere
+// (fetchLifetimeStats) rattrape les parties que seul /seasons/lifetime voit.
 export async function fetchAllRecentMatchIds(
   playerId: string,
   shard: string = 'steam',
@@ -884,6 +888,11 @@ export type PubgLifetimeStatsResult = PubgLifetimeStats & {
     duo: PubgLifetimeStats | null
     solo: PubgLifetimeStats | null
   }
+  /**
+   * Parties récentes que la même réponse référence (matchmaking seulement) : la synchronisation de la carrière importe
+   * celles que la lecture groupée des parties n'a pas vues (docs/TODO/synchro-parties-30-min.md §2).
+   */
+  recentMatchIds: string[]
 }
 
 export async function fetchLifetimeStats(
@@ -908,6 +917,7 @@ export async function fetchLifetimeStats(
       duo: getModeAggregate(gameModeStats, 'duo', 'duo-fpp'),
       solo: getModeAggregate(gameModeStats, 'solo', 'solo-fpp'),
     },
+    recentMatchIds: lifetimeMatchIds(response.data),
   }
 }
 
@@ -1304,13 +1314,27 @@ function resolveMatchDetails(
   }
 }
 
+/**
+ * Réponses `/matches/{id}` d'un même passage de synchronisation, par partie : plusieurs membres du clan dans la même
+ * partie ne la relisent pas chacun (une partie publiée par PUBG ne change plus).
+ */
+export type MatchResponseCache = Map<string, ReturnType<typeof fetchMatchResponse>>
+
 export async function fetchMatchDetails(
   matchId: string,
   playerId: string,
   shard: string = 'steam',
-  context?: PubgApiCallContext
+  context?: PubgApiCallContext,
+  cache?: MatchResponseCache
 ): Promise<ResolvedPubgMatch> {
-  const { match, included } = await fetchMatchResponse(matchId, shard, context)
+  let pending = cache?.get(matchId)
+  if (!pending) {
+    pending = fetchMatchResponse(matchId, shard, context)
+    // Un échec n'est pas gardé : le membre suivant retente la lecture.
+    cache?.set(matchId, pending)
+    pending.catch(() => cache?.delete(matchId))
+  }
+  const { match, included } = await pending
 
   if (!match) {
     throw new Error('Invalid match data from PUBG API')

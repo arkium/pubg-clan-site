@@ -64,10 +64,10 @@ describe('GET /api/clans/[clanId]/lifetime-stats', () => {
     expect(mocks.requireNavPermission).toHaveBeenCalledWith('clan.stats')
   })
 
-  it('annonce la fréquence de la synchro carrière (défaut : une fois par jour)', async () => {
+  it('annonce la fréquence de la synchro carrière (défaut : toutes les 4 heures, comme dans le jeu)', async () => {
     const body = await (await call()).json()
     expect(mocks.cronFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { key: 'daily_lifetime_stats_sync' } }))
-    expect(body.lifetimeSync).toMatchObject({ expression: '0 4 * * *', runsPerDay: 1 })
+    expect(body.lifetimeSync).toMatchObject({ expression: '0 */4 * * *', runsPerDay: 6 })
   })
 
   it('suit le réglage de la synchro quand il existe', async () => {

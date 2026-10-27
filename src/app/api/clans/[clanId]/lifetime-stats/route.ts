@@ -2,6 +2,7 @@ import { requireNavPermission } from '@/middleware/auth-permission'
 import type { CareerLifetimeStats } from '@/lib/clan-career'
 import { getCronRunsPerDay } from '@/lib/cron-frequency'
 import { prisma } from '@/lib/prisma'
+import { SCHEDULE_VARIABLES } from '@/lib/site-config'
 
 /**
  * Carrière PUBG du clan (`/clans/[clanId]/stats/career`) : statistiques cumulées depuis la création des comptes, lues
@@ -12,7 +13,7 @@ import { prisma } from '@/lib/prisma'
 
 /** Synchro de la carrière (src/lib/cron-jobs.ts) : réglage en base, sinon variable d'environnement, sinon défaut. */
 const LIFETIME_SYNC_KEY = 'daily_lifetime_stats_sync'
-const LIFETIME_SYNC_DEFAULT = '0 4 * * *'
+const LIFETIME_SYNC_DEFAULT = SCHEDULE_VARIABLES.CLAN_LIFETIME_STATS_SYNC_CRON
 
 function parseClanId(value: string) {
   const parsed = Number(value)

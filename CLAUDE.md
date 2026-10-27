@@ -472,9 +472,9 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 
 **Scheduled Jobs:**
 ```
-0 2 * * *  →  Clan match sync (latest matches from PUBG API)
+*/30 * * * *  →  Clan match sync (14-day match lists 10 players per call, high priority ; DB override in /settings/cron-schedules wins)
 0 3 * * *  →  Recalc leaderboard & badges (stats-calculator.ts)
-0 4 * * *  →  Lifetime stats sync (season averages)
+0 */4 * * *  →  Lifetime stats sync (career, low priority ; imports the matches only /seasons/lifetime references)
 0 5 * * *  →  Ranked season data sync
 0 18 * * *  →  Send online reminders (if enabled)
 */30 * * * *  →  Encountered players PUBG clan resolution (one `Player` row per identity, priority index) — kill feed names first (« Joueur inconnu »)
@@ -587,6 +587,11 @@ or dropping an index: `EncounteredPlayer` already carries 3× more index than da
 - **Override via UI:** `/settings/pubg-api-rate-limit` (admin only)
 - **Override via CLI:** Set env var `PUBG_API_RATE_LIMIT_RPM` before running worker
 - **Fallback:** If DB query fails, reads from env var
+- **Queue (`src/lib/api-throttle.ts`, since 2026-10-27):** `/matches/{id}` is **not** rate-limited by PUBG (no
+  `X-RateLimit-*` header, readable without a key) — it bypasses the 6 s queue (4 in parallel, still logged). Limited
+  calls carry a `priority` (`PubgApiCallContext`): `high` = match sync / tournament rounds, `low` = background (career,
+  seasons, encountered players). Never read a player's matches one by one in a loop: `fetchRecentMatchIdsForPlayers`
+  reads 10 per call ([synchro-parties-30-min.md](docs/TODO/synchro-parties-30-min.md)).
 
 #### 9. **Vitest ne ramasse que `src/lib/**`**
 - **Issue:** `vitest.config.ts` déclare `include: ['src/lib/**/*.test.ts']`. Un test posé ailleurs

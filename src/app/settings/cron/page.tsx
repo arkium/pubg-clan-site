@@ -141,7 +141,7 @@ const MANUAL_ACTIONS_CONFIG: ManualActionConfig[] = [
     action: 'sync_matches',
     label: 'Synchroniser les matchs',
     cronKey: 'daily_sync',
-    cronLabel: 'Sync quotidien clans',
+    cronLabel: 'Sync des parties des clans',
     description:
       "Interroge l'API PUBG pour découvrir et importer les nouveaux matchs du clan. Ne met pas la télémétrie en file : c'est le bouton « Mettre en file » de la mise en route du clan, ou Données › Rattrapages.",
   },
@@ -165,7 +165,7 @@ const MANUAL_ACTIONS_CONFIG: ManualActionConfig[] = [
     action: 'sync_lifetime_stats',
     label: 'Synchroniser stats lifetime',
     cronKey: 'daily_lifetime_stats_sync',
-    cronLabel: 'Sync lifetime quotidienne',
+    cronLabel: 'Sync carrière (lifetime)',
     description:
       "Récupère via l'API PUBG les statistiques de carrière globale (lifetime toutes saisons confondues) de chaque membre.",
   },
@@ -174,9 +174,9 @@ const MANUAL_ACTIONS_CONFIG: ManualActionConfig[] = [
 const HISTORY_PAGE_SIZE = 10
 
 const SCHEDULE_LABELS: Record<string, string> = {
-  daily_sync: 'Sync quotidien clans',
+  daily_sync: 'Sync des parties des clans',
   daily_stats_recalc: 'Recalcul stats quotidien',
-  daily_lifetime_stats_sync: 'Sync lifetime quotidienne',
+  daily_lifetime_stats_sync: 'Sync carrière (lifetime)',
   daily_season_stats_sync: 'Sync season stats quotidienne',
   clan_online_reminder: 'Rappel présence en ligne',
   weekly_report_reminder: 'Rappel rapport hebdo',

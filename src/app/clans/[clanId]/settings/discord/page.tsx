@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { type ReactNode, useEffect, useMemo, useState } from 'react'
-import { AlertTriangle, CheckCircle2, Copy, Info, Lock, MessageSquare, Save, Send, Trophy } from 'lucide-react'
+import { AlertTriangle, CheckCircle2, Clock, Copy, Info, Lock, MessageSquare, Save, Send, Trophy } from 'lucide-react'
 
 import DiscordEmbedPreview from '@/components/discord/DiscordEmbedPreview'
 import ClanSettingsBanner from '@/components/clan-settings/ClanSettingsBanner'
@@ -19,6 +19,7 @@ import {
   type DiscordSettings,
   type DiscordTeamMode,
 } from '@/lib/discord/discord-config'
+import type { Top1DelayInfo } from '@/lib/discord/discord-sync-delay'
 import { buildTop1WebhookPayload } from '@/lib/discord/discord-top1-embed'
 import { buildTournamentRoundWebhookPayload } from '@/lib/discord/discord-tournament-embed'
 
@@ -153,6 +154,8 @@ export default function ClanDiscordSettingsPage() {
 
   const [settings, setSettings] = useState<DiscordSettings>(DEFAULT_DISCORD_SETTINGS)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
+  // Délai d'une alerte Top 1, d'après la fréquence réelle de la synchronisation des parties (discord-sync-delay.ts).
+  const [top1Delay, setTop1Delay] = useState<Top1DelayInfo | null>(null)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [saving, setSaving] = useState(false)
   const [testingKind, setTestingKind] = useState<'top1' | 'tournament' | null>(null)
@@ -179,7 +182,7 @@ export default function ClanDiscordSettingsPage() {
       try {
         const response = await fetch(`/api/clans/${clanId}/settings/discord`, { cache: 'no-store' })
         const payload = (await response.json().catch(() => null)) as
-          | { settings?: DiscordSettings; clanLabel?: string | null; error?: string }
+          | { settings?: DiscordSettings; clanLabel?: string | null; top1Delay?: Top1DelayInfo; error?: string }
           | null
 
         if (!response.ok) {
@@ -189,6 +192,7 @@ export default function ClanDiscordSettingsPage() {
         if (!cancelled) {
           setSettings(payload?.settings ?? DEFAULT_DISCORD_SETTINGS)
           setClanLabel(payload?.clanLabel ?? null)
+          setTop1Delay(payload?.top1Delay ?? null)
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -424,7 +428,7 @@ export default function ClanDiscordSettingsPage() {
           id="discord-top1"
           icon={MessageSquare}
           title="Alertes Top 1"
-          meta="Un message part dès qu’une escouade du clan termine première."
+          meta="Un message part après chaque victoire d’une escouade du clan."
         >
           <div className="grid gap-4 lg:grid-cols-2">
             <div className="flex flex-col gap-4">
@@ -435,6 +439,13 @@ export default function ClanDiscordSettingsPage() {
                 checked={top1.enabled}
                 onChange={(enabled) => updateTop1({ enabled })}
               />
+
+              {top1Delay ? (
+                <p data-testid="top1-delay" className="app-panel-muted flex items-start gap-2 px-3 py-2 text-xs text-gray-600">
+                  <Clock className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+                  <span>{top1Delay.text}</span>
+                </p>
+              ) : null}
 
               <label className="flex flex-col gap-1">
                 <span className="t-label">URL du webhook Discord</span>

@@ -6,9 +6,30 @@ const PUBG_API_RATE_LIMIT_RPM = 10
 const RATE_LIMIT_SAFETY_BUFFER = 1
 const RATE_LIMIT_RESET_PADDING_MS = 250
 
+/**
+ * Lectures simultanées au plus des endpoints que PUBG ne limite pas (`/matches/{id}`) : sans en-tête `X-RateLimit-*`,
+ * lisibles même sans clé (vérifié le 2026-10-27, docs/TODO/synchro-parties-30-min.md). Ils ne passent plus par la file
+ * à un appel toutes les 6 s, qui reste celle des endpoints limités (`/players`, `/seasons`, `/clans`…).
+ */
+export const UNTHROTTLED_CONCURRENCY = 4
+
+/** `/shards/{shard}/matches/{id}` : non soumis au quota de la clé. */
+export function isUnthrottledPubgEndpoint(endpoint: string | undefined) {
+  return typeof endpoint === 'string' && /\/matches\/[^/?]+$/.test(endpoint)
+}
+
+/**
+ * Priorité dans la file des endpoints limités : `high` (synchronisation des parties, manches de tournoi — ce qui fait
+ * partir une alerte Top 1) passe devant `normal` (par défaut), qui passe devant `low` (tâches de fond : carrière,
+ * saisons, clans des joueurs croisés). Ordre d'arrivée conservé à priorité égale.
+ */
+export type PubgApiPriority = 'high' | 'normal' | 'low'
+const PRIORITY_RANK: Record<PubgApiPriority, number> = { high: 0, normal: 1, low: 2 }
+
 type QueueItem<T> = {
   fn: () => Promise<T>
   metadata?: PubgApiRequestMetadata
+  rank: number
   resolve: (value: T) => void
   reject: (reason: unknown) => void
 }
@@ -20,6 +41,7 @@ export type PubgApiRequestMetadata = {
   shard?: string | null
   clanId?: number | null
   memberId?: number | null
+  priority?: PubgApiPriority
 }
 
 type ExtractedRateLimit = {
@@ -46,9 +68,25 @@ export class ApiQueue {
     this.maxRetries = maxRetries
   }
 
+  private unthrottledRunning = 0
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private unthrottledWaiting: QueueItem<any>[] = []
+
   add<T>(fn: () => Promise<T>, metadata?: PubgApiRequestMetadata): Promise<T> {
     return new Promise<T>((resolve, reject) => {
-      this.queue.push({ fn, metadata, resolve, reject })
+      const item: QueueItem<T> = { fn, metadata, rank: PRIORITY_RANK[metadata?.priority ?? 'normal'], resolve, reject }
+
+      if (isUnthrottledPubgEndpoint(metadata?.endpoint)) {
+        this.unthrottledWaiting.push(item)
+        this.pumpUnthrottled()
+        return
+      }
+
+      // Après le dernier élément de priorité égale ou plus haute : la plus haute d'abord, l'ordre d'arrivée ensuite.
+      const position = this.queue.findIndex((queued) => queued.rank > item.rank)
+      if (position < 0) this.queue.push(item)
+      else this.queue.splice(position, 0, item)
+
       if (!this.running) {
         this.running = true
         void this.drain()
@@ -56,70 +94,90 @@ export class ApiQueue {
     })
   }
 
+  /** Éléments en attente dans la file des endpoints limités (tests, observabilité). */
+  get pendingCount() {
+    return this.queue.length
+  }
+
+  private pumpUnthrottled() {
+    while (this.unthrottledRunning < UNTHROTTLED_CONCURRENCY && this.unthrottledWaiting.length > 0) {
+      const item = this.unthrottledWaiting.shift()!
+      this.unthrottledRunning += 1
+      void this.execute(item).finally(() => {
+        this.unthrottledRunning -= 1
+        this.pumpUnthrottled()
+      })
+    }
+  }
+
   private async drain(): Promise<void> {
     while (this.queue.length > 0) {
       const item = this.queue.shift()!
       await this.waitIfNearRateLimit()
-
-      const startTime = Date.now()
-      const startedAt = new Date(startTime)
-      this.log('API call started')
-      try {
-        const { result, retryCount } = await this.callWithRetry(item.fn)
-        const rateLimit = extractRateLimitFromSuccessValue(result)
-        this.updateRateLimitState(rateLimit)
-        this.log(`API call succeeded in ${Date.now() - startTime}ms`)
-        void createPubgApiCallLog({
-          source: item.metadata?.source ?? 'gateway',
-          method: item.metadata?.method ?? 'GET',
-          endpoint: item.metadata?.endpoint ?? 'unknown-endpoint',
-          shard: item.metadata?.shard ?? null,
-          statusCode: extractStatusCodeFromValue(result),
-          success: true,
-          retryCount,
-          startedAt,
-          finishedAt: new Date(),
-          durationMs: Date.now() - startTime,
-          clanId: item.metadata?.clanId ?? null,
-          memberId: item.metadata?.memberId ?? null,
-          errorMessage: null,
-          rateLimitLimit: rateLimit.limit,
-          rateLimitRemaining: rateLimit.remaining,
-          rateLimitResetAt: rateLimit.resetAt,
-        }).catch(() => undefined)
-        item.resolve(result)
-      } catch (err) {
-        const rateLimit = extractRateLimitFromError(err)
-        this.updateRateLimitState(rateLimit)
-        this.log(
-          `API call failed after ${Date.now() - startTime}ms: ${err instanceof Error ? err.message : String(err)}`
-        )
-        void createPubgApiCallLog({
-          source: item.metadata?.source ?? 'gateway',
-          method: item.metadata?.method ?? 'GET',
-          endpoint: item.metadata?.endpoint ?? 'unknown-endpoint',
-          shard: item.metadata?.shard ?? null,
-          statusCode: extractStatusCodeFromError(err),
-          success: false,
-          retryCount: extractRetryCountFromError(err),
-          startedAt,
-          finishedAt: new Date(),
-          durationMs: Date.now() - startTime,
-          clanId: item.metadata?.clanId ?? null,
-          memberId: item.metadata?.memberId ?? null,
-          errorMessage: err instanceof Error ? err.message : String(err),
-          rateLimitLimit: rateLimit.limit,
-          rateLimitRemaining: rateLimit.remaining,
-          rateLimitResetAt: rateLimit.resetAt,
-        }).catch(() => undefined)
-        item.reject(err)
-      }
+      await this.execute(item)
 
       if (this.queue.length > 0) {
         await this.sleep(this.intervalMs)
       }
     }
     this.running = false
+  }
+
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private async execute(item: QueueItem<any>): Promise<void> {
+    const startTime = Date.now()
+    const startedAt = new Date(startTime)
+    this.log('API call started')
+    try {
+      const { result, retryCount } = await this.callWithRetry(item.fn)
+      const rateLimit = extractRateLimitFromSuccessValue(result)
+      this.updateRateLimitState(rateLimit)
+      this.log(`API call succeeded in ${Date.now() - startTime}ms`)
+      void createPubgApiCallLog({
+        source: item.metadata?.source ?? 'gateway',
+        method: item.metadata?.method ?? 'GET',
+        endpoint: item.metadata?.endpoint ?? 'unknown-endpoint',
+        shard: item.metadata?.shard ?? null,
+        statusCode: extractStatusCodeFromValue(result),
+        success: true,
+        retryCount,
+        startedAt,
+        finishedAt: new Date(),
+        durationMs: Date.now() - startTime,
+        clanId: item.metadata?.clanId ?? null,
+        memberId: item.metadata?.memberId ?? null,
+        errorMessage: null,
+        rateLimitLimit: rateLimit.limit,
+        rateLimitRemaining: rateLimit.remaining,
+        rateLimitResetAt: rateLimit.resetAt,
+      }).catch(() => undefined)
+      item.resolve(result)
+    } catch (err) {
+      const rateLimit = extractRateLimitFromError(err)
+      this.updateRateLimitState(rateLimit)
+      this.log(
+        `API call failed after ${Date.now() - startTime}ms: ${err instanceof Error ? err.message : String(err)}`
+      )
+      void createPubgApiCallLog({
+        source: item.metadata?.source ?? 'gateway',
+        method: item.metadata?.method ?? 'GET',
+        endpoint: item.metadata?.endpoint ?? 'unknown-endpoint',
+        shard: item.metadata?.shard ?? null,
+        statusCode: extractStatusCodeFromError(err),
+        success: false,
+        retryCount: extractRetryCountFromError(err),
+        startedAt,
+        finishedAt: new Date(),
+        durationMs: Date.now() - startTime,
+        clanId: item.metadata?.clanId ?? null,
+        memberId: item.metadata?.memberId ?? null,
+        errorMessage: err instanceof Error ? err.message : String(err),
+        rateLimitLimit: rateLimit.limit,
+        rateLimitRemaining: rateLimit.remaining,
+        rateLimitResetAt: rateLimit.resetAt,
+      }).catch(() => undefined)
+      item.reject(err)
+    }
   }
 
   private async callWithRetry<T>(fn: () => Promise<T>): Promise<{ result: T; retryCount: number }> {

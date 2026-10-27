@@ -12,9 +12,9 @@ En développement (`NODE_ENV !== 'production'`), les crons s'activent même sans
 
 | Nom interne | Variable cron | Schedule par défaut | Rôle |
 |---|---|---|---|
-| `daily_sync` | `CLAN_MATCH_SYNC_CRON` | `0 2 * * *` | Sync matchs PUBG pour tous les clans actifs |
+| `daily_sync` | `CLAN_MATCH_SYNC_CRON` | `*/30 * * * *` | Sync matchs PUBG pour tous les clans actifs (lots de 10 joueurs, priorité haute) |
 | `daily_stats_recalc` | `CLAN_STATS_RECALC_CRON` | `0 3 * * *` | Recalcul stats week/month/all pour tous les clans actifs |
-| `daily_lifetime_stats_sync` | `CLAN_LIFETIME_STATS_SYNC_CRON` | `0 4 * * *` | Rafraîchit les stats lifetime PUBG pour tous les clans |
+| `daily_lifetime_stats_sync` | `CLAN_LIFETIME_STATS_SYNC_CRON` | `0 */4 * * *` | Rafraîchit les stats lifetime PUBG pour tous les clans (priorité basse), rattrape les parties qu'elles référencent |
 | `daily_season_stats_sync` | `CLAN_SEASON_STATS_SYNC_CRON` | `0 5 * * *` | Rafraîchit les stats de saison ranked pour tous les clans |
 | `clan_online_reminder` | `CLAN_ONLINE_REMINDER_CRON` | `0 18 * * *` | Envoie les rappels "clan en ligne ce soir" |
 | `weekly_report_reminder` | `WEEKLY_REPORT_REMINDER_CRON` | `0 9 * * *` | Envoie les rappels de rapport hebdomadaire disponible |
@@ -39,11 +39,13 @@ Ces schedules sont éditables sans redémarrage depuis `/settings/cron` (SuperUs
 
 ### `daily_sync` — Sync matchs
 
-Déclenché à 2 h chaque nuit pour tous les clans actifs (`Clan.isActive = true`).
+Toutes les 30 minutes par défaut depuis le 2026-10-27 (avant : réglé en base sur `0 * * * *`, mais un tour durait
+4 h 20 et les déclenchements tombant pendant un tour étaient sautés) pour tous les clans actifs (`Clan.isActive = true`).
+Le réglage en base (`/settings/cron-schedules`) l'emporte sur ce défaut — [synchro-parties-30-min.md](../TODO/synchro-parties-30-min.md).
 
 Pour chaque clan :
 - Appelle `POST /api/clans/[clanId]/sync-matches` (endpoint interne).
-- Pour chaque membre actif : résolution du `pubgAccountId` si absent, récupération des matchs récents PUBG, import incrémental, upsert des lignes `Match`, détection des squads (`SquadMatch` / `SquadMember`).
+- Résolution du `pubgAccountId` des membres qui n'en ont pas, puis parties des 14 derniers jours **par lots de 10 joueurs** (`players?filter[playerIds]`, `fetchRecentMatchIdsForPlayers`, priorité haute dans la file PUBG) — plus de `players/{id}` ni de `seasons/lifetime` par membre. Import incrémental : `matches/{id}` (non limité par PUBG, hors de la file à 6 s, lu une fois par passage), upsert des lignes `Match`, détection des squads (`SquadMatch` / `SquadMember`).
 - Retry par clan : jusqu'à `MAX_SYNC_ATTEMPTS` (3) tentatives.
 - Si `TELEMETRY_SYNC_ENABLED=true` : met en file les matchs nécessitant une télémétrie (action `telemetry_live_sync`, voir plus bas) — aucun téléchargement/parsing n'est fait en-process dans `daily_sync` lui-même.
 
@@ -64,11 +66,12 @@ Déclenché à 3 h pour tous les clans actifs.
 
 ### `daily_lifetime_stats_sync` — Stats lifetime
 
-Déclenché à 4 h pour tous les clans actifs.
+Toutes les 4 heures par défaut depuis le 2026-10-27 (comme la carrière dans le jeu), pour tous les clans actifs, en
+priorité basse dans la file PUBG.
 
 - Appelle `syncClanLifetimeStats(clanId)` pour chaque clan.
 - Résolution de l'account PUBG si nécessaire.
-- Appel API PUBG lifetime.
+- Appel API PUBG lifetime (`seasons/lifetime`) ; les parties que la réponse référence et que le site n'a pas sont importées (`importMatchesForMember`) — rattrapage de la lecture groupée, 1 partie sur 420 le 2026-10-27.
 - Upsert des lignes `memberLifetimeStats` (combat, victory, support, vehicle, movement, other).
 - Met à jour `lastRefreshedAt`.
 

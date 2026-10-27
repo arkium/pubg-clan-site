@@ -1,6 +1,7 @@
 import { Prisma } from '@prisma/client'
 
 import { assignClanSubdomainSafely } from '@/lib/clan-subdomain-service'
+import { importMatchesForMember } from '@/lib/matches-sync-service'
 import { prisma } from '@/lib/prisma'
 import {
   fetchClanMembers,
@@ -552,6 +553,7 @@ export async function syncClanLifetimeStats(clanId: number) {
     },
     select: {
       id: true,
+      displayName: true,
       pubgPlayerName: true,
       pubgAccountId: true,
       platformShard: true,
@@ -561,6 +563,7 @@ export async function syncClanLifetimeStats(clanId: number) {
 
   let refreshedCount = 0
   let skippedCount = 0
+  let importedMatches = 0
   const errors: string[] = []
 
   for (const member of members) {
@@ -587,7 +590,8 @@ export async function syncClanLifetimeStats(clanId: number) {
         })
       }
 
-      const stats = await fetchLifetimeStats(accountId, member.platformShard, { clanId, memberId: member.id })
+      // Tâche de fond (toutes les 4 heures) : la synchronisation des parties passe devant dans la file PUBG.
+      const stats = await fetchLifetimeStats(accountId, member.platformShard, { clanId, memberId: member.id, priority: 'low' })
       const now = new Date()
 
       await prisma.memberLifetimeStats.upsert({
@@ -620,6 +624,20 @@ export async function syncClanLifetimeStats(clanId: number) {
       })
 
       refreshedCount += 1
+
+      // Rattrapage : la même réponse référence des parties récentes, dont de rares que la lecture groupée de la
+      // synchronisation des parties n'a pas vues (1 sur 420 le 2026-10-27, docs/TODO/synchro-parties-30-min.md §2).
+      try {
+        const imported = await importMatchesForMember({
+          clanId,
+          member: { id: member.id, displayName: member.displayName, platformShard: member.platformShard, pubgAccountId: accountId },
+          matchIds: stats.recentMatchIds,
+        })
+        importedMatches += imported.importedCount
+        errors.push(...imported.errors)
+      } catch (importError) {
+        errors.push(`Member ${member.id}: rattrapage des parties — ${importError instanceof Error ? importError.message : String(importError)}`)
+      }
     } catch (error) {
       skippedCount += 1
       const reason = error instanceof Error ? error.message : 'Erreur inconnue'
@@ -632,6 +650,7 @@ export async function syncClanLifetimeStats(clanId: number) {
     membersTotal: members.length,
     refreshedCount,
     skippedCount,
+    importedMatches,
     errors,
   }
 }

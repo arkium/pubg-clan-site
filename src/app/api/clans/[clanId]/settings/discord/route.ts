@@ -4,7 +4,9 @@ import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import { isValidDiscordWebhookUrl } from '@/lib/discord/discord-config'
 import { getDiscordSettings, updateDiscordSettings } from '@/lib/discord/discord-config-service'
+import { describeTop1Delay } from '@/lib/discord/discord-sync-delay'
 import { prisma } from '@/lib/prisma'
+import { SCHEDULE_VARIABLES } from '@/lib/site-config'
 
 const MentionSchema = z.object({
   type: z.enum(['none', 'here', 'everyone', 'role']),
@@ -92,14 +94,20 @@ export async function GET(request: Request, { params }: { params: Promise<{ clan
   if (permissionError) return permissionError
 
   try {
-    const [settings, clan] = await Promise.all([
+    const [settings, clan, syncSchedule] = await Promise.all([
       getDiscordSettings(clanId),
       prisma.clan.findUnique({ where: { id: clanId }, select: { name: true, tag: true } }),
+      // Fréquence réelle de la synchronisation des parties (réglage en base, sinon environnement, sinon défaut) :
+      // l'alerte Top 1 part quand elle importe la partie.
+      prisma.cronSchedule.findUnique({ where: { key: 'daily_sync' }, select: { expression: true } }),
     ])
 
     return Response.json({
       settings,
       clanLabel: clan ? `[${clan.tag}] ${clan.name}` : null,
+      top1Delay: describeTop1Delay(
+        syncSchedule?.expression ?? process.env.CLAN_MATCH_SYNC_CRON ?? SCHEDULE_VARIABLES.CLAN_MATCH_SYNC_CRON
+      ),
     })
   } catch (error) {
     console.error('[discord] Lecture de la configuration impossible:', error)

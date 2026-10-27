@@ -157,11 +157,13 @@ export async function resolveOneEncounteredPlayerCandidate(
       }
     }
 
+    // Le cron de résolution est une tâche de fond : la synchronisation des parties passe devant dans la file PUBG.
     const apiContext: PubgApiCallContext = {
       source:
         options?.source === 'manual'
           ? 'encountered-player-resolution-manual'
           : 'encountered-player-resolution-cron',
+      priority: options?.source === 'manual' ? 'normal' : 'low',
     }
 
     const clan = await fetchPlayerClan(candidate.pubgAccountId, candidate.platformShard, apiContext)

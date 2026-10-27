@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   getDiscordSettings: vi.fn(),
   updateDiscordSettings: vi.fn(),
   clanFindUnique: vi.fn(),
+  cronFindUnique: vi.fn(),
   sendTop1Test: vi.fn(),
   sendTournamentTest: vi.fn(),
 }))
@@ -22,7 +23,7 @@ vi.mock('@/lib/discord/discord-config-service', () => ({
 }))
 
 vi.mock('@/lib/prisma', () => ({
-  prisma: { clan: { findUnique: mocks.clanFindUnique } },
+  prisma: { clan: { findUnique: mocks.clanFindUnique }, cronSchedule: { findUnique: mocks.cronFindUnique } },
 }))
 
 vi.mock('@/lib/discord/discord-service', () => ({
@@ -116,8 +117,24 @@ describe('discord settings route contracts', () => {
       await expect(response.json()).resolves.toEqual({
         settings: DEFAULT_DISCORD_SETTINGS,
         clanLabel: '[PLT] Les Poulets',
+        // Sans réglage en base : la fréquence par défaut de la synchronisation des parties.
+        top1Delay: expect.objectContaining({ everyMinutes: 30 }),
       })
       expect(mocks.getDiscordSettings).toHaveBeenCalledWith(7)
+      expect(mocks.cronFindUnique).toHaveBeenCalledWith(expect.objectContaining({ where: { key: 'daily_sync' } }))
+    })
+
+    it('annonce le délai d’une alerte Top 1 d’après le réglage de la synchronisation des parties', async () => {
+      mocks.cronFindUnique.mockResolvedValue({ expression: '0 * * * *' })
+
+      const response = await getDiscordSettingsRoute(
+        new Request('http://localhost:3000/api/clans/7/settings/discord'),
+        params('7')
+      )
+
+      const body = await response.json()
+      expect(body.top1Delay.everyMinutes).toBe(60)
+      expect(body.top1Delay.text).toContain('toutes les heures')
     })
 
     it('renvoie un libellé nul pour un clan introuvable', async () => {

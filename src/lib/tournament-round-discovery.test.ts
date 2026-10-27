@@ -156,6 +156,7 @@ describe('discoverTournamentRounds — l’organisateur observateur (tournoi FUN
     expect(mocks.fetchRecentMatchIdsForPlayers).toHaveBeenCalledWith(['account.kusaki', 'account.chris'], 'steam', {
       clanId: 16,
       source: 'tournament-sync',
+      priority: 'high',
     })
   })
 

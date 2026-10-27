@@ -74,9 +74,9 @@ const OBSOLETE_VARIABLES: Record<string, string> = {
  * ne peut pas importer cron-jobs (`server-only`, toutes les tâches) ; `site-config.test.ts` compare les deux listes.
  */
 export const SCHEDULE_VARIABLES: Record<string, string> = {
-  CLAN_MATCH_SYNC_CRON: '0 2 * * *',
+  CLAN_MATCH_SYNC_CRON: '*/30 * * * *',
   CLAN_STATS_RECALC_CRON: '0 3 * * *',
-  CLAN_LIFETIME_STATS_SYNC_CRON: '0 4 * * *',
+  CLAN_LIFETIME_STATS_SYNC_CRON: '0 */4 * * *',
   CLAN_SEASON_STATS_SYNC_CRON: '0 5 * * *',
   CLAN_ONLINE_REMINDER_CRON: '0 18 * * *',
   CHALLENGE_PROCESSING_CRON: '0 0 * * *',

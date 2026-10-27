@@ -499,8 +499,8 @@ async function syncClanSeasonStats(clanId: number) {
         }
 
         const [ranked, normal] = await Promise.all([
-          fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id }),
-          fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id }),
+          fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id, priority: 'low' }),
+          fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id, priority: 'low' }),
         ])
 
         const now = new Date()
@@ -571,7 +571,7 @@ async function syncClanWeaponMastery(clanId: number) {
         await prisma.clanMember.update({ where: { id: member.id }, data: { pubgAccountId: playerId } })
       }
 
-      const entries = await fetchWeaponMastery(playerId, member.platformShard, { clanId, memberId: member.id })
+      const entries = await fetchWeaponMastery(playerId, member.platformShard, { clanId, memberId: member.id, priority: 'low' })
       if (entries.length === 0) {
         refreshedCount += 1
         continue
@@ -1476,7 +1476,7 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
   {
     key: 'daily_sync',
     envVar: 'CLAN_MATCH_SYNC_CRON',
-    defaultExpression: '0 2 * * *',
+    defaultExpression: '*/30 * * * *',
     globalKey: 'clanSyncCronTask',
     run: runDailyClanSync,
   },
@@ -1490,7 +1490,7 @@ const CRON_SCHEDULE_DEFINITIONS: CronScheduleDefinition[] = [
   {
     key: 'daily_lifetime_stats_sync',
     envVar: 'CLAN_LIFETIME_STATS_SYNC_CRON',
-    defaultExpression: '0 4 * * *',
+    defaultExpression: '0 */4 * * *',
     globalKey: 'lifetimeStatsSyncCronTask',
     run: syncLifetimeStatsDaily,
   },

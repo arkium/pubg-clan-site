@@ -17,6 +17,7 @@ import {
 } from '@/components/player-playstyle/PlayerPlaystyleSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
@@ -191,6 +192,7 @@ export default function MemberPlaystylePage() {
             />
           </section>
         ) : null}
+        <PageScopeNote scope="member:playstyle" id={memberId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

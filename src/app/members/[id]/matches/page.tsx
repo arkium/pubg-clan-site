@@ -8,7 +8,9 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { KpiGrid } from '@/components/matches/MatchesUi'
 import { Chronology, ModeBar, ModeMenu, SessionList } from '@/components/player-matches/PlayerMatchesSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import MatchTypeMenu from '@/components/ui/MatchTypeMenu'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
@@ -31,6 +33,7 @@ import {
   type PlayerMode,
 } from '@/lib/player-matches'
 import type { DashboardMatch, MatchesResponse } from '@/types/dashboard'
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 
 const pickMatches = (payload: unknown) => {
   const body = payload as MatchesResponse | null
@@ -68,6 +71,8 @@ export default function MemberMatchesPage() {
   // Période : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
   const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [mode, setModeState] = useState<PlayerMode | null>(() => parsePlayerMode(searchParams.get('mode')))
+  // Type de partie (docs/TODO/aide-des-pages.md, lot 7) : tous les types par défaut, comme avant le filtre.
+  const [matchType, setMatchType] = useState<ClanMatchTypeFilter>('all')
   // `undefined` : la soirée la plus récente ; `null` : toutes repliées.
   const [openDate, setOpenDate] = useState<string | null | undefined>(() => parseSessionDate(searchParams.get('soiree')) ?? undefined)
   const [chronoPage, setChronoPage] = useState<number | null>(null)
@@ -79,7 +84,10 @@ export default function MemberMatchesPage() {
   const { isSuperUser } = useAuthSession()
 
   const base = memberId ? `/api/members/${memberId}` : null
-  const response = usePageData(base && ready ? `${base}/matches?period=${period}&limit=all&sortBy=pubgCreatedAt&sortDirection=desc` : null, pickMatches)
+  const response = usePageData(
+    base && ready ? `${base}/matches?period=${period}&matchType=${matchType}&limit=all&sortBy=pubgCreatedAt&sortDirection=desc` : null,
+    pickMatches
+  )
   const name = usePageData(base, pickName).data
 
   // La carte choisie dans la chronologie est amenée à l'écran une fois sa soirée ouverte.
@@ -130,6 +138,11 @@ export default function MemberMatchesPage() {
     resetView()
   }
 
+  function changeMatchType(next: ClanMatchTypeFilter) {
+    setMatchType(next)
+    resetView()
+  }
+
   function toggleSession(date: string) {
     const next = effectiveOpen === date ? null : date
     setOpenDate(next)
@@ -176,6 +189,7 @@ export default function MemberMatchesPage() {
       <DockingToolbar ariaLabel="Filtres des matchs du joueur">
         <div className="flex w-full flex-nowrap items-center gap-2">
           <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={changePeriod} size="xs" className="map-toolbar-period" />
+          <MatchTypeMenu value={matchType} onChange={changeMatchType} />
           <ModeMenu counts={modeCounts(all)} total={all.length} value={mode} onChange={changeMode} />
         </div>
       </DockingToolbar>
@@ -238,6 +252,7 @@ export default function MemberMatchesPage() {
             </p>
           </div>
         ) : null}
+        <PageScopeNote scope="member:matches" id={memberId} context={{ period, matchType }} className="mt-6" />
       </div>
     </div>
   )

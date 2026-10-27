@@ -29,6 +29,7 @@ import MatchTypeBadge from '@/components/ui/MatchTypeBadge'
 import RankCell from '@/components/ui/RankCell'
 import TeamModeBadge, { type TeamMode } from '@/components/ui/TeamModeBadge'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { CombatantName } from '@/components/telemetry/NpcBadge'
 import CoachContextButton from '@/components/coach/CoachContextButton'
@@ -1365,6 +1366,8 @@ export function MatchDebriefView({
             </section>
           )}
         </div>
+        {/* Vue d'un clan seulement : la vue d'un tournoi n'est pas une page du clan (docs/TODO/aide-des-pages.md). */}
+        {clanId ? <PageScopeNote scope="clan:telemetry/matches/[matchId]/debrief" id={Number(clanId)} className="mt-6" /> : null}
       </div>
     </div>
   )

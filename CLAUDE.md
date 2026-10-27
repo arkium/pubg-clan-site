@@ -243,6 +243,10 @@ Ne jamais lire/écrire le thème directement depuis une page — passer par les 
 - [ ] Changer un filtre ne replie pas la page : résultats précédents gardés, estompés, pendant le rechargement
 - [ ] Page ajoutée à la liste de `src/lib/ui-conformance.test.ts` si elle a un bandeau
 - [ ] Navigation de section incluse (`ClanSectionNav` ou équivalent)
+- [ ] Page d'un joueur (`/members/[id]/…`) ou d'un clan (`/clans/[clanId]/…`) : une entrée dans
+  `src/lib/page-scope-entries.ts` (ce qu'elle compte : types, période, source, dates) et `<PageScopeNote scope="…">`
+  en bas de page — barre « D'où viennent ces chiffres ? » et Méthodologie en découlent ; `page-scope.test.ts` échoue
+  sinon. Une règle de calcul changée = son entrée relue
 - [ ] Panneaux avec `.app-panel` / `.app-panel-muted` (pas de couleurs hardcodées)
 - [ ] Couleurs de texte/fond via classes Tailwind remappées ou tokens CSS
 - [ ] Rangs par `RankCell`, tri de tableau par `SortableTh`, états actifs en accent (§6 bis)

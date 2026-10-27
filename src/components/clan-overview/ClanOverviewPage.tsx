@@ -17,6 +17,7 @@ import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
 import Link from 'next/link'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
@@ -350,8 +351,14 @@ export default function ClanOverviewPage({ findings }: { findings?: React.ReactN
             <ExploreClan groups={exploreGroups} />
           </div>
         )}
-        {/* Bloc « En bref » rendu par le serveur : chiffres du clan et liens vers ses pages, dans le HTML. */}
-        {findings ? <div className="mt-6 pb-8">{findings}</div> : null}
+        {/* « D'où viennent ces chiffres ? » (docs/TODO/aide-des-pages.md) ; le bloc « En bref », rendu par le serveur
+            (chiffres du clan, liens vers ses pages), y est replié mais reste dans le HTML (D6 : jamais caché aux seuls
+            visiteurs). Hors de `ready` : le HTML du serveur le porte même avant les données du client. */}
+        <div className="mt-6 pb-8">
+          <PageScopeNote scope="clan:overview" id={clanId} context={{ period: selectedPeriod, matchType: selectedMatchType }}>
+            {findings}
+          </PageScopeNote>
+        </div>
       </div>
     </div>
   )

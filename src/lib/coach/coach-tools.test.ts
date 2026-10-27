@@ -451,7 +451,9 @@ describe('getDataCoverage', () => {
   it('le clan : ses membres actuels, sans ligne de joueur ; un autre membre ou un inconnu', async () => {
     const clan = (await run('getDataCoverage', { scope: 'clan' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
     expect(mocks.queryRaw.mock.calls[0][0].values).toEqual([292])
-    expect(mocks.dropAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { clanId: 292 } } }))
+    // Ses membres actifs, comme les pages du clan (`clanPlacementMemberWhere`).
+    expect(mocks.dropAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { clanId: 292, isActive: true, joinStatus: 'active' } } }))
+    expect(mocks.queryRaw.mock.calls[0][0].sql).toContain("cm.isActive = 1 AND cm.joinStatus = 'active'")
     expect(mocks.killAggregate).not.toHaveBeenCalled()
     expect(mocks.matchAggregate).not.toHaveBeenCalled()
     expect(clan).toMatchObject({ scope: 'le clan', activeMembers: 41, clanMatches: { count: 812 } })

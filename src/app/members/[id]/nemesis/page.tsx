@@ -7,6 +7,7 @@ import { useMemo, useState } from 'react'
 import { DeathCam, FaceOff, HuntersAndPrey, Tally, TrackedClans, WeaponMenu, weaponLabelOf, type NemesisPayload } from '@/components/nemesis/NemesisSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
@@ -105,6 +106,7 @@ export default function MemberNemesisPage() {
             </p>
           </div>
         ) : null}
+        <PageScopeNote scope="member:nemesis" id={memberId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

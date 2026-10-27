@@ -8,6 +8,7 @@ import { useEffect, useMemo, useState } from 'react'
 import CareerMetricCard from '@/components/clan-stats/CareerMetricCard'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import {
@@ -221,6 +222,7 @@ export default function ClanCareerPage() {
             ))}
           </>
         ) : null}
+        <PageScopeNote scope="clan:stats/career" id={clanId} className="mt-6" />
       </div>
     </div>
   )

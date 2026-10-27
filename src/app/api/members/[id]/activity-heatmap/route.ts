@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { clanPlacementMemberWhere, playerTeamOf } from '@/lib/clan-placement'
 import { getMapLabels } from '@/lib/map-label-service'
+import { matchTypeWhere, parsePlayerMatchType } from '@/lib/match-type-filter'
 import { prisma } from '@/lib/prisma'
 import { getPeriodStart } from '@/lib/period'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
@@ -114,6 +115,8 @@ export async function GET(
     const bestMode = parseBestMode(searchParams.get('bestMode'))
     const period = parsePeriod(searchParams.get('period'))
     const periodStart = getPeriodStart(period)
+    // Filtre « Type de partie » de la page (docs/TODO/aide-des-pages.md, lot 7) ; parties normales par défaut.
+    const typeWhere = matchTypeWhere(parsePlayerMatchType(searchParams.get('matchType'), 'official'))
     const selectedMapName = searchParams.get('mapName') ?? ''
     const targetMemberIdValue = searchParams.get('targetMemberId')
     const targetMemberId = targetMemberIdValue ? Number(targetMemberIdValue) : null
@@ -167,7 +170,7 @@ export async function GET(
 
       const clanMatches = await prisma.squadMatch.findMany({
         where: {
-          matchType: 'official',
+          ...typeWhere,
           ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
           members: {
             some: {
@@ -232,7 +235,7 @@ export async function GET(
     if (scope === 'best') {
       const squadMatches = await prisma.squadMatch.findMany({
         where: {
-          matchType: 'official',
+          ...typeWhere,
           ...(periodStart ? { createdAt: { gte: periodStart } } : {}),
           members: {
             some: {
@@ -373,7 +376,7 @@ export async function GET(
     const matches = await prisma.match.findMany({
       where: {
         memberId: effectiveMemberId,
-        matchType: 'official',
+        ...typeWhere,
         ...(periodStart ? { pubgCreatedAt: { gte: periodStart } } : {}),
       },
       select: {

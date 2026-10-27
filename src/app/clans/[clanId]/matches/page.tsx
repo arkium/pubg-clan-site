@@ -7,6 +7,7 @@ import { CalendarDays, Clock3, Crosshair, Flame, Gamepad2, Swords, Trophy } from
 import { KpiGrid, MatchesBanner, type Kpi } from '@/components/matches/MatchesUi'
 import SessionLogbook from '@/components/matches/SessionLogbook'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -158,6 +159,7 @@ export default function ClanMatchesPage() {
             <SessionLogbook clanId={clanId} period={period} gameMode={gameMode || undefined} sessions={sessions} />
           </div>
         ) : null}
+        <PageScopeNote scope="clan:matches" id={clanId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

@@ -2,6 +2,7 @@ import Link from 'next/link'
 import { Calculator } from 'lucide-react'
 
 import { LegalDocument, LegalFacts, LegalPageShell, LegalText, type LegalSection } from '@/components/legal/LegalLayout'
+import PageScopeMethodology from '@/components/legal/PageScopeMethodology'
 import { LEAGUE_MATCH_TYPE_OPTIONS } from '@/lib/clan-league'
 import { GEO_PROTECTED_RETENTION_DAYS, GEO_RETENTION_DAYS } from '@/lib/geo-retention'
 import { METHODOLOGY_PATH, METHODOLOGY_UPDATED_AT, SITE_DOMAIN } from '@/lib/legal/legal-info'
@@ -9,6 +10,7 @@ import { getLeagueSettings } from '@/lib/league-settings-service'
 import { SESSION_DAY_START_HOUR } from '@/lib/match-sessions'
 import { DISTINCTION_MIN_MATCHES } from '@/lib/distinctions'
 import { ZONE_READING_MIN_MATCHES } from '@/lib/zone-reading/zone-reading-analysis'
+import { PAGE_SCOPE_SECTION_ID } from '@/lib/page-scope'
 import { figuresDate } from '@/lib/site-figures'
 
 /**
@@ -17,7 +19,8 @@ import { figuresDate } from '@/lib/site-figures'
  * /settings/league. Chaque formule renvoie à son module de calcul, seule source de vérité :
  * Power score `src/lib/clan-league.ts`, rôles du clan `src/lib/pubg-telemetry/period-aggregates.ts`, rôles entre clans
  * `src/lib/players-ranking.ts`, distinctions `src/lib/distinctions.ts`, soirée `src/lib/match-sessions.ts`, conservation des
- * positions `src/lib/geo-retention.ts` (appliquée par `purgeExpiredGeolocation`).
+ * positions `src/lib/geo-retention.ts` (appliquée par `purgeExpiredGeolocation`), ce que compte chaque page d'un joueur et
+ * d'un clan `src/lib/page-scope-entries.ts` (le même registre que leur barre « D'où viennent ces chiffres ? »).
  */
 
 const integer = new Intl.NumberFormat('fr-FR')
@@ -174,6 +177,11 @@ export default async function MethodologyPage() {
           </LegalText>
         </>
       ),
+    },
+    {
+      id: PAGE_SCOPE_SECTION_ID,
+      title: 'Pages d’un joueur, pages d’un clan',
+      content: <PageScopeMethodology />,
     },
   ]
 

@@ -29,6 +29,7 @@ import ToolbarGroup from '@/components/ui/ToolbarGroup'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import RankCell from '@/components/ui/RankCell'
 import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 
@@ -327,6 +328,8 @@ export default function ClanAwardsPage() {
 
         {/* Top performers du clan (déplacés de la vue d'ensemble, docs/features/clans.md). */}
         {clanId && periodReady ? <ClanTopPerformers clanId={clanId} period={period} /> : null}
+
+        <PageScopeNote scope="clan:awards" id={clanId} context={{ period, matchType: scope === 'normal' ? 'official' : 'all' }} />
       </div>
     </div>
   )

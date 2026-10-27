@@ -15,6 +15,7 @@ import {
 import { MapPager, mapLabel, PickerChip, PlaystyleLegend } from '@/components/maps/MapToolbarControls'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
@@ -171,6 +172,7 @@ export default function ClanDropZonesPage() {
             <p className="app-panel-muted p-4 text-sm text-gray-500">Aucun saut du clan {PERIOD_WHEN_LABELS[period]}.</p>
           )
         ) : null}
+        <PageScopeNote scope="clan:drop-zones" id={clanId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

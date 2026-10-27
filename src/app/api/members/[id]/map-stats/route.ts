@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 
 import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf, clanPlacementTeam, playerTeamOf } from '@/lib/clan-placement'
 import { mapDisplayName, getMapLabels } from '@/lib/map-label-service'
+import { matchTypeWhere, parsePlayerMatchType } from '@/lib/match-type-filter'
 import { prisma } from '@/lib/prisma'
 import { requireSameClanAsMember } from '@/middleware/auth-permission'
 
@@ -194,6 +195,9 @@ export async function GET(
     const bestMode = parseBestMode(searchParams.get('bestMode'))
     const period = parsePeriod(searchParams.get('period'))
     const periodBounds = getPeriodBounds(period)
+    // Filtre « Type de partie » de la page (docs/TODO/aide-des-pages.md, lot 7) ; parties normales par défaut, comme le
+    // résumé du tableau de bord, qui ne le passe pas.
+    const typeWhere = matchTypeWhere(parsePlayerMatchType(searchParams.get('matchType'), 'official'))
     const targetMemberIdValue = searchParams.get('targetMemberId')
     const targetMemberId = targetMemberIdValue ? Number(targetMemberIdValue) : null
 
@@ -270,7 +274,7 @@ export async function GET(
             clanId: member.clanId,
             isActive: true,
           },
-          matchType: 'official',
+          ...typeWhere,
           ...(periodBounds
             ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),
@@ -291,7 +295,7 @@ export async function GET(
     } else if (scope === 'best') {
       const squadMatches = await prisma.squadMatch.findMany({
         where: {
-          matchType: 'official',
+          ...typeWhere,
           ...(periodBounds
             ? { createdAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),
@@ -325,7 +329,7 @@ export async function GET(
         matchRows = await prisma.match.findMany({
           where: {
             memberId: { in: bestTeam.memberIds },
-            matchType: 'official',
+            ...typeWhere,
             pubgMatchId: { in: pubgMatchIds.map((entry) => entry.pubgMatchId) },
             ...(periodBounds
               ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
@@ -355,7 +359,7 @@ export async function GET(
       matchRows = await prisma.match.findMany({
         where: {
           memberId: effectiveMemberId,
-          matchType: 'official',
+          ...typeWhere,
           ...(periodBounds
             ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),

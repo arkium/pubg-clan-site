@@ -9,6 +9,7 @@ import { useSelectedClan } from '@/hooks/useSelectedClan'
 import type { ChallengeDuration, ChallengeRewards } from '@/lib/challenge-service'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 
 type Participant = {
@@ -204,6 +205,7 @@ export default function ChallengesPage() {
             </div>
           </>
         ) : null}
+        <PageScopeNote scope="clan:challenges" id={clanId} className="mt-6" />
       </div>
     </div>
   )

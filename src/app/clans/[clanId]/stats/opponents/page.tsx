@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import SettingsPageHeader from '@/components/settings/SettingsPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import type { EncounteredPlayerResolutionStatus } from '@/lib/encountered-player-status'
@@ -791,6 +792,7 @@ export default function EncounteredOpponentsPage() {
             </section>
           </div>
         ) : null}
+        <PageScopeNote scope="clan:stats/opponents" id={clanId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

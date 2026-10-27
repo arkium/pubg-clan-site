@@ -4586,19 +4586,32 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .coach-help-title > svg:first-child { color: var(--theme-ui-accent-text); }
 .coach-help-body { margin-top: 10px; }
 /* Barre « Comment ça marche ? » (icône accent, « Afficher » / « Masquer » et chevron à droite en accent) qui déplie les
-   trois blocs d'un coup — /account et page plein écran, demande du 25/10/2026. */
-.coach-help-group { border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); }
-.coach-help-group-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 14px 16px; font-size: 15px; font-weight: 800; color: var(--theme-ui-text); cursor: pointer; list-style: none; }
-.coach-help-group-title::-webkit-details-marker { display: none; }
-.coach-help-group-title:focus-visible { outline: 2px solid var(--theme-ui-accent-ring); outline-offset: -2px; border-radius: 14px; }
-.coach-help-group-title > svg:first-child { color: var(--theme-ui-accent-text); }
-.coach-help-group-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--theme-ui-accent-text); white-space: nowrap; }
-.coach-help-group-toggle svg { transition: transform 120ms ease-out; }
-.coach-help-group[open] > .coach-help-group-title .coach-help-group-toggle svg { transform: rotate(180deg); }
-.coach-help-when-open { display: none; }
-.coach-help-group[open] .coach-help-when-open { display: inline; }
-.coach-help-group[open] .coach-help-when-closed { display: none; }
+   trois blocs d'un coup — /account et page plein écran, demande du 25/10/2026. Même barre, classes `app-help-bar*`,
+   pour « D'où viennent ces chiffres ? » en bas des pages d'un joueur et d'un clan (PageScopeNote, 27/10/2026). */
+.coach-help-group, .app-help-bar { border: 1px solid var(--theme-ui-border); border-radius: 14px; background: var(--theme-ui-surface); }
+.coach-help-group-title, .app-help-bar-title { display: flex; align-items: center; gap: 10px; margin: 0; padding: 14px 16px; font-size: 15px; font-weight: 800; color: var(--theme-ui-text); cursor: pointer; list-style: none; }
+.coach-help-group-title::-webkit-details-marker, .app-help-bar-title::-webkit-details-marker { display: none; }
+.coach-help-group-title:focus-visible, .app-help-bar-title:focus-visible { outline: 2px solid var(--theme-ui-accent-ring); outline-offset: -2px; border-radius: 14px; }
+.coach-help-group-title > svg:first-child, .app-help-bar-title > svg:first-child { color: var(--theme-ui-accent-text); flex-shrink: 0; }
+.coach-help-group-toggle, .app-help-bar-toggle { margin-left: auto; display: inline-flex; align-items: center; gap: 4px; font-size: 13px; font-weight: 700; color: var(--theme-ui-accent-text); white-space: nowrap; }
+.coach-help-group-toggle svg, .app-help-bar-toggle svg { transition: transform 120ms ease-out; }
+.coach-help-group[open] > .coach-help-group-title .coach-help-group-toggle svg,
+.app-help-bar[open] > .app-help-bar-title .app-help-bar-toggle svg { transform: rotate(180deg); }
+.coach-help-when-open, .app-help-bar-when-open { display: none; }
+.coach-help-group[open] .coach-help-when-open, .app-help-bar[open] > .app-help-bar-title .app-help-bar-when-open { display: inline; }
+.coach-help-group[open] .coach-help-when-closed, .app-help-bar[open] > .app-help-bar-title .app-help-bar-when-closed { display: none; }
 .coach-help-group-body { padding: 0 12px 12px; }
+@media (prefers-reduced-motion: reduce) { .coach-help-group-toggle svg, .app-help-bar-toggle svg { transition: none; } }
+.app-help-bar-body { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 14px; }
+.app-help-bar-rows { margin: 0; display: grid; gap: 8px; }
+.app-help-bar-row { display: grid; gap: 2px; }
+@media (min-width: 640px) { .app-help-bar-row { grid-template-columns: 150px minmax(0, 1fr); gap: 12px; } }
+.app-help-bar-row dt { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--theme-ui-text-muted); }
+.app-help-bar-row dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--theme-ui-text-secondary); }
+.app-help-bar-row dd ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
+.app-help-bar-extra { border-top: 1px solid var(--theme-ui-border); padding-top: 12px; }
+.app-help-bar-link { font-size: 13px; font-weight: 700; color: var(--theme-ui-accent-text); }
+.app-help-bar-link:hover { text-decoration: underline; }
 .coach-help-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; line-height: 1.45; color: var(--theme-ui-text-secondary); }
 .coach-help-domains { display: grid; gap: 8px; }
 .coach-help-domain { display: flex; flex-direction: column; gap: 3px; }

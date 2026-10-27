@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import ChallengeLeaderboard from '@/components/ChallengeLeaderboard'
 import { CHALLENGE_TYPES } from '@/lib/challenge-types'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import RankCell from '@/components/ui/RankCell'
 
 type LeaderboardEntry = {
@@ -267,6 +268,8 @@ export default function ChallengePage() {
         <h2 className="mb-3 text-lg font-semibold text-gray-900">Classement</h2>
         <ChallengeLeaderboard leaderboard={leaderboard} metric={meta.metric} />
       </div>
+
+      <PageScopeNote scope="clan:challenges/[challengeId]" id={clanId} className="mt-6" />
     </main>
   )
 }

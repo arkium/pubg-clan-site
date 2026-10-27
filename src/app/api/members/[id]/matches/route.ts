@@ -1,5 +1,6 @@
 import { teamCountFromPhaseSnapshots } from '@/lib/home-showcase'
 import { getMapLabels } from '@/lib/map-label-service'
+import { matchTypeWhere, parsePlayerMatchType } from '@/lib/match-type-filter'
 import { STANDARD_PERIODS, getPeriodStart, parsePeriod } from '@/lib/period'
 import { prisma } from '@/lib/prisma'
 import { fetchRecentMatchIds, searchPlayerByName } from '@/lib/pubg'
@@ -95,9 +96,12 @@ export async function GET(
       const limit = limitParam && !all ? Math.min(Math.max(Number(limitParam) || 10, 1), 100) : 10
       const offset = offsetParam && !all ? Math.max(Number(offsetParam) || 0, 0) : 0
       const since = getPeriodDateFilter(period)
+      // Filtre « Type de partie » de la page (docs/TODO/aide-des-pages.md, lot 7) ; tous les types par défaut.
+      const typeWhere = matchTypeWhere(parsePlayerMatchType(searchParams.get('matchType'), 'all'))
 
       const where = {
         memberId,
+        ...typeWhere,
         ...(exactDateRange
           ? { pubgCreatedAt: { gte: exactDateRange.start, lt: exactDateRange.end } }
           : since

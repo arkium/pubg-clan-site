@@ -8,6 +8,7 @@ import Leaderboard from '@/components/Leaderboard'
 import DistinctionStrip from '@/components/ui/DistinctionStrip'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import PodiumCards from '@/components/ui/PodiumCards'
 import SegmentedControl from '@/components/ui/SegmentedControl'
@@ -199,6 +200,7 @@ export default function LeaderboardPage() {
             />
           </div>
         ) : null}
+        <PageScopeNote scope="clan:leaderboard" id={clanId} context={{ period, matchType }} className="mt-6" />
       </div>
     </div>
   )

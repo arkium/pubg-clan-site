@@ -7,7 +7,9 @@ import { CalendarDays } from 'lucide-react'
 import { MapPager, mapLabel, PickerChip, PlaystyleLegend, type PickerItem } from '@/components/maps/MapToolbarControls'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import MatchTypeMenu from '@/components/ui/MatchTypeMenu'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
@@ -22,6 +24,7 @@ import {
 } from '@/lib/activity-heatmap'
 import { formatPlayTime } from '@/lib/match-sessions'
 import { PERIOD_WHEN_LABELS, STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 
 type HeatmapScope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -88,6 +91,8 @@ export default function MemberHeatmapPage() {
   // Période de la page : URL, puis mémoire de la visite, puis « Tous » (docs/TODO/sticky.md §4.E).
   const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'all')
   const [mapName, setMapName] = useState('')
+  // Type de partie (docs/TODO/aide-des-pages.md, lot 7) : parties normales par défaut, comme avant le filtre.
+  const [matchType, setMatchType] = useState<ClanMatchTypeFilter>('official')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<HeatmapPayload | null>(null)
@@ -111,6 +116,7 @@ export default function MemberHeatmapPage() {
           scope,
           bestMode,
           period,
+          matchType,
         })
 
         if (scope === 'member' && targetMemberId) {
@@ -152,7 +158,7 @@ export default function MemberHeatmapPage() {
     return () => {
       cancelled = true
     }
-  }, [bestMode, mapName, memberId, period, periodReady, scope, targetMemberId])
+  }, [bestMode, mapName, matchType, memberId, period, periodReady, scope, targetMemberId])
 
   if (!memberId) {
     return (
@@ -257,6 +263,7 @@ export default function MemberHeatmapPage() {
           <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
             {!compact ? <MapPager maps={mapChoices} activeMap={mapName} onStep={stepMap} onSelect={setMapName} labelOf={mapChoiceLabel} /> : null}
             <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
+            {!compact ? <MatchTypeMenu value={matchType} onChange={setMatchType} /> : null}
             {!compact ? (
               <PickerChip
                 ariaLabel="Périmètre"
@@ -371,6 +378,7 @@ export default function MemberHeatmapPage() {
             </section>
           </div>
         )}
+        <PageScopeNote scope="member:heatmap" id={memberId} context={{ period, matchType }} className="mt-6" />
       </div>
     </div>
   )

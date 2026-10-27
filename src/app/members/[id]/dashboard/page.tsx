@@ -20,6 +20,7 @@ import { CalendarCard, CareerSummaryCard } from '@/components/player-career/Care
 import { ItemsSummaryCard, MapsSummaryCard, type MapSummaryRow } from '@/components/player-dashboard/SummaryLinkCards'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
@@ -189,6 +190,8 @@ export default function DashboardPage() {
             <ItemsSummaryCard memberId={memberId} stats={items.data} when={PERIOD_WHEN_LABELS[period]} />
             <MapsSummaryCard memberId={memberId} maps={maps.data} when={PERIOD_WHEN_LABELS[period]} />
           </div>
+
+          <PageScopeNote scope="member:dashboard" id={memberId} context={{ period }} />
         </div>
       ) : null}
     </div>

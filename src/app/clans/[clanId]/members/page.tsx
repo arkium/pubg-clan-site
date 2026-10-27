@@ -8,6 +8,7 @@ import { useParams, useRouter } from 'next/navigation'
 import MemberCard, { MemberAvatar } from '@/components/members/MemberCard'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
@@ -229,6 +230,7 @@ export default function ClanMembersPage() {
             ) : null}
           </section>
         ) : null}
+        <PageScopeNote scope="clan:members" id={clanId} className="mt-6" />
       </div>
     </div>
   )

@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { SortReminder } from '@/components/ui/SortableTh'
 import ArmoryCategoryPager, { ALL_ARSENAL_LABEL } from '@/components/weapons/ArmoryCategoryPager'
@@ -322,6 +323,7 @@ export default function ClanArmoryPage() {
             />
           </div>
         ) : null}
+        <PageScopeNote scope="clan:stats/weapons" id={clanId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

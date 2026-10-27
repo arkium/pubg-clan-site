@@ -16,6 +16,7 @@ import {
 import { PLAYSTYLE_LINK_ICONS, PlaystyleLinks } from '@/components/player-playstyle/PlayerPlaystyleSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SectionAnchorNav, { type SectionAnchorNavItem } from '@/components/ui/SectionAnchorNav'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
@@ -214,6 +215,7 @@ export default function ClanStatsPage() {
             ]}
           />
         </section>
+        <PageScopeNote scope="clan:stats" id={clanId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

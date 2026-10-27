@@ -46,6 +46,39 @@ export function mockClanOverview(api: ApiMock) {
     })
 }
 
+/**
+ * Barre « D'où viennent ces chiffres ? » (docs/TODO/aide-des-pages.md) : dates lues à sa première ouverture seulement,
+ * d'où une réponse à déclarer par les tests qui l'ouvrent.
+ */
+export function mockDataCoverage(api: ApiMock) {
+  const common = {
+    clanMatches: { firstSession: '2026-05-11', firstMatchAt: '2026-05-11T23:30:00.000Z', lastSession: '2026-10-26', lastMatchAt: '2026-10-26T20:00:00.000Z', count: 812 },
+    telemetry: { since: '2026-05-29', until: '2026-10-26', analyzed: 736, of: 812, percent: 91 },
+    drops: { since: '2026-05-29', until: '2026-10-26', count: 722 },
+    closures: { since: '2026-09-03', until: '2026-10-26', count: 525 },
+    items: { since: '2026-09-18', until: '2026-10-26' },
+  }
+  api
+    .on('GET', `/api/clans/${CLAN_ID}/data-coverage`, {
+      body: { coverage: { scope: 'clan', activeMembers: 41, ...common }, pendingAnalyses: 0, computedAt: '2026-10-27T08:00:00.000Z' },
+    })
+    .on('GET', `/api/members/${MEMBER_ID}/data-coverage`, {
+      body: {
+        coverage: {
+          scope: 'member',
+          onSiteSince: '2026-05-23',
+          ...common,
+          pubgMatches: { since: '2026-05-18', until: '2026-10-26', count: 1024, byType: [{ matchType: 'official', count: 989 }] },
+          kills: { since: '2026-05-29', until: '2026-10-26', count: 1119 },
+          positions: { since: '2026-05-29', until: '2026-10-26' },
+          careerSyncedAt: '2026-10-27T05:54:16.000Z',
+        },
+        pendingAnalyses: 2,
+        computedAt: '2026-10-27T08:00:00.000Z',
+      },
+    })
+}
+
 /** Le shell charge le profil du joueur consulté (nom dans le header) sur toutes les pages joueur. */
 function mockMemberShell(api: ApiMock) {
   mockMemberProfile(api)

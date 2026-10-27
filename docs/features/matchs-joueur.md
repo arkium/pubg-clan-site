@@ -22,7 +22,9 @@ route `GET /api/members/[id]/matches?period=&limit=all`. Anciens fichiers archiv
 
 - **Bandeau d'image** : « Carnet de vol de {joueur} », parties de la période, temps de jeu, chicken dinners.
 - **Bandeau** (`DockingToolbar`) sur une ligne, **docké aussi sur mobile** : exception nommée à sticky.md §2
-  (`MOBILE_DOCKED_EXTRA_CONTROLS`) — période et pastille de mode (menu avec le nombre de parties par mode, `?mode=`).
+  (`MOBILE_DOCKED_EXTRA_CONTROLS`) — période, type de partie (`MatchTypeMenu` : Normal, Ranked, Casual, Tournois,
+  « Tous » par défaut, depuis le 2026-10-27 — docs/TODO/aide-des-pages.md, lot 7) et pastille de mode (menu avec le
+  nombre de parties par mode, `?mode=`).
 - **Chiffres clés** (`KpiGrid` des pages Matchs) : kills et par partie, dégâts et par partie, meilleure place (puis le
   plus de kills) avec carte et jour, place moyenne.
 - **Chronologie** : une étape par partie (jour à chaque nouvelle soirée, séparateur, heure, miniature de carte, couronne
@@ -40,7 +42,8 @@ Logique pure : `src/lib/player-matches.ts`. Composants : `src/components/player-
 ## 3. Route — `GET /api/members/[id]/matches`
 
 Mode historique (au moins un de `period`, `limit`, `offset`) : `limit=all` pour toute la période, sinon 1 à 100 (le
-tableau de bord garde `limit=5`). Chaque partie porte en plus `squad` (coéquipiers du clan), `teamCount` et
+tableau de bord garde `limit=5`). `matchType` (`official`, `competitive`, `casual` — lobbies de bots compris —,
+`custom`, `all`) : tous les types sans le paramètre, comme avant. Chaque partie porte en plus `squad` (coéquipiers du clan), `teamCount` et
 `telemetryStatus`. Le mode détection (sans paramètre) est inchangé.
 
 Contrôle en lecture seule : `npx tsx scripts/check-member-matches.ts [memberId]` (volume par période, soirées, modes,

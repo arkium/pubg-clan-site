@@ -9,6 +9,7 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { SortReminder } from '@/components/ui/SortableTh'
@@ -213,6 +214,7 @@ export default function ClanMapsPage() {
             </section>
           </div>
         )}
+        <PageScopeNote scope="clan:stats/maps" id={clanId} context={{ period, matchType }} className="mt-6" />
       </div>
     </div>
   )

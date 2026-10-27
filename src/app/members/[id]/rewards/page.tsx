@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useMemo, useState } from 'react'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 
 type PlayerRewards = {
   totalPoints: number
@@ -124,6 +125,8 @@ export default function MemberRewardsPage() {
           <p className="mt-2 text-sm text-gray-400">Participe aux challenges pour gagner des points !</p>
         </div>
       ) : null}
+
+      <PageScopeNote scope="member:rewards" id={memberId} />
     </main>
   )
 }

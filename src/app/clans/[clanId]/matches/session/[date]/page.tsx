@@ -10,6 +10,7 @@ import { KpiGrid, MatchesBanner, SectionTitle, type Kpi } from '@/components/mat
 import SessionFlightPlan from '@/components/matches/SessionFlightPlan'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import { TableSkeleton } from '@/components/ui/skeletons/TableSkeleton'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
@@ -293,6 +294,7 @@ export default function ClanSessionDatePage() {
         {!loading && !error && sessionMatches.length === 0 ? (
           <p className="app-panel t-body p-4 text-gray-500">Aucune partie trouvée pour cette date avec les filtres actuels.</p>
         ) : null}
+        <PageScopeNote scope="clan:matches/session/[date]" id={clanId} context={{ sessionDate: date }} className="mt-6" />
       </div>
     </div>
   )

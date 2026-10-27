@@ -8,6 +8,7 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { CareerRecords, CareerThemes, MedalShowcase, SeasonsCard, ServiceRecord } from '@/components/player-career/CareerSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SyncStatus from '@/components/ui/SyncStatus'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
@@ -196,6 +197,7 @@ export default function MemberCareerPage() {
             </p>
           </div>
         ) : null}
+        <PageScopeNote scope="member:stats" id={memberId} className="mt-6" />
       </div>
     </div>
   )

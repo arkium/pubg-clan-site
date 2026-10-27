@@ -9,7 +9,8 @@ import { clanOverviewFindings } from '@/lib/clan-overview-findings'
  * Vue d'ensemble d'un clan — « En bref », composant serveur (docs/TODO/geo-seo-propositions.md, lot 2) : chiffres du
  * clan et lien vers chacune de ses pages, dans le HTML. Clan actif hors clan système seulement (comme son indexation),
  * en mode visiteur. Mêmes lectures que l'annuaire (`GET /api/clans`, `GET /api/clans/directory`, cache de 5 minutes),
- * dans un `Suspense`.
+ * dans un `Suspense`. Rangé depuis le 2026-10-27 dans la barre « D'où viennent ces chiffres ? » de la page, repliée
+ * mais dans le HTML (docs/TODO/aide-des-pages.md, D6) : plus de panneau propre.
  */
 export default async function ClanOverviewFindings({ clanId }: { clanId: number }) {
   if (!isAuthDisabled() || !Number.isInteger(clanId) || clanId <= 0) return null
@@ -26,7 +27,7 @@ export default async function ClanOverviewFindings({ clanId }: { clanId: number 
   if (!findings) return null
 
   return (
-    <section aria-labelledby="clan-overview-findings-title" className="app-panel flex flex-col gap-3 p-4 sm:p-5" data-testid="clan-overview-findings">
+    <section aria-labelledby="clan-overview-findings-title" className="flex flex-col gap-3" data-testid="clan-overview-findings">
       <h2 id="clan-overview-findings-title" className="t-section-title">
         {findings.title}
       </h2>

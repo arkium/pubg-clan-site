@@ -7,7 +7,9 @@ import { ArrowDownWideNarrow, ArrowUpNarrowWide, Map } from 'lucide-react'
 import { PickerChip, PlaystyleLegend, type PickerItem } from '@/components/maps/MapToolbarControls'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import MatchTypeMenu from '@/components/ui/MatchTypeMenu'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import RankCell from '@/components/ui/RankCell'
 import MobileDropdownNav, { type MobileDropdownNavItem } from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -16,6 +18,7 @@ import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
 import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -241,6 +244,8 @@ export default function MemberMapStatsPage() {
   const [bestMode, setBestMode] = useState<BestMode>('duo')
   // Période de la page : URL, puis mémoire de la visite, puis « Tous » (docs/TODO/sticky.md §4.E).
   const { period, setPeriod, ready: periodReady } = usePagePeriod(STANDARD_PERIODS, 'all')
+  // Type de partie (docs/TODO/aide-des-pages.md, lot 7) : parties normales par défaut, comme avant le filtre.
+  const [matchType, setMatchType] = useState<ClanMatchTypeFilter>('official')
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
   const [payload, setPayload] = useState<MapStatsPayload | null>(null)
@@ -276,6 +281,7 @@ export default function MemberMapStatsPage() {
           scope,
           bestMode,
           period,
+          matchType,
         })
 
         if (scope === 'member' && targetMemberId) {
@@ -316,7 +322,7 @@ export default function MemberMapStatsPage() {
     return () => {
       cancelled = true
     }
-  }, [bestMode, memberId, period, periodReady, scope, targetMemberId])
+  }, [bestMode, matchType, memberId, period, periodReady, scope, targetMemberId])
 
   if (!memberId) {
     return (
@@ -431,6 +437,7 @@ export default function MemberMapStatsPage() {
         {({ compact }) => (
           <div className="flex w-full flex-wrap items-center gap-3">
             <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} />
+            {!compact ? <MatchTypeMenu value={matchType} onChange={setMatchType} /> : null}
             {!compact ? (
               <PickerChip
                 ariaLabel="Périmètre"
@@ -514,6 +521,7 @@ export default function MemberMapStatsPage() {
           )}
         </section>
         {/* Les meilleures formations (duo / trio / squad) sont sur le style de jeu du joueur depuis le 2026-10-03. */}
+        <PageScopeNote scope="member:map-stats" id={memberId} context={{ period, matchType }} className="mt-6" />
       </div>
     </div>
   )

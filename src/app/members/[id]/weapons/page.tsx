@@ -18,6 +18,7 @@ import {
 } from '@/components/member-weapons/MemberWeaponsSections'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SyncStatus from '@/components/ui/SyncStatus'
@@ -239,6 +240,7 @@ export default function MemberWeaponsPage() {
             </p>
           </div>
         ) : null}
+        <PageScopeNote scope="member:weapons" id={memberId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

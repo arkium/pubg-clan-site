@@ -8,6 +8,7 @@ import MemberPageHeader from '@/components/member/MemberPageHeader'
 import ItemUsePanel from '@/components/telemetry/ItemUsePanel'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
@@ -69,6 +70,7 @@ export default function MemberItemUsePage() {
 
       <div className="app-container app-gutter pb-8">
         <ItemUsePanel stats={data} loading={loading} error={error ? 'Chargement impossible.' : ''} scope="member" />
+        <PageScopeNote scope="member:items" id={memberId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

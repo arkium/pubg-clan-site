@@ -1,6 +1,7 @@
 # « D'où viennent ces chiffres ? » — aide en bas des pages joueur et clan
 
-> Plan du 2026-10-27. **Rien n'est implémenté.** *Destiné à l'utilisateur et à l'équipe de développement.*
+> Plan du 2026-10-27, **implémenté le même jour** (lots 1 à 7, lot 7 en partie — §0). *Destiné à l'utilisateur et à
+> l'équipe de développement.*
 >
 > Point de départ, un message de joueur : « ton site prend en compte les données de chaque joueur et clan depuis quel
 > jour ? Quand on consulte les données d'un joueur, serait-il possible de sélectionner le mode de jeu (officiel,
@@ -11,6 +12,46 @@
 >   premières parties enregistrées le 12 mai) ;
 > - **ce qui est compté** : aucune page ne dit que les pages d'un joueur ne comptent, pour la plupart, que les parties
 >   normales — et elles ne suivent pas toutes la même règle (§3).
+
+## 0. État (2026-10-27)
+
+| Lot | Fait | Où |
+|---|---|---|
+| 1 | Inventaire relevé page par page dans le code (le §3 ci-dessous était faux sur plusieurs points, corrigé dans le registre) ; registre d'une entrée par page | `src/lib/page-scope-entries.ts` (entrées), `src/lib/page-scope.ts` (textes), `src/lib/page-scope.test.ts` (page ↔ entrée ↔ barre) |
+| 2 | Service partagé avec l'outil `getDataCoverage` du Coach (résultats inchangés, clan compté sur ses **membres actifs** comme ses pages) ; deux routes en cache 5 min ; analyses en file | `src/lib/data-coverage-service.ts`, `GET /api/members/[id]/data-coverage` (`requireSameClanAsMember`), `GET /api/clans/[clanId]/data-coverage` (garde `clan.overview`, mode visiteur compris) — `data-coverage-route-contracts.test.ts`. Mesuré en lecture seule : clan 25 en 1,0 s à froid, un joueur en 0,17 s |
+| 3 | `PageScopeNote` : `<details>` (texte général dans le HTML), dates lues **à la première ouverture seulement** ; classes `app-help-bar*`, partagées avec « Comment ça marche ? » du Coach | `src/components/ui/PageScopeNote.tsx`, `globals.css` |
+| 4 | Barre posée en bas des 11 pages joueur et des 17 pages de clan (débriefing : vue d'un clan seulement, pas d'un tournoi) | `e2e/page-scope.spec.ts` |
+| 5 | « En bref » de la vue d'ensemble replié dans la barre, liens compris, sans panneau propre. Annuaire, Ligue, lecture de zone, carte des ressources : **non traités** (hors des pages joueur et clan) | `ClanOverviewPage.tsx`, `ClanOverviewFindings.tsx` |
+| 6 | Méthodologie : section « Pages d'un joueur, pages d'un clan » générée par le registre, une ancre par page (`#page-joueur-dashboard`, `#page-clan-stats-maps`…) | `src/components/legal/PageScopeMethodology.tsx` |
+| 7 | Filtre « Type de partie » (`MatchTypeMenu`, Normal / Ranked / Casual / Tournois / Tous) sur **Parties, Activité, Cartes et Zones de drop** du joueur, défaut inchangé (Tous, Normal, Normal, Tous) | routes `matches`, `activity-heatmap`, `map-stats`, `telemetry/drop-zones` ; `parsePlayerMatchType`, `matchTypeWhere` (`src/lib/match-type-filter.ts`) |
+
+**Lot 7, ce qui n'a pas été fait, et pourquoi.** Le relevé l'a montré : les chiffres clés du tableau de bord viennent
+de `PlayerStats`, calculés pour les seules parties normales ; profil de jeu, armes, Némésis, objets et largages
+agrégés (`MemberTelemetryStats`, `MemberWeaponStats`, `KillEvent`, `MemberItemUseStat`) n'ont **aucune dimension de
+type**. Un filtre sur le tableau de bord, les armes, la Némésis, les objets ou le style de jeu n'aurait filtré qu'une
+partie des cartes. Ces pages gardent leur règle, que la barre dit carte par carte (`matchTypes: 'mixed'`). Pour aller
+plus loin : un type de partie dans ces agrégats (schéma, workers, rattrapage) — chantier à décider.
+
+**Écarts relevés en chemin, non corrigés** (à trancher) :
+
+- *Semaine et mois* : bornes calculées à l'heure **locale du serveur** (`src/lib/period.ts`), pas explicitement à
+  l'heure de Paris ; la barre et la Méthodologie disent « du lundi 0 h au dimanche 23 h 59 » sans fuseau. Vérifier le
+  `TZ` du serveur de production.
+- *Conservation des positions* : la Méthodologie et la barre annoncent 30 jours (90 pour un Top 1 ou un custom) ;
+  la purge n'agit qu'une fois ouvert l'interrupteur de /settings/database, fermé par défaut.
+- *Objets consommés* : la page dit « depuis le 17/09/2026 », le Coach « 18 septembre » ; les données du clan 25
+  commencent le 7 septembre. La barre lit la vraie date (service) et dit « septembre 2026 » sans date fixe.
+- *Cartes d'un joueur* : en périmètre « clan », une partie à quatre membres compte quatre fois dans « parties » ; en
+  « meilleure équipe », parties et victoires sont multipliées par la taille de l'équipe (`map-stats/route.ts`, lignes
+  `Match` de chaque membre). Win rate et place moyenne ne sont pas touchés.
+- *Classement du clan* : le mode (Duo / Trio / Squad) vient de `squadMatch._count.members`, qui compte aussi les
+  membres d'autres clans d'une partie partagée (`leaderboard/route.ts`) ; la liste des parties compte ceux du clan.
+- *Vocabulaire* : « Officiel » (vue d'ensemble, classement, distinctions) contre « Normal » (Ligue, Cartes,
+  Méthodologie) ; le classement et la vue d'ensemble n'offrent pas Ranked, que leur « Tous » compte.
+- *Activité d'un joueur* : jours et heures pris à l'heure locale du serveur alors que la page dit « heure de Paris » ;
+  « Jours actifs » compte des dates UTC, pas des soirées.
+- *Défis* : le type `squad_synergy` n'a pas de calcul de progression (reste à 0) ; les badges des récompenses ne sont
+  jamais écrits.
 
 ## 1. Décisions
 
@@ -40,7 +81,7 @@ Règles d'écriture : tutoiement ; vocabulaire du site (« parties normales » p
 `LEAGUE_MATCH_TYPE_OPTIONS`) ; **jamais de faux zéro** pendant un chargement (« — », CLAUDE.md piège n° 13) ; aucun
 chiffre en dur dans le texte : dates et parts viennent du service (D4), seuils des constantes du code.
 
-## 3. Inventaire de départ (à compléter au lot 1)
+## 3. Inventaire de départ (historique — le registre `page-scope-entries.ts` fait foi)
 
 **À vérifier après le chantier « place d'une partie partagée »** ([place-partie-partagee.md](place-partie-partagee.md)),
 qui modifie plusieurs de ces routes. « Lu » = vu dans le code le 2026-10-27 ; le reste est à relever.

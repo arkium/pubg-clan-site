@@ -9,6 +9,7 @@ import {
 } from '@/lib/drop-zone-pressure'
 import { clanPlacementMemberWhere, playerTeamOf } from '@/lib/clan-placement'
 import { getMapLocations } from '@/lib/map-location-service'
+import { matchTypeValues, matchTypeWhere, parsePlayerMatchType } from '@/lib/match-type-filter'
 import { prisma } from '@/lib/prisma'
 import {
   buildTelemetryErrorResponse,
@@ -172,9 +173,13 @@ export async function GET(
     const targetMemberId = targetMemberIdValue ? Number(targetMemberIdValue) : null
     const periodKey = toPeriodKey(period)
     const bounds = getPeriodBounds(period)
-    const dateFilter = bounds
-      ? Prisma.sql`AND sm.createdAt >= ${bounds.startDate} AND sm.createdAt <= ${bounds.endDate}`
-      : Prisma.empty
+    // Filtre « Type de partie » de la page (docs/TODO/aide-des-pages.md, lot 7) ; tous les types par défaut, comme avant.
+    const matchType = parsePlayerMatchType(url.searchParams.get('matchType'), 'all')
+    const typeValues = matchTypeValues(matchType)
+    // Période et type de partie, ajoutés à chaque lecture des atterrissages.
+    const dateFilter = Prisma.sql`${
+      bounds ? Prisma.sql`AND sm.createdAt >= ${bounds.startDate} AND sm.createdAt <= ${bounds.endDate}` : Prisma.empty
+    } ${typeValues ? Prisma.sql`AND sm.matchType IN (${Prisma.join(typeValues)})` : Prisma.empty}`
 
     const clanMembers = member.clanId
       ? await prisma.clanMember.findMany({
@@ -272,6 +277,7 @@ export async function GET(
       const squadMatches = await prisma.squadMatch.findMany({
         where: {
           ...(bounds ? { createdAt: { gte: bounds.startDate, lte: bounds.endDate } } : {}),
+          ...matchTypeWhere(matchType),
           members: {
             some: { memberId },
           },

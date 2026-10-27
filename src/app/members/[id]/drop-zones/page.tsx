@@ -15,7 +15,9 @@ import {
 } from '@/components/drop-zones/DropZonesExplorer'
 import { MapPager, mapLabel, PickerChip, PlaystyleLegend, type PickerItem } from '@/components/maps/MapToolbarControls'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import MatchTypeMenu from '@/components/ui/MatchTypeMenu'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { usePageData } from '@/hooks/usePageData'
@@ -24,6 +26,7 @@ import { usePlaystyleColors } from '@/hooks/usePlaystyleColors'
 import { type LandingPoint } from '@/lib/drop-zones-view'
 import type { MapLocations } from '@/lib/map-location-service'
 import { PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
+import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 
 type Scope = 'self' | 'member' | 'clan' | 'best'
 type BestMode = 'duo' | 'trio' | 'squad'
@@ -80,8 +83,10 @@ export default function MemberDropZonesPage() {
   const [targetMemberId, setTargetMemberId] = useState<number | null>(null)
   // Filtre local « Qui saute où » quand le périmètre compte plusieurs joueurs.
   const [filterMemberId, setFilterMemberId] = useState<number | null>(null)
+  // Type de partie (docs/TODO/aide-des-pages.md, lot 7) : tous les types par défaut, comme avant le filtre.
+  const [matchType, setMatchType] = useState<ClanMatchTypeFilter>('all')
 
-  const query = new URLSearchParams({ period, scope, bestMode })
+  const query = new URLSearchParams({ period, scope, bestMode, matchType })
   if (scope === 'member' && targetMemberId) query.set('targetMemberId', String(targetMemberId))
   const { data, loading, error } = usePageData(
     memberId && ready ? `/api/members/${memberId}/telemetry/drop-zones?${query.toString()}` : null,
@@ -175,6 +180,7 @@ export default function MemberDropZonesPage() {
         <div className="flex w-full flex-nowrap items-center gap-1.5 sm:gap-2">
           <MapPager maps={explorer.maps} activeMap={explorer.activeMap} onStep={explorer.stepMap} onSelect={explorer.selectMap} />
           <PeriodFilter periods={STANDARD_PERIODS} value={period} onChange={setPeriod} size="xs" className="map-toolbar-period" />
+          <MatchTypeMenu value={matchType} onChange={setMatchType} />
           <PickerChip ariaLabel="Périmètre" label={scopeLabel} color={scopeColor} avatar={scopeMemberId !== null} items={items} legend={<PlaystyleLegend />} />
           <span className="t-meta t-num ml-auto hidden whitespace-nowrap lg:inline" data-testid="drop-summary">{summary}</span>
         </div>
@@ -233,6 +239,7 @@ export default function MemberDropZonesPage() {
           )
         ) : null}
 
+        <PageScopeNote scope="member:drop-zones" id={memberId} context={{ period, matchType }} className="mt-6" />
       </div>
     </div>
   )

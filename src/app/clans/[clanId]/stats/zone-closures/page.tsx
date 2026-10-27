@@ -9,6 +9,7 @@ import { MapPager, mapLabel, PickerChip, PlaystyleLegend } from '@/components/ma
 import { PhasePicker } from '@/components/positions/PositionsExplorer'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
+import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import {
@@ -250,6 +251,7 @@ export default function ZoneClosuresPage() {
             <WhoPlaysTheCircle members={ranked} selectedMemberId={memberId} onSelect={setMemberId} colorOf={colorOf} styleOf={styleOf} />
           </div>
         ) : null}
+        <PageScopeNote scope="clan:stats/zone-closures" id={clanId} context={{ period }} className="mt-6" />
       </div>
     </div>
   )

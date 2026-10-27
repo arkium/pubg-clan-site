@@ -1,3 +1,5 @@
+import { Prisma } from '@prisma/client'
+
 import { activityByDay, busiestSlot, slotLabel, type ActivityCell } from '@/lib/activity-heatmap'
 import {
   aggregateCityCells,
@@ -112,6 +114,7 @@ const MATCH_TYPE_LABELS: Record<string, string> = {
   custom: 'personnalisée',
   event: 'événement',
   training: 'entraînement',
+  trainingroom: 'salle d’entraînement',
 }
 const TEAM_MODE_LABELS: Record<TeamModeKey, string> = { duo: 'duo', trio: 'trio', squad: 'squad' }
 const CAREER_GROUP_IDS = CAREER_GROUPS.map((group) => group.id)
@@ -175,10 +178,12 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
   {
     name: 'getSessions',
     description:
-      "Bilan d'une ou plusieurs soirées du clan, calculé par le serveur — l'outil de toute question qui nomme un jour ou une date : « combien de Top 1 samedi ? », « la place moyenne d'hier », « le bilan du 23 », « la semaine soirée par soirée », « on a joué mardi ? ». Une soirée = la journée de jeu de 06:00 à 06:00, heure de Paris (une partie de 01:00 compte dans la soirée de la veille), désignée par la date du soir où elle commence. Par soirée : parties, Top 1, Top 10, place moyenne, meilleure et pire place, kills et dégâts par partie, heures de début et de fin, carte la plus jouée, meilleur joueur ; totaux de la plage et soirées sans partie. Pour une seule date, le détail : cartes, modes d'équipe, types de partie, chaque membre présent, et la liste de ses parties avec leurs identifiants (getMatchDebrief). Sans date : les 7 dernières soirées, celle en cours comprise.",
+      "Bilan d'une ou plusieurs soirées du clan — ou du joueur seul avec scope « player » —, calculé par le serveur : l'outil de toute question qui nomme un jour ou une date : « combien de Top 1 samedi ? », « la place moyenne d'hier », « le bilan du 23 », « la semaine soirée par soirée », « on a joué mardi ? », « mes Top 1 hier » (player). Une soirée = la journée de jeu de 06:00 à 06:00, heure de Paris (une partie de 01:00 compte dans la soirée de la veille), désignée par la date du soir où elle commence. Par soirée : parties, Top 1, Top 10, place moyenne, meilleure et pire place, kills et dégâts par partie, heures de début et de fin, carte la plus jouée, meilleur joueur (et, en scope « player », ses kills et ses dégâts) ; totaux de la plage et soirées sans partie. Pour une seule date, le détail : cartes, modes d'équipe, types de partie, chaque membre présent, et la liste de ses parties avec leurs identifiants (getMatchDebrief). Sans date : les 7 dernières soirées, celle en cours comprise. Une plage fait 31 soirées au plus : sa première soirée n'est PAS la première date des données — pour « depuis quand », getDataCoverage.",
     parameters: {
       type: 'object',
       properties: {
+        scope: { type: 'string', enum: ['clan', 'player'], description: '« clan » (toutes les parties du clan, défaut) ou « player » (les parties du joueur seul : « mes soirées », « j’ai fait »).' },
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan (implique scope « player »), facultatif.' },
         date: { type: 'string', description: 'Une soirée, AAAA-MM-JJ (le jour est d’abord traduit en date d’après la date d’aujourd’hui).' },
         from: { type: 'string', description: 'Première soirée d’une plage, AAAA-MM-JJ.' },
         to: { type: 'string', description: `Dernière soirée de la plage, AAAA-MM-JJ (défaut : la soirée en cours) ; ${SESSION_RANGE_MAX_DAYS} soirées au plus.` },
@@ -361,6 +366,18 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
       properties: {
         playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan à situer face au clan, facultatif.' },
         period: PERIOD_PARAMETER,
+      },
+    },
+  },
+  {
+    name: 'getDataCoverage',
+    description:
+      "Depuis quand — et jusqu'à quand — le site a des données sur le joueur (ou sur le clan avec scope « clan ») : arrivée sur le site, première et dernière partie avec le clan (et leur soirée), parties PUBG suivies par type, parties dont la télémétrie est analysée, date de départ de chaque famille de données (largages, kill feed, positions et villes, fins de zone, objets consommés) et date de la carrière PUBG. Pour « depuis quand tu as mes données ? », « ma toute première partie enregistrée ? », « tu as mes parties de juin ? », « pourquoi tu n'as rien sur mes objets avant septembre ? ». Aucune statistique de jeu : pour les chiffres, l'outil du sujet.",
+    parameters: {
+      type: 'object',
+      properties: {
+        scope: { type: 'string', enum: ['player', 'clan'], description: '« player » (le joueur, défaut) ou « clan » (tout le clan).' },
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
       },
     },
   },
@@ -664,16 +681,16 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     createdAt: Date
     totalKills: number
     totalDamage: number
-    members: Array<{ kills: number; damage: number; knockouts: number; member: { displayName: string } }>
+    members: Array<{ memberId?: number; kills: number; damage: number; knockouts: number; member: { displayName: string } }>
     telemetry: { status: string } | null
   }
 
   /**
    * Bilan d'une soirée (la page « Soirée » du clan, en chiffres). Compact par défaut (une plage de 31 soirées faisait
    * 20 000 tokens en détail) ; `detailed`, pour une date seule : cartes, modes, types, chaque membre et la liste des
-   * parties.
+   * parties. `playerId` (scope « player ») ajoute les kills et les dégâts du joueur lui-même.
    */
-  function summarizeSessionRows(date: string, rows: SessionRow[], labels: Record<string, string>, detailed: boolean) {
+  function summarizeSessionRows(date: string, rows: SessionRow[], labels: Record<string, string>, detailed: boolean, playerId: number | null = null) {
     const maps = new Map<string, { matches: number; wins: number }>()
     const types = new Map<string, { matches: number; wins: number }>()
     const modes = new Map<TeamModeKey, number>()
@@ -717,6 +734,12 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
       damagePerMatch: Math.round(damage / rows.length),
       firstMatchAt: PARIS_TIME.format(rows[0].createdAt),
       lastMatchAt: PARIS_TIME.format(rows[rows.length - 1].createdAt),
+      ...(playerId !== null
+        ? (() => {
+            const own = rows.flatMap((row) => row.members.filter((entry) => entry.memberId === playerId))
+            return { yourKills: own.reduce((sum, entry) => sum + entry.kills, 0), yourDamage: Math.round(own.reduce((sum, entry) => sum + entry.damage, 0)) }
+          })()
+        : {}),
     }
     if (!detailed) {
       return {
@@ -757,10 +780,15 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
     const requestedType = text(args.matchType) as SessionMatchType
     const matchType: SessionMatchType = SESSION_MATCH_TYPES.includes(requestedType) ? requestedType : 'all'
+    const playerScope = text(args.scope) === 'player' || text(args.playerName) !== ''
+    const resolved = playerScope ? await resolveMember(args.playerName) : null
+    if (resolved && 'error' in resolved) return resolved
+    const memberId = resolved && 'memberId' in resolved ? resolved.memberId : null
 
     let to = single || requestedTo || today
     let from = single || requestedFrom || shiftSessionDate(to, 1 - SESSION_RANGE_DEFAULT_DAYS)
     if (from > to) [from, to] = [to, from]
+    const askedFrom = from
     const clamped = daysBetween(from, to) + 1 > SESSION_RANGE_MAX_DAYS
     if (clamped) from = shiftSessionDate(to, 1 - SESSION_RANGE_MAX_DAYS)
     const { start, end } = sessionBoundsOf(from, to)
@@ -771,7 +799,8 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         where: {
           createdAt: { gte: start, lt: end },
           ...(matchType === 'all' ? {} : { matchType: { in: leagueMatchTypeValues(matchType) } }),
-          members: { some: { member: { clanId: scope.clanId, isActive: true } } },
+          // Le joueur seul : ses parties avec le clan, qu'il soit encore actif ou non.
+          members: { some: memberId ? { memberId } : { member: { clanId: scope.clanId, isActive: true } } },
         },
         orderBy: { createdAt: 'desc' },
         take: SESSION_MATCHES_MAX + 1,
@@ -784,7 +813,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
           createdAt: true,
           totalKills: true,
           totalDamage: true,
-          members: { select: { kills: true, damage: true, knockouts: true, member: { select: { displayName: true } } } },
+          members: { select: { memberId: true, kills: true, damage: true, knockouts: true, member: { select: { displayName: true } } } },
           telemetry: { select: { status: true } },
         },
       }),
@@ -801,22 +830,118 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
     const dates: string[] = []
     for (let date = from; date <= to; date = shiftSessionDate(date, 1)) dates.push(date)
-    const sessions = dates.filter((date) => byDate.has(date)).map((date) => summarizeSessionRows(date, byDate.get(date)!, labels, from === to))
+    const sessions = dates.filter((date) => byDate.has(date)).map((date) => summarizeSessionRows(date, byDate.get(date)!, labels, from === to, memberId))
     const totals = placementSummary(matches.map((row) => row.placement))
     return {
+      scope: resolved && 'memberName' in resolved ? resolved.memberName : 'le clan',
       from,
       to,
       days: dates.length,
       today,
+      // Plage bornée : la première soirée lue n'est pas la première des données (fil 26 du 2026-10-27).
+      ...(clamped ? { clamped: { requestedFrom: askedFrom, servedFrom: from, maxDays: SESSION_RANGE_MAX_DAYS } } : {}),
       matchType: matchType === 'all' ? 'toutes les parties' : leagueMatchTypeOption(matchType).label,
       totals: totals ? { sessionsPlayed: sessions.length, ...totals, squadKills: matches.reduce((sum, row) => sum + row.totalKills, 0) } : { sessionsPlayed: 0, matches: 0, wins: 0 },
       sessions,
       sessionsWithoutPlay: dates.filter((date) => !byDate.has(date)),
       truncated,
       note:
-        'Une soirée va de 06:00 à 06:00, heure de Paris, et porte la date du soir où elle commence ; parties avec au moins un membre actif du clan ; chiffres calculés par le serveur, à reprendre tels quels.' +
-        (clamped ? ` Plage ramenée aux ${SESSION_RANGE_MAX_DAYS} dernières soirées demandées.` : '') +
+        `Une soirée va de 06:00 à 06:00, heure de Paris, et porte la date du soir où elle commence ; ${memberId ? 'parties du joueur avec le clan' : 'parties avec au moins un membre actif du clan'} ; chiffres calculés par le serveur, à reprendre tels quels.` +
+        (clamped
+          ? ` Plage ramenée aux ${SESSION_RANGE_MAX_DAYS} dernières soirées : rien n'a été lu avant le ${from}, la première soirée listée n'est donc pas la première des données (getDataCoverage).`
+          : '') +
         (truncated ? ' Trop de parties sur la plage : les plus anciennes manquent, demander une plage plus courte.' : ''),
+    }
+  }
+
+  async function getDataCoverage(args: ToolArgs) {
+    const clanScope = text(args.scope) === 'clan' && text(args.playerName) === ''
+    const resolved = clanScope ? null : await resolveMember(args.playerName)
+    if (resolved && 'error' in resolved) return resolved
+    const memberId = resolved && 'memberId' in resolved ? resolved.memberId : null
+    // Une date de soirée (heure de Paris, journée de 06:00) : ce que le joueur appelle « le 12 mai ».
+    const day = (value: Date | null | undefined) => (value ? sessionDateOf(value) : null)
+    const span = (row: { _min: { [key: string]: Date | null }; _max: { [key: string]: Date | null } }, field: string) => ({ since: day(row._min[field]), until: day(row._max[field]) })
+    const family = (label: string, range: { since: string | null; until: string | null }, count?: { value: number; unit: string }) =>
+      range.since ? { data: label, ...range, ...(count ? { count: count.value, unit: count.unit } : {}) } : { data: label, since: null, message: 'aucune donnée' }
+
+    // Parties et télémétrie en une lecture SQL : la même en Prisma (`members: { some }` + `telemetry`) prenait 5,4 s
+    // pour un joueur, contre 0,3 s ici (mesuré sur le clan 25, 2026-10-27).
+    type SquadRange = { firstAt: Date | null; lastAt: Date | null; matches: bigint | number; analyzed: bigint | number | string | null; analyzedFirst: Date | null; analyzedLast: Date | null }
+    const squadSql = memberId
+      ? Prisma.sql`FROM SquadMember sq JOIN SquadMatch sm ON sm.id = sq.squadMatchId LEFT JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id WHERE sq.memberId = ${memberId}`
+      : Prisma.sql`FROM SquadMatch sm LEFT JOIN SquadMatchTelemetry t ON t.squadMatchId = sm.id
+          WHERE sm.id IN (SELECT sq.squadMatchId FROM SquadMember sq JOIN ClanMember cm ON cm.id = sq.memberId WHERE cm.clanId = ${scope.clanId})`
+    // Le joueur : ses propres lignes, quel que soit le clan où il jouait (les lignes portent le clan du moment) ; le
+    // clan : les lignes de ses membres actuels, comme les pages.
+    const owner = memberId ? { memberId } : { member: { clanId: scope.clanId } }
+    const [[squad], drops, closures, items] = await Promise.all([
+      prisma.$queryRaw<SquadRange[]>(Prisma.sql`
+        SELECT MIN(sm.createdAt) AS firstAt, MAX(sm.createdAt) AS lastAt, COUNT(*) AS matches,
+               SUM(t.status = 'success') AS analyzed,
+               MIN(CASE WHEN t.status = 'success' THEN sm.createdAt END) AS analyzedFirst,
+               MAX(CASE WHEN t.status = 'success' THEN sm.createdAt END) AS analyzedLast
+        ${squadSql}`),
+      prisma.dropPressureStat.aggregate({ where: owner, _min: { matchDate: true }, _max: { matchDate: true }, _count: { _all: true } }),
+      prisma.zoneClosurePosition.aggregate({ where: owner, _min: { matchDate: true }, _max: { matchDate: true }, _count: { _all: true } }),
+      prisma.memberItemUseStat.aggregate({ where: owner, _min: { matchDate: true }, _max: { matchDate: true } }),
+    ])
+    const matchCount = Number(squad?.matches ?? 0)
+    const analyzedCount = Number(squad?.analyzed ?? 0)
+    const matchesLine = matchCount > 0 && squad?.firstAt
+      ? { firstSession: day(squad.firstAt), firstMatchAt: new Date(squad.firstAt).toISOString(), lastSession: day(squad.lastAt), count: matchCount }
+      : { count: 0 }
+    const telemetry = analyzedCount > 0
+      ? { since: day(squad?.analyzedFirst), until: day(squad?.analyzedLast), analyzed: analyzedCount, of: matchCount, percent: Math.round((analyzedCount / Math.max(1, matchCount)) * 100) }
+      : { analyzed: 0, of: matchCount }
+    const note =
+      "Dates de soirée (heure de Paris, journée de 06:00 à 06:00). « clanMatches » : les parties avec le clan, la base de la plupart des outils ; « telemetry » : celles dont le déroulé est analysé, base des largages, du kill feed, des positions et des fins de zone. Chaque famille a commencé à sa propre date (fins de zone suivies depuis septembre 2026, objets consommés depuis le 18 septembre 2026) ; les positions brutes de plus de trois semaines sont purgées, leurs agrégats restent. La carrière PUBG couvre toutes les parties du compte depuis sa création, hors du site."
+
+    if (!memberId) {
+      const activeMembers = await prisma.clanMember.count({ where: { clanId: scope.clanId, isActive: true } })
+      return {
+        scope: 'le clan',
+        activeMembers,
+        clanMatches: matchesLine,
+        telemetry,
+        data: [
+          family('Largages', span(drops, 'matchDate'), { value: drops._count._all, unit: 'sauts' }),
+          family('Fins de zone', span(closures, 'matchDate'), { value: closures._count._all, unit: 'fermetures vécues' }),
+          family('Objets consommés', span(items, 'matchDate')),
+        ],
+        note: `${note} Pour le clan, le kill feed et les positions suivent les dates de « telemetry ».`,
+      }
+    }
+    const [kills, cells, member, pubg, pubgTypes, career] = await Promise.all([
+      prisma.killEvent.aggregate({ where: { OR: [{ killerMemberId: memberId }, { victimMemberId: memberId }] }, _min: { matchDate: true }, _max: { matchDate: true }, _count: { _all: true } }),
+      prisma.positionMetricCell.aggregate({ where: { memberId }, _min: { matchDate: true }, _max: { matchDate: true } }),
+      prisma.clanMember.findUnique({ where: { id: memberId }, select: { createdAt: true } }),
+      prisma.match.aggregate({ where: { memberId }, _min: { pubgCreatedAt: true }, _max: { pubgCreatedAt: true }, _count: { _all: true } }),
+      prisma.match.groupBy({ by: ['matchType'], where: { memberId }, _count: { _all: true } }),
+      prisma.memberLifetimeStats.findUnique({ where: { memberId }, select: { lastRefreshedAt: true } }),
+    ])
+    return {
+      scope: resolved && 'memberName' in resolved ? resolved.memberName : 'le joueur',
+      onSiteSince: day(member?.createdAt),
+      clanMatches: matchesLine,
+      pubgMatches: pubg._count._all > 0
+        ? {
+            since: day(pubg._min.pubgCreatedAt),
+            until: day(pubg._max.pubgCreatedAt),
+            count: pubg._count._all,
+            byType: [...pubgTypes].sort((a, b) => b._count._all - a._count._all).map((row) => `${row._count._all} ${MATCH_TYPE_LABELS[row.matchType] ?? row.matchType}`).join(' · '),
+          }
+        : { count: 0 },
+      telemetry,
+      data: [
+        family('Largages', span(drops, 'matchDate'), { value: drops._count._all, unit: 'sauts' }),
+        family('Kill feed (armes, adversaires)', span(kills, 'matchDate'), { value: kills._count._all, unit: 'kills et morts du joueur' }),
+        family('Positions et villes', span(cells, 'matchDate')),
+        family('Fins de zone', span(closures, 'matchDate'), { value: closures._count._all, unit: 'fermetures vécues' }),
+        family('Objets consommés', span(items, 'matchDate')),
+      ],
+      careerSyncedAt: career?.lastRefreshedAt.toISOString() ?? null,
+      note: `${note} « pubgMatches » : ses parties PUBG suivies par le site, même sans coéquipier du clan (base de son calendrier d'activité) ; elles peuvent commencer après ses premières parties avec le clan, récupérées depuis les coéquipiers.`,
     }
   }
 
@@ -2049,6 +2174,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
   const handlers: Record<string, (args: ToolArgs) => Promise<unknown>> = {
     getRecentMatches,
     getSessions,
+    getDataCoverage,
     getMatchDebrief,
     getWeaponStats,
     getOpponentRecord,

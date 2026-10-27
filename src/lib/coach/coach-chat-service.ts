@@ -55,6 +55,7 @@ export function encodeCoachSseEvent(event: CoachSseEvent): string {
 export const COACH_TOOL_LABELS: Record<string, string> = {
   getRecentMatches: 'Je consulte tes parties…',
   getSessions: 'Je fais le bilan des soirées…',
+  getDataCoverage: 'Je regarde depuis quand j’ai tes données…',
   getMatchDebrief: 'Je relis le match…',
   getWeaponStats: 'Je regarde tes armes…',
   getOpponentRecord: 'Je cherche les rencontres du clan…',

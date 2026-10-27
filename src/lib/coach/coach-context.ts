@@ -225,7 +225,7 @@ export function coachContextPromptBlock(context: CoachResolvedContext): string {
     case 'schedule':
       return `Page consultée : calendrier d'activité de ${context.memberName} (jours, heures, soirées). Appelle getPlaySchedule pour ses chiffres.`
     case 'career':
-      return `Page consultée : carrière PUBG de ${context.memberName} (toutes ses parties, saisons, médailles du clan). Appelle getCareerStats pour ses chiffres.`
+      return `Page consultée : carrière PUBG et tableau de bord de ${context.memberName}. Pour sa carrière PUBG (toutes ses parties hors du site, K/D, saisons, médailles du clan), getCareerStats ; pour ses parties suivies par le site, l'outil de la question (getSessions, getDataCoverage…).`
     case 'playstyle':
       return context.memberName
         ? `Page consultée : style de jeu de ${context.memberName} face au clan (rôles, cercle, coopération). Appelle getClanPlaystyle avec playerName « ${context.memberName} ».`

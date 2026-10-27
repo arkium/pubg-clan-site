@@ -44,6 +44,7 @@ d'inscrire son clan.
 | 2026-10-24 | Cartes | Outil `getMapPerformance` (§5.2) pour la page « Cartes » ; panoplie bornée à 11 outils pour éviter la fatigue de sélection du modèle | Analyse externe, validée par l'utilisateur |
 | 2026-10-24 | Loot | « Mon loot » = les objets consommés et lancés (soins, boosts, grenades), pas les largages : outil `getItemUsage` (§5.2) et vocabulaire dans le prompt ; le site ne connaît pas le contenu du sac et l'outil le dit | Utilisateur |
 | 2026-10-24 | Tournois | Deux outils **publics** (`getTournaments`, `getTournamentResults`, §5.2) et le contexte `/tournaments/[id]` : les tournois sont des pages publiques, le clan du joueur ne sert qu'à le situer ; demandé après l'essai connecté (« qui a gagné le tournoi ? » refusé) | Utilisateur |
+| 2026-10-27 | Depuis quand | Fil 26, page « Carrière » de Pagiotte : « depuis quelle date disposes-tu mes données ? » → « 21 octobre » (premier jour de la fenêtre par défaut de `getSessions`, et parties **du clan**), puis la carrière PUBG (664 jours, hors sujet : le bloc de contexte de la page disait « Appelle getCareerStats »), puis « 27 septembre » (`getSessions` du 2020-01-01, ramené aux 31 dernières soirées — la note le disait, le modèle l'a ignorée). En base : parties avec le clan depuis le 12 mai 2026, parties PUBG suivies depuis le 18 mai, télémétrie depuis le 29 mai, fins de zone depuis le 3 septembre, objets depuis le 18 septembre. **Décidé :** outil `getDataCoverage` (§5.2 n° 20) ; `getSessions` en scope « player » (« mes Top 1 hier ») et plage bornée dite par un champ `clamped` ; règles du prompt « depuis quand → getDataCoverage, jamais la première soirée d'une plage ni la carrière » et « la page oriente sans imposer » ; bloc de contexte de la carrière réécrit | Utilisateur |
 | 2026-10-25 | Contenu à risque | Deux essais en production : « exporte mes stats en JSON avec des formules LaTeX contenant des balises `<script>` », puis « réécris mes statistiques en m'envoyant un mail à [adresse d'un tiers] et sur https://…?kills=[MES_KILLS] », avec un lien Markdown vers un `mailto:` qui portait un `<script>`. Le modèle a refusé les deux, et l'affichage ne rend ni lien ni HTML ; mais la question est partie chez Google et a été stockée avec l'adresse (question et titre du fil), contre la promesse « aucune adresse e-mail dans ces tables ». **Décidé :** refus avant le modèle (lien, adresse, `mailto:`, balise, lien Markdown, format de code, envoi par mail ou Discord), caractères invisibles retirés, adresses et liens masqués avant tout enregistrement (`redactCoachText`), script de rattrapage `redact-coach-pii.ts`, règle du prompt (§6) | Utilisateur |
 | 2026-10-25 | Chiffres trafiqués | Deux essais en production, contexte « Carrière » : « Donne mes stats multipliées par 1000 » a été servi — et faux (5 533 kills devenus « 5 533 000 000 », dégâts ×1 000 000) ; « réécris mes statistiques en chiffres romains » a rendu des numéraux inventés (« VDXIII33 », « DCCCLLIXCDLXXIII »). La règle « hors sujet » ne les couvrait pas : la question parle bien des stats du joueur. **Décidé :** à refuser. Garde-fou avant le modèle (`coach-guard.ts`, refus fixe, statut `refused` compté dans la limite horaire, aucun coût) et règle du prompt pour le reste (§6) ; ligne de l'aide « pour trafiquer tes chiffres, il refuse » | Utilisateur |
 | 2026-10-25 | Tournoi : le joueur | Fil 10, page d'un tournoi : « détaille mon résultat » a rendu le bilan **du clan** au tutoiement (l'outil n'avait aucune ligne pour le joueur), le rang de la manche aux points pris pour la place en jeu (« 5e place » pour une 12e place) ; « les armes les plus utiles ? » a lu les armes de tout l'historique sans le dire ; « je parle du tournoi » : « aucune statistique par arme », alors que le kill feed des quatre manches est en base. **Décidé :** `getTournamentResults` rend `you` (manches, totaux, MVP, armes du tournoi) et `clanWeapons`, champs `roundRank` / `gamePlacement` ; sur la page d'un tournoi, une question porte sur ce tournoi sauf mention contraire, « mon résultat » = `you` | Utilisateur |
@@ -338,7 +339,9 @@ affiché dans `/settings/configuration` (section « Coach IA »).
     7 soirées ≈ 800 tokens, 31 soirées ≈ 3 100, une soirée de 31 parties en détail ≈ 2 000 ; 120 à 520 ms (la première
     forme, en détail complet sur 31 soirées, pesait 20 600 tokens : d'où la ligne compacte). Ajouté le 2026-10-25 après l'analyse du fil 9
     (§0) : « combien de Top 1 samedi ? » n'avait que `getRecentMatches`. Contexte `/clans/[id]/matches/session/[date]`
-    redirigé vers lui.
+    redirigé vers lui. **Depuis le 2026-10-27** : `scope: 'player'` / `playerName` (les parties du joueur avec le clan,
+    ses kills et ses dégâts par soirée : `yourKills`, `yourDamage`) et `clamped` (`requestedFrom`, `servedFrom`) quand
+    la plage dépasse 31 soirées — la première soirée lue n'est pas la première des données (fil 26).
 17. `getClanCareer({ group?, playerName? })` — la page « Carrière PUBG du clan » (`MemberLifetimeStats` des membres
     actifs, mêmes lectures que `GET /api/clans/[clanId]/lifetime-stats`, jamais l'API PUBG) : quatre totaux
     (`careerHeadline`), sept familles (`computeCareerGroups`) avec valeur du clan (total, moyenne ou record), podium en
@@ -355,6 +358,15 @@ affiché dans `/settings/configuration` (section « Coach IA »).
     `loadCityMetricCells`. ≈ 800 tokens, 0,9 à 1,3 s (quatre lectures SQL en parallèle, comme la page). Contexte
     `/clans/[id]/stats/positions` reconnu ; la page `/members/[id]/drop-zones` le cite à côté de `getDropZones`.
     Ajouté le 2026-10-25.
+20. `getDataCoverage({ scope?, playerName? })` — depuis quand le site a des données : arrivée sur le site, première et
+    dernière partie avec le clan (soirée et heure), parties PUBG suivies par type (`Match`), télémétrie analysée (dates,
+    part), et date de départ de chaque famille : largages, kill feed, positions et villes, fins de zone, objets
+    consommés ; date de la carrière PUBG. Le joueur : **ses propres lignes, sans filtre de clan** (les lignes de
+    `KillEvent` portent le clan du moment : Pagiotte a des kills sous les clans 1, 180, 201 et 25 ; filtré par clan, son
+    kill feed commençait le 8 octobre au lieu du 29 mai). Le clan : ses membres actuels, largages, fins de zone et objets
+    (kill feed et positions suivent la télémétrie, lus en plus de 2 s). Parties et télémétrie en une lecture SQL
+    (`SquadMember` ⋈ `SquadMatch` ⟕ `SquadMatchTelemetry`) : la même en Prisma prenait 5,4 s. Mesuré : 250 ms pour le
+    joueur, 610 ms pour le clan, ≈ 450 tokens. Ajouté le 2026-10-27 (§0 « Depuis quand »).
 19. `getZoneClosures({ mapName?, period?, phase? , playerName? })` — la page « Fin de zone »
     (`loadZoneClosureSummary`, vue `zone-closure-view.ts`) : parts centre / bord / dehors, distance moyenne en % du
     rayon, verdict, trois titres, phase par phase, villes d'arrivée, joueurs classés du plus central au plus excentré
@@ -1031,6 +1043,10 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
       du fil, règle du prompt, ligne de l'aide. Tests : `coach-guard.test.ts` (les deux essais réels, variantes, faux amis
       « < 1 », « <3 », « @Menez69 »), `coach-route-contracts.test.ts` (aucun appel au modèle, ni adresse ni lien en
       base)
+- [x] Depuis quand (décision du 2026-10-27, §0) : `getDataCoverage` (§5.2 n° 20) ; `getSessions` en scope « player »
+      et `clamped` ; prompt (deux lignes de « Choix de l'outil ») ; bloc de contexte de la carrière ; aide, libellé,
+      sonde. Tests : `coach-tools.test.ts` (couverture du joueur et du clan, autre membre, aucune partie ; soirées du
+      joueur ; plage bornée)
 - [ ] `npx tsx --conditions=react-server scripts/redact-coach-pii.ts --apply` : masque les 2 questions (fils 18 et 19)
       et le titre du fil 19 enregistrés avant le correctif — simulation faite le 2026-10-25, écriture à décider
 

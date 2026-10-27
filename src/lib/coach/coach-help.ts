@@ -21,8 +21,8 @@ export const COACH_HELP_DOMAINS: CoachHelpDomain[] = [
   {
     id: 'parties',
     title: 'Tes parties et tes soirées',
-    tools: ['getRecentMatches', 'getSessions', 'getMatchDebrief'],
-    examples: ['Pourquoi on s’est fait sortir sur la dernière partie ?', 'Combien de Top 1 samedi soir ?', 'Mes cinq dernières parties sur Erangel'],
+    tools: ['getRecentMatches', 'getSessions', 'getMatchDebrief', 'getDataCoverage'],
+    examples: ['Pourquoi on s’est fait sortir sur la dernière partie ?', 'Combien de Top 1 samedi soir ?', 'Mes cinq dernières parties sur Erangel', 'Depuis quand tu as mes données ?'],
   },
   {
     id: 'arsenal',

@@ -33,6 +33,15 @@ const mocks = vi.hoisted(() => ({
   telemetryStatsFindMany: vi.fn(),
   synergyFindMany: vi.fn(),
   memberCount: vi.fn(),
+  memberFindUnique: vi.fn(),
+  queryRaw: vi.fn(),
+  dropAggregate: vi.fn(),
+  killAggregate: vi.fn(),
+  cellAggregate: vi.fn(),
+  closureAggregate: vi.fn(),
+  itemAggregate: vi.fn(),
+  matchAggregate: vi.fn(),
+  matchGroupBy: vi.fn(),
   loadCityCells: vi.fn(),
   loadCityCoverage: vi.fn(),
   loadZoneClosures: vi.fn(),
@@ -53,17 +62,21 @@ vi.mock('@/lib/zone-closure-stats', async (importOriginal) => ({
 
 vi.mock('@/lib/prisma', () => ({
   prisma: {
+    $queryRaw: mocks.queryRaw,
     squadMatch: { findMany: mocks.squadMatchFindMany },
-    clanMember: { findFirst: mocks.memberFindFirst, count: mocks.memberCount },
+    clanMember: { findFirst: mocks.memberFindFirst, count: mocks.memberCount, findUnique: mocks.memberFindUnique },
+    positionMetricCell: { aggregate: mocks.cellAggregate },
+    zoneClosurePosition: { aggregate: mocks.closureAggregate },
+    memberItemUseStat: { aggregate: mocks.itemAggregate },
     memberWeaponStats: { findMany: mocks.weaponsFindMany },
     opponentClan: { findFirst: mocks.opponentFindFirst },
-    killEvent: { count: mocks.killCount, groupBy: mocks.killGroupBy, findMany: mocks.killFindMany },
+    killEvent: { count: mocks.killCount, groupBy: mocks.killGroupBy, findMany: mocks.killFindMany, aggregate: mocks.killAggregate },
     clanEncounter: { aggregate: mocks.encounterAggregate },
-    dropPressureStat: { findMany: mocks.dropFindMany },
+    dropPressureStat: { findMany: mocks.dropFindMany, aggregate: mocks.dropAggregate },
     playerStats: { findMany: mocks.statsFindMany },
     tournament: { findUnique: mocks.tournamentFindUnique },
     memberThrowableStat: { groupBy: mocks.throwGroupBy },
-    match: { findMany: mocks.matchFindMany },
+    match: { findMany: mocks.matchFindMany, aggregate: mocks.matchAggregate, groupBy: mocks.matchGroupBy },
     memberLifetimeStats: { findUnique: mocks.lifetimeFindUnique, findMany: mocks.lifetimeFindMany },
     memberSeasonStats: { findMany: mocks.seasonFindMany },
     memberTelemetryStats: { findMany: mocks.telemetryStatsFindMany },
@@ -120,7 +133,7 @@ beforeEach(() => {
 })
 
 describe('déclarations', () => {
-  it('expose les dix-neuf outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
+  it('expose les vingt outils sans jamais laisser le modèle choisir le clan ou le compte', () => {
     expect(COACH_TOOL_DECLARATIONS.map((tool) => tool.name)).toEqual([
       'getRecentMatches',
       'getSessions',
@@ -138,6 +151,7 @@ describe('déclarations', () => {
       'getPlayerBenchmark',
       'getCareerStats',
       'getClanPlaystyle',
+      'getDataCoverage',
       'getClanCareer',
       'getCityInsights',
       'getZoneClosures',
@@ -302,13 +316,42 @@ describe('getSessions', () => {
     expect(mocks.squadMatchFindMany.mock.calls[1][0].where.matchType).toEqual({ in: ['official'] })
   })
 
+  it('« mes soirées » : les parties du joueur seul, avec ses kills et ses dégâts, ou celles d’un autre membre', async () => {
+    const withMe = (id: string, iso: string, placement: number) =>
+      row(id, iso, placement, {
+        members: [
+          { memberId: 100, kills: 3, damage: 410.6, knockouts: 2, member: { displayName: 'NovakTV' } },
+          { memberId: 101, kills: 1, damage: 90, knockouts: 0, member: { displayName: 'Menez69' } },
+        ],
+      })
+    mocks.squadMatchFindMany.mockResolvedValue([withMe('p2', '2026-10-24T21:00:00Z', 1), withMe('p1', '2026-10-24T19:00:00Z', 9)])
+    const result = (await run('getSessions', { date: '2026-10-24', scope: 'player' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.squadMatchFindMany.mock.calls[0][0].where.members).toEqual({ some: { memberId: 100 } })
+    expect(mocks.memberFindFirst).not.toHaveBeenCalled()
+    expect(result).toMatchObject({ scope: 'NovakTV', totals: { matches: 2, wins: 1 } })
+    expect(result.sessions[0]).toMatchObject({ matches: 2, yourKills: 6, yourDamage: 821 })
+    expect(result.note).toContain('parties du joueur avec le clan')
+
+    mocks.memberFindFirst.mockResolvedValue({ id: 101, displayName: 'Menez69' })
+    const other = (await run('getSessions', { date: '2026-10-24', playerName: 'Menez69' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.squadMatchFindMany.mock.calls[1][0].where.members).toEqual({ some: { memberId: 101 } })
+    expect(other.sessions[0]).toMatchObject({ yourKills: 2, yourDamage: 180 })
+    // Le clan : pas de ligne du joueur.
+    const clan = (await run('getSessions', { date: '2026-10-24' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(clan.scope).toBe('le clan')
+    expect(clan.sessions[0]).not.toHaveProperty('yourKills')
+  })
+
   it('accepte une plage, la remet dans l’ordre, la borne à 31 soirées, refuse une date invalide', async () => {
     mocks.squadMatchFindMany.mockResolvedValue([])
     const swapped = (await run('getSessions', { from: '2026-10-24', to: '2026-10-20' })) as { from: string; to: string; days: number; totals: unknown; sessions: unknown[] }
     expect(swapped).toMatchObject({ from: '2026-10-20', to: '2026-10-24', days: 5, totals: { sessionsPlayed: 0, matches: 0, wins: 0 }, sessions: [] })
-    const clamped = (await run('getSessions', { from: '2026-01-01', to: '2026-10-25' })) as { from: string; days: number; note: string }
-    expect(clamped).toMatchObject({ from: '2026-09-25', days: 31 })
+    // Plage bornée : dite en clair, pour que la première soirée lue ne passe pas pour la première des données.
+    expect(swapped).not.toHaveProperty('clamped')
+    const clamped = (await run('getSessions', { from: '2026-01-01', to: '2026-10-25' })) as { from: string; days: number; note: string; clamped: unknown }
+    expect(clamped).toMatchObject({ from: '2026-09-25', days: 31, clamped: { requestedFrom: '2026-01-01', servedFrom: '2026-09-25', maxDays: 31 } })
     expect(clamped.note).toContain('31 dernières soirées')
+    expect(clamped.note).toContain('getDataCoverage')
     expect(mocks.squadMatchFindMany.mock.calls[1][0].where.createdAt.gte).toEqual(new Date('2026-09-25T04:00:00Z'))
     expect(await run('getSessions', { date: '24/10/2026' })).toEqual({ error: 'invalid_date', message: 'Date attendue au format AAAA-MM-JJ : « 24/10/2026 ».' })
     expect(await run('getSessions', { date: '2026-02-30' })).toMatchObject({ error: 'invalid_date' })
@@ -322,6 +365,75 @@ describe('getSessions', () => {
     expect(result.note).toContain('les plus anciennes manquent')
     expect(result.sessions[0].matchList).toHaveLength(40)
     expect(result.sessions[0].matchListTruncated).toBe(true)
+  })
+})
+
+describe('getDataCoverage', () => {
+  const at = (iso: string) => new Date(iso)
+  const range = (field: string, first: string, last: string, count?: number) => ({
+    _min: { [field]: at(first) },
+    _max: { [field]: at(last) },
+    ...(count === undefined ? {} : { _count: { _all: count } }),
+  })
+
+  beforeEach(() => {
+    // 23:30 UTC le 11 mai = 01:30 à Paris le 12 : soirée du 11.
+    mocks.queryRaw.mockResolvedValue([{ firstAt: at('2026-05-11T23:30:00Z'), lastAt: at('2026-10-26T20:00:00Z'), matches: BigInt(812), analyzed: '736', analyzedFirst: at('2026-05-29T19:56:24Z'), analyzedLast: at('2026-10-26T20:00:00Z') }])
+    mocks.dropAggregate.mockResolvedValue(range('matchDate', '2026-05-29T19:56:24Z', '2026-10-26T20:00:00Z', 722))
+    mocks.closureAggregate.mockResolvedValue(range('matchDate', '2026-09-03T17:30:06Z', '2026-10-26T20:00:00Z', 525))
+    mocks.itemAggregate.mockResolvedValue({ _min: { matchDate: null }, _max: { matchDate: null } })
+    mocks.killAggregate.mockResolvedValue(range('matchDate', '2026-05-29T19:56:24Z', '2026-10-26T20:00:00Z', 1119))
+    mocks.cellAggregate.mockResolvedValue(range('matchDate', '2026-05-29T19:56:24Z', '2026-10-26T20:00:00Z'))
+    mocks.memberFindUnique.mockResolvedValue({ createdAt: at('2026-05-23T22:26:46Z') })
+    mocks.matchAggregate.mockResolvedValue(range('pubgCreatedAt', '2026-05-18T18:00:37Z', '2026-10-26T20:00:00Z', 1024))
+    mocks.matchGroupBy.mockResolvedValue([{ matchType: 'custom', _count: { _all: 17 } }, { matchType: 'official', _count: { _all: 989 } }, { matchType: 'trainingroom', _count: { _all: 1 } }])
+    mocks.lifetimeFindUnique.mockResolvedValue({ lastRefreshedAt: at('2026-10-27T05:54:16Z') })
+    mocks.memberCount.mockResolvedValue(41)
+  })
+
+  it('dit depuis quand le site a les données du joueur, famille par famille, en dates de soirée', async () => {
+    const result = (await run('getDataCoverage')) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    // Ses propres lignes, quel que soit le clan où il jouait : jamais de filtre de clan sur un joueur.
+    expect(mocks.queryRaw.mock.calls[0][0].values).toEqual([100])
+    expect(mocks.dropAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: 100 } }))
+    expect(mocks.killAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: { OR: [{ killerMemberId: 100 }, { victimMemberId: 100 }] } }))
+    expect(mocks.matchAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: { memberId: 100 } }))
+    expect(result).toMatchObject({
+      scope: 'NovakTV',
+      onSiteSince: '2026-05-23',
+      clanMatches: { firstSession: '2026-05-11', firstMatchAt: '2026-05-11T23:30:00.000Z', lastSession: '2026-10-26', count: 812 },
+      pubgMatches: { since: '2026-05-18', until: '2026-10-26', count: 1024, byType: '989 normale · 17 personnalisée · 1 salle d’entraînement' },
+      telemetry: { since: '2026-05-29', until: '2026-10-26', analyzed: 736, of: 812, percent: 91 },
+      careerSyncedAt: '2026-10-27T05:54:16.000Z',
+    })
+    expect(result.data).toEqual([
+      { data: 'Largages', since: '2026-05-29', until: '2026-10-26', count: 722, unit: 'sauts' },
+      { data: 'Kill feed (armes, adversaires)', since: '2026-05-29', until: '2026-10-26', count: 1119, unit: 'kills et morts du joueur' },
+      { data: 'Positions et villes', since: '2026-05-29', until: '2026-10-26' },
+      { data: 'Fins de zone', since: '2026-09-03', until: '2026-10-26', count: 525, unit: 'fermetures vécues' },
+      { data: 'Objets consommés', since: null, message: 'aucune donnée' },
+    ])
+    expect(JSON.stringify(result)).not.toMatch(/memberId|accountId/)
+  })
+
+  it('le clan : ses membres actuels, sans ligne de joueur ; un autre membre ou un inconnu', async () => {
+    const clan = (await run('getDataCoverage', { scope: 'clan' })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.queryRaw.mock.calls[0][0].values).toEqual([292])
+    expect(mocks.dropAggregate).toHaveBeenCalledWith(expect.objectContaining({ where: { member: { clanId: 292 } } }))
+    expect(mocks.killAggregate).not.toHaveBeenCalled()
+    expect(mocks.matchAggregate).not.toHaveBeenCalled()
+    expect(clan).toMatchObject({ scope: 'le clan', activeMembers: 41, clanMatches: { count: 812 } })
+    expect(clan.data.map((line: { data: string }) => line.data)).toEqual(['Largages', 'Fins de zone', 'Objets consommés'])
+    expect(clan).not.toHaveProperty('onSiteSince')
+
+    mocks.memberFindFirst.mockResolvedValue({ id: 101, displayName: 'Menez69' })
+    expect(await run('getDataCoverage', { playerName: 'Menez69' })).toMatchObject({ scope: 'Menez69' })
+    expect(mocks.queryRaw.mock.calls[1][0].values).toEqual([101])
+    mocks.memberFindFirst.mockResolvedValue(null)
+    expect(await run('getDataCoverage', { playerName: 'Inconnu' })).toMatchObject({ error: 'player_not_found' })
+
+    mocks.queryRaw.mockResolvedValue([{ firstAt: null, lastAt: null, matches: 0, analyzed: null, analyzedFirst: null, analyzedLast: null }])
+    expect(await run('getDataCoverage')).toMatchObject({ clanMatches: { count: 0 }, telemetry: { analyzed: 0, of: 0 } })
   })
 })
 

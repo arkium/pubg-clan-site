@@ -15,8 +15,9 @@ type BadgeConfig = {
 const BADGE_CONFIGS: Record<string, BadgeConfig> = {
   // Partie officielle : teinte d'accent de la charte (jaune PUBG sous `.charte`), jetons du thème — pas de nouveau
   // `dark:`. Masquée par défaut ; `showOfficial` l'affiche là où le type doit toujours se lire (débriefing).
+  // « Normal », comme la Ligue et les filtres (docs/TODO/aide-des-pages.md §0, f).
   official: {
-    label: 'Officiel',
+    label: 'Normal',
     classes: 'border-[var(--theme-ui-accent-ring)] bg-[var(--theme-ui-accent-soft)] text-[var(--theme-ui-accent-text)]',
   },
   casual: {

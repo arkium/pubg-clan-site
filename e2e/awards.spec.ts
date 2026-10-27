@@ -7,7 +7,7 @@ import { appHeader, dock, toolbar } from './support/layout'
 
 /**
  * Awards du clan — charte UI (docs/ui/index.html, migrée le 04/10/2026) : titre Teko, nombre de matchs sur la photo,
- * bandeau à intitulés (« Type de match » Officiel / Tous comme le classement), lauréat mis en avant, médailles SVG,
+ * bandeau à intitulés (« Type de match » Normal / Tous, vocabulaire de la Ligue), lauréat mis en avant, médailles SVG,
  * aucun emoji, aucun défilement horizontal.
  */
 
@@ -20,9 +20,9 @@ test.beforeEach(async ({ api, page }) => {
   await expect(page.getByRole('article', { name: 'Le croc mort' })).toBeVisible()
 })
 
-test('bandeau : matchs pris en compte, type de match Officiel / Tous, rafraîchir', async ({ api, page }) => {
+test('bandeau : matchs pris en compte, type de match Normal / Tous, rafraîchir', async ({ api, page }) => {
   await expect(page.locator('header').getByText('24 matchs pris en compte')).toBeVisible()
-  await expect(toolbar(page).getByRole('button', { name: 'Officiel' })).toHaveAttribute('aria-pressed', 'true')
+  await expect(toolbar(page).getByRole('button', { name: 'Normal' })).toHaveAttribute('aria-pressed', 'true')
   await toolbar(page).getByRole('button', { name: 'Tous', exact: true }).last().click()
   await expect(page.locator('header').getByText('31 matchs pris en compte')).toBeVisible()
   expect(api.paramValues(`/api/clans/${CLAN_ID}/awards`, 'scope')).toContain('all')
@@ -55,6 +55,6 @@ test('aucun défilement horizontal ; docké sur mobile, la période seule', asyn
   await page.waitForLoadState('networkidle')
   await expect(appHeader(page)).toBeVisible()
   await dock(page)
-  await expect(toolbar(page).getByRole('button', { name: 'Officiel' })).toHaveCount(0)
+  await expect(toolbar(page).getByRole('button', { name: 'Normal' })).toHaveCount(0)
   await expect(toolbar(page).getByRole('button', { name: 'Rafraîchir' })).toHaveCount(0)
 })

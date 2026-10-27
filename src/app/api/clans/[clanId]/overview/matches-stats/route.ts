@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
+import { buildClanMatchesCachePayload } from '@/lib/matches-cache-service'
 import { prisma } from '@/lib/prisma'
 import { SquadPeriod } from '@/types/squad-matches'
 import { parseClanMatchTypeFilter } from '@/lib/match-type-filter'
@@ -47,8 +48,12 @@ export async function GET(
     })
 
     if (!cacheEntry) {
-      // For the very first time, if cron hasn't run yet, we might return empty state
-      // but ideally we'd compute on the fly or just return null.
+      // Ligne pas encore écrite par le calcul de la nuit (premier passage d'un clan, Ranked le jour de son ajout) :
+      // calculée à la lecture, sans rien écrire. Les mois précédents n'ont pas de cache : 404 comme avant.
+      if (period === 'week' || period === 'month' || period === 'all') {
+        const live = await buildClanMatchesCachePayload(parsedClanId, period, matchType)
+        return Response.json({ ...live, computedAt: new Date().toISOString() })
+      }
       return Response.json({ error: 'Stats not ready for this period' }, { status: 404 })
     }
 

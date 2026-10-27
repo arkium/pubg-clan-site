@@ -5,7 +5,7 @@ import { useMemo } from 'react'
 import ItemIcon from '@/components/ui/ItemIcon'
 import { Skeleton } from '@/components/ui/Skeleton'
 import SortableTh from '@/components/ui/SortableTh'
-import { itemFamilyColor, itemLabel } from '@/lib/clan-playstyle'
+import { itemFamilyColor, itemLabel, itemTrackingSentence } from '@/lib/clan-playstyle'
 import { resolveItemName } from '@/lib/pubg-assets'
 import type { ItemUseStats } from '@/lib/item-use-stats'
 
@@ -63,9 +63,7 @@ export default function ItemUsePanel({ stats, loading, error, scope }: ItemUsePa
   if (!stats || stats.totalCount === 0) {
     return (
       <p className={`app-panel t-body p-6 text-center text-gray-500 transition-opacity ${loading ? 'opacity-60' : ''}`}>
-        Aucun objet consommé enregistré sur cette période. Le détail par objet n’existe que pour les matchs analysés depuis le
-        17/09/2026 : les matchs plus anciens ne peuvent pas être rattrapés, la télémétrie ne conserve pas ces événements en
-        base.
+        Aucun objet consommé enregistré sur cette période. {itemTrackingSentence(stats?.trackingStart)}
       </p>
     )
   }
@@ -80,7 +78,7 @@ export default function ItemUsePanel({ stats, loading, error, scope }: ItemUsePa
           <dd className="t-hero t-hero--md text-gray-900">{numberFormat.format(stats.totalCount)}</dd>
           <dd className="t-meta">
             {numberFormat.format(stats.matchCount)} matchs analysés
-            {/* Le détail par objet n'existe que depuis le 17/09/2026 : la date dit d'où partent les chiffres. */}
+            {/* Le détail par objet n'existe que depuis septembre 2026 : la date dit d'où partent les chiffres. */}
             {stats.dataStart ? ` depuis le ${dateFormat.format(new Date(stats.dataStart))}` : ''}
           </dd>
         </div>

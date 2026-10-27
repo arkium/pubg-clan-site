@@ -27,6 +27,7 @@ import { useClanOverview } from '@/hooks/useClanOverview'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSectionNavItems } from '@/hooks/useSectionNavItems'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { MATCH_TYPE_FILTER_OPTIONS } from '@/lib/clan-league'
 import { groupByIntent, pickDuo, synergyBars, type ClanShowcase, type ExploreIntent, type SynergyLike } from '@/lib/clan-showcase'
 import { frDecimal } from '@/lib/match-sessions'
 import { PERIOD_OF_LABELS, PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
@@ -39,12 +40,8 @@ import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matc
  * Déplacés le même jour : Villes et Pression au drop → Drop zones ; Top performers → Awards ; Roster → Classement.
  */
 
-const MATCH_TYPE_OPTIONS: Array<{ value: ClanMatchTypeFilter; label: string }> = [
-  { value: 'official', label: 'Officiel' },
-  { value: 'casual', label: 'Casual' },
-  { value: 'custom', label: 'Custom' },
-  { value: 'all', label: 'Tous' },
-]
+// Libellés de la Ligue, Ranked compris (docs/TODO/aide-des-pages.md §0, f) : le cache des matchs le calcule aussi.
+const MATCH_TYPE_OPTIONS = [...MATCH_TYPE_FILTER_OPTIONS]
 
 const TEAM_MODE_OPTIONS: Array<{ value: ClanTeamModeFilter; label: string }> = [
   { value: 'all', label: 'Tous' },

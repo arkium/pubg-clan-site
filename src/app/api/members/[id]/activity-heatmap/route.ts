@@ -1,5 +1,6 @@
 import { NextRequest } from 'next/server'
 
+import { activeSessionDays, parisSlotOf } from '@/lib/activity-heatmap'
 import { clanPlacementMemberWhere, playerTeamOf } from '@/lib/clan-placement'
 import { getMapLabels } from '@/lib/map-label-service'
 import { matchTypeWhere, parsePlayerMatchType } from '@/lib/match-type-filter'
@@ -42,16 +43,12 @@ function parsePeriod(value: string | null): Period {
 // `getPeriodStart` (src/lib/period.ts) : semaine et mois calendaires, comme les autres pages.
 // Ils étaient glissants (7 / 30 jours) jusqu'au 2026-09-25 (docs/TODO/sticky.md §3.C).
 
-function toMondayIndex(day: number) {
-  return (day + 6) % 7
-}
-
 function buildHeatmap(createdAtList: Date[]) {
   const counts = new Map<string, number>()
 
   for (const createdAt of createdAtList) {
-    const day = toMondayIndex(createdAt.getDay())
-    const hour = createdAt.getHours()
+    // Heure de Paris, comme l'annonce la page : `getDay` / `getHours` suivaient le fuseau du serveur (UTC en production).
+    const { dayIndex: day, hour } = parisSlotOf(createdAt)
     const key = `${day}-${hour}`
     counts.set(key, (counts.get(key) ?? 0) + 1)
   }
@@ -202,7 +199,7 @@ export async function GET(
 
       const createdAtList = filteredMatches.map((match) => match.createdAt)
       const { heatmap, maxCellCount } = buildHeatmap(createdAtList)
-      const activeDays = new Set(createdAtList.map(d => d.toISOString().split('T')[0])).size
+      const activeDays = activeSessionDays(createdAtList)
       const playtimeSeconds = filteredMatches.reduce((sum, match) => {
         const clanMems = match.members.filter(m => m.member?.clanId === member.clanId)
         return sum + clanMems.reduce((s, m) => s + m.timeSurvived, 0)
@@ -337,7 +334,7 @@ export async function GET(
 
       const createdAtList = filteredEntries.map((entry) => entry.createdAt)
       const { heatmap, maxCellCount } = buildHeatmap(createdAtList)
-      const activeDays = new Set(createdAtList.map(d => d.toISOString().split('T')[0])).size
+      const activeDays = activeSessionDays(createdAtList)
       const playtimeSeconds = filteredEntries.reduce((sum, entry) => sum + entry.playtime, 0)
 
       return Response.json({
@@ -395,7 +392,7 @@ export async function GET(
 
     const createdAtList = filteredMatches.map((match) => match.pubgCreatedAt)
     const { heatmap, maxCellCount } = buildHeatmap(createdAtList)
-    const activeDays = new Set(createdAtList.map(d => d.toISOString().split('T')[0])).size
+    const activeDays = activeSessionDays(createdAtList)
     const playtimeSeconds = filteredMatches.reduce((sum, match) => sum + match.duration, 0)
 
     return Response.json({

@@ -18,7 +18,7 @@ test('classement du clan : repliée, dans le HTML, dates lues à l’ouverture s
   await expect(note).toHaveCount(1)
   await expect(note).not.toHaveAttribute('open', '')
   // Texte général dans le HTML, sans aucune date tant que la barre est fermée.
-  await expect(note.getByTestId('page-scope-matches')).toContainText('Type « Officiel »', { useInnerText: false })
+  await expect(note.getByTestId('page-scope-matches')).toContainText('Type « Normal »')
   expect(api.served.some((call) => call.url.pathname.endsWith('/data-coverage'))).toBe(false)
 
   await note.getByText('D’où viennent ces chiffres ?').click()

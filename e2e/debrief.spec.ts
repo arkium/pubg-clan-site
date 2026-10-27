@@ -25,11 +25,11 @@ test('en-tête : classement sur le lobby, type de partie, durée, escouade et in
   const summary = page.getByRole('region', { name: 'Résumé de la partie' })
   // Place en Teko sur la photo, sur le nombre d'équipes du lobby.
   await expect(summary.getByLabel('Place 1 sur 26 équipes')).toHaveText('#1/26')
-  await expect(summary).toContainText('Officiel')
+  await expect(summary).toContainText('Normal')
   // Bots du lobby (comptes ai.… des statistiques par joueur) ; mode, type et bots à la même hauteur.
   await expect(summary).toContainText('2 bots')
   const heights = await summary
-    .locator('.app-team-mode-badge, .app-npc-badge--lg, span.rounded-full:text-is("Officiel")')
+    .locator('.app-team-mode-badge, .app-npc-badge--lg, span.rounded-full:text-is("Normal")')
     .evaluateAll((nodes) => nodes.map((node) => Math.round(node.getBoundingClientRect().height)))
   expect(heights).toHaveLength(3)
   expect(new Set(heights).size).toBe(1)

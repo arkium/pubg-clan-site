@@ -59,14 +59,15 @@ type ClanAwardsResponse = {
   awards: ClanAward[]
 }
 
-// Même vocabulaire que le classement (« Officiel » / « Tous ») ; l'API garde ses valeurs `normal` / `all`.
+// Même vocabulaire que la Ligue et le classement (« Normal » / « Tous », docs/TODO/aide-des-pages.md §0, f) ; l'API
+// garde ses valeurs `normal` / `all`.
 const SCOPE_OPTIONS: Array<{ value: AwardScope; label: string }> = [
-  { value: 'normal', label: 'Officiel' },
+  { value: 'normal', label: 'Normal' },
   { value: 'all', label: 'Tous' },
 ]
 
 const SCOPE_HINT =
-  'Officiel : parties officielles en duo, trio et squad (sans casual, bots, customs ni modes spéciaux). Tous : tous les types de parties en duo, trio et squad.'
+  'Normal : parties normales en duo, trio et squad (sans Ranked, casual, bots, customs ni modes spéciaux). Tous : tous les types de parties en duo, trio et squad.'
 
 const REFRESH_HINT = 'Les awards sont gardés en cache ; Rafraîchir les recalcule depuis les matchs.'
 

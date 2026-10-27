@@ -906,7 +906,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     const telemetryLine = ({ telemetry }: ClanDataCoverage | MemberDataCoverage) =>
       telemetry.analyzed > 0 ? telemetry : { analyzed: 0, of: telemetry.of }
     const note =
-      `Dates de soirée (heure de Paris, journée de 06:00 à 06:00). « clanMatches » : les parties avec le clan, la base de la plupart des outils ; « telemetry » : celles dont le déroulé est analysé, base des largages, du kill feed, des positions et des fins de zone. Chaque famille a commencé à sa propre date (fins de zone suivies depuis septembre 2026, objets consommés depuis le 18 septembre 2026) ; les positions brutes (replay 2D, tracés) sont gardées ${GEO_RETENTION_DAYS} jours (${GEO_PROTECTED_RETENTION_DAYS} pour un Top 1 ou une partie custom), leurs agrégats restent. La carrière PUBG couvre toutes les parties du compte depuis sa création, hors du site.`
+      `Dates de soirée (heure de Paris, journée de 06:00 à 06:00). « clanMatches » : les parties avec le clan, la base de la plupart des outils ; « telemetry » : celles dont le déroulé est analysé, base des largages, du kill feed, des positions et des fins de zone. Chaque famille a commencé à sa propre date, celle de sa ligne dans « data » (fins de zone et objets consommés suivis depuis septembre 2026) ; les positions brutes (replay 2D, tracés) sont gardées ${GEO_RETENTION_DAYS} jours (${GEO_PROTECTED_RETENTION_DAYS} pour un Top 1 ou une partie custom), leurs agrégats restent. La carrière PUBG couvre toutes les parties du compte depuis sa création, hors du site.`
 
     if (!memberId) {
       const clan = await loadClanDataCoverage(scope.clanId)
@@ -1420,6 +1420,8 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         total: own.totalCount,
         perMatch: perMatch(own.totalCount, own.matchCount),
         since: own.dataStart,
+        // Départ réel du détail par objet pour ce joueur, toutes périodes confondues (jamais une date écrite ici).
+        trackedSince: own.trackingStart ? sessionDateOf(own.trackingStart) : null,
         families: own.families.map((family) => ({
           family: itemFamilyLabel(family.subCategory),
           count: family.count,
@@ -1441,7 +1443,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
         topConsumer: clan.members[0] ? { player: clan.members[0].displayName, perMatch: round1(clan.members[0].perMatch) } : null,
       },
       thrown: { total: thrown.reduce((sum, row) => sum + row.count, 0), items: thrown.slice(0, ITEMS_MAX), itemsTruncated: thrown.length > ITEMS_MAX },
-      note: 'Le site compte ce qui est consommé (soins, boosts, carburant, gadgets) et lancé (grenades) dans les parties analysées, pas le contenu du sac ni les munitions, armures et accessoires ramassés. Détail par objet seulement pour les parties analysées depuis le 18 septembre 2026.',
+      note: 'Le site compte ce qui est consommé (soins, boosts, carburant, gadgets) et lancé (grenades) dans les parties analysées, pas le contenu du sac ni les munitions, armures et accessoires ramassés. Détail par objet seulement pour les parties analysées depuis « trackedSince » (date de soirée) : la télémétrie plus ancienne ne conserve pas ces événements.',
     }
   }
 

@@ -178,9 +178,9 @@ function periodRow(entry: PageScopeEntry, context: PageScopeContext | null): str
 
 const TYPES_EXCLUDED = 'Ranked, Casual, parties perso et tournois ne comptent pas'
 
-/** Libellé d'un type comme le filtre de la page l'écrit : celui de la Ligue, sauf libellé propre à la page. */
+/** Libellé d'un type comme le filtre de la page l'écrit : le libellé court de la Ligue, sauf libellé propre à la page. */
 export function matchTypeLabel(type: ClanMatchTypeFilter, labels?: Partial<Record<ClanMatchTypeFilter, string>>) {
-  return labels?.[type] ?? (type === 'all' ? 'Tous' : (LEAGUE_MATCH_TYPE_OPTIONS.find((option) => option.value === type)?.label ?? type))
+  return labels?.[type] ?? (type === 'all' ? 'Tous' : (LEAGUE_MATCH_TYPE_OPTIONS.find((option) => option.value === type)?.short ?? type))
 }
 
 function matchTypesRow(entry: PageScopeEntry, context: PageScopeContext | null): string {

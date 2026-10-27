@@ -3,17 +3,11 @@
 import { ChevronDown, Gamepad2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 
-import { LEAGUE_MATCH_TYPE_OPTIONS } from '@/lib/clan-league'
+import { MATCH_TYPE_FILTER_OPTIONS } from '@/lib/clan-league'
 import type { ClanMatchTypeFilter } from '@/types/squad-matches'
 
-/** Choix des pages joueur : les types de la Ligue, puis « Tous » (libellés courts, comme les cartes du clan). */
-export const PLAYER_MATCH_TYPE_CHOICES: ReadonlyArray<{ value: ClanMatchTypeFilter; label: string }> = [
-  ...LEAGUE_MATCH_TYPE_OPTIONS.map((option) => ({ value: option.value, label: option.short })),
-  { value: 'all', label: 'Tous' },
-]
-
-export const playerMatchTypeLabel = (value: ClanMatchTypeFilter) =>
-  PLAYER_MATCH_TYPE_CHOICES.find((choice) => choice.value === value)?.label ?? 'Tous'
+const playerMatchTypeLabel = (value: ClanMatchTypeFilter) =>
+  MATCH_TYPE_FILTER_OPTIONS.find((choice) => choice.value === value)?.label ?? 'Tous'
 
 /**
  * Filtre « Type de partie » des pages joueur (docs/TODO/aide-des-pages.md, lot 7) : une pastille qui ouvre un menu,
@@ -55,7 +49,7 @@ export default function MatchTypeMenu({ value, onChange }: { value: ClanMatchTyp
       </button>
       {open ? (
         <div role="menu" aria-label="Type de partie" className="app-menu absolute right-0 top-full z-50 mt-1.5 w-[190px]">
-          {PLAYER_MATCH_TYPE_CHOICES.map((choice) => (
+          {MATCH_TYPE_FILTER_OPTIONS.map((choice) => (
             <button
               key={choice.value}
               type="button"

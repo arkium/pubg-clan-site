@@ -955,7 +955,7 @@ export function MatchDebriefView({
                     {resolveGameMode(match.gameMode)}
                   </span>
                 )}
-                {/* Type de partie toujours lisible ici : « Officiel » compris (variante de MatchTypeBadge, à l'accent). */}
+                {/* Type de partie toujours lisible ici : « Normal » compris (variante de MatchTypeBadge, à l'accent). */}
                 <MatchTypeBadge matchType={match.matchType || 'official'} size="sm" showOfficial />
                 {botCount.bots > 0 ? (
                   // Une partie peuplée de bots se joue presque comme une Casual : badge à la façon du badge « Casual ».

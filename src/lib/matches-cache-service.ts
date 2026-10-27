@@ -4,7 +4,8 @@ import { matchTypeMatchesFilter } from '@/lib/match-type-filter'
 import { teamModeFromMemberCount } from '@/lib/team-mode'
 import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementMemberWhere, clanPlacementOf } from '@/lib/clan-placement'
 
-const CLAN_MATCH_TYPE_FILTERS: ClanMatchTypeFilter[] = ['official', 'casual', 'custom', 'all']
+// Ranked compris depuis le 2026-10-27 : la vue d'ensemble le propose, comme la Ligue (docs/TODO/aide-des-pages.md §0, f).
+const CLAN_MATCH_TYPE_FILTERS: ClanMatchTypeFilter[] = ['official', 'competitive', 'casual', 'custom', 'all']
 
 function getPeriodBounds(period: SquadPeriod, referenceDate = new Date()): { gte: Date; lte: Date } {
   if (period === 'week') {
@@ -151,6 +152,22 @@ async function buildPeriodPayloads(clanId: number, period: SquadPeriod, referenc
       matchType === 'all' ? squadMatches : squadMatches.filter((match) => matchTypeMatchesFilter(match.matchType, matchType))
     ),
   }))
+}
+
+/**
+ * Une charge du cache, calculée à la lecture sans rien écrire : la route de la vue d'ensemble s'en sert tant que le
+ * calcul de la nuit n'a pas écrit la ligne (premier passage d'un clan, Ranked le jour de son ajout).
+ */
+export async function buildClanMatchesCachePayload(clanId: number, period: SquadPeriod, matchType: ClanMatchTypeFilter, referenceDate = new Date()) {
+  const squadMatches = await loadClanPeriodMatches(clanId, period, referenceDate)
+  return {
+    period,
+    matchType,
+    periodKey: getPeriodKey(period, referenceDate),
+    payload: processMatchesForCache(
+      matchType === 'all' ? squadMatches : squadMatches.filter((match) => matchTypeMatchesFilter(match.matchType, matchType))
+    ),
+  }
 }
 
 /**

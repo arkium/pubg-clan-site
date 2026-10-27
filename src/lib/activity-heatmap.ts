@@ -3,7 +3,29 @@
  * testé par `activity-heatmap.test.ts` ; la page ne fait que l'afficher.
  */
 
+import { sessionDateOf } from '@/lib/match-sessions'
+
 export type ActivityCell = { dayIndex: number; hour: number; count: number }
+
+// `en-GB` : jour court en anglais (« Mon ») et heure seule (« 21 »), faciles à lire comme des clés.
+const PARIS_SLOT = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Paris', weekday: 'short', hour: '2-digit', hourCycle: 'h23' })
+const WEEKDAY_INDEX: Record<string, number> = { Mon: 0, Tue: 1, Wed: 2, Thu: 3, Fri: 4, Sat: 5, Sun: 6 }
+
+/**
+ * Case d'une partie dans le calendrier : jour (0 = lundi) et heure **de Paris**, quel que soit le fuseau du serveur — UTC
+ * en production, ce qui décalait les heures d'une ou deux heures (docs/TODO/aide-des-pages.md §0, g).
+ */
+export function parisSlotOf(at: Date): { dayIndex: number; hour: number } {
+  const parts = PARIS_SLOT.formatToParts(at)
+  const weekday = parts.find((part) => part.type === 'weekday')?.value ?? 'Mon'
+  const hour = Number(parts.find((part) => part.type === 'hour')?.value ?? '0')
+  return { dayIndex: WEEKDAY_INDEX[weekday] ?? 0, hour: hour === 24 ? 0 : hour }
+}
+
+/** Jours actifs : soirées distinctes (journée de 06:00, heure de Paris), pas des dates UTC. */
+export function activeSessionDays(playedAt: readonly Date[]): number {
+  return new Set(playedAt.map((at) => sessionDateOf(at))).size
+}
 
 export const ACTIVITY_DAY_LABELS = ['Lun', 'Mar', 'Mer', 'Jeu', 'Ven', 'Sam', 'Dim'] as const
 const DAY_NAMES = ['lundi', 'mardi', 'mercredi', 'jeudi', 'vendredi', 'samedi', 'dimanche'] as const

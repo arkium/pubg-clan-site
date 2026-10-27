@@ -112,6 +112,16 @@ export const LEAGUE_MATCH_TYPE_OPTIONS: Array<{ value: LeagueMatchType; label: s
   { value: 'custom', label: 'Tournois / Custom', short: 'Tournois', noun: 'de tournoi ou custom', hint: 'parties personnalisées, tournois compris' },
 ]
 
+/**
+ * Filtre « Type de partie » des pages qui proposent aussi « Tous » (vue d'ensemble et classement d'un clan, pages
+ * joueur) : les libellés courts de la Ligue, un seul vocabulaire sur tout le site (« Normal », jamais « Officiel » —
+ * docs/TODO/aide-des-pages.md §0, f), et Ranked partout où « Tous » le compte.
+ */
+export const MATCH_TYPE_FILTER_OPTIONS: ReadonlyArray<{ value: ClanMatchTypeFilter; label: string }> = [
+  ...LEAGUE_MATCH_TYPE_OPTIONS.map((option) => ({ value: option.value, label: option.short })),
+  { value: 'all', label: 'Tous' },
+]
+
 /** Valeurs de `SquadMatch.matchType` couvertes par chaque type (même règle que `matchTypeMatchesFilter`). */
 export function leagueMatchTypeValues(matchType: LeagueMatchType): string[] {
   if (matchType === 'casual') return ['casual', 'airoyale']

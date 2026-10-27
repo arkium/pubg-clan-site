@@ -1,6 +1,22 @@
 import { describe, expect, it } from 'vitest'
 
-import { activityByDay, activityLevel, busiestSlot, plural, slotLabel } from '@/lib/activity-heatmap'
+import { activeSessionDays, activityByDay, activityLevel, busiestSlot, parisSlotOf, plural, slotLabel } from '@/lib/activity-heatmap'
+
+describe('parisSlotOf / activeSessionDays — heure de Paris, quel que soit le fuseau du serveur', () => {
+  it('jour et heure de Paris, en été comme en hiver (le serveur de production est en UTC)', () => {
+    // Samedi 24 octobre 2026, 19:30 UTC = 21:30 à Paris (heure d'été).
+    expect(parisSlotOf(new Date('2026-10-24T19:30:00Z'))).toEqual({ dayIndex: 5, hour: 21 })
+    // Lundi 26 octobre 2026, 23:30 UTC = mardi 00:30 à Paris (heure d'hiver).
+    expect(parisSlotOf(new Date('2026-10-26T23:30:00Z'))).toEqual({ dayIndex: 1, hour: 0 })
+  })
+
+  it('jours actifs = soirées distinctes : une soirée qui passe minuit compte une fois', () => {
+    // Samedi 22 h et dimanche 1 h 30 (Paris) : même soirée ; dimanche 21 h : une autre.
+    const playedAt = [new Date('2026-10-24T20:00:00Z'), new Date('2026-10-25T00:30:00Z'), new Date('2026-10-25T20:00:00Z')]
+    expect(activeSessionDays(playedAt)).toBe(2)
+    expect(activeSessionDays([])).toBe(0)
+  })
+})
 
 describe('activityLevel', () => {
   it('0 sans partie, puis quatre quarts du créneau le plus joué', () => {

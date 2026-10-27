@@ -32,6 +32,7 @@ const STATS = {
   ],
   members: [],
   dataStart: '2026-09-17T20:00:00.000Z',
+  trackingStart: '2026-09-17T20:00:00.000Z',
 }
 
 describe('item use route contracts', () => {

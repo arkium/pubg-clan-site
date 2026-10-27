@@ -101,6 +101,60 @@ function playerTeamMatch<T extends { memberId: number; placement: number }>(matc
   return { id: match.id, placement: members.find((entry) => entry.memberId === memberId)?.placement ?? 0, members }
 }
 
+const MATCH_ROW_SELECT = {
+  pubgMatchId: true,
+  mapName: true,
+  gameMode: true,
+  kills: true,
+  knockouts: true,
+  assists: true,
+  damageDealt: true,
+  headshotKills: true,
+  revives: true,
+  placement: true,
+  duration: true,
+} as const
+
+type MatchRow = {
+  pubgMatchId: string
+  mapName: string
+  gameMode: string
+  kills: number
+  knockouts: number
+  assists: number
+  damageDealt: number
+  headshotKills: number
+  revives: number
+  placement: number
+  duration: number
+}
+
+/**
+ * Une ligne par partie. `Match` porte une ligne par joueur : en périmètre « clan » ou « meilleure équipe », une partie à
+ * quatre membres comptait quatre parties, et les victoires d'un duo doublaient (docs/TODO/aide-des-pages.md §0, d).
+ * Kills, dégâts et le reste s'additionnent ; la place est la meilleure des membres (celle du clan, comme
+ * `clanPlacementOf`) ; la durée est celle de la partie, la même pour tous.
+ */
+function onePerMatch(rows: MatchRow[]): MatchRow[] {
+  const byMatch = new Map<string, MatchRow>()
+  for (const row of rows) {
+    const current = byMatch.get(row.pubgMatchId)
+    if (!current) {
+      byMatch.set(row.pubgMatchId, { ...row })
+      continue
+    }
+    current.kills += row.kills
+    current.knockouts += row.knockouts
+    current.assists += row.assists
+    current.damageDealt += row.damageDealt
+    current.headshotKills += row.headshotKills
+    current.revives += row.revives
+    if (row.placement > 0 && (current.placement <= 0 || row.placement < current.placement)) current.placement = row.placement
+    current.duration = Math.max(current.duration, row.duration)
+  }
+  return [...byMatch.values()]
+}
+
 function aggregateTeams(
   squadMatches: Array<{
     id: string
@@ -229,18 +283,7 @@ export async function GET(
         : memberId
 
     let scopeLabel = `Stats cartes de ${member.displayName}`
-    let matchRows: Array<{
-      mapName: string
-      gameMode: string
-      kills: number
-      knockouts: number
-      assists: number
-      damageDealt: number
-      headshotKills: number
-      revives: number
-      placement: number
-      duration: number
-    }> = []
+    let matchRows: MatchRow[] = []
 
     if (scope === 'clan') {
       if (!member.clanId) {
@@ -279,18 +322,7 @@ export async function GET(
             ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),
         },
-        select: {
-          mapName: true,
-          gameMode: true,
-          kills: true,
-          knockouts: true,
-          assists: true,
-          damageDealt: true,
-          headshotKills: true,
-          revives: true,
-          placement: true,
-          duration: true,
-        },
+        select: MATCH_ROW_SELECT,
       })
     } else if (scope === 'best') {
       const squadMatches = await prisma.squadMatch.findMany({
@@ -335,18 +367,7 @@ export async function GET(
               ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
               : {}),
           },
-          select: {
-            mapName: true,
-            gameMode: true,
-            kills: true,
-            knockouts: true,
-            assists: true,
-            damageDealt: true,
-            headshotKills: true,
-            revives: true,
-            placement: true,
-            duration: true,
-          },
+          select: MATCH_ROW_SELECT,
         })
       }
     } else {
@@ -364,18 +385,7 @@ export async function GET(
             ? { pubgCreatedAt: { gte: periodBounds.startDate, lte: periodBounds.endDate } }
             : {}),
         },
-        select: {
-          mapName: true,
-          gameMode: true,
-          kills: true,
-          knockouts: true,
-          assists: true,
-          damageDealt: true,
-          headshotKills: true,
-          revives: true,
-          placement: true,
-          duration: true,
-        },
+        select: MATCH_ROW_SELECT,
       })
     }
 
@@ -397,7 +407,7 @@ export async function GET(
       }
     >()
 
-    for (const row of matchRows) {
+    for (const row of onePerMatch(matchRows)) {
       const existing = mapAggregates.get(row.mapName) ?? {
         mapName: row.mapName,
         matches: 0,

@@ -96,7 +96,10 @@ describe('textes de la barre', () => {
     expect(every.text).toContain('Tous les types de partie')
     // Méthodologie : les choix du filtre, avec les libellés de la page.
     const [, general] = pageScopeRows({ ...overview, matchTypesNote: undefined })
-    expect(general.text).toBe('Filtre « Type de partie » : « Officiel », « Casual », « Custom », « Tous » (« Officiel » par défaut).')
+    expect(general.text).toBe('Filtre « Type de partie » : « Normal », « Ranked », « Casual », « Tournois », « Tous » (« Normal » par défaut).')
+    // Libellé propre à une page, s'il en a un.
+    const [, custom] = pageScopeRows({ ...overview, matchTypesNote: undefined, matchTypeFilter: { options: ['official', 'all'], default: 'official', labels: { official: 'Classique' } } })
+    expect(custom.text).toBe('Filtre « Type de partie » : « Classique », « Tous » (« Classique » par défaut).')
   })
 
   it('dates : textes généraux repliée, « — » en lecture, dates réelles ensuite ; jamais de faux zéro', () => {

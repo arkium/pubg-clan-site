@@ -1,3 +1,4 @@
+import { MATCH_TYPE_FILTER_OPTIONS } from '@/lib/clan-league'
 import { CLAN_MAPS_MIN_SAMPLE } from '@/lib/clan-maps'
 import { DISTINCTION_MIN_MATCHES } from '@/lib/distinctions'
 import { ROSTER_WINDOW_DAYS } from '@/lib/member-roster'
@@ -18,11 +19,8 @@ import type { ClanMatchTypeFilter } from '@/types/squad-matches'
  * pas de type de partie : ils comptent tout.
  */
 
-/** Filtre « Type de partie » des pages joueur (lot 7) : types de la Ligue, puis « Tous ». */
-const PLAYER_TYPE_OPTIONS: readonly ClanMatchTypeFilter[] = ['official', 'competitive', 'casual', 'custom', 'all']
-/** Filtre de la vue d'ensemble et du classement d'un clan : sans Ranked, libellés propres. */
-const CLAN_CACHE_TYPE_OPTIONS: readonly ClanMatchTypeFilter[] = ['official', 'casual', 'custom', 'all']
-const OFFICIEL_LABELS = { official: 'Officiel', custom: 'Custom' } as const
+/** Filtre « Type de partie » à « Tous » (pages joueur, vue d'ensemble et classement d'un clan) : `MATCH_TYPE_FILTER_OPTIONS`. */
+const TYPE_OPTIONS_WITH_ALL: readonly ClanMatchTypeFilter[] = MATCH_TYPE_FILTER_OPTIONS.map((option) => option.value)
 
 const SQUAD_MATCH = 'Une partie du clan = au moins deux de ses membres actifs dans la même équipe ; un ancien membre n’y compte plus.'
 const TEAM_MODE = 'Duo, Trio, Squad : le nombre de membres du clan dans la partie, pas le mode PUBG.'
@@ -78,7 +76,7 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
     source: 'Résultats officiels PUBG de chacune de ses parties, avec ou sans le clan ; pour chacune, l’état de sa télémétrie.',
     telemetry: false,
     matchTypes: 'filter',
-    matchTypeFilter: { options: PLAYER_TYPE_OPTIONS, default: 'all' },
+    matchTypeFilter: { options: TYPE_OPTIONS_WITH_ALL, default: 'all' },
     matchTypesNote: 'Chaque partie porte son étiquette de type.',
     period: 'filter',
     periods: STANDARD_PERIODS,
@@ -94,12 +92,13 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
     source: 'Résultats officiels PUBG : ses parties, avec ou sans le clan ; pour le clan et la meilleure équipe, les parties jouées ensemble.',
     telemetry: false,
     matchTypes: 'filter',
-    matchTypeFilter: { options: PLAYER_TYPE_OPTIONS, default: 'official' },
+    matchTypeFilter: { options: TYPE_OPTIONS_WITH_ALL, default: 'official' },
     period: 'filter',
     periods: STANDARD_PERIODS,
     defaultPeriod: 'all',
+    notes: ['Jours et heures à l’heure de Paris ; jours actifs = soirées, de 6 h à 6 h.'],
     since: ['pubgMatches'],
-    code: ['src/app/api/members/[id]/activity-heatmap/route.ts'],
+    code: ['src/app/api/members/[id]/activity-heatmap/route.ts', 'src/lib/activity-heatmap.ts'],
   },
   {
     area: 'member',
@@ -108,11 +107,14 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
     source: 'Résultats officiels PUBG de ses parties, carte par carte, avec ou sans le clan ; meilleure équipe : les parties jouées ensemble.',
     telemetry: false,
     matchTypes: 'filter',
-    matchTypeFilter: { options: PLAYER_TYPE_OPTIONS, default: 'official' },
+    matchTypeFilter: { options: TYPE_OPTIONS_WITH_ALL, default: 'official' },
     period: 'filter',
     periods: STANDARD_PERIODS,
     defaultPeriod: 'all',
-    notes: ['Durée : celle de la partie, pas son temps de survie.'],
+    notes: [
+      'Clan et meilleure équipe : chaque partie comptée une fois, avec la meilleure place des membres et leurs kills additionnés.',
+      'Durée : celle de la partie, pas son temps de survie.',
+    ],
     since: ['pubgMatches'],
     code: ['src/app/api/members/[id]/map-stats/route.ts'],
   },
@@ -123,7 +125,7 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
     source: `Télémétrie : point d’atterrissage de chaque partie analysée. ${WITH_CLAN}`,
     telemetry: true,
     matchTypes: 'filter',
-    matchTypeFilter: { options: PLAYER_TYPE_OPTIONS, default: 'all' },
+    matchTypeFilter: { options: TYPE_OPTIONS_WITH_ALL, default: 'all' },
     period: 'filter',
     periods: STANDARD_PERIODS,
     defaultPeriod: 'week',
@@ -209,8 +211,8 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
       'Résultats officiels PUBG des parties du clan, recalculés chaque nuit ; réanimations croisées tirées de la télémétrie. Le haut de page (palmarès, briefing) suit le mois et la semaine en cours, tous types, sans les filtres.',
     telemetry: false,
     matchTypes: 'filter',
-    matchTypeFilter: { options: CLAN_CACHE_TYPE_OPTIONS, default: 'official', labels: OFFICIEL_LABELS },
-    matchTypesNote: '« Tous » compte aussi les parties Ranked.',
+    matchTypeFilter: { options: TYPE_OPTIONS_WITH_ALL, default: 'official' },
+    matchTypesNote: 'Réanimations croisées : pas calculées pour les parties Ranked.',
     period: 'filter',
     periods: STANDARD_PERIODS,
     defaultPeriod: 'week',
@@ -255,8 +257,7 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
     source: 'Résultats officiels PUBG des membres actifs, calculés à la lecture : parties jouées ensemble, plus leurs parties sans autre membre pour le « Solo ».',
     telemetry: false,
     matchTypes: 'filter',
-    matchTypeFilter: { options: CLAN_CACHE_TYPE_OPTIONS, default: 'official', labels: OFFICIEL_LABELS },
-    matchTypesNote: '« Tous » compte aussi les parties Ranked.',
+    matchTypeFilter: { options: TYPE_OPTIONS_WITH_ALL, default: 'official' },
     period: 'filter',
     periods: STANDARD_PERIODS,
     defaultPeriod: 'week',
@@ -273,7 +274,7 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
       'Résultats officiels PUBG des parties jouées ensemble par les membres actifs, en duo et en squad (solo et modes spéciaux exclus) ; calculées chaque nuit, et à la demande par « Rafraîchir ».',
     telemetry: false,
     matchTypes: 'filter',
-    matchTypeFilter: { options: ['official', 'all'], default: 'official', labels: { official: 'Officiel' } },
+    matchTypeFilter: { options: ['official', 'all'], default: 'official' },
     matchTypesNote: 'Meilleurs joueurs : parties normales seulement.',
     period: 'filter',
     periods: STANDARD_PERIODS,

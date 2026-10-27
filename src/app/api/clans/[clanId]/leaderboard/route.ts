@@ -1,6 +1,7 @@
 import { NextRequest } from 'next/server'
 
 import { requireNavPermission } from '@/middleware/auth-permission'
+import { clanPlacementMemberWhere } from '@/lib/clan-placement'
 import { prisma } from '@/lib/prisma'
 import { parseClanMatchTypeFilter } from '@/lib/match-type-filter'
 import type { ClanMatchTypeFilter } from '@/types/squad-matches'
@@ -362,6 +363,7 @@ function aggregateLeaderboardEntries({
 }
 
 async function fetchLeaderboardActivity(
+  clanId: number,
   memberIds: number[],
   dateRange: PeriodRange | null,
   matchType: ClanMatchTypeFilter
@@ -423,9 +425,12 @@ async function fetchLeaderboardActivity(
           select: {
             pubgMatchId: true,
             createdAt: true,
+            // Duo / Trio / Squad : les membres actifs **du clan** dans la partie, comme la liste des parties. La ligne
+            // d'une partie partagée réunit tous les joueurs suivis du lobby, d'autres clans compris
+            // (docs/TODO/aide-des-pages.md §0, e).
             _count: {
               select: {
-                members: true,
+                members: { where: { member: clanPlacementMemberWhere(clanId) } },
               },
             },
           },
@@ -660,7 +665,7 @@ export async function GET(
       },
     })
 
-    const { matchRows, squadMembers } = await fetchLeaderboardActivity(memberIds, dateRange, matchType)
+    const { matchRows, squadMembers } = await fetchLeaderboardActivity(parsedClanId, memberIds, dateRange, matchType)
     const aggregatedLeaderboard = aggregateLeaderboardEntries({
       members: membersWithProfiles,
       matchRows,
@@ -712,6 +717,7 @@ export async function GET(
         }
 
         const { matchRows: pastMatchRows, squadMembers: pastSquadMembers } = await fetchLeaderboardActivity(
+          parsedClanId,
           leaderboardMemberIds,
           periodRange,
           matchType

@@ -19,6 +19,7 @@ import { useLeaderboard } from '@/hooks/useLeaderboard'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { useTableSort } from '@/hooks/useTableSort'
+import { MATCH_TYPE_FILTER_OPTIONS } from '@/lib/clan-league'
 import { computeDistinctions, distinctionsByMember } from '@/lib/distinctions'
 import {
   formatInteger,
@@ -37,12 +38,8 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
-const MATCH_TYPE_OPTIONS: Array<{ value: ClanMatchTypeFilter; label: string }> = [
-  { value: 'official', label: 'Officiel' },
-  { value: 'casual', label: 'Casual' },
-  { value: 'custom', label: 'Custom' },
-  { value: 'all', label: 'Tous' },
-]
+// Libellés de la Ligue, Ranked compris (docs/TODO/aide-des-pages.md §0, f) : la route le calcule à la lecture.
+const MATCH_TYPE_OPTIONS = [...MATCH_TYPE_FILTER_OPTIONS]
 
 const TEAM_MODE_OPTIONS: Array<{ value: LeaderboardTeamMode; label: string }> = [
   { value: 'all', label: 'Tous' },

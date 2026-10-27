@@ -171,6 +171,17 @@ export function itemLabel(itemId: string, fallback: (id: string) => string) {
   return ITEM_LABELS[itemId] ?? fallback(itemId)
 }
 
+/**
+ * Phrase des états vides des objets consommés : la vraie date de départ du détail par objet (`trackingStart` de
+ * `loadItemUseStats`), jamais une date écrite dans le texte — la page disait 17/09, le Coach 18/09, les données du clan
+ * 25 partent du 7 (docs/TODO/aide-des-pages.md §0, c).
+ */
+export function itemTrackingSentence(trackingStart: string | null | undefined) {
+  if (!trackingStart) return 'Le détail par objet ne vient que des matchs analysés : aucun n’en a encore enregistré.'
+  const date = new Date(trackingStart).toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Europe/Paris' })
+  return `Le détail par objet commence le ${date.replace(/^1 /, '1er ')} : la télémétrie des matchs plus anciens ne conserve pas ces événements.`
+}
+
 // ── Synergies d'équipe (duo, trio, squad) ───────────────────────────────────────────────────────────
 
 export type SynergyEntry = {

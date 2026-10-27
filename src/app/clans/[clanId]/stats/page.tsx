@@ -37,7 +37,7 @@ const SECTIONS: SectionAnchorNavItem[] = [
 ]
 
 /**
- * Synergies et coopération : type de match « Officiel », comme le réglage par défaut de la vue d'ensemble, et tous
+ * Synergies et coopération : type de match « Normal », comme le réglage par défaut de la vue d'ensemble, et tous
  * modes confondus (décision du 2026-09-27) — les chiffres des deux pages concordent pour une même période.
  */
 const SYNERGY_MATCH_TYPE = 'official' as const

@@ -32,26 +32,39 @@ type**. Un filtre sur le tableau de bord, les armes, la Némésis, les objets ou
 partie des cartes. Ces pages gardent leur règle, que la barre dit carte par carte (`matchTypes: 'mixed'`). Pour aller
 plus loin : un type de partie dans ces agrégats (schéma, workers, rattrapage) — chantier à décider.
 
-**Écarts relevés en chemin, non corrigés** (à trancher) :
+**Écarts relevés en chemin** — c) à g) corrigés le 2026-10-27 (`src/lib/aide-des-pages-fixes.test.ts`), a) vérifié,
+b) et h) à trancher :
 
-- *Semaine et mois* : bornes calculées à l'heure **locale du serveur** (`src/lib/period.ts`), pas explicitement à
-  l'heure de Paris ; la barre et la Méthodologie disent « du lundi 0 h au dimanche 23 h 59 » sans fuseau. Vérifier le
-  `TZ` du serveur de production.
-- *Conservation des positions* : la Méthodologie et la barre annoncent 30 jours (90 pour un Top 1 ou un custom) ;
-  la purge n'agit qu'une fois ouvert l'interrupteur de /settings/database, fermé par défaut.
-- *Objets consommés* : la page dit « depuis le 17/09/2026 », le Coach « 18 septembre » ; les données du clan 25
-  commencent le 7 septembre. La barre lit la vraie date (service) et dit « septembre 2026 » sans date fixe.
-- *Cartes d'un joueur* : en périmètre « clan », une partie à quatre membres compte quatre fois dans « parties » ; en
-  « meilleure équipe », parties et victoires sont multipliées par la taille de l'équipe (`map-stats/route.ts`, lignes
-  `Match` de chaque membre). Win rate et place moyenne ne sont pas touchés.
-- *Classement du clan* : le mode (Duo / Trio / Squad) vient de `squadMatch._count.members`, qui compte aussi les
-  membres d'autres clans d'une partie partagée (`leaderboard/route.ts`) ; la liste des parties compte ceux du clan.
-- *Vocabulaire* : « Officiel » (vue d'ensemble, classement, distinctions) contre « Normal » (Ligue, Cartes,
-  Méthodologie) ; le classement et la vue d'ensemble n'offrent pas Ranked, que leur « Tous » compte.
-- *Activité d'un joueur* : jours et heures pris à l'heure locale du serveur alors que la page dit « heure de Paris » ;
-  « Jours actifs » compte des dates UTC, pas des soirées.
-- *Défis* : le type `squad_synergy` n'a pas de calcul de progression (reste à 0) ; les badges des récompenses ne sont
-  jamais écrits.
+- **a) Semaine et mois — à décider.** Bornes calculées à l'heure **locale du serveur** (`src/lib/period.ts`). Vérifié
+  le 2026-10-27 sans accès SSH, par les bornes que le serveur écrit en base : `PlayerStats` de la semaine du 26 octobre
+  commence à `2026-10-26T00:00:00Z` (739 lignes), les mois au 1er à 00:00 UTC, base en `@@system_time_zone = UTC` — le
+  **serveur de production tourne en UTC**. Une semaine commence donc le lundi à 1 h (2 h en été) heure de Paris, et
+  une partie du lundi 0 h 30 compte dans la semaine d'avant. Quelques lignes (6 semaines, 7 mois) commencent à 22:00
+  UTC : écrites depuis un poste à l'heure de Paris. Correctif proposé : `TZ=Europe/Paris` dans les **quatre** services
+  (web, telemetry-worker, cron, telemetry-aggregates), en même temps, puis un recalcul des agrégats de la période en
+  cours ; ou des bornes calculées explicitement à l'heure de Paris dans `period.ts` et ses copies.
+- **b) Conservation des positions — à décider.** La Méthodologie et la barre annoncent 30 jours (90 pour un Top 1 ou
+  un custom) ; la purge n'agit qu'une fois ouvert l'interrupteur de /settings/database, fermé par défaut.
+- **c) Objets consommés — corrigé.** Plus de date écrite (la page disait 17/09, le Coach 18/09, les données du clan 25
+  partent du 7) : `loadItemUseStats` rend `trackingStart` (première partie avec un objet, toutes périodes), lu par les
+  états vides des deux pages (`itemTrackingSentence`, `clan-playstyle.ts`) et par `getItemUsage` du Coach
+  (`trackedSince`).
+- **d) Cartes d'un joueur — corrigé.** Une ligne par partie (`onePerMatch`, `map-stats/route.ts`) : en périmètre
+  « clan », une partie à quatre membres comptait quatre parties ; en « meilleure équipe », parties et victoires étaient
+  multipliées par la taille de l'équipe. Place = la meilleure des membres, kills et dégâts additionnés, durée de la partie.
+- **e) Classement du clan — corrigé.** Le mode (Duo / Trio / Squad) compte les membres actifs du clan dans la partie
+  (`_count` filtré par `clanPlacementMemberWhere`), comme la liste des parties ; il comptait tous les joueurs suivis
+  du lobby. Mesuré en lecture seule sur le clan 25 : 800 lignes sur 2 000 en 30 jours changent de mode.
+- **f) Vocabulaire — corrigé.** Un seul jeu de libellés, `MATCH_TYPE_FILTER_OPTIONS` (`clan-league.ts`) : Normal,
+  Ranked, Casual, Tournois, Tous — vue d'ensemble, classement, pages joueur ; « Normal » sur les distinctions et le
+  badge de type. Ranked ajouté à la vue d'ensemble (cache des matchs : type `competitive` en plus, calculé à la lecture
+  tant que la nuit ne l'a pas écrit) et au classement (calculé à la lecture). Réanimations croisées : pas calculées
+  pour Ranked (agrégats de synergies), la barre le dit.
+- **g) Activité d'un joueur — corrigé.** Jours et heures à l'heure de Paris quel que soit le fuseau du serveur
+  (`parisSlotOf`), « Jours actifs » = soirées (`activeSessionDays`, `sessionDateOf`) ; en UTC, les heures étaient
+  décalées d'une à deux heures.
+- **h) Défis — à décider.** Le type `squad_synergy` n'a pas de calcul de progression (reste à 0) ; les badges des
+  récompenses ne sont jamais écrits.
 
 ## 1. Décisions
 

@@ -37,7 +37,13 @@ export type ItemUseStats = {
   families: ItemUseFamilyStat[]
   items: ItemUseItemStat[]
   members: ItemUseMemberStat[]
+  /** Première partie de la période avec un objet consommé. */
   dataStart: string | null
+  /**
+   * Première partie, toutes périodes confondues, où le joueur ou le clan a un objet consommé : la date réelle de départ
+   * du détail par objet, au lieu d'une date écrite dans les textes (docs/TODO/aide-des-pages.md §0, c). `null` : rien.
+   */
+  trackingStart: string | null
 }
 
 export function getItemUsePeriodBounds(period: ItemUsePeriod, now = new Date()) {
@@ -88,7 +94,7 @@ function scope(input: LoadInput) {
 export async function loadItemUseStats(input: LoadInput): Promise<ItemUseStats> {
   const where = scope(input)
 
-  const [itemRows, memberRows, totals] = await Promise.all([
+  const [itemRows, memberRows, totals, tracking] = await Promise.all([
     prisma.$queryRaw<Array<{ itemId: string; subCategory: string; count: bigint }>>(Prisma.sql`
       SELECT i.itemId, i.subCategory, SUM(i.count) AS count
       FROM MemberItemUseStat i
@@ -109,6 +115,12 @@ export async function loadItemUseStats(input: LoadInput): Promise<ItemUseStats> 
       FROM MemberItemUseStat i
       WHERE ${where}
     `),
+    // Sans période : la même lecture vaut déjà pour toutes les périodes.
+    input.bounds
+      ? prisma.$queryRaw<Array<{ trackingStart: Date | null }>>(Prisma.sql`
+          SELECT MIN(i.matchDate) AS trackingStart FROM MemberItemUseStat i WHERE ${scope({ ...input, bounds: null })}
+        `)
+      : Promise.resolve(null),
   ])
 
   const totalCount = Number(totals[0]?.total ?? 0)
@@ -142,5 +154,9 @@ export async function loadItemUseStats(input: LoadInput): Promise<ItemUseStats> 
       perMatch: Number(row.matches) > 0 ? Number(row.count) / Number(row.matches) : 0,
     })),
     dataStart: totals[0]?.dataStart ? new Date(totals[0].dataStart).toISOString() : null,
+    trackingStart: (() => {
+      const start = tracking ? tracking[0]?.trackingStart : totals[0]?.dataStart
+      return start ? new Date(start).toISOString() : null
+    })(),
   }
 }

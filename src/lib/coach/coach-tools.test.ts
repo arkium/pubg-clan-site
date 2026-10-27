@@ -802,6 +802,7 @@ describe('getItemUsage', () => {
     ],
     members: [],
     dataStart: '2026-09-18T19:00:00.000Z',
+    trackingStart: '2026-09-07T18:00:00.000Z',
   }
   const clan = {
     ...own,
@@ -835,6 +836,8 @@ describe('getItemUsage', () => {
         total: 60,
         perMatch: 3,
         since: '2026-09-18T19:00:00.000Z',
+        // Départ réel du détail par objet, en date de soirée : jamais une date écrite dans la note.
+        trackedSince: '2026-09-07',
         families: [
           { family: 'Soins', count: 40, sharePercent: 67, perMatch: 2 },
           { family: 'Boosts', count: 20, sharePercent: 33, perMatch: 1 },

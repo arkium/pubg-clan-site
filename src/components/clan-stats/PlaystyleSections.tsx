@@ -19,6 +19,7 @@ import {
   cooperationSummary,
   cooperationTop,
   formatKilometers,
+  itemTrackingSentence,
   playstyleRoles,
   playstyleThemes,
   synergyGroups,
@@ -264,8 +265,7 @@ export function ItemUseSection({ stats }: { stats: ItemUseStats | null }) {
   if (!stats || stats.totalCount === 0) {
     return (
       <p className="app-panel t-body p-4 text-gray-700">
-        Aucun objet consommé enregistré sur cette période. Le détail par objet n’existe que pour les matchs analysés
-        depuis le 2026-09-17 : la télémétrie plus ancienne ne conserve pas ces événements.
+        Aucun objet consommé enregistré sur cette période. {itemTrackingSentence(stats?.trackingStart)}
       </p>
     )
   }

@@ -181,6 +181,7 @@ export function itemUseStats(period: LeaderboardPeriod, withMembers: boolean): I
         }))
       : [],
     dataStart: '2026-09-17T00:00:00.000Z',
+    trackingStart: '2026-09-07T18:00:00.000Z',
   }
 }
 

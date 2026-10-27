@@ -50,7 +50,6 @@ model Clan {
   clanConfigs               ClanConfig[]
   positionMetricCells       PositionMetricCell[]
   zoneClosurePositions      ZoneClosurePosition[]
-  encounteredPlayers        EncounteredPlayer[]
   killEvents                KillEvent[]
   awardsCache               ClanAwardsCache[]
   matchesCache              ClanMatchesCache[]
@@ -134,70 +133,10 @@ model ClanMember {
   @@map("ClanMember")
 }
 
-// Adversaires (hors clan suivi) croisés en match par un clan tracké. Table
-// volontairement séparée de ClanMember/Clan — sert d'observation légère
-// (fréquence de croisement, clan PUBG résolu à la demande), pas de tracking actif.
-// Voir docs/TODO/todo.md, section "Idées — Suivi des adversaires rencontrés en match".
-model EncounteredPlayer {
-  id     String @id @default(cuid())
-  clanId Int
-  clan   Clan   @relation(fields: [clanId], references: [id], onDelete: Cascade)
-
-  pubgAccountId  String
-  pubgPlayerName String
-  platformShard  String
-
-  // Identité globale correspondante (Player.pubgAccountId+platformShard).
-  // Nullable : backfillée pour les comptes déjà résolus, sinon peuplée à la
-  // prochaine résolution — permet de joindre vers Player sans requête
-  // supplémentaire par pubgAccountId+platformShard.
-  playerId String?
-  player   Player? @relation(fields: [playerId], references: [id], onDelete: SetNull)
-
-  // Résolution du clan PUBG de ce joueur — nullable tant que non résolu.
-  // clanResolvedAt marque qu'une tentative a eu lieu (succès ou "pas de clan"),
-  // pour ne jamais rappeler l'API PUBG deux fois pour le même joueur.
-  pubgClanId      String?
-  pubgClanTag     String?
-  pubgClanName    String?
-  clanResolvedAt  DateTime?
-  resolveAttempts Int       @default(0)
-
-  encounterCount         Int      @default(1)
-  // Sous-ensemble de encounterCount : nombre de fois où ce joueur partageait le
-  // roster (la squad) d'un membre suivi — un coéquipier occasionnel, pas un
-  // adversaire. opponentEncounterCount (encounterCount - teammateEncounterCount)
-  // se calcule à la lecture, pas stocké séparément.
-  teammateEncounterCount Int      @default(0)
-  firstSeenAt            DateTime @default(now())
-  lastSeenAt             DateTime @default(now())
-
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-
-  combatInteractionsCount Int @default(0)
-
-  @@unique([clanId, pubgAccountId])
-  @@index([clanId, encounterCount])
-  @@index([clanId, pubgClanTag])
-  @@index([clanResolvedAt, encounterCount])
-  @@index([clanResolvedAt, resolveAttempts, encounterCount], map: "idx_ep_resolution")
-  @@index([clanResolvedAt, pubgClanTag], map: "idx_ep_resolved_clan")
-  @@index([lastSeenAt], map: "idx_ep_last_seen")
-  @@index([clanResolvedAt, combatInteractionsCount])
-  @@index([playerId])
-  @@index([pubgPlayerName], map: "idx_encountered_player_name")
-  // Sert le regroupement par identité globale (priorisation cross-clan du
-  // résolveur) : combien de clans distincts ont croisé ce compte, encore non
-  // résolu.
-  @@index([pubgAccountId, platformShard, clanResolvedAt])
-  @@map("EncounteredPlayer")
-}
-
 // Identité globale d'un joueur PUBG croisé (adversaire ou coéquipier de match)
 // par un clan suivi, normalisée pour éviter de dupliquer nom/résolution de clan
-// une fois par clan qui l'observe (voir EncounteredPlayer ci-dessus, encore en
-// écriture double pendant la transition — docs/TODO/todo.md).
+// une fois par clan qui l'observe. Remplace l'ancienne table EncounteredPlayer (une ligne par clan et par compte),
+// supprimée le 2026-10-27 — docs/TODO/inventaire-2026-10-20.md §6.
 model Player {
   id             String @id @default(cuid())
   pubgAccountId  String
@@ -229,7 +168,6 @@ model Player {
 
   encounters            ClanEncounter[]
   clanMembers           ClanMember[]
-  encounteredPlayerRows EncounteredPlayer[]
 
   @@unique([pubgAccountId, platformShard])
   @@index([opponentClanId])

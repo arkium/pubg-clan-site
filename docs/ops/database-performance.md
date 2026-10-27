@@ -193,7 +193,11 @@ Conséquence : dans le pire cas (les deux workers proches de leur plafond de tas
 
 Lecture : un pic cgroup compte aussi le **cache de fichiers** attribué au service (fichiers de tri, tables temporaires, journaux), récupérable par le noyau. Les 3,7 Gio de MariaDB ne prouvent donc pas une mémoire *anonyme* de cette taille ; la répartition se lit dans `memory.stat` (`anon` / `file`) — à relever avant le redimensionnement. Côté Node, les pics réels (1,2 et 1,4 Gio) restent loin des plafonds de tas de 2 Go. Recommandation révisée : **1 Go** d'abord (8 × 128 Mio), observation d'une semaine (swap, `available`, ratio `Innodb_buffer_pool_reads`), puis 1,5 Go si la marge le permet — pas 2 Go d'emblée. Les données chaudes à mettre en cache sont les index de `EncounteredPlayer`, `ClanEncounter` et `Player` (~2,4 Go de fichiers), pas les JSON de `SquadMatchTelemetry` lus un match à la fois. Comprendre les 1,77 Gio de `mariadbd` avant d'ajouter de la mémoire.
 
-### 4.2 Index de `EncounteredPlayer` — à trancher avec les mesures
+### 4.2 Index de `EncounteredPlayer` — sans objet depuis le 2026-10-27
+
+> La table est supprimée (migration `20261027230000_drop_encountered_player`) : ses 3,85 Go (0,97 Go de données,
+> 2,78 Go d'index) reviennent au disque au déploiement, `innodb_file_per_table` étant actif. Analyse conservée pour
+> mémoire.
 
 11 index secondaires pour 1,1 Go. Chevauchements **structurels** (à confirmer par `INDEX_STATISTICS`, pas à supprimer sur cette seule base) :
 

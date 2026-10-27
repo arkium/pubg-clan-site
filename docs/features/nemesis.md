@@ -80,8 +80,8 @@ adversaires ; **884** nommés tout de suite par l'étape 2 (aucun appel) ; **627
 soit ~63 h au lot par défaut (5 par passage), ~8 h au lot maximal (40, réglage du cron).
 
 Mesuré le 2026-10-22 (lecture seule, 48 s) : **92 940 comptes adverses du kill feed nommés sur 92 941** ; le dernier
-est inconnu de l'API PUBG (`notFound`) et n'est plus redemandé. `scripts/count-unresolved-opponents.ts` lit encore
-`EncounteredPlayer` : à revoir avant le `DROP` de cette table.
+est inconnu de l'API PUBG (`notFound`) et n'est plus redemandé. `scripts/count-unresolved-opponents.ts`, qui lisait
+`EncounteredPlayer`, a été supprimé avec cette table le 2026-10-27 : la mesure est faite.
 
 **Déploiement** : la table `KillFeedAccountLookup` (migration `20261003120000_add_kill_feed_account_lookup`) doit
 exister avant le premier passage du cron (`npx prisma migrate deploy`). Sans elle, la priorité kill feed échoue et le

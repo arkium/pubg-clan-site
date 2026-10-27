@@ -22,7 +22,6 @@ import { prisma } from '@/lib/prisma'
 
 export const MAINTAINABLE_TABLES = [
   'SquadMatchTelemetry',
-  'EncounteredPlayer',
   'ClanEncounter',
   'Player',
   'PositionMetricCell',

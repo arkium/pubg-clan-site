@@ -86,12 +86,8 @@ async function main() {
 
   // Pseudos des inconnus, quand le site les a déjà croisés.
   const accounts = [...untrackedAccounts.keys()]
-  const [players, encountered] = await Promise.all([
-    prisma.player.findMany({ where: { pubgAccountId: { in: accounts } }, select: { pubgAccountId: true, pubgPlayerName: true } }),
-    prisma.encounteredPlayer.findMany({ where: { pubgAccountId: { in: accounts } }, select: { pubgAccountId: true, pubgPlayerName: true } }),
-  ])
-  const names = new Map<string, string>()
-  for (const entry of [...encountered, ...players]) names.set(entry.pubgAccountId, entry.pubgPlayerName)
+  const players = await prisma.player.findMany({ where: { pubgAccountId: { in: accounts } }, select: { pubgAccountId: true, pubgPlayerName: true } })
+  const names = new Map(players.map((entry) => [entry.pubgAccountId, entry.pubgPlayerName]))
 
   console.log(`\n${untrackedAccounts.size} joueur(s) inconnu(s) du site sur l'ensemble du tournoi :`)
   for (const [account, entry] of [...untrackedAccounts.entries()].sort((left, right) => right[1].rounds.length - left[1].rounds.length)) {

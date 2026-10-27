@@ -93,7 +93,7 @@ async function main() {
     )
   )
 
-  const [clan, clanMembers, globalPlayers, encounteredPlayers, killEvents] = await Promise.all([
+  const [clan, clanMembers, globalPlayers, killEvents] = await Promise.all([
     prisma.clan.findUnique({ where: { id: clanId }, select: { tag: true } }),
     prisma.clanMember.findMany({
       where: { pubgAccountId: { in: memberKeys } },
@@ -113,10 +113,6 @@ async function main() {
         opponentClan: { select: { tag: true } },
       },
     }),
-    prisma.encounteredPlayer.findMany({
-      where: { pubgAccountId: { in: memberKeys } },
-      select: { pubgAccountId: true, pubgPlayerName: true, pubgClanTag: true },
-    }),
     prisma.killEvent.findMany({
       where: { squadMatchId: row.squadMatchId },
       select: {
@@ -135,19 +131,10 @@ async function main() {
   ])
 
   const identities = new Map<string, ReplayIdentity>()
-  for (const player of encounteredPlayers) {
-    const key = normalizeReplayKey(player.pubgAccountId)
-    if (key) identities.set(key, { name: player.pubgPlayerName, clanTag: player.pubgClanTag, clanId: null })
-  }
+  // Adversaires : identité globale `Player` (pseudo et clan PUBG) ; EncounteredPlayer supprimée le 2026-10-27.
   for (const player of globalPlayers) {
     const key = normalizeReplayKey(player.pubgAccountId)
-    if (key) {
-      identities.set(key, {
-        name: player.pubgPlayerName,
-        clanTag: player.opponentClan?.tag ?? identities.get(key)?.clanTag ?? null,
-        clanId: null,
-      })
-    }
+    if (key) identities.set(key, { name: player.pubgPlayerName, clanTag: player.opponentClan?.tag ?? null, clanId: null })
   }
   for (const member of clanMembers) {
     const key = normalizeReplayKey(member.pubgAccountId)

@@ -395,9 +395,10 @@ Discord ou un e-mail se fabrique **uniquement** par `src/lib/short-links.ts` (`/
 `APP_URL` / `NEXT_PUBLIC_APP_URL` — [url-masking.md](docs/TODO/url-masking.md).
 **Identité d'un membre** (depuis le 2026-10-20) : toute création ou validation de `ClanMember` appelle
 `ensurePlayerLinkForMember` (`src/lib/member-player-link.ts`), qui pose `playerId` sans toucher au clan PUBG du joueur.
-`EncounteredPlayer` est en cours de retrait (docs/TODO/inventaire-2026-10-20.md §6) : une **nouvelle** lecture passe par
-`Player` / `ClanEncounter`, jamais par `EncounteredPlayer` ; un compteur d'adversaire (rencontres, combats, échecs de
-résolution) s'écrit sur `Player` seul — plus aucune écriture vers `EncounteredPlayer` depuis l'étape 4 (2026-10-22).
+La table `EncounteredPlayer` est **supprimée** (étape 5, migration `20261027230000_drop_encountered_player`,
+docs/TODO/inventaire-2026-10-20.md §6) : un adversaire se lit dans `Player` (identité, clan PUBG, compteurs de
+rencontres, combats et échecs de résolution) et `ClanEncounter` (rencontres par clan). Le cron de résolution garde son
+journal `EncounteredPlayerResolutionRun` et ses noms historiques (`encountered-player-*`).
 **Alerte au SuperUser** (depuis le 2026-10-19) : salon Discord d'administration, par `sendAdminAlert` / `fireAdminAlert`
 (`src/lib/admin-alerts/`) — un nouvel événement = une entrée de `catalog.ts` (interrupteur et mention viennent seuls),
 jamais un `sendDiscordWebhook` direct ; ni adresse e-mail ni donnée d'une demande de confidentialité dans le message
@@ -495,7 +496,7 @@ the worker re-reads it every minute. **Never call `cron.schedule` from a route**
 **Tracking:** `CronExecution` table stores execution logs.
 **Database health:** `npx tsx scripts/db-health.ts status|report` (read-only) — measured state, index review and
 pending server recommendations in [database-performance.md](docs/ops/database-performance.md). Measure before adding
-or dropping an index: `EncounteredPlayer` already carries 3× more index than data.
+or dropping an index (`EncounteredPlayer` carried 3× more index than data before it was dropped on 2026-10-27).
 
 ### Other CLI Scripts
 

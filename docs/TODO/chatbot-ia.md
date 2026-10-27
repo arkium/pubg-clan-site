@@ -971,6 +971,16 @@ des joueurs (fatigue de sélection du modèle au-delà d'une vingtaine d'outils)
 - [ ] Carte des ressources (`docs/features/carte-ressources.md`) : véhicules et points par carte
 - [ ] Variante par arme de `getPlayerBenchmark` (centile des dégâts par partie à une arme donnée, index à mesurer)
 
+Relevé des 128 questions réelles du 2026-10-27 ([coach-ia-pistes.md §7](coach-ia-pistes.md)), dans l'ordre conseillé :
+
+- [ ] **Préalable hors Coach** : place d'un clan dans une partie partagée ([place-partie-partagee.md](place-partie-partagee.md))
+      — 6 % de places fausses, 85 Top 1 en trop et 90 manqués depuis le 1er octobre, alertes Discord comprises
+- [ ] Coéquipiers `getTeammates` (7a) : parties dans la même équipe, Top 1 et place ensemble, place sans lui, synergie,
+      meilleure composition — 9 questions, 2 votes « Inexact »
+- [ ] Fraîcheur dans `getDataCoverage` (7b) : dernière synchronisation, dernière partie, analyses en attente
+- [ ] Objets consommés par partie dans `getMatchDebrief` (7c)
+- [ ] Effectif du clan (7d) ; titre de tournoi dans `getTournamentResults` (7e) ; calcul pur dans le garde-fou (7f)
+
 ### Lot 8 — Conformité et documentation
 
 - [x] `/confidentialite` (deux lignes du tableau, transfert chez Google, finalité, base légale, conservation, droits),

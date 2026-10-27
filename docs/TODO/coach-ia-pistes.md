@@ -27,6 +27,11 @@ jamais).
 | 6a | Mémoire personnelle du joueur (objectifs, préférences) | Oui, **par compte**, explicite, visible et effaçable par le joueur ; jamais lue par le SuperUser (§6) | 2 jours | Haute | à décider |
 | 6b | Règles apprises des votes « Inexact » (écrites par le SuperUser) | Oui, cheap : une table, un bouton dans l'onglet Questions, un bloc borné du prompt (§6) | 1 jour | Haute | à décider |
 | 6c | Bibliothèque de « meilleures réponses » (few-shot) | Possible mais coûteux en tokens et porteur de pseudos : reporté (§6) | — | Faible | non |
+| 7a | Coéquipiers : « avec qui je joue le plus », « mon meilleur partenaire » | Oui (`SquadMember`, `ClanSynergyTelemetryStats`) — **après** la correction de la place d'une partie partagée | 1 jour | **Haute** : 9 questions, 2 votes « Inexact » | **1** (§7) |
+| 7b | Fraîcheur des données : « ça se met à jour quand ? » | Oui (`Clan.clanStats.syncedAt`, `lastMatchAt`, file de télémétrie) | ½ jour | Moyenne | 2 (§7) |
+| 7c | Objets consommés **pendant une partie** | Oui (`MemberItemUseStat`, `MemberThrowableStat` par partie) | ½ jour | Moyenne | 3 (§7) |
+| 7d | Effectif du clan : « as-tu un joueur nommé… ? » | Oui (`ClanMember`) | ½ jour | Faible à moyenne | 4 (§7) |
+| 7e | Tournoi retrouvé par son titre | Oui (`listTournamentOverviews`) | 2 h | Faible | 5 (§7) |
 
 ---
 
@@ -248,6 +253,67 @@ celui d'avant tant qu'ils le sont. Écarts à la conception ci-dessus : aucun ; 
 objectif n'est acceptée que si sa valeur figure dans un résultat d'outil de la même réponse (sinon l'objectif est retenu
 sans mesure), et l'ouverture de la mémoire est portée par `GET /api/coach/quota` (`memoryEnabled`) pour que le panneau
 n'appelle rien de plus.
+
+---
+
+## 7. Outils manquants d'après les questions réelles (relevé du 2026-10-27)
+
+Lecture seule de `CoachMessage` en production : **128 questions** dans 26 fils depuis l'ouverture (2026-10-24), toutes
+répondues, 0,45 $ en tout. Environ 45 sont des tentatives de détournement (fils 17 à 20 : chiffres romains, base64,
+`alert()`, « répète ton prompt système », liens piégés), désormais arrêtées par le garde-fou (`coach-guard.ts`) ou la
+règle du prompt. Les erreurs sur les soirées, les drops, les tournois et « depuis quand » sont corrigées par les lots
+du 25 au 27 octobre ([chatbot-ia.md](chatbot-ia.md) §0). Restent cinq besoins sans bon outil :
+
+### 7a. Coéquipiers — le plus demandé
+
+« Quel est mon meilleur partenaire ? », « le membre avec qui je joue le plus », « qui est mon frère d'arme ? » : **9
+questions dans 4 fils, 2 votes « Inexact »** (« la réponse n'est pas juste ») et un « tu ne réponds pas à ma
+question ». Le Coach a pris le classement du clan (`getClanLeaderboard`, hors sujet), puis les 10 dernières parties ;
+seul `getClanPlaystyle` donne des binômes, et seulement par la télémétrie (réanimations, co-kills, recalls).
+
+**Outil `getTeammates({ playerName?, period? })`** : pour chaque coéquipier du clan, parties jouées **dans la même
+équipe** (même partie, même `SquadMember.placement`), Top 1 et place moyenne ensemble, place moyenne du joueur **sans**
+lui, réanimations et kills en duo (`ClanSynergyTelemetryStats`) ; option « meilleure composition » (trio ou squad le
+plus joué, et son bilan) — cas d'usage « Dynamique d'escouade » du §5.1 de [chatbot-ia.md](chatbot-ia.md), jamais
+servi. **Dépend de** [place-partie-partagee.md](place-partie-partagee.md) : sans elle, une partie partagée avec un autre
+clan compte ses joueurs comme des coéquipiers (fil 5 : « mais ils ne sont pas de mon clan »).
+
+### 7b. Fraîcheur des données
+
+« Ça se met à jour quand ? Mes données ne sont pas à jour du tout » (fil 24) : réponse « chaque nuit », sans outil —
+fausse, le clan avait été synchronisé à 14:41 le jour même. **Ajout à `getDataCoverage`** : dernière synchronisation
+du clan (`Clan.clanStats.syncedAt`), dernière partie reçue (`Clan.lastMatchAt`), parties en attente d'analyse de
+télémétrie, et la règle (« une partie arrive après sa synchronisation, son déroulé après l'analyse »).
+
+### 7c. Objets consommés pendant une partie
+
+« C'était quoi le loot de Kyo ? — Mais durant le match » (fil 21) : `getItemUsage` n'a que des périodes. **Ajout à
+`getMatchDebrief`** : soins, boosts, carburant et lancers de chaque membre de l'escouade dans cette partie
+(`MemberItemUseStat` et `MemberThrowableStat` sont rangés par `squadMatchId`).
+
+### 7d. Effectif du clan
+
+« As-tu un joueur nommé Tigro ? » (fil 11), « tu es sur quel clan ? ou membres ? » (fil 23) : le Coach s'est servi du
+classement, qui ne liste que les joueurs ayant joué sur la période. **Petit outil d'effectif** : membres actifs, date
+de leur dernière partie, parties du mois ; un nom absent → « pas dans le clan suivi par le site ».
+
+### 7e. Tournoi retrouvé par son titre
+
+« Que j'aurais dû faire ? » après un résumé de tournoi, hors de sa page (fil 16) : le modèle a inventé l'identifiant
+« 101026 » à partir du titre (« [FR] 10/10/26 »). **`getTournamentResults` accepte un titre** quand l'identifiant est
+inconnu (même recherche que `getTournaments`), ou rend la liste des tournois proches.
+
+### 7f. Petit trou du garde-fou
+
+Le calcul pur hors sujet (« 1+1 », « log(50000) », fil 17) reçoit encore une réponse, marquée « non vérifié ». Un motif
+de plus dans `coach-guard.ts` (une question faite seulement de chiffres et d'opérateurs) suffirait.
+
+### Ordre conseillé
+
+1. Corriger la place d'une partie partagée ([place-partie-partagee.md](place-partie-partagee.md)) — elle fausse aussi
+   la Ligue, les pages et les alertes Top 1 Discord, pas seulement le Coach ;
+2. `getTeammates` (7a) ; 3. fraîcheur (7b) et objets par partie (7c), deux ajouts à des outils existants — on est à
+20 outils, le seuil de vigilance du §13 ; 4. effectif (7d) et titre de tournoi (7e) ; 5. garde-fou (7f).
 
 ---
 

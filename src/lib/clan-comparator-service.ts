@@ -1,6 +1,8 @@
 import type { Prisma } from '@prisma/client'
 
+import { parisSlotOf } from '@/lib/activity-heatmap'
 import { CLAN_PLACEMENT_MEMBER_SELECT, clanPlacementOf } from '@/lib/clan-placement'
+import { sessionDateOf } from '@/lib/match-sessions'
 import { prisma } from '@/lib/prisma'
 import type { SquadPeriod } from '@/types/squad-matches'
 
@@ -44,10 +46,6 @@ function teamModeFromMemberCount(memberCount: number): 'solo' | 'duo' | 'trio' |
   if (memberCount === 2) return 'duo'
   if (memberCount === 3) return 'trio'
   return 'squad'
-}
-
-function toDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10)
 }
 
 export type ClanComparatorPayload = {
@@ -209,11 +207,12 @@ export async function buildClanComparatorPayload(
     if (placement === 1) wins++
     if (placement !== null && placement <= 10) top10Count++
 
-    const dayOfWeek = match.createdAt.getDay()
-    const hour = match.createdAt.getHours()
-    activityByDayHour[dayOfWeek][hour]++
+    // Heure de Paris quel que soit le fuseau du serveur (UTC en production) ; ligne 0 = dimanche, comme la heatmap.
+    const { dayIndex, hour } = parisSlotOf(match.createdAt)
+    activityByDayHour[(dayIndex + 1) % 7][hour]++
 
-    const dateKey = toDateKey(match.createdAt)
+    // Jour = soirée (06:00 à 06:00, heure de Paris), jamais la date UTC (CLAUDE.md, piège n° 12).
+    const dateKey = sessionDateOf(match.createdAt)
     dailyMatchCountsMap.set(dateKey, (dailyMatchCountsMap.get(dateKey) ?? 0) + 1)
 
     // Taille d'équipe : composition réelle du squad (tous les membres présents).

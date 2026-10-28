@@ -61,11 +61,17 @@ export function resourceFindings(views: readonly ResourceMapResponse[], now: Dat
     title: `En bref : véhicules et ressources sur ${views.length} cartes PUBG`,
     scope: `Véhicules observés dans les parties des ${integer.format(windowDays)} derniers jours, recalculés chaque nuit · chiffres du ${longDate.format(now)}`,
     maps: views.map((view) => ({ label: view.map.label, sentence: mapSentence(view) })),
-    method:
-      'Un emplacement observé est l’endroit où un joueur, seul à bord, prend un véhicule en début de partie, dans les ' +
-      'parties normales, classées et casual des clans suivis. Les observations proches sont regroupées ; un emplacement ' +
-      'est affiché à partir de 3 parties, 0,5 % des parties de la carte et le quart de l’emplacement le plus fréquent de ' +
-      'sa famille. Stations-service, garages, pontons et salles secrètes sont placés par les joueurs et validés par un ' +
-      'administrateur.',
+    method: RESOURCE_METHOD,
   }
 }
+
+/**
+ * Méthode de la page, en clair : la barre « Comment c'est calculé ? » (`CalculationHelp`) l'affiche même quand le
+ * résumé du serveur est indisponible.
+ */
+export const RESOURCE_METHOD =
+  'Un emplacement observé est l’endroit où un joueur, seul à bord, prend un véhicule en début de partie, dans les ' +
+  'parties normales, classées et casual des clans suivis. Les observations proches sont regroupées ; un emplacement ' +
+  'est affiché à partir de 3 parties, 0,5 % des parties de la carte et le quart de l’emplacement le plus fréquent de ' +
+  'sa famille. Stations-service, garages, pontons et salles secrètes sont placés par les joueurs et validés par un ' +
+  'administrateur.'

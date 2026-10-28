@@ -21,7 +21,7 @@
 | 2 | Service partagé avec l'outil `getDataCoverage` du Coach (résultats inchangés, clan compté sur ses **membres actifs** comme ses pages) ; deux routes en cache 5 min ; analyses en file | `src/lib/data-coverage-service.ts`, `GET /api/members/[id]/data-coverage` (`requireSameClanAsMember`), `GET /api/clans/[clanId]/data-coverage` (garde `clan.overview`, mode visiteur compris) — `data-coverage-route-contracts.test.ts`. Mesuré en lecture seule : clan 25 en 1,0 s à froid, un joueur en 0,17 s |
 | 3 | `PageScopeNote` : `<details>` (texte général dans le HTML), dates lues **à la première ouverture seulement** ; classes `app-help-bar*`, partagées avec « Comment ça marche ? » du Coach | `src/components/ui/PageScopeNote.tsx`, `globals.css` |
 | 4 | Barre posée en bas des 11 pages joueur et des 17 pages de clan (débriefing : vue d'un clan seulement, pas d'un tournoi) | `e2e/page-scope.spec.ts` |
-| 5 | « En bref » de la vue d'ensemble replié dans la barre, liens compris, sans panneau propre. Annuaire, Ligue, lecture de zone, carte des ressources : **non traités** (hors des pages joueur et clan) | `ClanOverviewPage.tsx`, `ClanOverviewFindings.tsx` |
+| 5 | « En bref » de la vue d'ensemble replié dans la barre, liens compris, sans panneau propre. **2026-10-28** : même traitement pour l'annuaire, la Ligue, la lecture de zone et la carte des ressources, rangés dans une barre **« Comment c'est calculé ? »** (`CalculationHelp`, mêmes classes `app-help-bar*`, icône calculatrice) sous la méthode de la page ; la même barre remplace le guide de Joueurs (« Voir », contenu absent du HTML replié), l'explication du Power score (icône grise, « Voir ») et « Comment ça marche ? » des tournois, et arrive sur le comparateur. Sept pages seulement, choisies pour leurs calculs : les pages joueur et clan gardent « D'où viennent ces chiffres ? », le Coach son « Comment ça marche ? ». Le tableau de bord d'un joueur explique son profil de jeu (formule des rôles, trait de la moyenne du clan, ▲ / ▼) dans les « À savoir » de cette barre, pas dans une seconde barre | `ClanOverviewPage.tsx`, `ClanOverviewFindings.tsx` ; `src/components/ui/CalculationHelp.tsx`, `e2e/support/calculation-help.ts` |
 | 6 | Méthodologie : section « Pages d'un joueur, pages d'un clan » générée par le registre, une ancre par page (`#page-joueur-dashboard`, `#page-clan-stats-maps`…) | `src/components/legal/PageScopeMethodology.tsx` |
 | 7 | Filtre « Type de partie » (`MatchTypeMenu`, Normal / Ranked / Casual / Tournois / Tous) sur **Parties, Activité, Cartes et Zones de drop** du joueur, défaut inchangé (Tous, Normal, Normal, Tous) | routes `matches`, `activity-heatmap`, `map-stats`, `telemetry/drop-zones` ; `parsePlayerMatchType`, `matchTypeWhere` (`src/lib/match-type-filter.ts`) |
 
@@ -65,6 +65,11 @@ b) et h) à trancher :
   décalées d'une à deux heures.
 - **h) Défis — à décider.** Le type `squad_synergy` n'a pas de calcul de progression (reste à 0) ; les badges des
   récompenses ne sont jamais écrits.
+- **i) Comparateur de clans — corrigé le 2026-10-28.** Heatmap d'activité à l'heure de Paris (`parisSlotOf`, ligne 0 =
+  dimanche comme le composant) et régularité du « Pouls » comptée en soirées (`sessionDateOf`) : le calcul lisait
+  l'heure et la date UTC du serveur (`getHours`, `toISOString().slice(0, 10)`). Le cache (`ClanComparatorCache`) est
+  recalculé par le recalcul de la nuit : les anciennes valeurs restent affichées jusque-là. Restent à l'heure du
+  serveur, comme a) : les bornes semaine et mois du comparateur (`getPeriodBounds`).
 
 ## 1. Décisions
 

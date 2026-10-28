@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { expectCalculationHelp } from './support/calculation-help'
 import { COMPARATOR_CLANS, COMPARATOR_RESPONSE } from './support/comparator-data'
 import { clanList } from './support/data'
 import { periodFilter } from './support/layout'
@@ -68,6 +69,12 @@ test('retirer un clan libère son slot', async ({ page }) => {
   await page.getByRole('button', { name: `Retirer ${ARENA[0].name}` }).click()
   await expect(page).toHaveURL(clanIdsParam(ARENA.slice(1)))
   await expect(page.getByRole('region', { name: 'Sélection des clans' }).getByRole('button', { name: /^Retirer / })).toHaveCount(2)
+})
+
+test('« Comment c’est calculé ? » : parties, derby, ADN et heatmap à l’heure de Paris — repliés mais dans le HTML', async ({ page }) => {
+  const help = await expectCalculationHelp(page, 'comparator-calculation-help', 'les parties normales où joue au moins un membre actif')
+  await expect(help).toContainText('au moins 8 adversaires à moins de 250 m')
+  await expect(help).toContainText('jour et heure de début de chaque partie, heure de Paris')
 })
 
 test('aucun défilement horizontal', async ({ page }) => {

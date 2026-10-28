@@ -1,10 +1,11 @@
 'use client'
 
-import { ChevronDown, CircleHelp, Clock, PencilLine } from 'lucide-react'
+import { ChevronDown, Clock, PencilLine } from 'lucide-react'
 import Link from 'next/link'
 import { Fragment, useEffect, useRef, useState } from 'react'
 
 import TournamentModeBadge, { TOURNAMENT_MODE_ICONS, tournamentModeClass } from '@/components/tournaments/TournamentModeBadge'
+import CalculationHelp from '@/components/ui/CalculationHelp'
 import RankCell from '@/components/ui/RankCell'
 import { mapAssetUrl } from '@/lib/pubg-assets/map-asset'
 import { tournamentGameModeLabel, tournamentMapLabel } from '@/lib/tournament-filters'
@@ -399,31 +400,16 @@ function withBold(line: string) {
   )
 }
 
+/** « Comment c'est calculé ? » de la liste (barre commune `CalculationHelp`, repliée mais dans le HTML). */
 export function TournamentQuickGuide() {
-  const [open, setOpen] = useState(false)
   return (
-    <section className="app-panel flex flex-col gap-2.5 px-4 py-3.5">
-      <button
-        type="button"
-        onClick={() => setOpen((value) => !value)}
-        aria-expanded={open}
-        aria-controls="tournament-quick-guide"
-        className="flex items-center gap-2 text-left"
-      >
-        <CircleHelp className="h-4 w-4 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
-        <b className="t-card-title">Comment ça marche ?</b>
-        <span className="ml-auto inline-flex items-center gap-1 text-xs font-bold text-[var(--theme-ui-accent-text)]">
-          {open ? 'Masquer' : 'Afficher'}
-          <ChevronDown className={`h-4 w-4 transition-transform motion-reduce:transition-none ${open ? 'rotate-180' : ''}`} aria-hidden="true" />
-        </span>
-      </button>
-      {/* Replié par défaut, mais toujours dans le HTML (`hidden`) : les robots lisent les règles. */}
-      <ol id="tournament-quick-guide" hidden={!open} className="t-body flex list-decimal flex-col gap-1.5 pl-5 text-gray-700">
+    <CalculationHelp testId="tournament-quick-guide">
+      <ol className="flex list-decimal flex-col gap-1.5 pl-5">
         {TOURNAMENT_QUICK_GUIDE.map((line) => (
           <li key={line}>{withBold(line)}</li>
         ))}
       </ol>
-    </section>
+    </CalculationHelp>
   )
 }
 

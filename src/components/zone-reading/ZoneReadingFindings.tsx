@@ -11,7 +11,8 @@ const mapLabel = (mapName: string) => mapDisplayName(mapName, {}).replace(/\s*\(
  * Lecture de zone — « En bref », composant serveur (docs/TODO/geo-seo-propositions.md, lot 2) : l'analyse par défaut
  * de la page (carte la plus jouée, Squad, toutes les parties) en phrases, dans le HTML. Même calcul et même cache que
  * `GET /api/zone-reading` : l'appel que la page fait ensuite trouve le résultat déjà prêt. Rendu dans un `Suspense`
- * par la page, il n'en retarde pas le reste.
+ * par la page, il n'en retarde pas le reste. Rangé depuis le 2026-10-28 dans la barre « Comment c'est calculé ? » de la
+ * page (`CalculationHelp`), sous la méthode (`ZONE_READING_METHOD`) : plus de panneau propre.
  */
 export default async function ZoneReadingFindings() {
   let findings = null
@@ -24,7 +25,7 @@ export default async function ZoneReadingFindings() {
   if (!findings) return null
 
   return (
-    <section aria-labelledby="zone-reading-findings-title" className="app-panel flex flex-col gap-3 p-4 sm:p-5" data-testid="zone-reading-findings">
+    <section aria-labelledby="zone-reading-findings-title" className="flex flex-col gap-3" data-testid="zone-reading-findings">
       <div className="flex flex-col gap-1">
         <h2 id="zone-reading-findings-title" className="t-section-title">
           {findings.title}
@@ -39,8 +40,6 @@ export default async function ZoneReadingFindings() {
         ))}
       </ul>
       <div className="flex flex-col gap-1 border-t border-gray-200 pt-3">
-        <h3 className="t-card-title">Comment c’est calculé</h3>
-        <p className="t-body text-gray-700">{findings.method}</p>
         <p className="t-meta t-num">
           Parties analysées par carte :{' '}
           {findings.maps.map((map, index) => (

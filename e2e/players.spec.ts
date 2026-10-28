@@ -1,6 +1,7 @@
 import type { Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { expectCalculationHelp } from './support/calculation-help'
 import { mockPlayers } from './support/pages'
 import { mockMemberSession } from './support/session'
 import { clickInPlace, dock, periodFilter, toolbar } from './support/layout'
@@ -152,18 +153,13 @@ test.describe('Joueurs — classement (visiteur)', () => {
     await expectNoHorizontalScroll(page)
   })
 
-  test('guide de calcul replié en bas de page : « Voir » le déplie, le lien du haut l’ouvre et y descend', async ({ page }) => {
-    const guide = page.getByRole('region', { name: 'Comment c’est calculé' })
-    await expect(guide.getByRole('button', { name: /Voir/ })).toHaveAttribute('aria-expanded', 'false')
-    await expect(guide).not.toContainText('Classé à partir de')
-    await guide.getByRole('button', { name: /Voir/ }).click()
-    await expect(guide).toContainText('Classé à partir de 10 parties')
-    await guide.getByRole('button', { name: /Masquer/ }).click()
-    await expect(guide).not.toContainText('Classé à partir de')
-    await page.getByRole('link', { name: 'Comment c’est calculé' }).click()
+  test('guide de calcul replié en bas de page, dans le HTML : « Afficher » le déplie, le lien du haut l’ouvre et y descend', async ({ page }) => {
+    const guide = await expectCalculationHelp(page, 'players-scoring-guide', 'Classé à partir de 10 parties')
+    await page.getByRole('link', { name: 'Comment c’est calculé ?' }).click()
+    await expect(guide).toHaveJSProperty('open', true)
     await expect(guide).toBeInViewport()
     await expect(page).toHaveURL(/#guide-calcul$/)
-    await expect(guide).toContainText('Classé à partir de 10 parties')
+    await expect(guide.getByText('Classé à partir de 10 parties')).toBeVisible()
     await expect(guide).toContainText('Tireur à distance — distance des kills et headshots')
     await expectNoHorizontalScroll(page)
   })

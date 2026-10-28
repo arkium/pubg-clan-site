@@ -17,9 +17,11 @@ import ClanDnaCards from '@/components/comparator/ClanDnaCards'
 import ClanActivityHeatmap from '@/components/comparator/ClanActivityHeatmap'
 import { ComparatorSectionHeader } from '@/components/comparator/ComparatorUi'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import CalculationHelp from '@/components/ui/CalculationHelp'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { useClanComparator, type ClanComparatorEntry } from '@/hooks/useClanComparator'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
+import { DROP_PRESSURE_LEVELS, DROP_PRESSURE_RADIUS_METERS } from '@/lib/drop-zone-pressure'
 import { STANDARD_PERIODS, type StandardPeriod } from '@/lib/period'
 import type { SquadPeriod } from '@/types/squad-matches'
 
@@ -286,6 +288,41 @@ function ComparatorContent() {
             </section>
           </div>
         )}
+
+        {/* « Comment c'est calculé ? » : règles de `clan-comparator-service.ts` et `head-to-head-service.ts`, repliées mais
+            dans le HTML, même sans clan choisi. */}
+        <CalculationHelp testId="comparator-calculation-help">
+          <ul className="flex list-disc flex-col gap-1.5 pl-5">
+            <li>
+              <b>Parties</b> : les parties normales où joue au moins un membre actif du clan, sur la période choisie (semaine du
+              lundi au dimanche, mois civil ou depuis le début) ; chiffres recalculés chaque nuit.
+            </li>
+            <li>
+              <b>Performances</b> : la place du clan dans une partie est la meilleure de ses membres actifs ; win rate = Top 1 ÷
+              parties, de même pour le Top 10. Dégâts, kills et knocks : ceux de tous ses membres actifs, par partie. Sur les
+              graphiques, le haut de chaque axe est la meilleure valeur des clans comparés.
+            </li>
+            <li>
+              <b>Derby</b> : les parties où les deux clans étaient dans le même lobby, tous types de partie et depuis le début ;
+              le vainqueur est le clan dont un membre finit le mieux classé.
+            </li>
+            <li>
+              <b>Modes</b> : Duo, Trio ou Squad selon le nombre de joueurs du clan dans la partie (2, 3, 4 ou plus).
+            </li>
+            <li>
+              <b>Pouls</b> : effectif actif = membres actifs qui ont joué sur la période, sur l’ensemble des membres actifs ;
+              régularité = soirées avec au moins une partie (de 6 h à 6 h, heure de Paris).
+            </li>
+            <li>
+              <b>ADN</b> : hot drop = atterrissage avec au moins {DROP_PRESSURE_LEVELS.hot.min} adversaires à moins de{' '}
+              {DROP_PRESSURE_RADIUS_METERS} m ; survie = temps moyen par joueur et par partie ; entraide = réanimations données ÷
+              KO subis.
+            </li>
+            <li>
+              <b>Heatmap</b> : jour et heure de début de chaque partie, heure de Paris.
+            </li>
+          </ul>
+        </CalculationHelp>
       </div>
     </div>
   )

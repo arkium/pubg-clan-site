@@ -1,6 +1,7 @@
 import type { Locator, Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { expectCalculationHelp } from './support/calculation-help'
 import { CLAN_ID } from './support/data'
 import { appHeader, dock, toolbar } from './support/layout'
 import {
@@ -111,12 +112,11 @@ test.describe('liste', () => {
     await expect(palmares(page)).toContainText('Coupe d’été')
   })
 
-  test('« Comment ça marche ? » : quatre lignes, repliées', async ({ page }) => {
-    const toggle = page.getByRole('button', { name: /Comment ça marche/ })
-    await expect(toggle).toHaveAttribute('aria-expanded', 'false')
-    await toggle.click()
-    await expect(page.getByRole('listitem').filter({ hasText: 'parties personnalisées' })).toBeVisible()
-    await expect(toggle.locator('xpath=following-sibling::ol/li')).toHaveCount(4)
+  test('« Comment c’est calculé ? » : quatre lignes, repliées mais dans le HTML', async ({ page }) => {
+    const help = await expectCalculationHelp(page, 'tournament-quick-guide', 'parties personnalisées')
+    await expect(help.locator('ol > li')).toHaveCount(4)
+    await help.locator('summary').click()
+    await expect(help.getByRole('listitem').filter({ hasText: 'parties personnalisées' })).toBeVisible()
   })
 
   test('le bandeau docke, y compris sur mobile (exception sticky.md §2)', async ({ page }) => {

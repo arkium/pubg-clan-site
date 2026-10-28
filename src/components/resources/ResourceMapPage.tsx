@@ -8,8 +8,10 @@ import ResourceHistoryTab from '@/components/resources/admin/ResourceHistoryTab'
 import ResourceValidationTab from '@/components/resources/admin/ResourceValidationTab'
 import ResourceMapExplorer from '@/components/resources/ResourceMapExplorer'
 import { useResourceMap } from '@/components/resources/useResourceMap'
+import CalculationHelp from '@/components/ui/CalculationHelp'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
+import { RESOURCE_METHOD } from '@/lib/resources/resource-findings'
 import { RESOURCE_MAPS, resourceMap } from '@/lib/resources/resource-map'
 
 /**
@@ -153,9 +155,11 @@ function ResourcesContent({ findings }: { findings?: React.ReactNode }) {
       <div className="app-container app-gutter mt-4 flex flex-col gap-4">
         <div role={isSuperUser ? 'tabpanel' : undefined} id="resources-panel-map" aria-labelledby={isSuperUser ? 'resources-tab-map' : undefined} hidden={tab !== 'map'}>
           <ResourceMapExplorer mapKey={mapKey} onMapChange={setMap} resource={resource} />
-          {/* Bloc « En bref » rendu par le serveur (src/app/carte-des-ressources/page.tsx) : les chiffres de chaque carte
-              dans le HTML. */}
-          {findings ? <div className="mt-4">{findings}</div> : null}
+          {/* « Comment c'est calculé ? » : la méthode, puis le bloc « En bref » rendu par le serveur
+              (src/app/carte-des-ressources/page.tsx), les chiffres de chaque carte — replié, dans le HTML. */}
+          <CalculationHelp summary={findings} className="mt-4" testId="resource-calculation-help">
+            <p>{RESOURCE_METHOD}</p>
+          </CalculationHelp>
         </div>
         {tab === 'validation' ? (
           <div role="tabpanel" id="resources-panel-validation" aria-labelledby="resources-tab-validation">

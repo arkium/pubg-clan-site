@@ -41,11 +41,13 @@ Chiffres vérifiés en base le 2026-10-12 (lecture seule, `npx tsx scripts/measu
   CSS, chaque contrôle rendu une fois) ; **docké : période et tri**, exception déclarée (`MOBILE_DOCKED_EXTRA_CONTROLS`,
   docs/TODO/sticky.md §2) comme le critère de la Ligue.
 - **Onglets** (`role=tablist`, flèches du clavier) sous le bandeau, comme Lecture de zone ; ligne d'état : classés,
-  joueurs et clans suivis, dernière partie prise en compte, puis le lien **« Comment c'est calculé »** vers le guide du
+  joueurs et clans suivis, dernière partie prise en compte, puis le lien **« Comment c'est calculé ? »** vers le guide du
   bas de page (`#guide-calcul`). Pendant un rechargement, le contenu précédent est estompé.
 - **Guide de calcul** en bas de page, sous les deux onglets (`PlayersScoringGuide`, demande du 2026-10-18) : parties qui
-  comptent, classement, flèches, comparateur, rôles, badge. **Replié par défaut** avec « Voir » / « Masquer », comme
-  l'explication du Power score de la Ligue ; les liens « Comment c'est calculé » et « le guide de calcul » l'ouvrent
+  comptent, classement, flèches, comparateur, rôles, badge. Depuis le 2026-10-28, la barre commune « Comment c'est
+  calculé ? » (`CalculationHelp`, icône et « Afficher » / « Masquer » à l'accent) : **repliée mais dans le HTML**,
+  comme sur la Ligue, l'annuaire, le comparateur, les tournois, la carte des ressources et la lecture de zone ; lien
+  vers la Méthodologie (`#roles`). Les liens « Comment c'est calculé ? » et « le guide de calcul » l'ouvrent
   avant d'y descendre (état tenu par la page). Ses seuils viennent des constantes du calcul (`PLAYERS_MIN_MATCHES`,
   `PLAYERS_MIN_RANKED`, `ROLE_MIN_SAMPLE`) : il ne peut pas annoncer un autre chiffre que celui appliqué. La note sous la
   liste y renvoie aussi.
@@ -147,7 +149,7 @@ absorbe la charge.
 | `src/lib/players-ranking-service.test.ts` | Prisma simulé : badge du joueur (meilleur rôle de la période, aucune lecture de plus), classés / en qualification, rôles et flèches de la période précédente, filtres SQL (officielles, mode `gameMode`, clans suivis), « Tous » sans période précédente, cache (5 min, par mode, échec non gardé), moyenne de clan, télémétrie pondérée sans les non-mesurés, armes hors grenades, duels par membre ou compte, éléments inconnus écartés |
 | `src/lib/players-route-contracts.test.ts` | 401 sans session hors mode visiteur, paramètres par défaut, 400 sous deux éléments, 500 sans détail |
 | `src/lib/ui-conformance.test.ts` | `src/app/players/page.tsx` dans `TOOLBAR_PAGES` |
-| `e2e/players.spec.ts` | Podium sans tampon et titre en évidence, tri par la liste déroulante du bandeau (aussi docké, sur mobile compris), podium avec plaque de score (valeur, unité, Top 1), nom sans badge et tag du clan, badge Fragger / Medic / Ghost qui suit la période mais pas le critère, semaine par défaut, score sur une ligne, règle des classés dans « Classer par », guide de calcul replié (« Voir » / « Masquer ») ouvert par le lien du haut, meilleurs par rôle, liste paginée par 10 à partir du 4e, rôle qui reclasse, flèches et « nouv. », aucune pour « Tous », recherche sans accents et filtre de clan, semaine sans assez de classés, mode Duo, lien du menu sous « Ligue » ; comparateur par cases à cocher et par recherche, 3e joueur sous le seuil, duel et dernière rencontre ; membre connecté : « Mon rang », pastille, raccourcis « Moi » et moyenne du clan. Données : `e2e/support/players.ts` |
+| `e2e/players.spec.ts` | Podium sans tampon et titre en évidence, tri par la liste déroulante du bandeau (aussi docké, sur mobile compris), podium avec plaque de score (valeur, unité, Top 1), nom sans badge et tag du clan, badge Fragger / Medic / Ghost qui suit la période mais pas le critère, semaine par défaut, score sur une ligne, règle des classés dans « Classer par », guide de calcul replié mais dans le HTML (« Afficher » / « Masquer ») ouvert par le lien du haut, meilleurs par rôle, liste paginée par 10 à partir du 4e, rôle qui reclasse, flèches et « nouv. », aucune pour « Tous », recherche sans accents et filtre de clan, semaine sans assez de classés, mode Duo, lien du menu sous « Ligue » ; comparateur par cases à cocher et par recherche, 3e joueur sous le seuil, duel et dernière rencontre ; membre connecté : « Mon rang », pastille, raccourcis « Moi » et moyenne du clan. Données : `e2e/support/players.ts` |
 
 ## 6. Suites
 

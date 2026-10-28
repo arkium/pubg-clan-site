@@ -12,7 +12,8 @@ import { itemListJsonLd, toJsonLd } from '@/lib/seo/structured-data'
  * Annuaire des clans — « En bref », composant serveur (docs/TODO/geo-seo-propositions.md, lot 2) : totaux, clans les
  * plus actifs, styles de jeu et **lien vers chaque clan suivi**, dans le HTML. Mêmes lectures que `GET /api/clans` et
  * `GET /api/clans/directory` (cache de 5 minutes). Rendu dans un `Suspense` par la page : l'activité, 2 s à froid, ne
- * retarde pas le reste. Mode visiteur seulement, comme la page.
+ * retarde pas le reste. Mode visiteur seulement, comme la page. Rangé depuis le 2026-10-28 dans la barre « Comment
+ * c'est calculé ? » de l'annuaire (`CalculationHelp`), sous la méthode, liens compris : plus de panneau propre.
  */
 export default async function ClanDirectoryFindings() {
   if (!isAuthDisabled()) return null
@@ -34,7 +35,7 @@ export default async function ClanDirectoryFindings() {
   )
 
   return (
-    <section aria-labelledby="clan-directory-findings-title" className="app-panel flex flex-col gap-3 p-4 sm:p-5" data-testid="clan-directory-findings">
+    <section aria-labelledby="clan-directory-findings-title" className="flex flex-col gap-3" data-testid="clan-directory-findings">
       <JsonLd json={structuredData} />
       <div className="flex flex-col gap-1">
         <h2 id="clan-directory-findings-title" className="t-section-title">

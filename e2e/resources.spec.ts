@@ -1,6 +1,7 @@
 import type { Locator, Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { expectCalculationHelp } from './support/calculation-help'
 import {
   DOCK_ID,
   ERANGEL,
@@ -78,6 +79,12 @@ async function expectLoginLink(locator: Locator) {
 }
 
 test.describe('page, carrousel et couches', () => {
+  test('« Comment c’est calculé ? » sous la carte : la méthode, repliée mais dans le HTML', async ({ api, page }) => {
+    mockResources(api)
+    await openPage(page)
+    await expectCalculationHelp(page, 'resource-calculation-help', 'seul à bord, prend un véhicule en début de partie')
+  })
+
   test('bandeau, Erangel par défaut, état « Vérifiée », couches, compteurs et légende', async ({ api, page }) => {
     mockResources(api)
     await openPage(page)

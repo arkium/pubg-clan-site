@@ -46,7 +46,10 @@ export const PAGE_SCOPE_ENTRIES: readonly PageScopeEntry[] = [
     since: ['onSite', 'pubgMatches', 'clanMatches', 'telemetry', 'career'],
     notes: [
       `Frères d’armes : au moins ${MATES_MIN_MATCHES} parties ensemble, dans la même équipe, sur la période.`,
-      'Écart au clan : moyenne de ses membres actifs sur la même période.',
+      'Écart au clan des kills et des dégâts : en %, par rapport à la moyenne de ses membres actifs sur la même période.',
+      'Profil de jeu : Fragger = (kills × 8 + knocks × 4 + dégâts ÷ 150) par partie et Medic = réanimations par partie, rapportés au meilleur joueur du clan sur la période (100 %) ; Ghost = touches de zone bleue par partie, inversées (le joueur le plus touché vaut 0 %, jamais touché 100 %).',
+      'Profil de jeu, trait sur chaque barre : la moyenne des membres actifs du clan mesurés sur la période.',
+      'Profil de jeu, ▲ / ▼ : l’écart en points avec la semaine ou le mois précédent ; rien sur « Tous », ni quand la période d’avant n’a pas été mesurée.',
       'Chiffres clés recalculés chaque nuit ; les cartes tirées de la télémétrie suivent chaque analyse.',
     ],
     code: [

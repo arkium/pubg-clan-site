@@ -64,7 +64,7 @@ test('À propos mène à la méthodologie, datée, avec les réglages en vigueur
 
   await page.getByRole('link', { name: 'méthodologie' }).click()
   await expect(page).toHaveURL(/\/a-propos\/methodologie$/)
-  await expect(page.locator('main time').first()).toHaveAttribute('datetime', '2026-10-27')
+  await expect(page.locator('main time').first()).toHaveAttribute('datetime', '2026-10-28')
   const powerScore = page.locator('#power-score')
   await expect(powerScore).toContainText('Score brut')
   await expect(powerScore).toContainText(/score moyen de la ligue/)

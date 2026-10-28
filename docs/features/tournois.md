@@ -244,7 +244,7 @@ Libellés et textes des modes : **une seule source**, `TOURNAMENT_MODE_DESCRIPTI
 seulement) et la passe à la page client (`src/components/tournaments/TournamentsPage.tsx`) avec son instant de rendu :
 cartes, compteurs et palmarès sont dans le HTML (docs/TODO/geo-seo-propositions.md, lot 2). Le client relit l'API au
 montage, sans repli. Hors mode visiteur, la liste reste chargée par le client (route réservée aux connectés). Le
-« Comment ça marche ? » est toujours dans le HTML, replié par `hidden`.
+« Comment c'est calculé ? » est toujours dans le HTML, replié (`<details>`).
 
 - **Bandeau d'image** : « Tournois », compteurs en direct / à venir / terminés ; « Gérer les tournois de mon clan »
   seulement pour qui a `manage_settings` (ou SuperUser), en **bouton principal à l'accent** (`app-btn--primary` sous
@@ -258,8 +258,9 @@ montage, sans repli. Hors mode visiteur, la liste reste chargée par le client (
 - **À venir** : image de la carte jouée, compte à rebours ; un brouillon y figure avec l'étiquette « Brouillon ».
 - **Palmarès** : le vainqueur **suit le mode** — clan, équipe (composition), joueur ou escouade — avec une sous-ligne
   adaptée (« 7 clans en lice », « équipe mixte de 3 clans », « 30 kills », « escouade de Clan Démo »).
-- **« Comment ça marche ? »** : quatre lignes repliées, `TOURNAMENT_QUICK_GUIDE`. Le guide complet (7 fiches) ne vit
-  plus que dans l'onglet Guide de l'administration (décision du 2026-09-27).
+- **« Comment c'est calculé ? »** (« Comment ça marche ? » jusqu'au 2026-10-28) : quatre lignes repliées,
+  `TOURNAMENT_QUICK_GUIDE`, dans la barre commune des pages de classement et d'analyse (`CalculationHelp`). Le guide
+  complet (7 fiches) ne vit plus que dans l'onglet Guide de l'administration (décision du 2026-09-27).
 - **Charte UI** (`docs/ui/index.html`, section « Tournois », 2026-10-04) : la page porte `.charte` ; titre du bandeau
   d'image en `t-banner-title` (Teko), compteur « en direct » à l'accent dès qu'un tournoi se joue, neutre sinon ;
   bandeau collant à une seule hauteur (`app-toolbar-search`, statut `self-stretch`). Docké sur mobile, le statut passe

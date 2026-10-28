@@ -1,6 +1,7 @@
 import type { Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { expectCalculationHelp } from './support/calculation-help'
 import { CLAN_ID } from './support/data'
 import { appHeader, dock, periodFilter, toolbar } from './support/layout'
 import { mockClansLeaderboard } from './support/pages'
@@ -107,13 +108,14 @@ test.describe('Ligue des clans (visiteur)', () => {
     await expect(page.getByRole('list', { name: 'Dans la zone' }).getByRole('listitem')).toHaveCount(1)
   })
 
-  test('explication du Power score : barème, pondération, seuil de la période', async ({ page }) => {
-    await page.getByRole('button', { name: /Comment le Power score est calculé/ }).click()
-    const help = page.getByTestId('power-score-help')
-    await expect(help).toContainText('points de placement × 250 + dégâts + kills × 10 + knocks × 5')
-    await expect(help).toContainText('1er 10 · 2e 6 · 3e 5')
-    await expect(help).toContainText('20 parties fictives')
-    await expect(help).toContainText('5 parties')
+  test('« Comment c’est calculé ? » : barème, pondération, seuil de la période, repliés mais dans le HTML', async ({ page }) => {
+    const help = await expectCalculationHelp(page, 'power-score-help', 'points de placement × 250 + dégâts + kills × 10 + knocks × 5')
+    // Classement chargé : l'explication de la période et du type choisis remplace la formule du serveur, jamais les deux.
+    const explanation = help.getByTestId('power-score-explanation')
+    await expect(explanation).toContainText('1er 10 · 2e 6 · 3e 5')
+    await expect(explanation).toContainText('20 parties fictives')
+    await expect(explanation).toContainText('5 parties')
+    await expect(help.getByTestId('league-formula')).toHaveCount(0)
   })
 
   test('visiteur : pas de pastille « Mon clan » ; chaque clan ouvre sa vue d’ensemble', async ({ page }) => {

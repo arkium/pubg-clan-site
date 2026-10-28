@@ -4,9 +4,10 @@ import { getResourceMapView } from '@/lib/resources/resource-service'
 
 /**
  * Carte des ressources — « En bref », composant serveur (docs/TODO/geo-seo-propositions.md, lot 2) : chaque carte en une
- * phrase (parties analysées, emplacements de véhicules, le plus fréquent, points des joueurs) et la méthode, dans le
- * HTML. Vue d'un visiteur (`getResourceMapView(null, …)`, la lecture publique de `GET /api/resources`). Rendu dans un
- * `Suspense` par la page.
+ * phrase (parties analysées, emplacements de véhicules, le plus fréquent, points des joueurs), dans le HTML. Vue d'un
+ * visiteur (`getResourceMapView(null, …)`, la lecture publique de `GET /api/resources`). Rendu dans un `Suspense` par la
+ * page, rangé depuis le 2026-10-28 dans sa barre « Comment c'est calculé ? » (`CalculationHelp`), sous la méthode
+ * (`RESOURCE_METHOD`) : plus de panneau propre.
  */
 export default async function ResourceFindings() {
   let findings = null
@@ -18,7 +19,7 @@ export default async function ResourceFindings() {
   if (!findings) return null
 
   return (
-    <section aria-labelledby="resource-findings-title" className="app-panel flex flex-col gap-3 p-4 sm:p-5" data-testid="resource-findings">
+    <section aria-labelledby="resource-findings-title" className="flex flex-col gap-3" data-testid="resource-findings">
       <div className="flex flex-col gap-1">
         <h2 id="resource-findings-title" className="t-section-title">
           {findings.title}
@@ -32,10 +33,6 @@ export default async function ResourceFindings() {
           </li>
         ))}
       </ul>
-      <div className="flex flex-col gap-1 border-t border-gray-200 pt-3">
-        <h3 className="t-card-title">Comment c’est calculé</h3>
-        <p className="t-body text-gray-700">{findings.method}</p>
-      </div>
     </section>
   )
 }

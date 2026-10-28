@@ -411,7 +411,10 @@ trois clans les plus actifs sur 7 jours, styles de jeu, **un lien vers la vue d'
 cartes s'ouvrent par un bouton : sans ce bloc, un robot ne trouvait aucun lien vers les clans) et l'inscription
 (docs/TODO/geo-seo-propositions.md, lot 2). La logique de `GET /api/clans` est passée dans
 `listClansWithQuickStats` (`src/lib/clan-list-service.ts`), partagée par la route et le bloc : une seule définition
-des totaux. Mode visiteur seulement.
+des totaux. Mode visiteur seulement. Depuis le 2026-10-28, ce bloc est rangé dans la barre **« Comment c'est
+calculé ? »** du bas de page (`CalculationHelp`, repliée mais dans le HTML, liens compris), sous la méthode de
+l'annuaire, présente pour tous : activité sur 7 jours, « ce soir », clan du moment (`MOMENT_MIN_GAMES`), rang en
+Ligue, style de jeu (`CLAN_STYLE_MIN_MATCHES`), sommeil (`SLEEP_AFTER_DAYS`).
 
 **Données** : `GET /api/clans` (inchangée : liste, image, `quickStats`) et `GET /api/clans/directory`
 (`src/lib/clan-directory-service.ts`, logique pure dans `src/lib/clan-directory.ts`) : par clan, parties et top 1 sur 7

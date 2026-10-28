@@ -5,6 +5,7 @@ import { useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
 import { MapPager } from '@/components/maps/MapToolbarControls'
+import CalculationHelp from '@/components/ui/CalculationHelp'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -14,7 +15,9 @@ import ZoneReadingAnalysis from '@/components/zone-reading/ZoneReadingAnalysis'
 import ZoneReadingTraining from '@/components/zone-reading/ZoneReadingTraining'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { METHODOLOGY_PATH } from '@/lib/legal/legal-info'
 import { ROLLING_PERIODS } from '@/lib/period'
+import { ZONE_READING_METHOD } from '@/lib/zone-reading/zone-reading-findings'
 import {
   ZONE_READING_MODES,
   ZONE_READING_MODE_LABELS,
@@ -265,7 +268,10 @@ function ZoneReadingContent({ findings }: { findings?: React.ReactNode }) {
           </div>
         ) : null}
 
-        {findings}
+        {/* « Comment c'est calculé ? » : la méthode, puis le bloc « En bref » rendu par le serveur — replié, dans le HTML. */}
+        <CalculationHelp methodologyHref={`${METHODOLOGY_PATH}#soirees-periodes`} summary={findings} testId="zone-reading-calculation-help">
+          <p>{ZONE_READING_METHOD}</p>
+        </CalculationHelp>
 
         <p className="t-meta border-t border-gray-200 pt-3" data-testid="zone-reading-hazard">
           {HAZARD_NOTE}

@@ -13,11 +13,22 @@ import {
   type DirectoryClan,
 } from '@/components/clans/ClanDirectorySections'
 import { MatchesBanner } from '@/components/matches/MatchesUi'
+import CalculationHelp from '@/components/ui/CalculationHelp'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { useAuthSession } from '@/hooks/useAuthSession'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
-import { isSleeping, matchesQuery, sortDirectory, type ClanDirectoryPayload, type DirectorySortKey } from '@/lib/clan-directory'
+import {
+  CLAN_STYLE_MIN_MATCHES,
+  isSleeping,
+  matchesQuery,
+  MOMENT_MIN_GAMES,
+  SLEEP_AFTER_DAYS,
+  sortDirectory,
+  type ClanDirectoryPayload,
+  type DirectorySortKey,
+} from '@/lib/clan-directory'
+import { METHODOLOGY_PATH } from '@/lib/legal/legal-info'
 
 /**
  * Les clans — refonte du 2026-09-26 (docs/features/clans.md §Annuaire, maquette Claude Design « Clans », écrans 12a
@@ -313,8 +324,33 @@ export default function ClansPage({ findings }: { findings?: React.ReactNode }) 
           </Link>
         </div>
 
-        {/* Bloc « En bref » rendu par le serveur : totaux, plus actifs et un lien vers chaque clan, dans le HTML. */}
-        {findings}
+        {/* « Comment c'est calculé ? » : la méthode de l'annuaire, puis le bloc « En bref » rendu par le serveur (totaux,
+            plus actifs, un lien vers chaque clan) — replié, dans le HTML. */}
+        <CalculationHelp methodologyHref={`${METHODOLOGY_PATH}#roles`} summary={findings} testId="clans-calculation-help">
+          <ul className="flex list-disc flex-col gap-1.5 pl-5">
+            <li>
+              <b>Activité</b> : les parties des 7 derniers jours de ses joueurs, tous types de partie confondus ; une partie à
+              plusieurs joueurs du clan compte une fois. Un Top 1 du clan : la meilleure place de ses membres actifs.
+            </li>
+            <li>
+              <b>Ce soir</b> : les joueurs du clan qui ont joué dans la soirée en cours, de 6 h à 6 h, heure de Paris.
+            </li>
+            <li>
+              <b>Clan du moment</b> : le plus de Top 1 sur 7 jours, à partir de {MOMENT_MIN_GAMES} parties ; à égalité, le meilleur taux,
+              puis le plus de parties.
+            </li>
+            <li>
+              <b>Rang en Ligue</b> : la place du clan dans la Ligue des clans du mois, parties normales.
+            </li>
+            <li>
+              <b>Style de jeu</b> : le plus haut de trois scores moyens de ses membres — agressivité (Fragger), soutien (Medic),
+              discipline de zone (Ghost) — depuis le début du suivi, à partir de {CLAN_STYLE_MIN_MATCHES} parties analysées.
+            </li>
+            <li>
+              <b>En sommeil</b> : aucune partie depuis {SLEEP_AFTER_DAYS} jours.
+            </li>
+          </ul>
+        </CalculationHelp>
       </div>
     </div>
   )

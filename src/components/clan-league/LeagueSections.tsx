@@ -466,42 +466,35 @@ export function LeagueRanking({
 
 // ── Explication du Power score ──────────────────────────────────────────────────────────────────
 
-/** Explication lue dans les réglages en vigueur (`scoring.settings`) : elle suit ce que le SuperUser a réglé. */
-export function PowerScoreHelp({ scoring }: { scoring: { minMatches: number; settings: LeagueSettings; league: LeagueAverage } }) {
-  const [open, setOpen] = useState(false)
+/**
+ * Explication lue dans les réglages en vigueur (`scoring.settings`) et la période choisie : elle suit ce que le SuperUser
+ * a réglé. Contenu de la barre « Comment c'est calculé ? » de la page (`CalculationHelp`), une fois le classement chargé.
+ */
+export function PowerScoreExplanation({ scoring }: { scoring: { minMatches: number; settings: LeagueSettings; league: LeagueAverage } }) {
   const { settings } = scoring
   const scale = settings.placementPoints.map((points, index) => `${index + 1}${index === 0 ? 'er' : 'e'} ${points}`).join(' · ')
   const weight = (value: number) => integer.format(value)
   return (
-    <section className="app-panel">
-      <button type="button" onClick={() => setOpen((value) => !value)} aria-expanded={open} className="flex w-full items-center gap-2 px-3.5 py-3 text-left text-[13px]">
-        <Info className="h-[15px] w-[15px] text-gray-500" aria-hidden="true" />
-        <b className="text-gray-900">Comment le Power score est calculé</b>
-        <span className="ml-auto font-bold text-[var(--theme-ui-accent-text)]">{open ? 'Masquer' : 'Voir'}</span>
-      </button>
-      {open ? (
-        <div className="flex flex-col gap-2.5 px-3.5 pb-3.5 text-[13px] text-gray-600" data-testid="power-score-help">
-          <span>
-            <b className="text-gray-900">1. Score brut</b> du clan, moyennes par partie (membres actifs uniquement) :
-          </span>
-          <code className="font-mono text-[13px] text-gray-900">
-            points de placement × {weight(settings.placementWeight)} + dégâts{settings.damageWeight !== 1 ? ` × ${oneDecimal.format(settings.damageWeight)}` : ''} + kills ×{' '}
-            {weight(settings.killWeight)} + knocks × {weight(settings.knockWeight)}
-          </code>
-          <span className="text-gray-500">
-            Points de placement : {scale} ; au-delà de la {settings.placementPoints.length}e, 0. Un top 2 rapporte, plus seulement la victoire.
-          </span>
-          <span>
-            <b className="text-gray-900">2. Pondération par le volume</b> : on ajoute {settings.priorMatches} parties fictives au niveau moyen de la
-            ligue (score brut <span className="t-num font-bold text-gray-900">{integer.format(scoring.league.rawScore)}</span> sur la période). Avec
-            peu de parties, le score reste proche de la moyenne ; plus un clan joue, plus son propre niveau pèse.
-          </span>
-          <span>
-            <b className="text-gray-900">3. Qualification</b> : un clan est classé à partir de <b className="text-gray-900">{scoring.minMatches} parties</b>{' '}
-            sur la période ; en dessous, il apparaît « En qualification ». Le win rate reste affiché, il ne compte plus dans le score.
-          </span>
-        </div>
-      ) : null}
-    </section>
+    <div className="flex flex-col gap-2.5" data-testid="power-score-explanation">
+      <p>
+        <b>1. Score brut</b> du clan, moyennes par partie (membres actifs uniquement) :
+      </p>
+      <code className="font-mono text-[13px] text-gray-900">
+        points de placement × {weight(settings.placementWeight)} + dégâts{settings.damageWeight !== 1 ? ` × ${oneDecimal.format(settings.damageWeight)}` : ''} + kills ×{' '}
+        {weight(settings.killWeight)} + knocks × {weight(settings.knockWeight)}
+      </code>
+      <p className="text-gray-500">
+        Points de placement : {scale} ; au-delà de la {settings.placementPoints.length}e, 0. Un top 2 rapporte, plus seulement la victoire.
+      </p>
+      <p>
+        <b>2. Pondération par le volume</b> : on ajoute {settings.priorMatches} parties fictives au niveau moyen de la ligue (score brut{' '}
+        <span className="t-num font-bold text-gray-900">{integer.format(scoring.league.rawScore)}</span> sur la période). Avec peu de parties, le
+        score reste proche de la moyenne ; plus un clan joue, plus son propre niveau pèse.
+      </p>
+      <p>
+        <b>3. Qualification</b> : un clan est classé à partir de <b>{scoring.minMatches} parties</b> sur la période ; en dessous, il apparaît « En
+        qualification ». Le win rate reste affiché, il ne compte plus dans le score.
+      </p>
+    </div>
   )
 }

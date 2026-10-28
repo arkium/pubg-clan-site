@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { expectCalculationHelp } from './support/calculation-help'
 import { CLAN_ID } from './support/data'
 import { mockClanDirectory, mockClanOverview } from './support/pages'
 
@@ -51,6 +52,12 @@ test('style de jeu du clan : badge sur la carte, avec les trois scores ; aucun s
   await expect(actives.getByRole('listitem').filter({ hasText: 'Clan Meute' }).getByTestId('playstyle-badge')).toHaveAttribute('data-role', 'fragger')
   await expect(actives.getByRole('listitem').filter({ hasText: 'Clan Témoin' }).getByTestId('playstyle-badge')).toHaveCount(0)
   await expect(page.getByRole('region', { name: 'À la une' }).getByTestId('playstyle-badge').first()).toBeVisible()
+})
+
+test('« Comment c’est calculé ? » : activité, clan du moment, style de jeu, sommeil — repliés mais dans le HTML', async ({ page }) => {
+  const help = await expectCalculationHelp(page, 'clans-calculation-help', 'aucune partie depuis 14 jours')
+  await expect(help).toContainText('à partir de 5 parties')
+  await expect(help).toContainText('à partir de 20 parties analysées')
 })
 
 test('clans en sommeil repliés, puis affichés', async ({ page }) => {

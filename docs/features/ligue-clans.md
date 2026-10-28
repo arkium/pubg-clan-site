@@ -87,16 +87,20 @@ tous les types, le classement du mois est presque vide hors Normal : les seuils 
   précédente), logo (réglage `login_welcome_image_url` du clan, sinon l'image par défaut), barre relative au premier,
   parties, win rate et joueurs actifs sur ordinateur, valeur du critère. Puis **En qualification** (progression) et
   **Sans partie** (replié). Sans clan classé : un message, et les deux blocs restent.
-- **Explication du Power score** repliable : formule, barème, pondération (score moyen de la ligue de la période) et
-  seuil de la période, lus dans la réponse (`scoring`).
-- **« En bref »** (depuis le 2026-10-18), en bas de page : podium de la semaine en parties normales (liens vers la vue
-  d'ensemble de chaque clan), nombre de clans classés, en qualification et sans partie, formule du Power score avec
-  les réglages en vigueur. Rendu **par le serveur** (`LeagueFindings`, textes de `src/lib/clan-league-findings.ts`,
-  même `getClanLeague` et même cache que l'API) pour que ces faits soient dans le HTML lu par les robots
-  (docs/TODO/geo-seo-propositions.md, lot 2). Il ne suit pas les filtres : il décrit toujours la vue par défaut.
+- **« Comment c'est calculé ? »** en bas de page (barre commune `CalculationHelp` depuis le 2026-10-28 : icône et
+  « Afficher » / « Masquer » à l'accent, **repliée mais dans le HTML**, lien vers la Méthodologie `#power-score`) :
+  - **méthode** : avant le chargement du classement, la formule du Power score en phrases avec les réglages en vigueur
+    (`LeagueFormula`, rendue par le serveur : c'est elle que lisent les robots) ; une fois le classement là,
+    l'explication de la période et du type choisis (`PowerScoreExplanation` : formule, barème, pondération par le score
+    moyen de la ligue de la période, seuil de la période, lus dans `scoring`). Jamais les deux à la fois ;
+  - **« En bref »** (depuis le 2026-10-18) rangé dessous : podium de la semaine en parties normales (liens vers la vue
+    d'ensemble de chaque clan), nombre de clans classés, en qualification et sans partie. Rendu **par le serveur**
+    (`LeagueFindings`, textes de `src/lib/clan-league-findings.ts`, même `getClanLeague` et même cache que l'API, une
+    lecture par requête pour les deux blocs) pour que ces faits soient dans le HTML lu par les robots
+    (docs/TODO/geo-seo-propositions.md, lot 2). Il ne suit pas les filtres : il décrit toujours la vue par défaut.
 
 `src/app/clans-leaderboard/page.tsx` est une page serveur qui rend la page interactive
-(`src/components/clan-league/LeaguePage.tsx`, composant client) en lui passant ce bloc dans un `Suspense`.
+(`src/components/clan-league/LeaguePage.tsx`, composant client) en lui passant ces deux blocs, chacun dans un `Suspense`.
 Composants : `src/components/clan-league/LeagueSections.tsx`. Logique pure : `src/lib/clan-league.ts`. Les flèches ▲▼ / « nouv. »
 sont depuis le 2026-10-12 la brique partagée `RankMovement` (`src/components/ui/RankMovement.tsx`), reprise par le
 classement des joueurs ([joueurs.md](joueurs.md)).

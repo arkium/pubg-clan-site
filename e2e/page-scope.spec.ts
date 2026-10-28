@@ -48,5 +48,6 @@ test('Méthodologie : une ancre par page, liée depuis la barre', async ({ page 
   await page.goto('/a-propos/methodologie#page-joueur-dashboard')
   await expect(page.getByRole('heading', { name: 'Pages d’un joueur, pages d’un clan' })).toBeVisible()
   await expect(page.locator('#page-joueur-dashboard')).toContainText('Frères d’armes : au moins 3 parties ensemble')
+  await expect(page.locator('#page-joueur-dashboard')).toContainText('Profil de jeu, ▲ / ▼ : l’écart en points avec la semaine ou le mois précédent')
   await expect(page.locator('#page-clan-stats-maps')).toContainText('Filtre « Type de partie »')
 })

@@ -1,12 +1,13 @@
 'use client'
 
-import { ArrowDownUp, BookOpen, GitCompareArrows, ListOrdered, Medal } from 'lucide-react'
+import { ArrowDownUp, Calculator, GitCompareArrows, ListOrdered, Medal } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useMemo, useRef, useState, type KeyboardEvent } from 'react'
 
 import PlayersComparator from '@/components/players/PlayersComparator'
 import PlayersRanking, { pageOfPosition, type RankingView } from '@/components/players/PlayersRanking'
 import PlayersScoringGuide, { SCORING_GUIDE_ID } from '@/components/players/PlayersScoringGuide'
+import { CALCULATION_HELP_TITLE } from '@/components/ui/CalculationHelp'
 import { ROLE_META } from '@/components/players/PlayersUi'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
@@ -238,8 +239,8 @@ function PlayersContent() {
             ) : null}
             {/* Renvoi au guide de calcul du bas de page (demande du 2026-10-18). */}
             <a href={`#${SCORING_GUIDE_ID}`} onClick={openGuide} className="app-link inline-flex items-center gap-1 text-[13px] font-semibold">
-              <BookOpen className="h-3.5 w-3.5" aria-hidden="true" />
-              Comment c’est calculé
+              <Calculator className="h-3.5 w-3.5" aria-hidden="true" />
+              {CALCULATION_HELP_TITLE}
             </a>
           </div>
         </div>
@@ -288,7 +289,7 @@ function PlayersContent() {
           </div>
         ) : null}
 
-        <PlayersScoringGuide open={guideOpen} onToggle={() => setGuideOpen((value) => !value)} />
+        <PlayersScoringGuide open={guideOpen} onToggle={setGuideOpen} />
       </div>
     </>
   )

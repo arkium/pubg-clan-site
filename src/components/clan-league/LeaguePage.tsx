@@ -3,7 +3,8 @@
 import { ArrowDownUp, Trophy } from 'lucide-react'
 import { Suspense, useMemo, useState } from 'react'
 
-import { LeagueFeed, LeaguePodium, LeagueRanking, LeagueTitles, MatchTypeMenu, PowerScoreHelp, type ClanAccess } from '@/components/clan-league/LeagueSections'
+import { LeagueFeed, LeaguePodium, LeagueRanking, LeagueTitles, MatchTypeMenu, PowerScoreExplanation, type ClanAccess } from '@/components/clan-league/LeagueSections'
+import CalculationHelp from '@/components/ui/CalculationHelp'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import MobileDropdownNav from '@/components/ui/MobileDropdownNav'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -22,12 +23,13 @@ import {
 } from '@/lib/clan-league'
 import { clanBackgroundImage } from '@/lib/clan-image'
 import type { ClanLeaguePayload } from '@/lib/clan-league-service'
+import { METHODOLOGY_PATH } from '@/lib/legal/legal-info'
 import { PERIOD_OF_LABELS, PERIOD_WHEN_LABELS, STANDARD_PERIODS } from '@/lib/period'
 import { elapsedLabel } from '@/lib/relative-time'
 
 const pickLeague = (payload: unknown) => (payload as ClanLeaguePayload | null) ?? null
 
-function LeagueContent({ findings }: { findings?: React.ReactNode }) {
+function LeagueContent({ findings, formula }: { findings?: React.ReactNode; formula?: React.ReactNode }) {
   // Période de la page : URL, puis mémoire de la visite, puis semaine (docs/TODO/sticky.md §4.E).
   const { period, setPeriod, ready } = usePagePeriod(STANDARD_PERIODS, 'week')
   const [matchType, setMatchType] = useState<LeagueMatchType>('official')
@@ -166,12 +168,14 @@ function LeagueContent({ findings }: { findings?: React.ReactNode }) {
               zoneEnd={zoneEnd}
               access={access}
             />
-            <PowerScoreHelp scoring={data.scoring} />
           </div>
         ) : null}
-        {/* Bloc « En bref » rendu par le serveur (src/app/clans-leaderboard/page.tsx) : hors des données du client, il
-            est dans le HTML dès le premier affichage. */}
-        {findings}
+        {/* « Comment c'est calculé ? » : hors des données du client, dans le HTML dès le premier affichage. Méthode : la
+            formule du serveur (semaine, parties normales) tant que le classement n'est pas là, puis l'explication de la
+            période et du type choisis ; « En bref » du serveur rangé dessous. */}
+        <CalculationHelp methodologyHref={`${METHODOLOGY_PATH}#power-score`} summary={findings} testId="power-score-help">
+          {data ? <PowerScoreExplanation scoring={data.scoring} /> : formula}
+        </CalculationHelp>
       </div>
     </>
   )
@@ -182,9 +186,9 @@ function LeagueContent({ findings }: { findings?: React.ReactNode }) {
  * docs/features/ligue-clans.md). Podium en marches, fil de la ligue, titres, classement par cercle (dans la zone,
  * blue zone repliée, en qualification, sans partie), pastille « Mon clan ». Données recalculées depuis les parties du
  * type choisi (Normal par défaut). Charte UI : docs/ui/index.html (04/10/2026). Rendue par la page serveur
- * `src/app/clans-leaderboard/page.tsx`, qui lui passe `findings` (docs/TODO/geo-seo-propositions.md, lot 2).
+ * `src/app/clans-leaderboard/page.tsx`, qui lui passe `findings` et `formula` (docs/TODO/geo-seo-propositions.md, lot 2).
  */
-export default function ClansLeaderboardPage({ findings }: { findings?: React.ReactNode }) {
+export default function ClansLeaderboardPage({ findings, formula }: { findings?: React.ReactNode; formula?: React.ReactNode }) {
   return (
     // Page à bandeau (docs/TODO/sticky.md §4.A) : pleine largeur, blocs internes alignés sur la grille.
     // `.charte` : page migrée vers la charte UI (accent jaune, Teko, classes de rôle) — docs/ui/index.html.
@@ -208,7 +212,7 @@ export default function ClansLeaderboardPage({ findings }: { findings?: React.Re
 
       {/* `usePagePeriod` lit `?period=` : une route statique exige cette frontière (CLAUDE.md, piège n° 5). */}
       <Suspense fallback={<div className="app-container app-gutter"><CardSkeleton /></div>}>
-        <LeagueContent findings={findings} />
+        <LeagueContent findings={findings} formula={formula} />
       </Suspense>
     </div>
   )

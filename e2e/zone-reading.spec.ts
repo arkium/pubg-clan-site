@@ -1,6 +1,7 @@
 import type { Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { expectCalculationHelp } from './support/calculation-help'
 import { appHeader, clickInPlace, dock, toolbar } from './support/layout'
 import { mockMemberSession } from './support/session'
 import { ZONE_PREVIOUS_BEST, mockZoneReading, zoneReadingAnalysis, zoneSeriesRounds } from './support/zone-reading'
@@ -59,6 +60,12 @@ async function horizontalOverflow(page: Page) {
 }
 
 test.describe('analyse', () => {
+  test('« Comment c’est calculé ? » : la méthode, repliée mais dans le HTML', async ({ api, page }) => {
+    mockZoneReading(api)
+    await openAnalysis(page)
+    await expectCalculationHelp(page, 'zone-reading-calculation-help', 'ligne de vol du C-130')
+  })
+
   test('titres et chiffres calculés : bande, premier cercle, sens de fermeture, règle pratique', async ({ api, page }, testInfo) => {
     mockZoneReading(api)
     await openAnalysis(page)

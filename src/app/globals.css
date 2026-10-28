@@ -4610,6 +4610,10 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .app-help-bar-row dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--theme-ui-text-secondary); }
 .app-help-bar-row dd ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
 .app-help-bar-extra { border-top: 1px solid var(--theme-ui-border); padding-top: 12px; }
+/* Méthode de « Comment c'est calculé ? » (CalculationHelp) : même texte que les lignes de « D'où viennent ces chiffres ? ». */
+.app-help-bar-method { display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--theme-ui-text-secondary); }
+.app-help-bar-method p, .app-help-bar-method ul, .app-help-bar-method ol { margin: 0; }
+.app-help-bar-method b, .app-help-bar-method strong { color: var(--theme-ui-text); }
 .app-help-bar-link { font-size: 13px; font-weight: 700; color: var(--theme-ui-accent-text); }
 .app-help-bar-link:hover { text-decoration: underline; }
 .coach-help-list { margin: 0; padding-left: 18px; display: flex; flex-direction: column; gap: 5px; font-size: 13px; line-height: 1.45; color: var(--theme-ui-text-secondary); }

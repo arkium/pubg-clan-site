@@ -4,7 +4,7 @@ import { expect, test } from './support/api'
 import { MEMBER_ID } from './support/data'
 import { periodFilter, toolbar } from './support/layout'
 import { mockPlayerDashboard } from './support/members'
-import { mockMemberBodyZones } from './support/body-zones'
+import { memberBodyZonesPayload, mockMemberBodyZones } from './support/body-zones'
 import { mockPlayerPlaystyle } from './support/player-playstyle'
 
 /**
@@ -105,10 +105,31 @@ test.describe('style de jeu du joueur — zones d’impact', () => {
     await expect(zones.getByTestId('body-zones-weeks')).toContainText('S37S38S39S40S41S42S43S44')
     // S40 sous l'échantillon : dessinée vide.
     await expect(zones.getByTestId('body-zones-weeks').locator('span[title^="S40"]')).toHaveClass(/border-dashed/)
+    // Le taux écrit au-dessus de chaque barre (2026-10-30), « — » sous l'échantillon.
+    const weekValues = memberBodyZonesPayload('week').data.weeks.map((week) => (week.headRate === null ? '—' : `${Math.round(week.headRate)} %`))
+    await expect(zones.getByTestId('body-zones-weeks-value')).toHaveText(weekValues)
+    expect(weekValues[3]).toBe('—')
     await expect(zones.getByRole('heading', { name: 'Zones d’impact' })).toBeVisible()
 
     // Aucun défilement horizontal, mobile compris.
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  })
+
+  test('silhouette en nuances de son côté, la plus touchée au cran le plus foncé (2026-10-30)', async ({ api, page }, testInfo) => {
+    test.skip(['chromium-mobile', 'webkit-iphone'].includes(testInfo.project.name), 'silhouette masquée sous 640 px')
+    mockPlayerPlaystyle(api)
+    await openPlaystyle(page)
+
+    const zones = section(page, 'Zones d’impact')
+    // Avant : seuils de dégâts d'une partie (70) sur des cumuls de semaines, tout en rouge, infligés compris.
+    // Option C : six verts pour les tirs infligés, de l'orange clair au rouge sombre pour les subis (BODY_ZONE_RAMPS).
+    const fill = (panel: string, zone: string) =>
+      zones.getByTestId(panel).locator(`svg [data-zone="${zone}"]`).first().evaluate((node) => (node as SVGElement).style.fill)
+    expect(await fill('body-zones-dealt', 'torso')).toBe('rgb(21, 128, 61)') // #15803d, torse = zone la plus touchée
+    expect(await fill('body-zones-taken', 'torso')).toBe('rgb(185, 28, 28)') // #b91c1c
+    // Une zone moins touchée prend une nuance plus claire, jamais celle du torse.
+    expect(await fill('body-zones-dealt', 'head')).not.toBe('rgb(21, 128, 61)')
+    expect(await fill('body-zones-taken', 'legs')).not.toBe('rgb(185, 28, 28)')
   })
 
   test('« Tous » : depuis le 13 septembre 2026, aucune évolution', async ({ api, page }) => {

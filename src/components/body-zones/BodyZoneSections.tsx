@@ -2,12 +2,14 @@
 
 import { CalendarDays, Crosshair } from 'lucide-react'
 import Link from 'next/link'
+import { useState } from 'react'
 
 import { SectionHeading } from '@/components/clan-stats/PlaystyleSections'
 import { SectionBlock } from '@/components/player-playstyle/PlayerPlaystyleSections'
 import BodyZonePanel, { bodyZoneSideColor } from '@/components/telemetry/BodyZonePanel'
 import { EmptyState, Tag } from '@/components/ui/CharteKit'
 import MobileRankList, { type MobileRankRow } from '@/components/ui/MobileRankList'
+import Pagination from '@/components/ui/Pagination'
 import RankCell from '@/components/ui/RankCell'
 import RankMovement from '@/components/ui/RankMovement'
 import SortableTh from '@/components/ui/SortableTh'
@@ -16,6 +18,7 @@ import { usePageData } from '@/hooks/usePageData'
 import { useTableSort, type SortDirection } from '@/hooks/useTableSort'
 import type { ClanBodyZonesMember, ClanBodyZonesReport, MemberBodyZonesReport } from '@/lib/body-zone-service'
 import { BODY_ZONE_LABELS, type BodyZoneSide, type BodyZoneSideSummary, type BodyZoneWeek } from '@/lib/body-zone-stats'
+import { paginate } from '@/lib/pagination'
 import { PERIOD_WHEN_LABELS, type StandardPeriod } from '@/lib/period'
 
 /**
@@ -161,22 +164,35 @@ function HeadRateWeeksBand({ weeks, evolution, testId }: { weeks: BodyZoneWeek[]
           </b>
         ) : null}
       </span>
-      <div className="grid h-14 items-end gap-1.5" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }} role="img" aria-label={`Taux de tête par semaine. ${description}`}>
+      {/* Taux écrit au-dessus de chaque barre (demande du 2026-10-30) ; « — » sous l'échantillon, jamais un faux zéro. */}
+      <div className="grid h-[76px] gap-1.5" style={{ gridTemplateColumns: `repeat(${weeks.length}, minmax(0, 1fr))` }} role="img" aria-label={`Taux de tête par semaine. ${description}`}>
         {weeks.map((week, index) => {
           const last = index === weeks.length - 1
           const title = `${weekLabel(week.periodKey)} · ${week.headRate === null ? `échantillon faible (${integer.format(week.hits)} touches)` : `${percent(week.headRate)} à la tête · ${integer.format(week.hits)} touches`}`
-          return week.headRate === null ? (
-            <span key={week.periodKey} title={title} className="h-full rounded-[4px] border border-dashed border-gray-200" />
-          ) : (
-            <span
-              key={week.periodKey}
-              title={title}
-              className="rounded-[4px]"
-              style={{
-                height: `${Math.max(8, Math.round((week.headRate / scale) * 100))}%`,
-                background: last ? 'var(--theme-ui-accent)' : 'color-mix(in srgb, var(--game-sky) 55%, transparent)',
-              }}
-            />
+          const valueClass = `t-num absolute inset-x-0 whitespace-nowrap text-center text-[11px] leading-none ${
+            week.headRate === null ? 'text-gray-500' : last ? 'font-bold text-[var(--theme-ui-accent-text)]' : 'font-semibold text-gray-700'
+          }`
+          if (week.headRate === null) {
+            return (
+              <div key={week.periodKey} className="relative min-w-0">
+                <span className={`${valueClass} top-0`} data-testid={`${testId}-value`}>—</span>
+                <span title={title} className="absolute inset-x-0 bottom-0 top-[15px] rounded-[4px] border border-dashed border-gray-200" />
+              </div>
+            )
+          }
+          // Barre au plus à 80 % de la hauteur (échelle = 125 % du maximum) : la valeur tient toujours au-dessus.
+          const height = Math.max(8, Math.round((week.headRate / scale) * 100))
+          return (
+            <div key={week.periodKey} className="relative min-w-0">
+              <span className={valueClass} style={{ bottom: `calc(${height}% + 3px)` }} data-testid={`${testId}-value`}>
+                {percent(week.headRate)}
+              </span>
+              <span
+                title={title}
+                className="absolute inset-x-0 bottom-0 rounded-[4px]"
+                style={{ height: `${height}%`, background: last ? 'var(--theme-ui-accent)' : 'color-mix(in srgb, var(--game-sky) 55%, transparent)' }}
+              />
+            </div>
           )
         })}
       </div>
@@ -311,10 +327,20 @@ function sortMembers(members: ClanBodyZonesMember[], key: MemberSortKey, directi
   return { ranked, unranked }
 }
 
+/** Tableau « Qui vise la tête ? » sur ordinateur : paginé (règle du site), le mobile a sa propre liste paginée. */
+const MEMBER_PAGE_SIZE = 10
+
 function MemberTable({ members, showMovement }: { members: ClanBodyZonesMember[]; showMovement: boolean }) {
   const { sortKey, sortDir, onSort, colTint } = useTableSort<MemberSortKey>('head')
+  const [page, setPage] = useState(1)
   const { ranked, unranked } = sortMembers(members, sortKey, sortDir)
-  const th = { sortKey, sortDir, onSort }
+  // Membres classés d'abord, puis ceux sous l'échantillon ; un nouveau tri repart de la première page.
+  const tableRows = paginate([...ranked, ...unranked], page, MEMBER_PAGE_SIZE)
+  const sortFromFirstPage = (key: MemberSortKey) => {
+    setPage(1)
+    onSort(key)
+  }
+  const th = { sortKey, sortDir, onSort: sortFromFirstPage }
   const TD = 'px-[9px] py-2 text-right tabular-nums'
   const cell = (key: MemberSortKey) => `${TD} ${key === sortKey ? 'font-bold text-gray-900' : 'text-gray-700'}`
   const tint = (key: MemberSortKey) => ({ backgroundColor: colTint(key) })
@@ -369,7 +395,7 @@ function MemberTable({ members, showMovement }: { members: ClanBodyZonesMember[]
               </tr>
             </thead>
             <tbody>
-              {[...ranked, ...unranked].map((member) => {
+              {tableRows.visible.map((member) => {
                 const rank = member.rank
                 const rowClass = rank !== null && rank <= 3 ? `app-table-row app-table-row--top${rank}` : 'app-table-row'
                 return (
@@ -402,6 +428,17 @@ function MemberTable({ members, showMovement }: { members: ClanBodyZonesMember[]
             </tbody>
           </table>
         </div>
+      </div>
+      <div className="hidden md:block">
+        <Pagination
+          ariaLabel="Pages du classement « Qui vise la tête ? »"
+          itemLabel="Membres"
+          page={tableRows.current}
+          pageCount={tableRows.pageCount}
+          total={ranked.length + unranked.length}
+          pageSize={MEMBER_PAGE_SIZE}
+          onPageChange={setPage}
+        />
       </div>
     </div>
   )

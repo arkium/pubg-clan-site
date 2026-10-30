@@ -347,3 +347,16 @@ npx tsx --conditions=react-server --tsconfig ./tsconfig.json scripts/check-body-
 2. Mesures du §7 (durée d'un recalcul le lundi, taille de la table — 39 358 lignes après rattrapage).
 3. Lundi 2 novembre : vérifier que la S44 est recalculée (semaine précédente le lundi et le mardi) et octobre le 1er
    et le 2.
+
+### 9.7 Retours de l'utilisateur (2026-10-30, au soir)
+
+- **Silhouette toute rouge** : `DamageBodySvg` colorait chaque zone selon des seuils de dégâts d'une partie (35, 70) ;
+  sur des cumuls de semaines — et au débriefing, sur une escouade entière —, toutes les zones les dépassaient. Après
+  un aperçu de trois palettes, option C retenue : chaque zone à la nuance de sa part face à la plus touchée, six verts
+  pour les tirs infligés, sept nuances de l'orange clair au rouge sombre pour les subis (`BODY_ZONE_RAMPS` de
+  `BodyZonePanel`, props `ramp` et `shareBy` de `DamageBodySvg`) ; débriefing et pages Style de jeu. Test :
+  `e2e/player-playstyle.spec.ts`.
+- **Bande des 8 semaines** : le taux de chaque semaine écrit au-dessus de sa barre (« — » sous l'échantillon), joueur
+  et clan. Test : `e2e/player-playstyle.spec.ts`.
+- **« Qui vise la tête ? »** : paginé par 10 sur ordinateur (`Pagination`), un nouveau tri repart de la première page ;
+  le mobile pagine déjà sa liste (`MobileRankList`). Test : `e2e/stats.spec.ts` (16 membres).

@@ -220,6 +220,39 @@ test.describe('Style de jeu du clan — zones d’impact', () => {
     expect((await names()).slice(-2)).toEqual(['Golf', 'Hotel'])
   })
 
+  test('tableau paginé par 10 (2026-10-30) : page 2, puis un nouveau tri repart de la première page', async ({ api, page }, testInfo) => {
+    test.skip(isMobile(testInfo), 'tableau : ordinateur et tablette (le mobile pagine sa propre liste)')
+    const payload = clanBodyZonesPayload('week')
+    const ranked = payload.data.members.filter((member) => member.rank !== null)
+    // 16 membres : les 8 du jeu de données (6 classés, 2 sous l'échantillon) et 8 renforts classés à la suite.
+    const extra = Array.from({ length: 8 }, (_, index) => ({
+      ...ranked[index % ranked.length],
+      memberId: 100 + index,
+      displayName: `Renfort ${index + 1}`,
+      rank: ranked.length + index + 1,
+      previousRank: null,
+      isNew: false,
+    }))
+    api.on('GET', `/api/clans/${CLAN_ID}/telemetry/body-zones`, { body: { ...payload, data: { ...payload.data, members: [...payload.data.members, ...extra] } } })
+    await page.reload()
+
+    const zones = section(page, 'sec-zones')
+    const rows = zones.getByTestId('body-zones-member-row')
+    const pager = zones.getByRole('navigation', { name: 'Pages du classement « Qui vise la tête ? »' })
+    await expect(rows).toHaveCount(10)
+    await expect(pager).toContainText('Membres 1–10 sur 16')
+
+    await pager.getByRole('button', { name: '2', exact: true }).click()
+    await expect(rows).toHaveCount(6)
+    await expect(pager).toContainText('Membres 11–16 sur 16')
+    // Les membres sous l'échantillon restent en fin de classement, donc sur la dernière page.
+    await expect(rows.last()).toContainText('Joueur Hotel')
+
+    await zones.getByRole('button', { name: 'Parties' }).click()
+    await expect(rows).toHaveCount(10)
+    await expect(pager).toContainText('Membres 1–10 sur 16')
+  })
+
   test('« Tous » : pas de colonne Évolution', async ({ page }, testInfo) => {
     test.skip(isMobile(testInfo), 'tableau : ordinateur et tablette')
     await periodFilter(page).getByRole('button', { name: 'Tous' }).click()

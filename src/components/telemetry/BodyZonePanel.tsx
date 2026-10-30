@@ -15,11 +15,23 @@ export function bodyZoneSideColor(side: BodyZonePanelSide) {
 }
 
 /**
+ * Nuances de la silhouette, de la zone la moins touchée à la plus touchée (décision du 2026-10-30, option C de
+ * l'aperçu) : six verts pour les tirs infligés, sept nuances de l'orange clair au rouge sombre pour les tirs subis.
+ */
+export const BODY_ZONE_RAMPS: Record<BodyZonePanelSide, readonly string[]> = {
+  dealt: ['#bbf7d0', '#86efac', '#4ade80', '#22c55e', '#16a34a', '#15803d'],
+  taken: ['#fdba74', '#fb923c', '#f97316', '#ea580c', '#ef4444', '#dc2626', '#b91c1c'],
+}
+
+/**
  * Bloc « Tirs infligés / Tirs subis » (docs/ui/components.md, `BodyZonePanel`) : silhouette de 92 px à gauche (masquée
  * sous 640 px), une barre par zone (libellé 62 px · barre · valeur de 72 px au moins, sur une ligne), un en-tête et
  * un pied fournis par l'appelant. Le débriefing d'une partie (touches · dégâts, barres au prorata des dégâts) et la
  * section « Zones d'impact » du Style de jeu (touches · part, barres au prorata des touches) le partagent. `muted` :
  * échantillon faible, silhouette et barres en gris.
+ *
+ * Silhouette : chaque zone à la nuance de sa part (`widthBy`) face à la plus touchée, dans `BODY_ZONE_RAMPS`. L'ancienne
+ * échelle (jaune, orange, rouge à 35 et 70 dégâts) mettait tout en rouge sur une escouade ou une période (2026-10-30).
  */
 export default function BodyZonePanel({
   side,
@@ -54,6 +66,8 @@ export default function BodyZonePanel({
           showLabels={false}
           showValues={false}
           showTooltips
+          ramp={BODY_ZONE_RAMPS[side]}
+          shareBy={widthBy}
         />
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-2">

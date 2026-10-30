@@ -32,6 +32,14 @@ export interface DamageBodySvgProps {
   unavailable?: boolean
   /** Message affiché à la place de la ventilation quand `unavailable` est vrai. */
   unavailableLabel?: string
+  /**
+   * Nuances de la silhouette (couleurs `#rrggbb`, de la zone la moins touchée à la plus touchée) : chaque zone prend la
+   * nuance de sa part (`shareBy`) face à la plus touchée, interpolée entre deux crans. Sans elles, l'ancienne échelle
+   * (jaune, orange, rouge à 35 et 70 dégâts), qui mettait tout en rouge sur une escouade ou une période.
+   */
+  ramp?: readonly string[]
+  /** Mesure de la part en mode `ramp` : touches (période) ou dégâts (débriefing). */
+  shareBy?: 'damage' | 'hits'
 }
 
 const ZONE_LABELS: Record<BodyZoneKey, string> = {
@@ -98,6 +106,44 @@ function getZoneFill(damage: number, maxDamage: number, isHovered: boolean): {
   }
 }
 
+/** Nuance d'une suite de couleurs `#rrggbb` pour une part de 0 à 1, interpolée entre les deux crans voisins. */
+export function rampColor(ramp: readonly string[], ratio: number): string {
+  if (ramp.length === 0) return 'transparent'
+  if (ramp.length === 1) return ramp[0]
+  const rgb = (value: string) => [1, 3, 5].map((index) => parseInt(value.slice(index, index + 2), 16))
+  const position = Math.min(1, Math.max(0, ratio)) * (ramp.length - 1)
+  const index = Math.min(ramp.length - 2, Math.floor(position))
+  const local = position - index
+  const [from, to] = [rgb(ramp[index]), rgb(ramp[index + 1])]
+  return `rgb(${from.map((channel, i) => Math.round(channel + (to[i] - channel) * local)).join(', ')})`
+}
+
+/**
+ * Mode `ramp` : la nuance de la part de la zone face à la plus touchée ; seule celle-ci garde un halo. Une zone sans
+ * touche reste neutre.
+ */
+function getRampFill(value: number, maxValue: number, isHovered: boolean, ramp: readonly string[]): {
+  fill: string
+  stroke: string
+  fillOpacity?: number
+  glow?: string
+} {
+  if (!value || value <= 0 || maxValue <= 0) {
+    return {
+      fill: isHovered ? 'rgba(148, 163, 184, 0.18)' : 'rgba(30, 41, 59, 0.55)',
+      stroke: isHovered ? 'rgba(148, 163, 184, 0.6)' : 'rgba(71, 85, 105, 0.45)',
+    }
+  }
+  const ratio = Math.min(1, value / maxValue)
+  const color = rampColor(ramp, ratio)
+  return {
+    fill: color,
+    stroke: color,
+    fillOpacity: isHovered ? 1 : 0.92,
+    glow: ratio >= 1 ? `drop-shadow(0 0 6px ${color})` : undefined,
+  }
+}
+
 export function DamageBodySvg({
   damageByZone = {},
   hitsByZone = {},
@@ -111,6 +157,8 @@ export function DamageBodySvg({
   variant = 'received',
   unavailable = false,
   unavailableLabel = 'Localisation des impacts non capturée pour ce match',
+  ramp,
+  shareBy = 'damage',
 }: DamageBodySvgProps) {
   const [hoveredZone, setHoveredZone] = useState<BodyZoneKey | null>(null)
   // Plusieurs silhouettes cohabitent sur une même page (infligés / subis) : les
@@ -147,17 +195,30 @@ export function DamageBodySvg({
   const pelvisDmg = Number(damageByZone.pelvis) || 0
   const legsDmg = Number(damageByZone.legs) || 0
 
+  // Mode `ramp` : part de chaque zone (touches ou dégâts) face à la plus touchée.
+  const shareSource = shareBy === 'hits' ? hitsByZone : damageByZone
+  const shareOf = (zone: BodyZoneKey) => Number(shareSource[zone]) || 0
+  const zoneKeys = Object.keys(ZONE_LABELS) as BodyZoneKey[]
+  const maxShare = Math.max(0, ...zoneKeys.map(shareOf))
+  const shareTotal = zoneKeys.reduce((sum, zone) => sum + shareOf(zone), 0)
+
   const renderZoneProps = (zone: BodyZoneKey) => {
     const dmg = Number(damageByZone[zone]) || 0
     const hits = Number(hitsByZone[zone]) || 0
     const isHovered = hoveredZone === zone
-    const { fill, stroke, glow } = getZoneFill(dmg, maxZoneDamage, isHovered)
+    const { fill, stroke, glow, fillOpacity } = ramp
+      ? getRampFill(shareOf(zone), maxShare, isHovered, ramp)
+      : { ...getZoneFill(dmg, maxZoneDamage, isHovered), fillOpacity: undefined }
 
     return {
       fill,
       stroke,
       strokeWidth: isHovered ? 2.5 : 1.4,
       style: {
+        // Dans le style aussi : une variable CSS (`var(--game-pos)`) n'est pas lue dans un attribut de présentation SVG.
+        fill,
+        stroke,
+        fillOpacity,
         filter: glow,
         transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
         cursor: interactive ? 'pointer' : 'default',
@@ -177,8 +238,12 @@ export function DamageBodySvg({
         label: ZONE_LABELS[hoveredZone],
         damage: Number(damageByZone[hoveredZone]) || 0,
         hits: Number(hitsByZone[hoveredZone]) || 0,
-        percent:
-          computedTotal > 0
+        // Mode `ramp` : la part affichée par les barres du panneau (touches sur une période) ; sinon celle des dégâts.
+        percent: ramp
+          ? shareTotal > 0
+            ? Math.round((shareOf(hoveredZone) / shareTotal) * 100)
+            : 0
+          : computedTotal > 0
             ? Math.round(((Number(damageByZone[hoveredZone]) || 0) / computedTotal) * 100)
             : 0,
       }
@@ -250,10 +315,10 @@ export function DamageBodySvg({
             {/* Tactical Helmet Visor Slit */}
             <path
               d="M 40 22 Q 50 25 60 22 L 59 28 Q 50 31 41 28 Z"
-              fill={headDmg > 50 ? '#f43f5e' : 'rgba(15,23,42,0.9)'}
-              stroke={headDmg > 50 ? '#fda4af' : 'rgba(96,165,250,0.6)'}
+              fill={!ramp && headDmg > 50 ? '#f43f5e' : 'rgba(15,23,42,0.9)'}
+              stroke={!ramp && headDmg > 50 ? '#fda4af' : 'rgba(96,165,250,0.6)'}
               strokeWidth="0.9"
-              className={headDmg > 50 ? 'animate-pulse' : ''}
+              className={!ramp && headDmg > 50 ? 'animate-pulse' : ''}
               pointerEvents="none"
             />
           </g>

@@ -365,7 +365,9 @@ torse, bassin, bras, jambes par semaine, mois, « tous ») se lisent dans `Membe
 d'agrégats ; le clan = somme de ses membres actifs à la lecture. **Jamais `memberStats` dans une page** (blob
 compressé, des centaines de parties par clan et par semaine). Un taux ne s'affiche qu'à 30 touches (joueur) / 100
 (clan), `src/lib/body-zone-stats.ts`. Le recalcul d'agrégats couvre aussi la semaine précédente le lundi et le mardi,
-le mois précédent les 1er et 2 (`periodsToRecalculate`, `src/lib/pubg-telemetry/period-keys.ts`).
+le mois précédent les 1er et 2 (`periodsToRecalculate`, `src/lib/pubg-telemetry/period-keys.ts`). Bornes et clés de
+période en heure **du processus : UTC en production** (vérifié le 2026-10-30) — un recalcul de période lancé depuis un
+poste à l'heure de Paris décale les semaines de deux heures ; les scripts des zones prennent UTC par défaut.
 
 **Guard Routes:**
 - `src/proxy.ts` (edge middleware) redirects based on `setupState`:

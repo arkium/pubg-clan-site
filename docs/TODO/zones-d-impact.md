@@ -47,7 +47,8 @@ re-parses : ces parties ont leurs zones. **« Tous » commence donc mi-septembre
 - **Les semaines passées sont figées** : le recalcul ne vise que la semaine, le mois et le « tous » de l'instant
   (`referenceDate = new Date()`). Une partie du dimanche soir importée le lundi, ou un tournoi synchronisé tard,
   n'entre jamais dans la semaine écoulée. Ce défaut touche déjà les armes et les synergies.
-- Bornes : semaine ISO du lundi 00:00 au dimanche 23:59 et mois civil, **heure locale du serveur** — pas la règle
+- Bornes : semaine ISO du lundi 00:00 au dimanche 23:59 et mois civil, **heure locale du serveur, UTC** (vérifié le
+  2026-10-30, §9.5) — pas la règle
   « soirée = journée de jeu à 06:00 » (`sessionDateOf`), réservée aux soirées. Pas de type de match ni de mode
   d'équipe dans `MemberTelemetryStats` : tous les types mélangés, comme les pages Style de jeu.
 - Progression : `RankMovement` (évolution d'un rang contre la période précédente, Ligue et `/players`) est le seul
@@ -247,7 +248,8 @@ tenir dans son total de la semaine.
 
 ## 9. État (2026-10-30)
 
-**Implémenté, non commité, non déployé.** Lots 1 à 5 ; maquette « Zones-impact » de Claude Design (page du joueur ; la
+**Implémenté et poussé (`d373f5a`), migration appliquée, rattrapage fait (§9.5) ; services à redémarrer sur le nouveau
+code (§9.6).** Lots 1 à 5 ; maquette « Zones-impact » de Claude Design (page du joueur ; la
 page du clan, coupée dans la réponse, suit la même grammaire).
 
 ### 9.1 Décisions (le « à trancher » du 2026-10-29)
@@ -312,14 +314,36 @@ page du clan, coupée dans la réponse, suit la même grammaire).
 - Simulation du rattrapage (lecture seule), clan 25, S36 → S43 et septembre : 213, 291, 338, 312, 270, 311, 447 et 508
   parties par semaine, 1 220 pour septembre — environ 3 900 relectures de `memberStats` pour ce clan.
 
-### 9.5 Reste à faire (déploiement)
+### 9.5 Rattrapage (fait le 2026-10-30, ~22 h)
 
-1. `npx prisma migrate deploy` (la migration est **la seule écriture de schéma**), puis redémarrer les quatre services
-   (`web`, `telemetry-worker`, `cron`, `telemetry-aggregates`).
-2. Attendre une passe du worker d'agrégats : semaine, mois et « tous » se remplissent seuls ; avant, la section dit
-   « Aucune touche localisée sur la période », jamais un zéro.
-3. Rattrapage d'**un** clan, hors heures de jeu, **après accord** :
-   `npx tsx --conditions=react-server --tsconfig ./tsconfig.json scripts/backfill-body-zone-stats.ts --clan 25 --from-week 2026-36 --to-week 2026-43 --months 2026-09 --apply`
-   puis `scripts/check-body-zone-stats.ts --clan 25 --week 2026-43` sans écart, et le relevé avant / après des lignes
-   `MemberTelemetryStats` de ces semaines (§7). Puis les autres clans par lots (`--all-clans`, reprise `--from-clan`).
-4. Mesures du §7 (durée d'un recalcul le lundi, taille de la table).
+- **Migration** appliquée en production à 20:22 (heure de Paris), avant le push du commit (20:26) : donc depuis ce
+  poste (`npx prisma migrate deploy`). À 21:50, les services tournaient encore sur l'ancien code : aucun résumé
+  `match_sync_health`, et la passe d'agrégats de 21:43 n'avait rien écrit dans la table.
+- **Fuseau** : le worker de production calcule ses semaines **en UTC** (processus du serveur ; la base MySQL est aussi
+  en UTC). Premier passage du clan 25 lancé depuis ce poste, à l'heure de Paris : deux membres **perdaient** 4 parties
+  en S36 (120 → 116, 27 → 23) — exactement l'écart entre les bornes UTC et celles de Paris. Clan 25 refait avec
+  `TZ=UTC` (plus aucune baisse) ; les deux scripts prennent désormais **UTC par défaut** (`process.env.TZ ??= 'UTC'`,
+  fuseau affiché dans leur première ligne).
+- **Clan 25** (S36 → S43, septembre) : 15 s. Avant / après sur `MemberTelemetryStats` : 92 lignes identiques, 75 avec
+  plus de parties, 49 membres ajoutés, aucune baisse — les parties importées ou analysées après la fin de leur semaine
+  (S43 : 645 → 1 143 parties-membres, 28 → 36 membres). Effet attendu du §4 lot 1 : les pages des semaines passées
+  (Style de jeu, armes, synergies) sont plus complètes qu'avant.
+- **Tous les clans actifs** (45, dont Ungrouped) : 405 périodes, aucune erreur, 238 s de calcul cumulé ;
+  **39 358 lignes** `MemberBodyZoneStats` (S36 : 2 767 … S42 : 5 356, septembre : 5 179).
+- `check-body-zone-stats.ts` sans écart : clan 25 (S36, S43), clan 16 FunsNRoses (S42), clan 7 (S42).
+
+Commandes, depuis la racine (UTC par défaut) :
+
+```
+npx tsx --conditions=react-server --tsconfig ./tsconfig.json scripts/backfill-body-zone-stats.ts --all-clans --from-week 2026-36 --to-week 2026-43 --months 2026-09 --apply
+npx tsx --conditions=react-server --tsconfig ./tsconfig.json scripts/check-body-zone-stats.ts --clan 25 --week 2026-43
+```
+
+### 9.6 Reste à faire
+
+1. **Redémarrer les quatre services** sur le nouveau code (`web`, `telemetry-worker`, `cron`,
+   `telemetry-aggregates`) : la semaine en cours (S44), octobre et « Tous » se remplissent à la première passe du
+   worker d'agrégats ; avant, la section dit « Aucune touche localisée sur la période ».
+2. Mesures du §7 (durée d'un recalcul le lundi, taille de la table — 39 358 lignes après rattrapage).
+3. Lundi 2 novembre : vérifier que la S44 est recalculée (semaine précédente le lundi et le mardi) et octobre le 1er
+   et le 2.

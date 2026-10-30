@@ -11,6 +11,8 @@
  *
  * Le rattrapage d'agrégats en masse a déjà planté au hasard (code natif) : reprendre par `--from-clan <id>`.
  *
+ * Fuseau : UTC par défaut, celui du worker de production (voir plus bas) — jamais l'heure du poste.
+ *
  * Usage, depuis la racine du projet :
  *   npx tsx --conditions=react-server --tsconfig ./tsconfig.json scripts/backfill-body-zone-stats.ts \
  *     --clan 25 --from-week 2026-36 --to-week 2026-43 --months 2026-09 [--apply]
@@ -19,6 +21,11 @@
 import { prisma } from '@/lib/prisma'
 import { recalculateTelemetryPeriodForClan } from '@/lib/pubg-telemetry/period-aggregates'
 import { getPeriodBounds, getPeriodKey, type StatsPeriod } from '@/lib/pubg-telemetry/period-keys'
+
+// Bornes de semaine et de mois en heure locale du processus (`getPeriodBounds`) : le worker de production tourne en
+// UTC (vérifié le 2026-10-30 — S36 du clan 25 : 120 parties en UTC, 116 en heure de Paris). Lancé depuis un poste à
+// l'heure de Paris, le script calculerait d'autres semaines que le worker : UTC par défaut, `TZ=…` pour un autre fuseau.
+process.env.TZ ??= 'UTC'
 
 const argv = process.argv.slice(2)
 const flag = (name: string) => argv.includes(name)
@@ -78,7 +85,7 @@ async function main() {
 
   console.log(
     `Zones d'impact — rattrapage ${APPLY ? 'ÉCRITURE (--apply)' : 'SIMULATION, rien n’est écrit'} : ${clans.length} clan(s), ` +
-      `périodes ${periods.map((entry) => getPeriodKey(entry.period, entry.referenceDate)).join(', ')}`
+      `périodes ${periods.map((entry) => getPeriodKey(entry.period, entry.referenceDate)).join(', ')} (fuseau ${process.env.TZ})`
   )
 
   for (const clan of clans) {

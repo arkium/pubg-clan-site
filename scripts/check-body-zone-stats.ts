@@ -15,6 +15,11 @@ import { decodeJsonColumn } from '@/lib/pubg-telemetry/json-codec'
 import { BODY_ZONES } from '@/lib/pubg-telemetry/body-zones'
 import { getPeriodBounds, getPeriodKey } from '@/lib/pubg-telemetry/period-keys'
 
+// Bornes de semaine et de mois en heure locale du processus (`getPeriodBounds`) : le worker de production tourne en
+// UTC (vérifié le 2026-10-30 — S36 du clan 25 : 120 parties en UTC, 116 en heure de Paris). Lancé depuis un poste à
+// l'heure de Paris, le script calculerait d'autres semaines que le worker : UTC par défaut, `TZ=…` pour un autre fuseau.
+process.env.TZ ??= 'UTC'
+
 const argv = process.argv.slice(2)
 const option = (name: string) => {
   const index = argv.indexOf(name)
@@ -85,7 +90,7 @@ async function main() {
     }
   }
 
-  console.log(`Zones d'impact — clan ${clanId}, ${periodKey} (lecture seule) : ${matches.length} parties, ${expected.size} couples attendus, ${stored.length} lignes en base`)
+  console.log(`Zones d'impact — clan ${clanId}, ${periodKey} (lecture seule, fuseau ${process.env.TZ}) : ${matches.length} parties, ${expected.size} couples attendus, ${stored.length} lignes en base`)
   console.log(differences.length === 0 ? 'Aucun écart.' : `${differences.length} écart(s) :\n${differences.slice(0, 40).join('\n')}`)
 }
 

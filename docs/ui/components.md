@@ -102,6 +102,31 @@ useEffect(() => { if (!ready) return; /* charger */ }, [period, ready])
 
 ---
 
+### `MatchTypeMenu`
+
+Fichier : `src/components/ui/MatchTypeMenu.tsx`
+
+Rôle : filtre « Type de partie » (Normal, Ranked, Casual, Tournois, Tous — `MATCH_TYPE_FILTER_OPTIONS`) en pastille
+qui ouvre un menu (`app-menu`, état actif en accent). **Cinq segments ne tiennent pas sous 640 px** (382 px pour 343
+utiles) : un segmented de ces cinq types déborde de la page ou, dans un groupe borné, masque « Tous »
+(`overflow: hidden`).
+
+```tsx
+// Pages joueur : la pastille seule, icône sous 640 px pour tenir à côté de la période et du périmètre.
+<MatchTypeMenu value={matchType} onChange={setMatchType} />
+
+// Pages de clan (vue d'ensemble, classement) : segmented au-delà de 640 px, pastille libellée en dessous.
+<div className="sm:hidden"><MatchTypeMenu value={matchType} onChange={setMatchType} labelOnMobile menuAlign="left" /></div>
+<div className="hidden sm:block"><SegmentedControl options={MATCH_TYPE_OPTIONS} … /></div>
+```
+
+- `labelOnMobile` : libellé et chevron visibles à toute largeur, pastille de 40 px de haut — le type choisi reste lisible.
+- `menuAlign="left"` : le menu s'ouvre vers la droite, pour une pastille en début de ligne (défaut `right`).
+- Deux rendus basculés en CSS (`sm:hidden` / `hidden sm:block`), jamais une lecture de la largeur au rendu : le HTML
+  du serveur et celui du client restent identiques.
+
+---
+
 ### `SectionAnchorNav`
 
 Fichier : `src/components/ui/SectionAnchorNav.tsx`

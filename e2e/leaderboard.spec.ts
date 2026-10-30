@@ -99,3 +99,21 @@ test.describe('mobile', () => {
     await expect(toolbar(page).getByText('Tri :')).toHaveCount(0)
   })
 })
+
+// Type de match : sous 640 px, cinq segments débordaient du groupe et « Tous » était masqué (overflow: hidden) —
+// pastille à menu, comme les pages joueur ; segmented au-delà.
+test('type de match : pastille à menu sur mobile, les cinq types joignables', async ({ api, page }, testInfo) => {
+  const menu = toolbar(page).getByTestId('match-type-menu')
+  if (!isMobile(testInfo)) {
+    await expect(menu).toBeHidden()
+    await expect(toolbar(page).getByRole('button', { name: 'Tournois', exact: true })).toBeVisible()
+    return
+  }
+  await menu.getByRole('button', { name: 'Type de partie : Normal' }).click()
+  await expect(page.getByRole('menuitemradio')).toHaveText(['Normal', 'Ranked', 'Casual', 'Tournois', 'Tous'])
+  await page.getByRole('menuitemradio', { name: 'Tous' }).click()
+  await expect(menu.getByRole('button', { name: 'Type de partie : Tous' })).toBeVisible()
+  await expect.poll(() => api.paramValues(`/api/clans/${CLAN_ID}/leaderboard`, 'matchType').at(-1)).toBe('all')
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow, 'défilement horizontal').toBe(0)
+})

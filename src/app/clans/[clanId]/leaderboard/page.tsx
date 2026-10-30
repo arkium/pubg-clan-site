@@ -7,6 +7,7 @@ import { useEffect, useMemo, useState } from 'react'
 import Leaderboard from '@/components/Leaderboard'
 import DistinctionStrip from '@/components/ui/DistinctionStrip'
 import { DockingToolbar } from '@/components/ui/DockingToolbar'
+import MatchTypeMenu from '@/components/ui/MatchTypeMenu'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
@@ -156,7 +157,13 @@ export default function LeaderboardPage() {
             </ToolbarGroup>
             {!compact && (
               <ToolbarGroup label="Type de match" showLabel={!isSticky}>
-                <SegmentedControl options={MATCH_TYPE_OPTIONS} value={matchType} onChange={setMatchType} size="sm" className="shrink-0" />
+                {/* Sous 640 px, cinq segments débordaient et « Tous » était masqué : pastille à menu, comme les pages joueur. */}
+                <div className="sm:hidden">
+                  <MatchTypeMenu value={matchType} onChange={setMatchType} labelOnMobile menuAlign="left" />
+                </div>
+                <div className="hidden sm:block">
+                  <SegmentedControl options={MATCH_TYPE_OPTIONS} value={matchType} onChange={setMatchType} size="sm" className="shrink-0" />
+                </div>
               </ToolbarGroup>
             )}
             {!compact && (

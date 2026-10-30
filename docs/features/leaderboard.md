@@ -225,7 +225,7 @@ Les chiffres du tableau leaderboard sont calculés **live** depuis `Match` + `Sq
 | Fichier | Rôle |
 |---|---|
 | `src/app/api/clans/[clanId]/leaderboard/route.ts` | Calcul live du leaderboard |
-| `src/app/clans/[clanId]/leaderboard/page.tsx` | Page : bandeau, filtres, podium, distinctions (refonte UI, 2026-09-26) |
+| `src/app/clans/[clanId]/leaderboard/page.tsx` | Page : bandeau, filtres, podium, distinctions (refonte UI, 2026-09-26) ; sous 640 px, type de match en pastille à menu (`MatchTypeMenu`, 2026-10-30) — le segmented masquait « Tous » |
 | `src/components/Leaderboard.tsx` | Tableau trié par ses en-têtes (ordinateur) et liste `MobileRankList` (mobile) |
 | `src/lib/leaderboard-sort.ts` | Tri côté client et rang (ordre décroissant du critère), formats français |
 | `src/lib/distinctions.ts` | Distinctions calculées sur les lignes affichées (remplace `LeaderboardStats.tsx`, supprimé) |

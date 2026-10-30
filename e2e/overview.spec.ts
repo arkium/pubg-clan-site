@@ -1,5 +1,6 @@
 import { expect, test } from './support/api'
 import { CLAN_ID, clanOverview, clanShowcase } from './support/data'
+import { toolbar } from './support/layout'
 import { mockClanOverview } from './support/pages'
 
 /**
@@ -91,4 +92,24 @@ test('les blocs déplacés ne sont plus sur la page', async ({ page }) => {
   await expect(page.getByText('Roster des performances')).toHaveCount(0)
   await expect(page.getByText('Awards du mode')).toHaveCount(0)
   await expect(page.getByText(/Pression au drop/i)).toHaveCount(0)
+})
+
+// Type de match : cinq segments ne tiennent pas sous 640 px (382 px pour 343, la page défilait de côté et le bouton
+// du Coach sortait de l'écran) — pastille à menu sur mobile, segmented au-delà.
+test('type de match : pastille à menu sur mobile, segmented au-delà, jamais de défilement horizontal', async ({ api, page }, testInfo) => {
+  const filters = toolbar(page)
+  const menu = filters.getByTestId('match-type-menu')
+  if (!['chromium-mobile', 'webkit-iphone'].includes(testInfo.project.name)) {
+    await expect(menu).toBeHidden()
+    await expect(filters.getByRole('button', { name: 'Tournois', exact: true })).toBeVisible()
+    return
+  }
+  await expect(filters.getByRole('button', { name: 'Tournois', exact: true })).toBeHidden()
+  await expect(menu.getByRole('button', { name: 'Type de partie : Normal' })).toBeVisible()
+  await menu.getByRole('button', { name: 'Type de partie : Normal' }).click()
+  await page.getByRole('menuitemradio', { name: 'Ranked' }).click()
+  await expect(menu.getByRole('button', { name: 'Type de partie : Ranked' })).toBeVisible()
+  await expect.poll(() => api.paramValues(`/api/clans/${CLAN_ID}/telemetry/synergies`, 'matchType').at(-1)).toBe('competitive')
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)
+  expect(overflow, 'défilement horizontal').toBe(0)
 })

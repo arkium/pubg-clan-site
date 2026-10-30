@@ -19,6 +19,7 @@ import { DockingToolbar } from '@/components/ui/DockingToolbar'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import PageScopeNote from '@/components/ui/PageScopeNote'
 import PeriodFilter from '@/components/ui/PeriodFilter'
+import MatchTypeMenu from '@/components/ui/MatchTypeMenu'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
 import { Skeleton } from '@/components/ui/Skeleton'
@@ -289,7 +290,17 @@ export default function ClanOverviewPage({ findings }: { findings?: React.ReactN
           {({ compact }) => (
             <div className="flex w-full flex-wrap items-center gap-3">
               <PeriodFilter periods={STANDARD_PERIODS} value={selectedPeriod} onChange={setSelectedPeriod} />
-              {!compact && <SegmentedControl options={MATCH_TYPE_OPTIONS} value={selectedMatchType} onChange={setSelectedMatchType} size="sm" className="shrink-0" />}
+              {/* Cinq types ne tiennent pas en segmented sous 640 px (382 px pour 343) : la pastille à menu des pages joueur. */}
+              {!compact && (
+                <div className="sm:hidden">
+                  <MatchTypeMenu value={selectedMatchType} onChange={setSelectedMatchType} labelOnMobile menuAlign="left" />
+                </div>
+              )}
+              {!compact && (
+                <div className="hidden shrink-0 sm:block">
+                  <SegmentedControl options={MATCH_TYPE_OPTIONS} value={selectedMatchType} onChange={setSelectedMatchType} size="sm" className="shrink-0" />
+                </div>
+              )}
               {!compact && <SegmentedControl options={TEAM_MODE_OPTIONS} value={selectedMode} onChange={setSelectedMode} size="sm" className="shrink-0" />}
               {!compact && <span className="ml-auto hidden text-xs text-gray-500 lg:inline">Filtre la suite de la page</span>}
             </div>

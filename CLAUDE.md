@@ -185,6 +185,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Zoom d'une carte interactive `[ − \| ⊙ 1× \| + ]` | `MapZoomControl` + `@/lib/map-zoom` | `src/components/ui/MapZoomControl.tsx` — règles dans `docs/ui/index.html#zoom-carte` |
 | Bandeau de filtres d'une page (collant sous le header) | `DockingToolbar` | `src/components/ui/DockingToolbar.tsx` — règles dans `docs/ui/index.html#sticky-toolbar` |
 | Groupe à intitulé dans ce bandeau (« Période », « Type de match »…, infobulle) | `ToolbarGroup` | `src/components/ui/ToolbarGroup.tsx` |
+| Type de partie sous 640 px (cinq segments n'y tiennent pas : pastille à menu, segmented au-delà) | `MatchTypeMenu` (`labelOnMobile`, `menuAlign`) | `src/components/ui/MatchTypeMenu.tsx` — docs/ui/components.md |
 | Filtre de période (Semaine / Mois / Tous… ; 30 j / 90 j glissants : `ROLLING_PERIODS`) | `PeriodFilter` + `usePagePeriod` | `src/components/ui/PeriodFilter.tsx`, `src/hooks/usePagePeriod.ts`, `src/lib/period.ts` |
 | Ancres de section (seconde ligne du bandeau) | `SectionAnchorNav` | `src/components/ui/SectionAnchorNav.tsx` |
 | Rang dans un classement (médailles SVG 1 à 3) | `RankCell` | `src/components/ui/RankCell.tsx` |

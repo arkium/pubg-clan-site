@@ -5,6 +5,8 @@ import { matchTypeMatchesFilter } from '@/lib/match-type-filter'
 import { teamModeFromMemberCount } from '@/lib/team-mode'
 import type { ClanMatchTypeFilter, ClanTeamModeFilter } from '@/types/squad-matches'
 import { decodeJsonColumn } from '@/lib/pubg-telemetry/json-codec'
+import { getPeriodBounds, getPeriodKey, periodsToRecalculate, type StatsPeriod } from '@/lib/pubg-telemetry/period-keys'
+import { BODY_ZONES, type BodyZone, type BodyZoneAccumulator, type BodyZoneBreakdown } from '@/lib/pubg-telemetry/body-zones'
 
 /**
  * Types écrits pour les synergies (`ClanSynergyAggregate.matchType`) : inchangés depuis l'ajout de `competitive` à
@@ -14,7 +16,7 @@ type SynergyMatchType = Exclude<ClanMatchTypeFilter, 'competitive'>
 const CLAN_SYNERGY_MATCH_TYPES: SynergyMatchType[] = ['official', 'casual', 'custom', 'all']
 const CLAN_SYNERGY_TEAM_MODES: ClanTeamModeFilter[] = ['duo', 'trio', 'squad', 'all']
 
-export type StatsPeriod = 'week' | 'month' | 'all'
+export { getPeriodKey, type StatsPeriod } from '@/lib/pubg-telemetry/period-keys'
 
 type TelemetryPeriodAggregateSummary = {
   period: StatsPeriod
@@ -22,6 +24,7 @@ type TelemetryPeriodAggregateSummary = {
   memberTelemetryRows: number
   memberWeaponRows: number
   clanSynergyRows: number
+  memberBodyZoneRows: number
 }
 
 export type RecalculateTelemetryPeriodAggregatesResult = {
@@ -51,6 +54,9 @@ type SnapshotMemberStatsRow = {
   boostsUsed: number
   maxVehicleSpeedKph: number
   weapons: SnapshotMemberWeaponStatsRow[]
+  /** Zones d'impact de la partie (parseur depuis le 2026-09-13) ; `null` quand la clé manque : partie non mesurée. */
+  bodyZonesDealt: BodyZoneBreakdown[] | null
+  bodyZonesTaken: BodyZoneBreakdown[] | null
 }
 
 type SnapshotMemberWeaponStatsRow = {
@@ -129,7 +135,18 @@ type MemberWeaponAggregate = {
   matchCount: number
 }
 
+/** Zones d'impact d'un membre sur la période : les deux côtés, et les parties qui les portent. */
+type MemberBodyZoneAggregate = {
+  dealt: BodyZoneAccumulator
+  taken: BodyZoneAccumulator
+  matchesMeasured: number
+}
+
 type TelemetryAggregateDelegates = {
+  memberBodyZoneStats: {
+    deleteMany: (args: { where: { period: string; member: { clanId: number } } }) => Promise<unknown>
+    createMany: (args: { data: Array<Record<string, unknown>>; skipDuplicates?: boolean }) => Promise<unknown>
+  }
   memberTelemetryStats: {
     deleteMany: (args: { where: { period: string; member: { clanId: number } } }) => Promise<unknown>
     createMany: (args: { data: Array<Record<string, unknown>>; skipDuplicates?: boolean }) => Promise<unknown>
@@ -163,67 +180,6 @@ function chunkRows<T>(rows: T[], size: number): T[][] {
     chunks.push(rows.slice(i, i + size))
   }
   return chunks
-}
-
-function getISOWeek(date: Date): number {
-  const tmp = new Date(date.getTime())
-  tmp.setHours(0, 0, 0, 0)
-  tmp.setDate(tmp.getDate() + 3 - ((tmp.getDay() + 6) % 7))
-  const week1 = new Date(tmp.getFullYear(), 0, 4)
-  return (
-    1 +
-    Math.round(
-      ((tmp.getTime() - week1.getTime()) / 86400000 - 3 + ((week1.getDay() + 6) % 7)) / 7
-    )
-  )
-}
-
-/** Clé de période des agrégats écrits ici (`week-YYYY-WW`, `month-YYYY-MM`, `all-time`) : la lire, c'est la même clé. */
-export function getPeriodKey(period: StatsPeriod, referenceDate: Date): string {
-  if (period === 'all') {
-    return 'all-time'
-  }
-
-  if (period === 'week') {
-    const week = getISOWeek(referenceDate)
-    const year = referenceDate.getFullYear()
-    return `week-${year}-${String(week).padStart(2, '0')}`
-  }
-
-  const year = referenceDate.getFullYear()
-  const month = String(referenceDate.getMonth() + 1).padStart(2, '0')
-  return `month-${year}-${month}`
-}
-
-function getPeriodBounds(period: StatsPeriod, referenceDate: Date): { startDate: Date; endDate: Date } {
-  if (period === 'all') {
-    return {
-      startDate: new Date(0),
-      endDate: new Date('9999-12-31'),
-    }
-  }
-
-  if (period === 'week') {
-    const day = referenceDate.getDay()
-    const diff = referenceDate.getDate() - day + (day === 0 ? -6 : 1)
-    const monday = new Date(referenceDate)
-    monday.setDate(diff)
-    monday.setHours(0, 0, 0, 0)
-
-    const sunday = new Date(monday)
-    sunday.setDate(monday.getDate() + 6)
-    sunday.setHours(23, 59, 59, 999)
-
-    return {
-      startDate: monday,
-      endDate: sunday,
-    }
-  }
-
-  return {
-    startDate: new Date(referenceDate.getFullYear(), referenceDate.getMonth(), 1, 0, 0, 0, 0),
-    endDate: new Date(referenceDate.getFullYear(), referenceDate.getMonth() + 1, 0, 23, 59, 59, 999),
-  }
 }
 
 function normalizeKey(value: string | null | undefined): string | null {
@@ -283,10 +239,36 @@ function parseSnapshotMemberStatsRows(raw: unknown): SnapshotMemberStatsRow[] {
       boostsUsed: asFiniteNumber(row.boostsUsed),
       maxVehicleSpeedKph: asFiniteNumber(row.maxVehicleSpeedKph),
       weapons: parseSnapshotMemberWeaponStatsRows(row.weapons),
+      bodyZonesDealt: parseBodyZoneBreakdowns(row.bodyZonesDealt),
+      bodyZonesTaken: parseBodyZoneBreakdowns(row.bodyZonesTaken),
     })
   }
 
   return rows
+}
+
+/** Zones d'un côté, tolérant : zone inconnue → `other`, nombre non fini → 0 ; clé absente → `null` (pas `[]`). */
+function parseBodyZoneBreakdowns(raw: unknown): BodyZoneBreakdown[] | null {
+  if (!Array.isArray(raw)) {
+    return null
+  }
+
+  return raw
+    .filter((entry): entry is Record<string, unknown> => Boolean(entry) && typeof entry === 'object')
+    .map((entry) => ({
+      zone: (BODY_ZONES as readonly unknown[]).includes(entry.zone) ? (entry.zone as BodyZone) : 'other',
+      hits: asFiniteNumber(entry.hits),
+      damage: asFiniteNumber(entry.damage),
+    }))
+}
+
+function addBodyZoneBreakdowns(accumulator: BodyZoneAccumulator, breakdowns: BodyZoneBreakdown[] | null) {
+  for (const entry of breakdowns ?? []) {
+    const current = accumulator[entry.zone] ?? { damage: 0, hits: 0 }
+    current.hits += entry.hits
+    current.damage += entry.damage
+    accumulator[entry.zone] = current
+  }
 }
 
 function parseSnapshotMemberWeaponStatsRows(raw: unknown): SnapshotMemberWeaponStatsRow[] {
@@ -456,7 +438,8 @@ function getOrCreateMemberWeaponAggregate(
   return created
 }
 
-async function recalculateTelemetryPeriodForClan(
+/** Recalcule une période d'un clan (exportée pour le rattrapage `scripts/backfill-body-zone-stats.ts`). */
+export async function recalculateTelemetryPeriodForClan(
   clanId: number,
   period: StatsPeriod,
   referenceDate: Date
@@ -500,7 +483,7 @@ async function recalculateTelemetryPeriodForClan(
   })
 
   if (matchInfoRows.length === 0) {
-    return { period, periodKey, memberTelemetryRows: 0, memberWeaponRows: 0, clanSynergyRows: 0 }
+    return { period, periodKey, memberTelemetryRows: 0, memberWeaponRows: 0, clanSynergyRows: 0, memberBodyZoneRows: 0 }
   }
 
   const squadMatchIds = matchInfoRows.map((m) => m.id)
@@ -568,6 +551,7 @@ async function recalculateTelemetryPeriodForClan(
 
   const memberAggregates = new Map<number, MemberTelemetryAggregate>()
   const memberWeaponAggregates = new Map<string, MemberWeaponAggregate>()
+  const memberBodyZoneAggregates = new Map<number, MemberBodyZoneAggregate>()
 
   // Une Map de paires par combinaison (type de match × mode d'équipe) : 'all'
   // reçoit toujours l'incrément sur chaque axe, plus le bucket exact du
@@ -649,6 +633,15 @@ async function recalculateTelemetryPeriodForClan(
       aggregate.totalBoostsUsed += row.boostsUsed
       if (row.maxVehicleSpeedKph > aggregate.maxVehicleSpeedKph) {
         aggregate.maxVehicleSpeedKph = row.maxVehicleSpeedKph
+      }
+
+      // Zones d'impact : une partie compte quand la ligne du membre porte les tableaux (même vides).
+      if (row.bodyZonesDealt !== null || row.bodyZonesTaken !== null) {
+        const zones = memberBodyZoneAggregates.get(memberId) ?? { dealt: {}, taken: {}, matchesMeasured: 0 }
+        if (!memberIdsSeenInMatch.has(memberId)) zones.matchesMeasured += 1
+        addBodyZoneBreakdowns(zones.dealt, row.bodyZonesDealt)
+        addBodyZoneBreakdowns(zones.taken, row.bodyZonesTaken)
+        memberBodyZoneAggregates.set(memberId, zones)
       }
 
       memberIdsSeenInMatch.add(memberId)
@@ -897,8 +890,45 @@ async function recalculateTelemetryPeriodForClan(
     }
   )
 
+  // Zones à 0 touche et 0 dégât non écrites (comme `serializeBodyZones`).
+  const memberBodyZoneRows = Array.from(memberBodyZoneAggregates.entries()).flatMap(([memberId, aggregate]) =>
+    (['dealt', 'taken'] as const).flatMap((side) =>
+      BODY_ZONES.flatMap((zone) => {
+        const entry = aggregate[side][zone]
+        if (!entry || (entry.hits === 0 && entry.damage === 0)) return []
+        return [
+          {
+            memberId,
+            period: periodKey,
+            periodType: period,
+            side,
+            zone,
+            hits: entry.hits,
+            damage: Number(entry.damage.toFixed(2)),
+            matchesMeasured: aggregate.matchesMeasured,
+          },
+        ]
+      })
+    )
+  )
+
   await prisma.$transaction(async (tx) => {
     const txDelegates = getTelemetryAggregateDelegates(tx)
+
+    await txDelegates.memberBodyZoneStats.deleteMany({
+      where: {
+        period: periodKey,
+        member: {
+          clanId,
+        },
+      },
+    })
+
+    for (const chunk of chunkRows(memberBodyZoneRows, writeBatchSize)) {
+      await txDelegates.memberBodyZoneStats.createMany({
+        data: chunk,
+      })
+    }
 
     await txDelegates.memberTelemetryStats.deleteMany({
       where: {
@@ -957,17 +987,23 @@ async function recalculateTelemetryPeriodForClan(
     memberTelemetryRows: memberTelemetryRows.length,
     memberWeaponRows: memberWeaponRows.length,
     clanSynergyRows: clanSynergyRows.length,
+    memberBodyZoneRows: memberBodyZoneRows.length,
   }
 }
 
+/**
+ * Recalcule les périodes d'un clan : semaine, mois et « tous » courants, plus la semaine précédente le lundi et le mardi
+ * et le mois précédent les 1er et 2 (`periodsToRecalculate`) — les semaines passées n'étaient sinon jamais complétées
+ * des parties importées après coup (docs/TODO/zones-d-impact.md, §1.3).
+ */
 export async function recalculateTelemetryPeriodAggregatesForClan(
   clanId: number,
   referenceDate: Date = new Date()
 ): Promise<RecalculateTelemetryPeriodAggregatesResult> {
   const summaries: TelemetryPeriodAggregateSummary[] = []
 
-  for (const period of ['week', 'month', 'all'] as const) {
-    summaries.push(await recalculateTelemetryPeriodForClan(clanId, period, referenceDate))
+  for (const entry of periodsToRecalculate(referenceDate)) {
+    summaries.push(await recalculateTelemetryPeriodForClan(clanId, entry.period, entry.referenceDate))
   }
 
   return {

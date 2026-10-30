@@ -10,6 +10,8 @@ const mocks = vi.hoisted(() => ({
   memberWeaponCreateMany: vi.fn(),
   clanSynergyDeleteMany: vi.fn(),
   clanSynergyCreateMany: vi.fn(),
+  memberBodyZoneDeleteMany: vi.fn(),
+  memberBodyZoneCreateMany: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -31,6 +33,10 @@ vi.mock('@/lib/prisma', () => ({
       deleteMany: mocks.clanSynergyDeleteMany,
       createMany: mocks.clanSynergyCreateMany,
     },
+    memberBodyZoneStats: {
+      deleteMany: mocks.memberBodyZoneDeleteMany,
+      createMany: mocks.memberBodyZoneCreateMany,
+    },
   },
 }))
 
@@ -47,6 +53,8 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
     mocks.memberWeaponCreateMany.mockReset()
     mocks.clanSynergyDeleteMany.mockReset()
     mocks.clanSynergyCreateMany.mockReset()
+    mocks.memberBodyZoneDeleteMany.mockReset()
+    mocks.memberBodyZoneCreateMany.mockReset()
 
     mocks.transaction.mockImplementation(async (callback: () => Promise<void>) => callback())
     mocks.memberTelemetryDeleteMany.mockResolvedValue({ count: 0 })
@@ -55,6 +63,8 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
     mocks.memberWeaponCreateMany.mockResolvedValue({ count: 0 })
     mocks.clanSynergyDeleteMany.mockResolvedValue({ count: 0 })
     mocks.clanSynergyCreateMany.mockResolvedValue({ count: 0 })
+    mocks.memberBodyZoneDeleteMany.mockResolvedValue({ count: 0 })
+    mocks.memberBodyZoneCreateMany.mockResolvedValue({ count: 0 })
   })
 
   it('is idempotent for identical successful snapshots across all periods', async () => {
@@ -197,6 +207,7 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           memberTelemetryRows: 2,
           memberWeaponRows: 2,
           clanSynergyRows: 2,
+          memberBodyZoneRows: 0,
         },
         {
           period: 'month',
@@ -204,6 +215,7 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           memberTelemetryRows: 2,
           memberWeaponRows: 2,
           clanSynergyRows: 2,
+          memberBodyZoneRows: 0,
         },
         {
           period: 'all',
@@ -211,6 +223,7 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
           memberTelemetryRows: 2,
           memberWeaponRows: 2,
           clanSynergyRows: 2,
+          memberBodyZoneRows: 0,
         },
       ],
     })
@@ -398,5 +411,83 @@ describe('recalculateTelemetryPeriodAggregatesForClan', () => {
     for (const combo of weekSynergyWrite.data) {
       expect(combo).toMatchObject({ memberAId: 201, memberBId: 202, coKillCount: 1 })
     }
+  })
+
+  describe('zones d’impact (docs/TODO/zones-d-impact.md)', () => {
+    const member = (id: number, clanId: number, name: string) => ({
+      walkDistance: 0,
+      swimDistance: 0,
+      rideDistance: 0,
+      member: { id, clanId, pubgPlayerName: name, pubgAccountId: `account.${name.toLowerCase()}` },
+    })
+    const stats = (memberKey: string, zones: Record<string, unknown> = {}) => ({ memberKey, kills: 1, weapons: [], ...zones })
+
+    function seed(matches: Array<{ id: string; memberStats: unknown[] }>) {
+      mocks.squadMatchFindMany.mockResolvedValue(
+        matches.map((match) => ({ id: match.id, matchType: 'official', members: [member(301, 7, 'Alpha'), member(302, 9, 'Autre')] }))
+      )
+      mocks.queryRaw.mockResolvedValue(
+        matches.map((match) => ({ squadMatchId: match.id, memberStats: JSON.stringify(match.memberStats), weaponStats: '[]' }))
+      )
+    }
+    const writtenRows = () => mocks.memberBodyZoneCreateMany.mock.calls.flatMap((call) => call[0].data)
+
+    it('écrit une ligne par membre du clan, côté et zone touchée ; une zone inconnue va en « other »', async () => {
+      seed([
+        {
+          id: 'squad-z',
+          memberStats: [
+            stats('account.alpha', {
+              bodyZonesDealt: [
+                { zone: 'head', hits: 2, damage: 80 },
+                { zone: 'torso', hits: 5, damage: 150.456 },
+                { zone: 'tentacle', hits: 1, damage: 10 },
+              ],
+              bodyZonesTaken: [{ zone: 'other', hits: 2, damage: 20 }],
+            }),
+            stats('account.autre', { bodyZonesDealt: [{ zone: 'head', hits: 9, damage: 300 }], bodyZonesTaken: [] }),
+          ],
+        },
+      ])
+
+      const result = await recalculateTelemetryPeriodAggregatesForClan(7, new Date('2026-10-28T12:00:00'))
+
+      const weekRows = writtenRows().filter((row) => row.period === 'week-2026-44')
+      expect(weekRows).toEqual([
+        { memberId: 301, period: 'week-2026-44', periodType: 'week', side: 'dealt', zone: 'head', hits: 2, damage: 80, matchesMeasured: 1 },
+        { memberId: 301, period: 'week-2026-44', periodType: 'week', side: 'dealt', zone: 'torso', hits: 5, damage: 150.46, matchesMeasured: 1 },
+        { memberId: 301, period: 'week-2026-44', periodType: 'week', side: 'dealt', zone: 'other', hits: 1, damage: 10, matchesMeasured: 1 },
+        { memberId: 301, period: 'week-2026-44', periodType: 'week', side: 'taken', zone: 'other', hits: 2, damage: 20, matchesMeasured: 1 },
+      ])
+      // Le joueur d'un autre clan n'est pas écrit ; les anciennes lignes de la clé sont effacées avant, pour ce clan.
+      expect(writtenRows().every((row) => row.memberId === 301)).toBe(true)
+      expect(mocks.memberBodyZoneDeleteMany).toHaveBeenCalledWith({ where: { period: 'week-2026-44', member: { clanId: 7 } } })
+      expect(result.summaries.map((summary) => summary.memberBodyZoneRows)).toEqual([4, 4, 4])
+    })
+
+    it('une partie analysée avant le parseur à zones n’est ni comptée ni mesurée ; deux passes écrivent la même chose', async () => {
+      seed([
+        { id: 'avant', memberStats: [stats('account.alpha')] },
+        { id: 'apres', memberStats: [stats('account.alpha', { bodyZonesDealt: [{ zone: 'legs', hits: 3, damage: 45 }], bodyZonesTaken: [] })] },
+      ])
+
+      await recalculateTelemetryPeriodAggregatesForClan(7, new Date('2026-10-28T12:00:00'))
+      const first = writtenRows()
+      expect(first.filter((row) => row.period === 'all-time')).toEqual([
+        { memberId: 301, period: 'all-time', periodType: 'all', side: 'dealt', zone: 'legs', hits: 3, damage: 45, matchesMeasured: 1 },
+      ])
+
+      mocks.memberBodyZoneCreateMany.mockClear()
+      await recalculateTelemetryPeriodAggregatesForClan(7, new Date('2026-10-28T12:00:00'))
+      expect(writtenRows()).toEqual(first)
+    })
+
+    it('le lundi, recalcule aussi la semaine précédente ; le 2 du mois, le mois précédent', async () => {
+      seed([{ id: 'squad-z', memberStats: [stats('account.alpha', { bodyZonesDealt: [], bodyZonesTaken: [] })] }])
+      const keys = async (date: string) =>
+        (await recalculateTelemetryPeriodAggregatesForClan(7, new Date(date))).summaries.map((summary) => summary.periodKey)
+      expect(await keys('2026-11-09T08:00:00')).toEqual(['week-2026-46', 'week-2026-45', 'month-2026-11', 'all-time'])
+      expect(await keys('2026-11-02T08:00:00')).toEqual(['week-2026-45', 'week-2026-44', 'month-2026-11', 'month-2026-10', 'all-time'])
+    })
   })
 })

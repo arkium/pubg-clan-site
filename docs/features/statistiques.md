@@ -37,6 +37,7 @@ compact. Sur mobile docké : la période seule (`sticky.md` §2).
 | Objets consommés (`#sec-items`) | Indicateurs, familles (grille 2 colonnes), objets les plus consommés et objets par membre, **paginés par 8** | `GET …/telemetry/item-use` — voir [Objets consommés](objets-consommes.md) |
 | Synergies (`#sec-synergies`) | Duo, Trio, Squad : taux de top 1 ensemble en barre, « Voir plus » | `useClanMatchesCache(…, 'official')` → `byMode.all.synergies` |
 | Coopération (`#sec-cooperation`) | Cinq chiffres (indice de synergie, binômes actifs, réanimations, co-kills, recalls) et trois classements de binômes : sauvetages, co-kills, recalls | `GET …/telemetry/synergies?matchType=official&mode=all` |
+| Zones d'impact (`#sec-zones`, 2026-10-30) | Chiffres clés (taux de tête du clan, haut du corps et bras + jambes subis, touches par partie), panneaux « Tirs infligés » / « Tirs subis » (`BodyZonePanel`) sur la somme des membres actifs, bande des 8 dernières semaines, tableau « Qui vise la tête ? » (rang au taux de tête, `RankMovement`, membres sous l'échantillon en bas sans rang ; mobile : `MobileRankList`). Un taux à 100 touches pour le clan, 30 pour un membre | `GET …/telemetry/body-zones` (`MemberBodyZoneStats`) — [zones-d-impact.md](../TODO/zones-d-impact.md) |
 
 Indice de synergie : score moyen des binômes rapporté au meilleur, avec réanimation × 3, co-kill × 2, dégâts
 partagés × 1 (`cooperationSummary`). Distances et vitesses de télémétrie sont stockées × 10 : `telemetryKilometers` et
@@ -49,7 +50,7 @@ français des objets, groupes de synergies, coopération).
 
 - **Bandeau** : titre en Teko, icône à l'accent, pastille « Télémétrie des matchs » en vert de jeu sur la photo
   (`.app-on-photo`) ; hauteur inchangée. Contexte en `t-meta`, « Carrière PUBG du clan → » en `app-link`.
-- **Ancres courtes** (« Profil », « Objets », « Synergies », « Coopération » ; titres complets dans les sections) : une ligne
+- **Ancres courtes** (« Profil », « Objets », « Synergies », « Coopération », « Impacts » depuis le 2026-10-30 ; titres complets dans les sections) : une ligne
   dès 640 px. `SectionAnchorNav` **passe à la ligne** au lieu de défiler de côté (charte, sur toutes les pages qui
   l'utilisent) — deux lignes au repos sur mobile, rien de docké sur mobile de toute façon.
 - **Couleurs** en jetons, comme le style de jeu du joueur : rôles Fragger `--game-neg`, Medic `--game-sky`, Ghost
@@ -136,7 +137,8 @@ Les entrées du menu vivent dans la table `NavItem`. À faire par un administrat
 | `src/lib/pagination.test.ts` | `paginationItems`, `paginate`, `getCronRunsPerDay` |
 | `src/lib/clan-stats-route-contracts.test.ts` | Contrat de `lifetime-stats` (Prisma simulé) : forme sans période, fréquence par défaut et réglée, identifiant invalide et clan inconnu |
 | `src/lib/ui-conformance.test.ts` | `stats/career` dans les pages à bandeau |
-| `e2e/stats.spec.ts` | Les deux pages, pagination, absence de défilement horizontal, docking, redirection HTTP de `/stats/items` |
+| `src/lib/body-zone-stats.test.ts`, `src/lib/body-zones-route-contracts.test.ts` | Zones d'impact : somme du clan, seuils, classement et `previousRank`, membres actifs seuls |
+| `e2e/stats.spec.ts` | Les deux pages, pagination, absence de défilement horizontal, docking, redirection HTTP de `/stats/items` ; zones d'impact (chiffres clés, ancre, ordre et évolution des rangs, tri, « Tous » sans Évolution, liste mobile et membres sous l'échantillon) |
 
 ## Voir aussi
 

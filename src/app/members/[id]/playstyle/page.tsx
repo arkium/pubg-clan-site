@@ -4,6 +4,7 @@ import { Radar } from 'lucide-react'
 import { useParams } from 'next/navigation'
 import { useMemo } from 'react'
 
+import { MemberBodyZonesSection } from '@/components/body-zones/BodyZoneSections'
 import MemberPageHeader from '@/components/member/MemberPageHeader'
 import {
   BestCompositions,
@@ -149,6 +150,9 @@ export default function MemberPlaystylePage() {
                 <PlayerThemeCards player={row} clanRows={clanRows} />
               </div>
             </SectionBlock>
+
+            {/* Zones d’impact (docs/TODO/zones-d-impact.md, lot 3) : sans ancre — quatre ne tiennent pas à 375 px. */}
+            {memberId ? <MemberBodyZonesSection memberId={memberId} period={period} /> : null}
 
             <SectionBlock
               id="sec-cooperation"

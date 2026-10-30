@@ -4,6 +4,7 @@ import { expect, test } from './support/api'
 import { MEMBER_ID } from './support/data'
 import { periodFilter, toolbar } from './support/layout'
 import { mockPlayerDashboard } from './support/members'
+import { mockMemberBodyZones } from './support/body-zones'
 import { mockPlayerPlaystyle } from './support/player-playstyle'
 
 /**
@@ -80,4 +81,61 @@ test('le tableau de bord mène au style de jeu par la carte « Profil de jeu »'
   await page.goto(`/members/${MEMBER_ID}/dashboard`)
   const link = page.getByRole('article', { name: 'Profil de jeu' }).getByRole('link', { name: 'Détail →' })
   await expect(link).toHaveAttribute('href', `/members/${MEMBER_ID}/playstyle`)
+})
+
+// Zones d'impact (docs/TODO/zones-d-impact.md ; maquette « Zones-impact » de Claude Design) : section après
+// « Mobilité, cercle et survie », sans ancre.
+test.describe('style de jeu du joueur — zones d’impact', () => {
+  test('semaine : deux panneaux, « vs clan », bande des 8 semaines et évolution', async ({ api, page }) => {
+    mockPlayerPlaystyle(api)
+    await openPlaystyle(page)
+
+    const zones = section(page, 'Zones d’impact')
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText('190 touches · 13 % à la tête')
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText('Tête25 · 13 %')
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText('+ 340 dégâts non localisés')
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText('8,3 touches par partie · 23 partie(s) mesurée(s)')
+    await expect(zones.getByTestId('body-zones-taken')).toContainText('160 touches · 12 % à la tête')
+    await expect(zones.getByTestId('body-zones-taken')).toContainText('Haut du corps 65 % · bras et jambes 25 %')
+    await expect(zones.getByTestId('body-zones-vs-clan-dealt')).toHaveText('vs clanTête : 13 % · clan 11 % · +2 pts')
+    // Moins touché à la tête que le clan : à son avantage, en vert.
+    await expect(zones.getByTestId('body-zones-vs-clan-taken').locator('b')).toHaveText('−2 pts')
+    await expect(zones.getByTestId('body-zones-vs-clan-taken').locator('b')).toHaveAttribute('style', /--theme-ui-positive/)
+    await expect(zones.getByTestId('body-zones-weeks-trend')).toHaveText('▲ 2 pts vs semaine précédente')
+    await expect(zones.getByTestId('body-zones-weeks')).toContainText('S37S38S39S40S41S42S43S44')
+    // S40 sous l'échantillon : dessinée vide.
+    await expect(zones.getByTestId('body-zones-weeks').locator('span[title^="S40"]')).toHaveClass(/border-dashed/)
+    await expect(zones.getByRole('heading', { name: 'Zones d’impact' })).toBeVisible()
+
+    // Aucun défilement horizontal, mobile compris.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true)
+  })
+
+  test('« Tous » : depuis le 13 septembre 2026, aucune évolution', async ({ api, page }) => {
+    mockPlayerPlaystyle(api)
+    await openPlaystyle(page)
+    await periodFilter(page).getByRole('button', { name: 'Tous' }).click()
+
+    const zones = section(page, 'Zones d’impact')
+    await expect(zones.getByText('Parties analysées depuis le 13 septembre 2026')).toBeVisible()
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText('à la tête')
+    await expect(zones.getByTestId('body-zones-weeks-trend')).toHaveCount(0)
+  })
+
+  test('échantillon faible : taux en gris, aucune évolution ; rien de mesuré : état vide, jamais un zéro', async ({ api, page }) => {
+    mockPlayerPlaystyle(api)
+    mockMemberBodyZones(api, 'low-sample')
+    await openPlaystyle(page)
+
+    const zones = section(page, 'Zones d’impact')
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText('Échantillon faible')
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText('12 touches, 30 au moins pour un taux')
+    await expect(zones.getByTestId('body-zones-vs-clan-dealt')).toHaveText('vs clanTête : échantillon faible · clan 11 %')
+    await expect(zones.getByTestId('body-zones-weeks-trend')).toHaveCount(0)
+
+    mockMemberBodyZones(api, 'empty')
+    await page.reload()
+    await expect(section(page, 'Zones d’impact').getByTestId('body-zones-empty')).toContainText('Aucune touche localisée sur la période')
+    await expect(section(page, 'Zones d’impact').getByTestId('body-zones-dealt')).toHaveCount(0)
+  })
 })

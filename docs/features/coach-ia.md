@@ -83,7 +83,7 @@ passe que des filtres — il ne choisit jamais le clan ni le compte, et un `matc
 compte **et à la question en cours** — `text` doit être une partie du message du joueur (comparaison sans casse,
 accents ni ponctuation), sinon `not_in_message` et rien n'est retenu ; `baseline` (mesure de départ d'un objectif
 chiffré) n'est acceptée que si sa valeur figure dans un résultat d'outil de la même réponse (`baseline_unverified`
-sinon). Déclaré en plus des vingt outils, après eux.
+sinon). Déclaré en plus des vingt et un outils, après eux.
 
 | Outil | Source (la même que la page) |
 |---|---|
@@ -103,6 +103,7 @@ sinon). Déclaré en plus des vingt outils, après eux.
 | `getClanCareer` | la page « Carrière PUBG du clan » (`MemberLifetimeStats` des membres actifs, `careerHeadline`, `computeCareerGroups` — jamais l'API PUBG) : quatre totaux, sept familles avec valeur du clan (total, moyenne, record), podium en une ligne, place du joueur ; `group` pour une seule famille. Cumuls de toute la carrière des comptes, aucune période (2026-10-25) |
 | `getCityInsights` | les indicateurs de villes des tableaux de bord (`city-insights.ts`) plus la métrique `death` de `PositionMetricCell` (`rankCellsByCity`) : ville la plus fréquentée, zone de combat favorite, Top 5 par présence, kills, dégâts, réanimations et morts, kills contre morts ville par ville, part hors des villes, comparaison au clan pour un joueur ; défauts des pages (semaine ; parties officielles pour le clan, toutes pour un joueur). Les positions brutes de plus de trois semaines sont purgées : `since` le dit (2026-10-25) |
 | `getZoneClosures` | la page « Fin de zone » (`loadZoneClosureSummary`, `zone-closure-view.ts`) : centre / bord / dehors à chaque fermeture du cercle, distance moyenne en % du rayon, verdict, titres, phase par phase, villes d'arrivée, joueurs profilés du plus central au plus excentré, place du joueur ; carte par défaut = la plus jouée ; biais de survie rappelé (`lowSample`, note) (2026-10-25) |
+| `getBodyZones` | la section « Zones d'impact » du Style de jeu (`getMemberBodyZones`, table `MemberBodyZoneStats`) : touches et part par zone, infligées et subies, taux de tête (`sampleTooSmall` sous 30 touches), haut / bas du corps subi, dégâts non localisés, touches par partie, évolution en points (rien pour « tous »), taux de tête des 8 dernières semaines et celui du clan ; le clan vient de la session, jamais du modèle (2026-10-30) |
 | `getClanLeaderboard` | `PlayerStats` de la période (`statsPeriodKeys`), 15 membres, le joueur situé |
 | `getLeagueStanding` | `getClanLeague` (cache 5 min) : rang, Power score, voisins, ou parties manquantes |
 | `getTournaments` | `listTournamentOverviews` (cache 5 min) : tournois publiés du site, filtres statut / titre, vainqueur ou leader, podium, place du clan quand elle est connue |

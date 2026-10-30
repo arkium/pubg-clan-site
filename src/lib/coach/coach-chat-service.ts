@@ -73,6 +73,7 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getClanCareer: 'Je lis la carrière du clan…',
   getCityInsights: 'Je regarde les villes et les zones de combat…',
   getZoneClosures: 'Je regarde les fins de zone…',
+  getBodyZones: 'Je regarde où tes tirs touchent…',
   [COACH_MEMORY_TOOL_NAME]: 'Je note ce que tu me dis…',
 }
 

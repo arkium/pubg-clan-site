@@ -24,6 +24,7 @@ import { useClanMatchesCache } from '@/hooks/useClanMatchesCache'
 import { usePageData } from '@/hooks/usePageData'
 import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
+import { ClanBodyZonesSection } from '@/components/body-zones/BodyZoneSections'
 import { playstyleContext, type ClanPlaystyleRow, type CooperationPair } from '@/lib/clan-playstyle'
 import type { ItemUseStats } from '@/lib/item-use-stats'
 import { STANDARD_PERIODS } from '@/lib/period'
@@ -34,6 +35,7 @@ const SECTIONS: SectionAnchorNavItem[] = [
   { id: 'sec-items', label: 'Objets', icon: 'support' },
   { id: 'sec-synergies', label: 'Synergies', icon: 'victory' },
   { id: 'sec-cooperation', label: 'Coopération', icon: 'other' },
+  { id: 'sec-zones', label: 'Impacts', icon: 'combat' },
 ]
 
 /**
@@ -164,6 +166,9 @@ export default function ClanStatsPage() {
             )
           ) : null}
         </section>
+
+        {/* Zones d’impact (docs/TODO/zones-d-impact.md, lot 4) : après le profil de jeu, avec lequel elles se lisent. */}
+        {ready ? <ClanBodyZonesSection clanId={clanId} period={period} /> : null}
 
         <section id="sec-items" aria-labelledby="sec-items-title" className="flex flex-col gap-3">
           <SectionHeading id="sec-items-title" title="Objets consommés" subtitle="Soins, boosts, carburant et gadgets réellement utilisés en match." />

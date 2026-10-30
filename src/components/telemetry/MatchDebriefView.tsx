@@ -58,10 +58,11 @@ import {
   type MemberStatsRow,
 } from '@/lib/pubg-telemetry/debrief-view'
 
-import { DamageBodySvg, type BodyZoneKey } from '@/components/telemetry/DamageBodySvg'
+import BodyZonePanel, { bodyZoneSideColor } from '@/components/telemetry/BodyZonePanel'
+import type { BodyZoneKey } from '@/components/telemetry/DamageBodySvg'
 import { MatchCombatTimeline, type CombatEvent } from '@/components/telemetry/MatchCombatTimeline'
 import { MatchReplay2D, type MatchReplayData } from '@/components/telemetry/MatchReplay2D'
-import type { BodyZone, BodyZoneBreakdown } from '@/lib/pubg-telemetry/body-zones'
+import type { BodyZoneBreakdown } from '@/lib/pubg-telemetry/body-zones'
 import type { SquadMateStats } from '@/lib/pubg-telemetry/squad-mates'
 
 /**
@@ -228,7 +229,6 @@ function useMediaQuery(query: string) {
   return matches
 }
 
-const SILHOUETTE_ZONES: BodyZone[] = ['head', 'torso', 'pelvis', 'arms', 'legs']
 
 /**
  * Nom d'un membre de l'escouade à la couleur de son style de jeu de la semaine (Fragger, Medic, Ghost). En texte, les
@@ -243,13 +243,6 @@ function teamModeOfGameMode(gameMode: string): TeamMode | null {
   return found ? (found[1] as TeamMode) : null
 }
 
-function toZoneRecord(breakdown: BodyZoneBreakdown[] | undefined, field: 'damage' | 'hits'): Record<BodyZoneKey, number> {
-  const record: Record<BodyZoneKey, number> = { head: 0, torso: 0, pelvis: 0, arms: 0, legs: 0 }
-  for (const row of breakdown ?? []) {
-    if (SILHOUETTE_ZONES.includes(row.zone)) record[row.zone as BodyZoneKey] = row[field]
-  }
-  return record
-}
 
 // ── Petits éléments ──────────────────────────────────────────────────────────────────────────────
 
@@ -1313,25 +1306,15 @@ export function MatchDebriefView({
                 {bodyZonesAvailable && (
                   <div className="grid gap-3 [grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr))]">
                     {(['dealt', 'taken'] as const).map((direction) => {
-                      const breakdown = squadBodyZones?.[direction]
-                      const summary = zoneBars(breakdown)
-                      const color = direction === 'dealt' ? 'var(--game-pos)' : 'var(--game-neg)'
+                      const summary = zoneBars(squadBodyZones?.[direction])
                       return (
-                        <div key={direction} className="app-panel-muted flex gap-3.5 px-3.5 py-3">
-                          <div className="hidden w-[92px] shrink-0 sm:block">
-                            <DamageBodySvg
-                              damageByZone={toZoneRecord(breakdown, 'damage')}
-                              hitsByZone={toZoneRecord(breakdown, 'hits')}
-                              size="sm"
-                              variant={direction === 'dealt' ? 'dealt' : 'received'}
-                              showLabels={false}
-                              showValues={false}
-                              showTooltips
-                            />
-                          </div>
-                          <div className="flex min-w-0 flex-1 flex-col gap-2">
+                        <BodyZonePanel
+                          key={direction}
+                          side={direction}
+                          bars={summary.bars.map((bar) => ({ ...bar, zone: bar.zone as BodyZoneKey, value: `${bar.hits} · ${numberFormat.format(bar.damage)}` }))}
+                          header={
                             <div className="flex items-baseline justify-between gap-2">
-                              <b className="text-sm" style={{ color }}>
+                              <b className="text-sm" style={{ color: bodyZoneSideColor(direction) }}>
                                 {direction === 'dealt' ? 'Tirs infligés' : 'Tirs subis'}
                               </b>
                               <span className="text-xs text-gray-500">
@@ -1339,25 +1322,16 @@ export function MatchDebriefView({
                                 {summary.headPercent !== null ? ` · ${summary.headPercent} % à la tête` : ''}
                               </span>
                             </div>
-                            {summary.bars.map((bar) => (
-                              <div key={bar.zone} className="grid items-center gap-2 text-xs tabular-nums [grid-template-columns:62px_1fr_72px]">
-                                <span className="text-gray-700">{bar.label}</span>
-                                <div className="h-2 rounded-full" style={{ background: 'var(--game-track)' }}>
-                                  <div className="h-2 rounded-full" style={{ width: `${bar.widthPercent}%`, background: color }} />
-                                </div>
-                                <span className="text-right text-gray-500">
-                                  {bar.hits} · {numberFormat.format(bar.damage)}
-                                </span>
-                              </div>
-                            ))}
-                            {summary.unlocalizedDamage > 0 && (
+                          }
+                          footer={
+                            summary.unlocalizedDamage > 0 ? (
                               <p className="text-[11px] text-gray-500">
                                 + {numberFormat.format(summary.unlocalizedDamage)} dégâts non localisés (
                                 {direction === 'dealt' ? 'explosifs, véhicules…' : 'zone bleue, chute, explosion'})
                               </p>
-                            )}
-                          </div>
-                        </div>
+                            ) : null
+                          }
+                        />
                       )
                     })}
                   </div>

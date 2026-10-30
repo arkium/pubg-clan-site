@@ -1,6 +1,7 @@
 import type { Page, TestInfo } from '@playwright/test'
 
 import { expect, test } from './support/api'
+import { clanBodyZonesPayload } from './support/body-zones'
 import { CLAN_ID, itemUseStats } from './support/data'
 import { appHeader, dock, periodFilter, scrollToY, toolbar } from './support/layout'
 import { mockClanCareer, mockClanPlaystyle } from './support/stats'
@@ -178,4 +179,60 @@ test('« Objets consommés » : redirection HTTP vers sa section de « Style de 
   expect(location.pathname).toBe(`/clans/${CLAN_ID}/stats`)
   expect(location.searchParams.get('period')).toBe('month')
   expect(location.hash).toBe('#sec-items')
+})
+
+// Zones d'impact du clan (docs/TODO/zones-d-impact.md, lot 4) : somme des membres actifs, chiffres clés, membres
+// classés par taux de tête — sous l'échantillon en bas, sans rang.
+test.describe('Style de jeu du clan — zones d’impact', () => {
+  const expected = () => clanBodyZonesPayload('week').data
+
+  test.beforeEach(async ({ api, page }) => {
+    mockClanPlaystyle(api)
+    await page.goto(`/clans/${CLAN_ID}/stats`)
+    await expect(section(page, 'sec-zones').getByTestId('body-zones-section')).toBeVisible()
+  })
+
+  test('chiffres clés, deux panneaux, bande des 8 semaines, ancre « Impacts »', async ({ page }) => {
+    const zones = section(page, 'sec-zones')
+    const data = expected()
+    await expect(zones.getByTestId('body-zones-figure-head')).toContainText(`${Math.round(data.dealt.headRate!)} %`)
+    await expect(zones.getByTestId('body-zones-figure-upper')).toContainText(`${Math.round(data.taken.upperShare!)} %`)
+    await expect(zones.getByTestId('body-zones-figure-lower')).toContainText(`${Math.round(data.taken.lowerShare!)} %`)
+    await expect(zones.getByTestId('body-zones-dealt')).toContainText(`touches · ${Math.round(data.dealt.headRate!)} % à la tête`)
+    await expect(zones.getByTestId('body-zones-weeks')).toContainText('S44')
+    await expect(toolbar(page).getByRole('link', { name: 'Impacts' })).toHaveAttribute('href', '#sec-zones')
+    await expectNoHorizontalScroll(page)
+  })
+
+  test('tableau : classés par taux de tête, évolution du rang, sous l’échantillon en bas ; tri par les en-têtes', async ({ page }, testInfo) => {
+    test.skip(isMobile(testInfo), 'tableau : ordinateur et tablette')
+    const rows = section(page, 'sec-zones').getByTestId('body-zones-member-row')
+    await expect(rows).toHaveCount(8)
+    const names = async () => (await rows.locator('td:nth-child(2)').allTextContents()).map((name) => name.replace('Joueur ', ''))
+    expect(await names()).toEqual(['Bravo', 'Alpha', 'Charlie', 'Delta', 'Echo', 'Foxtrot', 'Golf', 'Hotel'])
+    await expect(rows.nth(0).getByRole('img', { name: 'Rang 1, médaille d’or' })).toBeVisible()
+    expect(await rows.locator('td:last-child').allTextContents()).toEqual(['=', '▲1', '▼1', '=', 'nouv.', '▼1', '—', '—'])
+    await expect(rows.nth(6).locator('td').nth(4)).toHaveText('—')
+    await expect(rows.nth(1).getByRole('link', { name: 'Joueur Alpha' })).toHaveAttribute('href', '/members/1/playstyle')
+
+    await section(page, 'sec-zones').getByRole('button', { name: 'Parties' }).click()
+    expect((await names()).slice(0, 2)).toEqual(['Charlie', 'Bravo'])
+    expect((await names()).slice(-2)).toEqual(['Golf', 'Hotel'])
+  })
+
+  test('« Tous » : pas de colonne Évolution', async ({ page }, testInfo) => {
+    test.skip(isMobile(testInfo), 'tableau : ordinateur et tablette')
+    await periodFilter(page).getByRole('button', { name: 'Tous' }).click()
+    await expect(section(page, 'sec-zones').getByText('Parties analysées depuis le 13 septembre 2026')).toBeVisible()
+    await expect(section(page, 'sec-zones').getByRole('columnheader', { name: 'Évolution' })).toHaveCount(0)
+    await expect(section(page, 'sec-zones').getByTestId('body-zones-weeks-trend')).toHaveCount(0)
+  })
+
+  test('mobile : liste de rangs et pilules « Trier par » ; les membres sous l’échantillon nommés à part', async ({ page }, testInfo) => {
+    test.skip(!isMobile(testInfo), 'comportement propre au mobile')
+    const zones = section(page, 'sec-zones')
+    await expect(zones.getByTestId('body-zones-members').getByRole('button', { name: 'Tête %', exact: true })).toBeVisible()
+    await expect(zones.getByTestId('body-zones-unranked')).toContainText('Joueur Golf (15 touches), Joueur Hotel (22 touches)')
+    await expectNoHorizontalScroll(page)
+  })
 })

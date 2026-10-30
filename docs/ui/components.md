@@ -661,7 +661,34 @@ type DamageBodySvgProps = {
 
 Les zones proviennent de `memberStats[*].bodyZonesDealt` / `bodyZonesTaken` (parser, `LogPlayerTakeDamage`),
 agrégées par l'API en `telemetry.squadBodyZones.{dealt, taken}`. Le débriefing affiche les deux silhouettes
-côte à côte ; plusieurs instances sur une page sont sûres (identifiants SVG préfixés par `useId`).
+côte à côte, chacune dans un `BodyZonePanel` ; plusieurs instances sur une page sont sûres (identifiants SVG préfixés
+par `useId`).
+
+### `BodyZonePanel`
+
+Fichier : `src/components/telemetry/BodyZonePanel.tsx` — règles dans `docs/ui/index.html#zones-impact-periode`
+
+Rôle : bloc « Tirs infligés » / « Tirs subis » — silhouette `DamageBodySvg` de 92 px à gauche (masquée sous 640 px),
+une barre par zone (libellé 62 px · barre · valeur de 72 px au moins, sans retour à la ligne), en-tête et pied fournis
+par l'appelant. Partagé par le
+débriefing d'une partie (`MatchDebriefView` : touches · dégâts, barres au prorata des dégâts) et la section « Zones
+d'impact » des pages Style de jeu (`src/components/body-zones/BodyZoneSections.tsx` : touches · part, barres au
+prorata des touches).
+
+```typescript
+type BodyZonePanelProps = {
+  side: 'dealt' | 'taken'      // couleur : bodyZoneSideColor(side) — --game-pos / --game-neg
+  bars: Array<{ zone: BodyZoneKey; label: string; hits: number; damage: number; value: string }>
+  widthBy?: 'damage' | 'hits'  // défaut 'damage'
+  header: ReactNode
+  footer?: ReactNode
+  muted?: boolean              // échantillon faible : silhouette et barres en gris
+  testId?: string
+}
+```
+
+Ne pas recopier la mise en page silhouette + barres dans une page. Les sections de période (`MemberBodyZonesSection`,
+`ClanBodyZonesSection`) lisent `GET …/telemetry/body-zones` (table `MemberBodyZoneStats`), jamais `memberStats`.
 
 ### `MatchReplay2D`
 

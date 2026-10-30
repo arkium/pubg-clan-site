@@ -26,9 +26,9 @@ export const COACH_HELP_DOMAINS: CoachHelpDomain[] = [
   },
   {
     id: 'arsenal',
-    title: 'Tes armes et tes objets',
-    tools: ['getWeaponStats', 'getItemUsage'],
-    examples: ['Mes stats au M416 ce mois-ci', 'Combien de soins et de grenades j’utilise par partie ?'],
+    title: 'Tes armes, tes objets et tes zones d’impact',
+    tools: ['getWeaponStats', 'getItemUsage', 'getBodyZones'],
+    examples: ['Mes stats au M416 ce mois-ci', 'Combien de soins et de grenades j’utilise par partie ?', 'Je vise assez la tête ?'],
   },
   {
     id: 'adversaires',

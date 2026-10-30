@@ -1,4 +1,5 @@
 import type { ApiMock } from './api'
+import { mockClanBodyZones } from './body-zones'
 import { CLAN_ID, PLAYERS, clanMatchesStats, itemUseStats } from './data'
 
 import type { ClanPlaystyleRow, CooperationPair } from '@/lib/clan-playstyle'
@@ -56,6 +57,7 @@ export function mockClanPlaystyle(api: ApiMock) {
     .on('GET', `/api/clans/${CLAN_ID}/telemetry/item-use`, (url) => ({ body: { data: itemUseStats(periodOf(url), true) } }))
     .on('GET', `/api/clans/${CLAN_ID}/overview/matches-stats`, (url) => ({ body: clanMatchesStats(periodOf(url)) }))
     .on('GET', `/api/clans/${CLAN_ID}/telemetry/synergies`, { body: { rows: cooperationPairs() } })
+  mockClanBodyZones(api)
 }
 
 function careerStats(index: number, synced: boolean): CareerLifetimeStats {

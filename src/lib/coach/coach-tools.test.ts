@@ -46,8 +46,10 @@ const mocks = vi.hoisted(() => ({
   loadCityCells: vi.fn(),
   loadCityCoverage: vi.fn(),
   loadZoneClosures: vi.fn(),
+  getMemberBodyZones: vi.fn(),
 }))
 
+vi.mock('@/lib/body-zone-service', () => ({ getMemberBodyZones: mocks.getMemberBodyZones }))
 vi.mock('@/lib/clan-map-stats-service', () => ({ loadClanMapStats: mocks.loadMapStats }))
 vi.mock('@/lib/players-ranking-service', () => ({ getPlayersRanking: mocks.getPlayersRanking }))
 // Villes et fin de zone : seules les lectures SQL sont simulées, les agrégations (grille, classements, verdicts) sont réelles.
@@ -169,6 +171,7 @@ describe('déclarations', () => {
       'getClanCareer',
       'getCityInsights',
       'getZoneClosures',
+      'getBodyZones',
     ])
     const forbidden = /clanid|memberid|userid|accountid/i
     for (const tool of COACH_TOOL_DECLARATIONS) {
@@ -1625,5 +1628,66 @@ describe('getTournamentResults', () => {
 
     mocks.memberFindFirst.mockResolvedValueOnce(null)
     expect(await run('getTournamentResults', { tournamentId: 'ctour1', playerName: 'Inconnu' })).toMatchObject({ error: 'player_not_found' })
+  })
+})
+
+describe('getBodyZones (docs/TODO/zones-d-impact.md)', () => {
+  const side = (hits: number, headRate: number | null) => ({
+    hits,
+    damage: hits * 30,
+    zones: [
+      { zone: 'head', hits: Math.round(hits * 0.13), damage: 0, share: 13.2 },
+      { zone: 'torso', hits: Math.round(hits * 0.49), damage: 0, share: 48.9 },
+    ],
+    unlocalizedDamage: 340,
+    unlocalizedShare: 6,
+    headRate,
+    upperShare: headRate === null ? null : 65,
+    lowerShare: headRate === null ? null : 25,
+    hitsPerMatch: 8.3,
+    matchesMeasured: 23,
+    belowSample: headRate === null,
+    minHits: 30,
+  })
+  const report = (matchesMeasured = 23) => ({
+    periodKey: 'week-2026-44',
+    previousKey: 'week-2026-43',
+    weekKeys: [],
+    matchesMeasured,
+    dealt: side(190, 13.2),
+    taken: side(160, 11.9),
+    previous: null,
+    trend: { dealtHead: 2.2, takenHead: null },
+    weeks: [{ periodKey: 'week-2026-44', headRate: 13.2, hits: 190, belowSample: false }],
+    clan: { dealtHeadRate: 11, takenHeadRate: 14 },
+  })
+
+  it('le joueur de la session et son clan, jamais un identifiant venu du modèle', async () => {
+    mocks.getMemberBodyZones.mockResolvedValue(report())
+    const result = (await run('getBodyZones', { period: 'week', clanId: 1, memberId: 999 })) as Record<string, any> // eslint-disable-line @typescript-eslint/no-explicit-any
+    expect(mocks.getMemberBodyZones).toHaveBeenCalledWith({ id: 100, clanId: 292 }, 'week')
+    expect(result).toMatchObject({ player: 'NovakTV', period: 'cette semaine', matchesMeasured: 23, evolutionPoints: { dealtHead: 2.2, takenHead: null } })
+    expect(result.dealt.zones[0]).toEqual({ zone: 'Tête', hits: 25, share: 13.2 })
+    expect(result.taken).toMatchObject({ upperShare: 65, lowerShare: 25 })
+    expect(JSON.stringify(result)).not.toMatch(/accountId|email|password|token/i)
+  })
+
+  it('un autre membre du clan par son pseudo ; personne hors du clan ; rien de mesuré', async () => {
+    mocks.memberFindFirst.mockResolvedValueOnce({ id: 101, displayName: 'Lynx' })
+    mocks.getMemberBodyZones.mockResolvedValue(report())
+    await run('getBodyZones', { playerName: 'Lynx', period: 'all' })
+    expect(mocks.memberFindFirst.mock.calls[0][0].where).toMatchObject({ clanId: 292, isActive: true })
+    expect(mocks.getMemberBodyZones).toHaveBeenCalledWith({ id: 101, clanId: 292 }, 'all')
+
+    mocks.memberFindFirst.mockResolvedValueOnce(null)
+    expect(await run('getBodyZones', { playerName: 'Inconnu' })).toMatchObject({ error: 'player_not_found' })
+
+    mocks.getMemberBodyZones.mockResolvedValue(report(0))
+    expect(await run('getBodyZones')).toEqual({ player: 'NovakTV', period: 'cette semaine', matchesMeasured: 0, message: 'Aucune touche localisée sur la période.' })
+  })
+
+  it('« depuis toujours » : pas d’évolution', async () => {
+    mocks.getMemberBodyZones.mockResolvedValue(report())
+    expect(await run('getBodyZones', { period: 'all' })).toMatchObject({ evolutionPoints: null })
   })
 })

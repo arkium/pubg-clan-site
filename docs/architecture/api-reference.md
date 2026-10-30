@@ -359,13 +359,14 @@ Correspond à la page `/settings/pubg-api-rate-limit` mentionnée dans `CLAUDE.m
 
 ## Télémétrie (clan-level) — `/api/clans/[clanId]/telemetry/*`
 
-Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/api.md). Toutes les routes de queue/monitoring/recovery sont classées ❌ (outils d'admin télémétrie, jamais appelés depuis un client final) ; les routes de lecture de stats (`weapons`, `synergies`, `playstyle`, `positions`, `drop-zones`) sont ✅ pour un futur écran mobile "stats avancées".
+Contrats complets déjà documentés dans [Télémétrie — API](../telemetry/api.md). Toutes les routes de queue/monitoring/recovery sont classées ❌ (outils d'admin télémétrie, jamais appelés depuis un client final) ; les routes de lecture de stats (`weapons`, `synergies`, `playstyle`, `body-zones`, `positions`, `drop-zones`) sont ✅ pour un futur écran mobile "stats avancées".
 
 | Méthode | Chemin | Auth | Pertinence mobile | Description / lien |
 |---|---|---|---|---|
 | GET | `/weapons` | `requireNavPermission('clan.stats-weapons')` | ✅ Pertinent | Stats armes agrégées par membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/synergies` | `requireRole(['Owner'])` | ✅ Pertinent | Revives/co-kills/dégâts partagés par paire — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/playstyle` | `requireRole(['Owner'])` | ✅ Pertinent | Scores agressivité/soutien/discipline de zone — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/body-zones` | `requireNavPermission('clan.stats')` | ✅ Pertinent | Zones d'impact du clan (somme des membres actifs), membres classés par taux de tête avec `previousRank` — voir [Zones d'impact](../TODO/zones-d-impact.md) |
 | GET | `/positions` | `requireNavPermission('clan.positions')` | ✅ Pertinent | Échantillons de positions sur carte — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/drop-zones` | `requireNavPermission('clan.drop-zones')` | ✅ Pertinent | Points d'atterrissage + heatmap 40×40 — voir [Télémétrie API](../telemetry/api.md) et [Zones de drop](../features/drop-zones.md) |
 | GET | `/item-use` | `requireNavPermission('clan.items')` | ✅ Pertinent | Objets consommés par le clan, par famille, par objet et par membre (`?period=week\|month\|all`) — voir [Objets consommés](../features/objets-consommes.md) |
@@ -414,6 +415,7 @@ Non documenté dans [Télémétrie API](../telemetry/api.md) (absent de la liste
 |---|---|---|---|---|
 | GET | `/api/members/[id]/telemetry/weapons` | `requireSameClanAsMember` | ✅ Pertinent | Stats armes du membre — voir [Télémétrie API](../telemetry/api.md) et [Armes](../features/weapons.md) |
 | GET | `/api/members/[id]/telemetry/playstyle` | `requireSameClanAsMember` | ✅ Pertinent | Profil de jeu du membre — voir [Télémétrie API](../telemetry/api.md) |
+| GET | `/api/members/[id]/telemetry/body-zones` | `requireSameClanAsMember` (lecture) | ✅ Pertinent | Zones d'impact du membre (`?period=` `week`, `month` ou `all`) : résumés infligés / subis, période précédente, 8 semaines, taux de tête du clan — voir [Zones d'impact](../TODO/zones-d-impact.md) |
 | GET | `/api/members/[id]/telemetry/drop-zones` | `requireSameClanAsMember` | ✅ Pertinent | Points d'atterrissage du membre — voir [Télémétrie API](../telemetry/api.md) |
 | GET | `/api/members/[id]/item-use` | `requireSameClanAsMember` | ✅ Pertinent | Objets consommés du membre — voir [Objets consommés](../features/objets-consommes.md) |
 | GET | `/api/members/[id]/city-insights` | `requireSameClanAsMember` | ✅ Pertinent | Villes du membre et comparaison avec le clan — voir [Positions et villes](../features/positions-villes.md) |

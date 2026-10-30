@@ -103,6 +103,7 @@ model ClanMember {
   playerStats               PlayerStats[]
   memberWeaponStats         MemberWeaponStats[]
   memberTelemetryStats      MemberTelemetryStats[]
+  memberBodyZoneStats       MemberBodyZoneStats[]
   dropPressureStats         DropPressureStat[]
   positionMetricCells       PositionMetricCell[]
   zoneClosurePositions      ZoneClosurePosition[]
@@ -166,8 +167,8 @@ model Player {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  encounters            ClanEncounter[]
-  clanMembers           ClanMember[]
+  encounters  ClanEncounter[]
+  clanMembers ClanMember[]
 
   @@unique([pubgAccountId, platformShard])
   @@index([opponentClanId])
@@ -1249,6 +1250,35 @@ model MemberTelemetryStats {
   @@map("MemberTelemetryStats")
 }
 
+/// Zones d'impact par membre et par période (docs/TODO/zones-d-impact.md) : touches et dégâts par zone du corps, tirs
+/// infligés (`dealt`) et subis (`taken`), écrits par le recalcul des agrégats de télémétrie (`period-aggregates.ts`)
+/// sous les mêmes clés que `MemberTelemetryStats` (`week-YYYY-WW`, `month-YYYY-MM`, `all-time`). Le clan est la somme
+/// des lignes de ses membres actifs, à la lecture. Une zone sans touche ni dégât n'a pas de ligne.
+model MemberBodyZoneStats {
+  id       String     @id @default(cuid())
+  memberId Int
+  member   ClanMember @relation(fields: [memberId], references: [id], onDelete: Cascade)
+
+  period     String
+  periodType String
+  /// `dealt` (tirs infligés) ou `taken` (tirs subis).
+  side       String
+  /// `head`, `torso`, `pelvis`, `arms`, `legs`, ou `other` (dégâts non localisés : zone, chute, explosion, véhicule).
+  zone       String
+
+  hits            Int   @default(0)
+  damage          Float @default(0)
+  /// Parties de la période où la télémétrie du membre porte les zones (analysées depuis le 2026-09-13).
+  matchesMeasured Int   @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([memberId, period, side, zone])
+  @@index([period, side, zone])
+  @@map("MemberBodyZoneStats")
+}
+
 model ClanSynergyTelemetryStats {
   id     String @id @default(cuid())
   clanId Int
@@ -1768,13 +1798,13 @@ model CoachUsage {
 /// injectée dans le prompt (bloc « Règles du site ») quand `coach_rules_enabled` est ouvert. Au plus 20 règles actives ;
 /// jamais écrite par le modèle ni reprise d'une note de joueur. `fromMessageId` : le vote « Inexact » d'origine.
 model CoachRule {
-  id            Int          @id @default(autoincrement())
-  text          String       @db.VarChar(200)
-  enabled       Boolean      @default(true)
+  id            Int           @id @default(autoincrement())
+  text          String        @db.VarChar(200)
+  enabled       Boolean       @default(true)
   fromMessageId Int?
   createdById   Int?
-  createdAt     DateTime     @default(now())
-  updatedAt     DateTime     @updatedAt
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
   fromMessage   CoachMessage? @relation(fields: [fromMessageId], references: [id], onDelete: SetNull)
   createdBy     UserAccount?  @relation(fields: [createdById], references: [id], onDelete: SetNull)
 

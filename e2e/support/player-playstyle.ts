@@ -1,6 +1,7 @@
 import type { ApiMock } from './api'
 import { CLAN_ID, MEMBER_ID, PLAYERS } from './data'
 import { mockMemberProfile } from './members'
+import { mockMemberBodyZones } from './body-zones'
 import { mockClanPlaystyle, playstyleRows } from './stats'
 
 /**
@@ -11,6 +12,7 @@ import { mockClanPlaystyle, playstyleRows } from './stats'
 export function mockPlayerPlaystyle(api: ApiMock) {
   mockMemberProfile(api)
   mockClanPlaystyle(api)
+  mockMemberBodyZones(api)
   api.on('GET', `/api/members/${MEMBER_ID}/telemetry/playstyle`, (url) => {
     const period = url.searchParams.get('period') ?? 'week'
     // La route du joueur ne renvoie que les mesures : sans memberId ni displayName (ils sont dans `member`).

@@ -200,6 +200,7 @@ Ces classes fonctionnent donc en clair **et** en sombre sans aucun `dark:` expli
 | Classement sur mobile (puces « Trier par ») | `MobileRankList` | `src/components/ui/MobileRankList.tsx` |
 | Mode d'un tournoi (couleur, icône, libellé) | `TournamentModeBadge`, `tournamentModeClass` + `@/lib/tournament-mode-display` | `src/components/tournaments/TournamentModeBadge.tsx` — docs/features/tournois.md |
 | Style de jeu d'un clan (Fragger / Medic / Ghost, icône) | `PlaystyleBadge` + `clanStyleOf` | `src/components/ui/PlaystyleBadge.tsx`, `src/lib/clan-directory.ts` — docs/features/clans.md §6 bis |
+| Bloc « Tirs infligés / Tirs subis » (silhouette + une barre par zone) — débriefing et section « Zones d'impact » | `BodyZonePanel` | `src/components/telemetry/BodyZonePanel.tsx` — règles dans `docs/ui/index.html#zones-impact-periode` |
 | Barre « Comment c'est calculé ? » (repliée, dans le HTML, « En bref » du serveur rangé dessous) — **sept pages seulement** : Ligue, Joueurs, annuaire, comparateur, tournois, carte des ressources, lecture de zone ; pages joueur et clan : `PageScopeNote` | `CalculationHelp` | `src/components/ui/CalculationHelp.tsx` — docs/TODO/aide-des-pages.md lot 5 |
 
 **Règle :** Ne jamais réécrire ces composants inline dans une page. Ne pas écrire les classes `app-placement-badge*` directement.
@@ -357,6 +358,13 @@ pseudo ni le compte d'un joueur extérieur au site — voir [accueil.md](docs/fe
 PUBG, cache 5 min) et comparateur — [joueurs.md](docs/features/joueurs.md). Ses scores Fragger / Medic / Ghost / Tireur à
 distance sont des **centiles entre tous les clans** : ne pas les confondre avec le style de jeu d'un joueur, relatif au
 meilleur de son clan (`MemberTelemetryStats`).
+
+**Zones d'impact** (2026-10-30, [zones-d-impact.md](docs/TODO/zones-d-impact.md)) : les zones de période (tête,
+torse, bassin, bras, jambes par semaine, mois, « tous ») se lisent dans `MemberBodyZoneStats`, écrite par la passe
+d'agrégats ; le clan = somme de ses membres actifs à la lecture. **Jamais `memberStats` dans une page** (blob
+compressé, des centaines de parties par clan et par semaine). Un taux ne s'affiche qu'à 30 touches (joueur) / 100
+(clan), `src/lib/body-zone-stats.ts`. Le recalcul d'agrégats couvre aussi la semaine précédente le lundi et le mardi,
+le mois précédent les 1er et 2 (`periodsToRecalculate`, `src/lib/pubg-telemetry/period-keys.ts`).
 
 **Guard Routes:**
 - `src/proxy.ts` (edge middleware) redirects based on `setupState`:

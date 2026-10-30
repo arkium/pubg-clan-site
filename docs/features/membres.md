@@ -125,6 +125,12 @@ l'équivalent du style de jeu du clan (`/clans/[clanId]/stats`).
   ne l'a pas renvoyé. Seul mesuré, ou sans accès aux données du clan : pas de comparaison.
 - **Mobilité, cercle et survie** : les trois thèmes du style de jeu du clan (`playstyleThemes`), appliqués à la seule
   ligne du joueur, avec la colonne « Clan » en regard.
+- **Zones d'impact** (2026-10-30, [zones-d-impact.md](../TODO/zones-d-impact.md)) : deux panneaux « Tirs infligés » /
+  « Tirs subis » (`BodyZonePanel`, le bloc du débriefing : silhouette, une barre par zone en « touches · part »),
+  totaux (« 190 touches · 13 % à la tête », dégâts non localisés, touches par partie, haut / bas du corps subi), ligne
+  « vs clan » sous chaque panneau, bande « 8 dernières semaines » du taux de tête et évolution en points contre la
+  période précédente (rien pour « Tous », qui commence le 13 septembre 2026). Un taux à 30 touches au moins : en
+  dessous, « Échantillon faible », silhouette et barres en gris, aucune évolution. Sans ancre.
 - **Coopération** : ses coéquipiers dans les binômes du clan (parties officielles, tous modes, comme le clan) — 4
   chiffres (coéquipiers, réanimations, co-kills, recalls) et un tableau trié par la pondération de l'indice de synergie
   (réanimations ×3, co-kills ×2, dégâts partagés ×1), paginé par 10. Un nom mène au style de jeu du coéquipier.
@@ -138,6 +144,8 @@ l'équivalent du style de jeu du clan (`/clans/[clanId]/stats`).
 Données : `/api/members/[id]/telemetry/playstyle` (`data.member.clanId` donne le clan), puis
 `/api/clans/[clanId]/telemetry/playstyle` et `/api/clans/[clanId]/telemetry/synergies`. Logique pure :
 `src/lib/player-playstyle.ts` (comparaison, rang, coéquipiers) ; blocs : `src/components/player-playstyle/`.
+Zones d'impact : `/api/members/[id]/telemetry/body-zones` (table `MemberBodyZoneStats`, jamais `memberStats`), résumés
+`src/lib/body-zone-stats.ts`, section `src/components/body-zones/BodyZoneSections.tsx`.
 
 **Navigation** : `member.playstyle` dans les trois registres (`nav-permissions-registry`, `nav-parent-registry`,
 `nav-icons`). Le menu lit la table `NavItem` : l'entrée n'y apparaît qu'après `npx tsx scripts/seed-playstyle-nav.ts`
@@ -159,6 +167,8 @@ Données : `/api/members/[id]/telemetry/playstyle` (`data.member.clanId` donne l
 - `ChevronPager` (`src/components/ui/ChevronPager.tsx`) : rangée paginée par chevrons au lieu d'un défilement horizontal.
 - `usePageData` (`src/hooks/usePageData.ts`) : lecture d'une route qui garde la réponse précédente pendant le
   rechargement (la page l'estompe) ; sorti de la page « Style de jeu ».
+- `BodyZonePanel` (`src/components/telemetry/BodyZonePanel.tsx`, 2026-10-30) : bloc silhouette + barres par zone du
+  débriefing, partagé avec la section « Zones d'impact » — docs/ui/components.md.
 
 ## 6. Tests
 
@@ -168,8 +178,9 @@ Données : `/api/members/[id]/telemetry/playstyle` (`data.member.clanId` donne l
 | `src/lib/player-playstyle.test.ts` | Style de jeu du joueur : moyenne du clan joueur compris, rang et ex aequo, joueur absent des lignes du clan, sans comparaison, écart en points, coéquipiers côté partenaire et tri, contexte du bandeau |
 | `src/lib/player-dashboard.test.ts` | Clés de période (janvier → décembre), barres par soirée (partie de nuit la veille), semaines du mois, 8 semaines, écart au clan, profil et tendance |
 | `src/lib/member-routes-contracts.test.ts` | Contrats (Prisma simulé) : fiches (rôle, 30 jours officiels, arme fétiche, demandes réservées), tableau de bord (forme, meilleure partie, frères d'armes, profil), pression au drop, période de la Némésis |
+| `src/lib/body-zone-stats.test.ts`, `src/lib/body-zones-route-contracts.test.ts`, `src/lib/pubg-telemetry/period-keys.test.ts` | Zones d'impact : résumés d'un côté, seuils, tendance en points, 8 semaines, classement ; contrats des deux routes (Prisma simulé) ; clés de période (année ISO), périodes à recalculer |
 | `e2e/members.spec.ts` | Les deux pages : « ce soir » sans « en jeu », fiches et lien, réserve, filtres et tri, demandes en attente, docking (pas sur mobile / oui sur le tableau de bord), période unique, chiffres clés, meilleure partie, profil, cartes et liens, dernières parties, calendrier et carte Carrière, chevrons sur mobile, aucun défilement horizontal. Données : `e2e/support/members.ts` |
-| `e2e/player-playstyle.spec.ts` | Style de jeu du joueur : score, moyenne et rang par rôle, contexte du bandeau, thèmes avec la colonne Clan, coéquipiers triés et leur lien, période sans partie analysée, aucun défilement horizontal, lien « Détail → » du tableau de bord. Données : `e2e/support/player-playstyle.ts` |
+| `e2e/player-playstyle.spec.ts` | Style de jeu du joueur : score, moyenne et rang par rôle, contexte du bandeau, thèmes avec la colonne Clan, coéquipiers triés et leur lien, période sans partie analysée, aucun défilement horizontal, lien « Détail → » du tableau de bord ; zones d'impact (panneaux, « vs clan », 8 semaines, évolution, « Tous », échantillon faible, état vide). Données : `e2e/support/player-playstyle.ts`, `e2e/support/body-zones.ts` |
 
 ## Voir aussi
 

@@ -54,6 +54,8 @@ import {
 import { getPlayersRanking } from '@/lib/players-ranking-service'
 import { resolveItemName } from '@/lib/pubg-assets'
 import { getPeriodKey } from '@/lib/pubg-telemetry/period-aggregates'
+import { BODY_ZONE_LABELS } from '@/lib/body-zone-stats'
+import { getMemberBodyZones } from '@/lib/body-zone-service'
 import { collectTournamentMemberIds, loadTournamentDirectories } from '@/lib/tournament-directories'
 import { participantClanIds, resolveTournamentPhase, TOURNAMENT_MODE_DISPLAY, type TournamentPhase } from '@/lib/tournament-mode-display'
 import { listTournamentOverviews, type TournamentOverview, type TournamentStandingSummary } from '@/lib/tournament-overview'
@@ -424,6 +426,18 @@ export const COACH_TOOL_DECLARATIONS: CoachToolDeclaration[] = [
         period: { type: 'string', enum: ['week', 'month', 'all'], description: '« week » (cette semaine, défaut de la page), « month » (ce mois) ou « all » (depuis toujours).' },
         phase: { type: 'string', enum: [...TACTICAL_PHASES], description: '« all » (défaut), « early » (début de partie, phases 1–2), « mid » (phases 3–4) ou « late » (fin de partie, phases 5–8).' },
         playerName: { type: 'string', description: 'Membre du clan à situer (le joueur par défaut).' },
+      },
+    },
+  },
+  {
+    name: 'getBodyZones',
+    description:
+      "Zones d'impact (section du Style de jeu) : où les tirs du joueur touchent (tête, torse, bassin, bras, jambes) et où il est touché, sur la semaine, le mois ou depuis toujours — touches et part par zone, taux de tête, haut / bas du corps subi, dégâts non localisés, évolution en points contre la période précédente, taux de tête des 8 dernières semaines, et celui du clan en regard. Pour « je vise la tête ? », « où est-ce qu'on me touche ? », « mon taux de tête progresse ? ». Le détail d'une partie, c'est getMatchDebrief.",
+    parameters: {
+      type: 'object',
+      properties: {
+        playerName: { type: 'string', description: 'Pseudo d’un autre membre du clan, facultatif.' },
+        period: PERIOD_PARAMETER,
       },
     },
   },
@@ -2203,6 +2217,36 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     }
   }
 
+  async function getBodyZones(args: ToolArgs) {
+    const resolved = await resolveMember(args.playerName)
+    if ('error' in resolved) return resolved
+    const period = parsePeriod(args.period)
+    // Le clan vient de la session, jamais du modèle : la ligne « vs clan » est celle du clan du joueur connecté.
+    const report = await getMemberBodyZones({ id: resolved.memberId, clanId: scope.clanId }, period)
+    if (report.matchesMeasured === 0) {
+      return { player: resolved.memberName, period: PERIOD_LABELS[period], matchesMeasured: 0, message: 'Aucune touche localisée sur la période.' }
+    }
+    const side = (summary: typeof report.dealt) => ({
+      hits: summary.hits,
+      headRate: summary.headRate,
+      sampleTooSmall: summary.belowSample,
+      zones: summary.zones.map((zone) => ({ zone: BODY_ZONE_LABELS[zone.zone], hits: zone.hits, share: zone.share })),
+      unlocalizedDamage: summary.unlocalizedDamage,
+      hitsPerMatch: summary.hitsPerMatch,
+    })
+    return {
+      player: resolved.memberName,
+      period: PERIOD_LABELS[period],
+      matchesMeasured: report.matchesMeasured,
+      dealt: side(report.dealt),
+      taken: { ...side(report.taken), upperShare: report.taken.upperShare, lowerShare: report.taken.lowerShare },
+      evolutionPoints: period === 'all' ? null : { dealtHead: report.trend.dealtHead, takenHead: report.trend.takenHead },
+      clan: report.clan,
+      weeks: report.weeks.map((week) => ({ week: week.periodKey, headRate: week.headRate })),
+      note: "Touches localisées par la télémétrie des parties analysées depuis le 13 septembre 2026 (« depuis toujours » commence là). Un taux ne vaut qu'à 30 touches au moins (« sampleTooSmall ») : en dessous, ne conclus rien. « Dégâts non localisés » : zone bleue, chute, explosion, véhicule. Un dégât qu'on s'inflige ne compte pas en infligé. Côté subi, une part haute de bras et de jambes = des adversaires qui ne touchent que ce qui dépasse de l'abri.",
+    }
+  }
+
   const handlers: Record<string, (args: ToolArgs) => Promise<unknown>> = {
     getRecentMatches,
     getSessions,
@@ -2224,6 +2268,7 @@ export function createCoachTools(scope: CoachToolScope): CoachTools {
     getClanCareer,
     getCityInsights,
     getZoneClosures,
+    getBodyZones,
   }
 
   return {

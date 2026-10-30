@@ -107,7 +107,7 @@ const isNotFound = (error: unknown) => (error as { status?: number } | null)?.st
 export async function resolveKillFeedAccount(candidate: KillFeedCandidate): Promise<KillFeedResolutionResult> {
   const where = { pubgAccountId_platformShard: candidate }
   try {
-    const { name, clan } = await fetchPlayerIdentity(candidate.pubgAccountId, candidate.platformShard, { source: 'kill-feed-name-resolution-cron' })
+    const { name, clan } = await fetchPlayerIdentity(candidate.pubgAccountId, candidate.platformShard, { source: 'kill-feed-name-resolution-cron', priority: 'low' })
     if (!name) {
       await prisma.killFeedAccountLookup.upsert({
         where,

@@ -19,6 +19,19 @@ export function isUnthrottledPubgEndpoint(endpoint: string | undefined) {
 }
 
 /**
+ * Délai de l'unique relance d'un échec passager (5xx, pas de réponse) d'une lecture non limitée : le 2026-10-29, un 502
+ * d'une minute chez PUBG a fait attendre deux parties le tour suivant (30 min). Une 404 n'est jamais relancée (partie pas
+ * encore publiée : le tour suivant suffit) ; un endpoint limité non plus (la relance prendrait une place du quota).
+ */
+export const TRANSIENT_RETRY_DELAY_MS = 5_000
+
+function isTransientPubgError(error: unknown) {
+  if (!error || typeof error !== 'object' || !('status' in error)) return false
+  const status = (error as { status?: number }).status
+  return status === undefined || status === 0 || status >= 500
+}
+
+/**
  * Priorité dans la file des endpoints limités : `high` (synchronisation des parties, manches de tournoi — ce qui fait
  * partir une alerte Top 1) passe devant `normal` (par défaut), qui passe devant `low` (tâches de fond : carrière,
  * saisons, clans des joueurs croisés). Ordre d'arrivée conservé à priorité égale.
@@ -63,9 +76,12 @@ export class ApiQueue {
     resetAt: null,
   }
 
-  constructor(requestsPerMinute = PUBG_API_RATE_LIMIT_RPM, maxRetries = 3) {
+  private readonly transientRetryDelayMs: number
+
+  constructor(requestsPerMinute = PUBG_API_RATE_LIMIT_RPM, maxRetries = 3, options?: { transientRetryDelayMs?: number }) {
     this.intervalMs = Math.ceil(60_000 / requestsPerMinute)
     this.maxRetries = maxRetries
+    this.transientRetryDelayMs = options?.transientRetryDelayMs ?? TRANSIENT_RETRY_DELAY_MS
   }
 
   private unthrottledRunning = 0
@@ -129,7 +145,7 @@ export class ApiQueue {
     const startedAt = new Date(startTime)
     this.log('API call started')
     try {
-      const { result, retryCount } = await this.callWithRetry(item.fn)
+      const { result, retryCount } = await this.callWithRetry(item.fn, isUnthrottledPubgEndpoint(item.metadata?.endpoint))
       const rateLimit = extractRateLimitFromSuccessValue(result)
       this.updateRateLimitState(rateLimit)
       this.log(`API call succeeded in ${Date.now() - startTime}ms`)
@@ -180,8 +196,9 @@ export class ApiQueue {
     }
   }
 
-  private async callWithRetry<T>(fn: () => Promise<T>): Promise<{ result: T; retryCount: number }> {
+  private async callWithRetry<T>(fn: () => Promise<T>, allowTransientRetry = false): Promise<{ result: T; retryCount: number }> {
     let lastError: unknown
+    let transientRetried = false
     for (let attempt = 1; attempt <= this.maxRetries; attempt++) {
       try {
         const result = await fn()
@@ -196,7 +213,14 @@ export class ApiQueue {
             `Rate limit hit (429), retrying in ${retryDelay}ms (attempt ${attempt}/${this.maxRetries})`
           )
           await this.sleep(retryDelay)
+        } else if (allowTransientRetry && !transientRetried && attempt < this.maxRetries && isTransientPubgError(err)) {
+          transientRetried = true
+          this.log(`Transient failure, retrying once in ${this.transientRetryDelayMs}ms`)
+          await this.sleep(this.transientRetryDelayMs)
         } else {
+          if (attempt > 1 && err instanceof Error) {
+            ;(err as Error & { retryCount?: number }).retryCount = attempt - 1
+          }
           throw err
         }
       }

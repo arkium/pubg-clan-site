@@ -32,6 +32,7 @@ function facts(overrides: Partial<AdminInboxFacts> = {}): AdminInboxFacts {
     cronFailures: [],
     configErrors: 0,
     coachInaccurateVotes: 0,
+    matchSync: { status: 'ok', reasons: [] },
     ...overrides,
   }
 }
@@ -206,6 +207,36 @@ describe('ordre, sources illisibles et veille', () => {
     expect(keys(inbox)).toEqual(['config_errors', 'resource_queue', 'unacknowledged_moves', 'archive_candidates'])
     expect(inbox.unavailable).toEqual(['télémétrie', 'tâches planifiées'])
     expect(actionableInboxItems(inbox).map((item) => item.key)).toEqual(['config_errors', 'resource_queue'])
+  })
+})
+
+describe('synchronisation des parties (docs/TODO/fraicheur-des-parties.md)', () => {
+  const reason = (key: string, tone: 'todo' | 'urgent', text: string) => ({ key, tone, text })
+
+  it('rien en ordre ; à traiter ou urgent selon le résumé, la première raison en détail, vers la fraîcheur des parties', () => {
+    expect(keys(buildAdminInbox(facts(), NOW))).toEqual([])
+
+    const todo = buildAdminInbox(facts({ matchSync: { status: 'todo', reasons: [reason('lost', 'todo', '1 partie perdue')] } }), NOW)
+    expect(todo.items).toEqual([
+      { key: 'match_sync', tone: 'todo', count: 1, label: 'Synchronisation des parties', detail: '1 partie perdue', href: '/settings/cron#fraicheur' },
+    ])
+
+    const urgent = buildAdminInbox(
+      facts({
+        matchSync: {
+          status: 'urgent',
+          reasons: [reason('stale', 'urgent', 'Aucun tour terminé depuis 2 h 10'), reason('lost', 'todo', 'x'), reason('quota', 'todo', 'y')],
+        },
+      }),
+      NOW
+    )
+    expect(urgent.items[0]).toMatchObject({ tone: 'urgent', count: 3, detail: 'Aucun tour terminé depuis 2 h 10 (et 2 autres)' })
+  })
+
+  it('hors production (crons coupés), rien ; source illisible signalée, jamais un zéro', () => {
+    const degraded = { status: 'urgent' as const, reasons: [reason('stale', 'urgent', 'Aucun tour')] }
+    expect(keys(buildAdminInbox(facts({ cronJobsExpected: false, matchSync: degraded }), NOW))).toEqual([])
+    expect(buildAdminInbox(facts({ matchSync: null }), NOW).unavailable).toEqual(['synchronisation des parties'])
   })
 })
 

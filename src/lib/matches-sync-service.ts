@@ -1,4 +1,5 @@
 import { captureEncounteredPlayers, countBotsInMatch } from '@/lib/encountered-players'
+import { CATCH_UP_MINUTES } from '@/lib/match-sync-health'
 import { prisma } from '@/lib/prisma'
 import { fetchMatchDetails, fetchRecentMatchIdsForPlayers, searchPlayerByName, type MatchResponseCache } from '@/lib/pubg'
 import { analyzeMatchForSquads } from '@/lib/squad-detector'
@@ -10,9 +11,15 @@ import { analyzeMatchForSquads } from '@/lib/squad-detector'
  * importée (`matches/{id}`, que PUBG ne limite pas, lu une fois par passage même si plusieurs membres y ont joué). Les
  * rares parties que seul `seasons/lifetime` référence sont rattrapées par la synchronisation de la carrière
  * (`syncClanLifetimeStats`, toutes les 4 heures) avec `importMatchesForMember`.
+ *
+ * Fraîcheur (docs/TODO/fraicheur-des-parties.md) : chaque partie importée rend son délai depuis sa fin ; une partie dont
+ * la lecture échoue (404 « pas encore publiée », 5xx) est confiée aux parties en attente (`PendingMatchTracker`), que le
+ * tour suivant retente même si PUBG ne la liste plus pour le joueur.
  */
 
 const SOURCE = 'clan-match-sync'
+/** Rattrapage de la carrière : son origine propre dans le journal PUBG, pour savoir quel chemin a vu une partie. */
+const LIFETIME_CATCH_UP_SOURCE = 'clan-lifetime-catchup'
 const PLAYERS_PER_BATCH = 10
 
 function createMatchRecordId(memberId: number, matchId: string) {
@@ -41,6 +48,18 @@ export type SyncClanMatchesResult = {
   skipped: string[]
   logs: string[]
   message?: string
+  /** Minutes entre la fin de chaque partie nouvelle et son import, une fois par partie, hors rattrapages (> 24 h). */
+  newMatchDelaysMinutes: number[]
+  /** Parties importées plus de 24 h après leur fin (nouveau membre, historique). */
+  catchUpMatches: number
+}
+
+/** Parties dont la lecture a échoué, tenues par la synchronisation planifiée (`match-sync-health-service.ts`). */
+export type PendingMatchTracker = {
+  /** Parties à retenter pour ce membre, même absentes de la liste lue chez PUBG. */
+  retryIds(memberId: number): string[]
+  failed(failure: { matchId: string; clanId: number; memberId: number; status: number | null }): void
+  imported(memberId: number, matchId: string): void
 }
 
 type SyncMember = { id: number; displayName: string; platformShard: string }
@@ -48,16 +67,46 @@ type SyncMember = { id: number; displayName: string; platformShard: string }
 /** Ce qu'un passage partage entre ses membres : journal, détails de parties déjà lus, joueurs du clan. */
 type ClanSyncState = {
   clanId: number
+  source: string
   clanAccountIds: Set<string>
   capturedEncounterMatchIds: Set<string>
   matchCache: MatchResponseCache
+  /** Plus petit délai de chaque partie importée dans ce passage (minutes depuis sa fin). */
+  matchDelays: Map<string, number>
+  pending: PendingMatchTracker | null
   logs: string[]
   errors: string[]
   skipped: string[]
 }
 
-function createClanSyncState(clanId: number, clanAccountIds: Set<string>): ClanSyncState {
-  return { clanId, clanAccountIds, capturedEncounterMatchIds: new Set(), matchCache: new Map(), logs: [], errors: [], skipped: [] }
+function createClanSyncState(
+  clanId: number,
+  clanAccountIds: Set<string>,
+  options?: { source?: string; pending?: PendingMatchTracker | null }
+): ClanSyncState {
+  return {
+    clanId,
+    source: options?.source ?? SOURCE,
+    clanAccountIds,
+    capturedEncounterMatchIds: new Set(),
+    matchCache: new Map(),
+    matchDelays: new Map(),
+    pending: options?.pending ?? null,
+    logs: [],
+    errors: [],
+    skipped: [],
+  }
+}
+
+function errorStatus(error: unknown) {
+  const status = error && typeof error === 'object' ? (error as { status?: unknown }).status : undefined
+  return typeof status === 'number' ? status : null
+}
+
+function recordMatchDelay(state: ClanSyncState, matchId: string, startedAt: Date, durationSeconds: number) {
+  const minutes = Math.max(0, Math.round((Date.now() - startedAt.getTime() - durationSeconds * 1000) / 60_000))
+  const current = state.matchDelays.get(matchId)
+  if (current === undefined || minutes < current) state.matchDelays.set(matchId, minutes)
 }
 
 /** Importe pour un membre les parties de `matchIds` que le site n'a pas encore ; rend le nombre importé. */
@@ -67,23 +116,46 @@ async function importMemberMatches(member: SyncMember, playerId: string, matchId
     select: { pubgMatchId: true },
   })
   const importedMatchIds = new Set(importedMatches.map((match) => match.pubgMatchId))
-  const newMatchIds = matchIds.filter((matchId) => !importedMatchIds.has(matchId))
+  // Parties en attente : retentées même si PUBG ne les liste plus ; déjà importées ailleurs (carrière) : sorties.
+  const retryIds = state.pending?.retryIds(member.id) ?? []
+  for (const matchId of retryIds) {
+    if (importedMatchIds.has(matchId)) state.pending?.imported(member.id, matchId)
+  }
+  const candidateIds = [...new Set([...matchIds, ...retryIds])]
+  const newMatchIds = candidateIds.filter((matchId) => !importedMatchIds.has(matchId))
+  const retried = retryIds.filter((matchId) => !importedMatchIds.has(matchId) && !matchIds.includes(matchId)).length
 
-  state.logs.push(`Member ${member.displayName}: ${newMatchIds.length} new match(es) out of ${matchIds.length} total`)
+  state.logs.push(
+    `Member ${member.displayName}: ${newMatchIds.length} new match(es) out of ${matchIds.length} total` +
+      (retried > 0 ? `, ${retried} pending retried` : '')
+  )
 
   let importedCount = 0
   let memberLatestMatchAt: Date | null = null
 
   for (const matchId of newMatchIds) {
+    let matchDetails: Awaited<ReturnType<typeof fetchMatchDetails>>
     try {
-      const matchDetails = await fetchMatchDetails(
+      matchDetails = await fetchMatchDetails(
         matchId,
         playerId,
         member.platformShard,
-        { clanId: state.clanId, memberId: member.id, source: SOURCE },
+        { clanId: state.clanId, memberId: member.id, source: state.source },
         state.matchCache
       )
+    } catch (err) {
+      state.pending?.failed({ matchId, clanId: state.clanId, memberId: member.id, status: errorStatus(err) })
+      if (isMissingMatchError(err)) {
+        const skipMsg = `Member ${member.displayName}, match ${matchId}: skipped (match introuvable sur l'API PUBG)`
+        state.skipped.push(skipMsg)
+        state.logs.push(skipMsg)
+        continue
+      }
+      state.errors.push(`Member ${member.displayName}, match ${matchId}: ${err instanceof Error ? err.message : String(err)}`)
+      continue
+    }
 
+    try {
       const matchData = {
         id: createMatchRecordId(member.id, matchDetails.id),
         memberId: member.id,
@@ -151,15 +223,10 @@ async function importMemberMatches(member: SyncMember, playerId: string, matchId
         memberLatestMatchAt = matchCreatedAt
       }
 
+      recordMatchDelay(state, matchDetails.id, matchCreatedAt, matchDetails.durationSeconds)
+      state.pending?.imported(member.id, matchId)
       importedCount += 1
     } catch (err) {
-      if (isMissingMatchError(err)) {
-        const skipMsg = `Member ${member.displayName}, match ${matchId}: skipped (match introuvable sur l'API PUBG)`
-        state.skipped.push(skipMsg)
-        state.logs.push(skipMsg)
-        continue
-      }
-
       state.errors.push(`Member ${member.displayName}, match ${matchId}: ${err instanceof Error ? err.message : String(err)}`)
     }
   }
@@ -217,9 +284,18 @@ async function loadRecentMatchIds(members: ReadonlyArray<SyncMember & { playerId
   return matchIdsByMember
 }
 
+/** Délais du passage : une valeur par partie, les rattrapages (> 24 h) comptés à part. */
+function delaysOf(state: ClanSyncState) {
+  const values = [...state.matchDelays.values()]
+  return {
+    newMatchDelaysMinutes: values.filter((minutes) => minutes < CATCH_UP_MINUTES),
+    catchUpMatches: values.filter((minutes) => minutes >= CATCH_UP_MINUTES).length,
+  }
+}
+
 export async function syncClanMatches(
   clanId: number,
-  options?: { requestedMemberId?: number | null }
+  options?: { requestedMemberId?: number | null; pending?: PendingMatchTracker | null }
 ): Promise<SyncClanMatchesResult> {
   const requestedMemberId = options?.requestedMemberId ?? null
 
@@ -261,6 +337,8 @@ export async function syncClanMatches(
       skipped: [],
       logs: [],
       message: 'No active members found',
+      newMatchDelaysMinutes: [],
+      catchUpMatches: 0,
     }
   }
 
@@ -272,7 +350,8 @@ export async function syncClanMatches(
 
   const state = createClanSyncState(
     clan.id,
-    new Set(clan.members.map((member) => member.pubgAccountId).filter((accountId): accountId is string => Boolean(accountId)))
+    new Set(clan.members.map((member) => member.pubgAccountId).filter((accountId): accountId is string => Boolean(accountId))),
+    { pending: options?.pending }
   )
 
   // Compte PUBG des membres qui n'en ont pas encore (une recherche par nom, rare).
@@ -286,6 +365,7 @@ export async function syncClanMatches(
       const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
         clanId: clan.id,
         memberId: member.id,
+        source: 'player-lookup',
       })
       if (!player) {
         state.errors.push(`Member ${member.displayName}: player not found in PUBG API`)
@@ -365,6 +445,7 @@ export async function syncClanMatches(
     skippedPreview: skipped.slice(0, 5),
     skipped,
     logs,
+    ...delaysOf(state),
   }
 }
 
@@ -388,7 +469,10 @@ export async function importMatchesForMember(input: {
     where: { clanId: input.clanId, isActive: true, pubgAccountId: { not: null } },
     select: { pubgAccountId: true },
   })
-  const state = createClanSyncState(input.clanId, new Set(clanMembers.map((member) => member.pubgAccountId!)))
+  // Sans parties en attente : seule la synchronisation planifiée les tient (un seul écrivain de leur état).
+  const state = createClanSyncState(input.clanId, new Set(clanMembers.map((member) => member.pubgAccountId!)), {
+    source: LIFETIME_CATCH_UP_SOURCE,
+  })
   const importedCount = await importMemberMatches(input.member, input.member.pubgAccountId, input.matchIds, state)
   return { importedCount, errors: state.errors }
 }

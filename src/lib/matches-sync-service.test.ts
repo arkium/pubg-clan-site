@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 /**
  * Synchronisation des parties d'un clan (docs/TODO/synchro-parties-30-min.md) : parties récentes lues par lots de 10
@@ -154,6 +154,99 @@ describe('syncClanMatches — lecture groupée des parties récentes', () => {
 
     expect(mocks.memberUpdate).toHaveBeenCalledWith({ where: { id: 1 }, data: { pubgAccountId: 'account.found' } })
     expect(mocks.fetchRecentMatchIdsForPlayers).toHaveBeenCalledWith(['account.found', 'account.2'], 'steam', expect.anything())
+  })
+})
+
+describe('syncClanMatches — fraîcheur des parties (docs/TODO/fraicheur-des-parties.md)', () => {
+  const NOW = new Date('2026-10-30T20:00:00Z')
+  // Partie commencée `startedMinutesAgo` avant maintenant, de 30 min : sa fin est 30 min plus tard.
+  const playedAgo = (matchId: string, startedMinutesAgo: number) => ({
+    ...details(matchId),
+    createdAt: new Date(NOW.getTime() - startedMinutesAgo * 60_000).toISOString(),
+  })
+  const httpError = (status: number) => Object.assign(new Error(`[PUBG] API request failed (${status}) GET /shards/steam/matches/x`), { status })
+
+  function tracker(retry: Record<number, string[]> = {}) {
+    return {
+      retryIds: vi.fn((memberId: number) => retry[memberId] ?? []),
+      failed: vi.fn(),
+      imported: vi.fn(),
+    }
+  }
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(NOW)
+  })
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('rend le délai depuis la fin de chaque partie nouvelle, une fois par partie (le plus petit), rattrapages à part', async () => {
+    mocks.clanFindUnique.mockResolvedValue({ id: 7, name: 'Clan', members: [member(1), member(2)] })
+    mocks.fetchRecentMatchIdsForPlayers.mockResolvedValue(
+      new Map([
+        ['account.1', ['recente', 'ancienne']],
+        ['account.2', ['recente']],
+      ])
+    )
+    const played: Record<string, number> = { recente: 45, ancienne: 3 * 24 * 60 }
+    mocks.fetchMatchDetails.mockImplementation(async (matchId: string) => playedAgo(matchId, played[matchId]))
+
+    const result = await syncClanMatches(7)
+
+    // Partie de 30 min commencée il y a 45 min : finie il y a 15 min, comptée une fois pour ses deux membres.
+    expect(result.newMatchDelaysMinutes).toEqual([15])
+    expect(result.catchUpMatches).toBe(1)
+  })
+
+  it('confie une lecture en échec aux parties en attente, avec son code, et signale chaque import', async () => {
+    mocks.clanFindUnique.mockResolvedValue({ id: 7, name: 'Clan', members: [member(1)] })
+    mocks.fetchRecentMatchIdsForPlayers.mockResolvedValue(new Map([['account.1', ['publiee', 'pas-encore', 'incident']]]))
+    mocks.fetchMatchDetails.mockImplementation(async (matchId: string) => {
+      if (matchId === 'pas-encore') throw httpError(404)
+      if (matchId === 'incident') throw httpError(502)
+      return playedAgo(matchId, 40)
+    })
+    const pending = tracker()
+
+    const result = await syncClanMatches(7, { pending })
+
+    expect(pending.failed.mock.calls.map(([failure]) => failure)).toEqual([
+      { matchId: 'pas-encore', clanId: 7, memberId: 1, status: 404 },
+      { matchId: 'incident', clanId: 7, memberId: 1, status: 502 },
+    ])
+    expect(pending.imported).toHaveBeenCalledWith(1, 'publiee')
+    expect(result.skippedCount).toBe(1) // la 404 reste une partie sautée, pas une erreur
+    expect(result.errorsCount).toBe(1)
+  })
+
+  it('retente au tour suivant une partie en attente que PUBG ne liste plus ; sort celle déjà importée ailleurs', async () => {
+    mocks.clanFindUnique.mockResolvedValue({ id: 7, name: 'Clan', members: [member(1)] })
+    mocks.fetchRecentMatchIdsForPlayers.mockResolvedValue(new Map([['account.1', []]]))
+    mocks.matchFindMany.mockResolvedValue([{ pubgMatchId: 'deja-importee' }])
+    mocks.fetchMatchDetails.mockImplementation(async (matchId: string) => playedAgo(matchId, 60))
+    const pending = tracker({ 1: ['en-attente', 'deja-importee'] })
+
+    const result = await syncClanMatches(7, { pending })
+
+    expect(mocks.fetchMatchDetails.mock.calls.map(([matchId]) => matchId)).toEqual(['en-attente'])
+    expect(pending.imported.mock.calls).toEqual([
+      [1, 'deja-importee'],
+      [1, 'en-attente'],
+    ])
+    expect(result.importedCount).toBe(1)
+  })
+
+  it('le rattrapage de la carrière journalise son origine propre et ne touche pas aux parties en attente', async () => {
+    mocks.matchFindMany.mockResolvedValue([])
+    mocks.memberFindMany.mockResolvedValue([{ pubgAccountId: 'account.1' }])
+    await importMatchesForMember({
+      clanId: 7,
+      member: { id: 1, displayName: 'Joueur 1', platformShard: 'steam', pubgAccountId: 'account.1' },
+      matchIds: ['b'],
+    })
+    expect(mocks.fetchMatchDetails.mock.calls[0][3]).toEqual({ clanId: 7, memberId: 1, source: 'clan-lifetime-catchup' })
   })
 })
 

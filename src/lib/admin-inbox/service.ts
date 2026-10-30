@@ -6,6 +6,7 @@ import { listUnfinishedOnboardings } from '@/lib/clan-onboarding/service'
 import { listArchiveCandidates } from '@/lib/clan-lifecycle/ungrouped-archive'
 import { CRON_ACTION_LABELS, type CronActionKey } from '@/lib/cron-observability'
 import { privacyRequestDeadline } from '@/lib/legal/privacy-request'
+import { getMatchSyncHealthSummary } from '@/lib/match-sync-health-service'
 import { PLAYER_CLAN_CHANGE_STATUSES } from '@/lib/player-clan-change'
 import { prisma } from '@/lib/prisma'
 import { countQueue } from '@/lib/resources/resource-service'
@@ -98,6 +99,7 @@ export async function readAdminInboxFacts(now: Date = new Date()): Promise<Admin
     cronFailures,
     configErrors,
     coachInaccurateVotes,
+    matchSync,
   ] = await Promise.all([
     readOrNull('pendingClans', () =>
       prisma.clan.findMany({ where: PENDING_CLAN_WHERE, select: { id: true, tag: true, name: true, createdAt: true } })
@@ -124,6 +126,8 @@ export async function readAdminInboxFacts(now: Date = new Date()): Promise<Admin
     readOrNull('cronFailures', () => readCronFailures(now)),
     readOrNull('configErrors', async () => (await getSiteConfiguration()).errors),
     readOrNull('coachInaccurateVotes', () => prisma.coachMessage.count({ where: { feedbackScore: -1, reviewedAt: null } })),
+    // Résumé écrit par la synchronisation à chaque tour : une lecture de AppConfig, jamais de requête sur Match.
+    readOrNull('matchSync', () => getMatchSyncHealthSummary(now)),
   ])
 
   return {
@@ -142,6 +146,7 @@ export async function readAdminInboxFacts(now: Date = new Date()): Promise<Admin
     cronFailures,
     configErrors,
     coachInaccurateVotes,
+    matchSync,
   }
 }
 

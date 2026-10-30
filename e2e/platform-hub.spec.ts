@@ -100,3 +100,28 @@ test('lecture en échec : message et « Réessayer », sans bloquer le reste de 
   await error.getByRole('button', { name: 'Réessayer' }).click()
   await expect(page.getByTestId('admin-inbox-item')).toHaveCount(3)
 })
+
+test('synchronisation des parties dégradée : une ligne vers la fraîcheur des parties (docs/TODO/fraicheur-des-parties.md)', async ({ api, page }) => {
+  mockMemberSession(api, { superUser: true })
+  api.on('GET', '/api/settings/inbox', {
+    body: {
+      generatedAt: '2026-10-29T20:00:00.000Z',
+      unavailable: [],
+      items: [
+        {
+          key: 'match_sync',
+          tone: 'urgent',
+          count: 2,
+          label: 'Synchronisation des parties',
+          detail: 'Aucun tour terminé depuis 2 h 10 (et 1 autre)',
+          href: '/settings/cron#fraicheur',
+        },
+      ],
+    } satisfies AdminInbox,
+  })
+  await page.goto('/settings')
+
+  const item = page.getByTestId('admin-inbox').getByTestId('admin-inbox-item').filter({ hasText: 'Synchronisation des parties' })
+  await expect(item).toContainText('Aucun tour terminé depuis 2 h 10 (et 1 autre)')
+  await expect(item.getByRole('link').first()).toHaveAttribute('href', '/settings/cron#fraicheur')
+})

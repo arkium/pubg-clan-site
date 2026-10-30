@@ -114,6 +114,14 @@ export const ADMIN_ALERT_EVENTS = [
     toAct: false,
     defaultEnabled: true,
   },
+  {
+    key: 'match_sync_degraded',
+    group: 'platform',
+    label: 'Synchronisation des parties dégradée',
+    hint: 'Parties qui arrivent tard, tours sautés, synchronisation arrêtée, échecs PUBG à traiter, parties perdues ou quota au plafond. Une alerte à l’entrée dans l’état, un rappel toutes les six heures au plus, un message au retour à la normale.',
+    toAct: true,
+    defaultEnabled: true,
+  },
 ] as const satisfies readonly AdminAlertDefinition[]
 
 export type AdminAlertEvent = (typeof ADMIN_ALERT_EVENTS)[number]['key']

@@ -61,7 +61,7 @@ beforeEach(() => {
 describe('syncClanLifetimeStats', () => {
   it('lit la carrière en priorité basse : la synchronisation des parties passe devant', async () => {
     await syncClanLifetimeStats(7)
-    expect(mocks.fetchLifetimeStats).toHaveBeenCalledWith('account.1', 'steam', { clanId: 7, memberId: 1, priority: 'low' })
+    expect(mocks.fetchLifetimeStats).toHaveBeenCalledWith('account.1', 'steam', { clanId: 7, memberId: 1, source: 'clan-lifetime-sync', priority: 'low' })
   })
 
   it('rattrape les parties référencées par la carrière, membre par membre, sans faire échouer la carrière', async () => {

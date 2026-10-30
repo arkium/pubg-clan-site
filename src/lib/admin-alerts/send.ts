@@ -19,7 +19,7 @@ export type AdminAlertResult =
 export async function sendAdminAlert(
   event: AdminAlertEvent,
   embed: DiscordEmbed,
-  options: { username?: string } = {}
+  options: { username?: string; withoutMention?: boolean } = {}
 ): Promise<AdminAlertResult> {
   try {
     const events = await getAdminAlertEvents()
@@ -28,8 +28,10 @@ export async function sendAdminAlert(
     const webhookUrl = await getClanLifecycleDiscordWebhookUrl()
     if (!webhookUrl) return { sent: false, reason: 'no_webhook' }
 
-    // La mention ne sonne que pour ce qui attend une décision : un compte rendu ne réveille personne.
-    const mention = adminAlertDefinition(event).toAct ? renderDiscordMention(await getAdminAlertMention()) : ''
+    // La mention ne sonne que pour ce qui attend une décision : un compte rendu (ou un retour à la normale) ne réveille
+    // personne.
+    const mention =
+      adminAlertDefinition(event).toAct && !options.withoutMention ? renderDiscordMention(await getAdminAlertMention()) : ''
 
     const result = await sendDiscordWebhook(webhookUrl, {
       username: options.username ?? ADMIN_ALERT_USERNAME,
@@ -47,10 +49,14 @@ export async function sendAdminAlert(
  * Variante « tire et oublie » pour les routes : n'attend pas Discord (jusqu'à 5 s par tentative) avant de répondre,
  * et note un échec dans le journal du serveur.
  */
-export function fireAdminAlert(event: AdminAlertEvent, buildEmbed: () => DiscordEmbed | Promise<DiscordEmbed>) {
+export function fireAdminAlert(
+  event: AdminAlertEvent,
+  buildEmbed: () => DiscordEmbed | Promise<DiscordEmbed>,
+  options: { withoutMention?: boolean } = {}
+) {
   void Promise.resolve()
     .then(buildEmbed)
-    .then((embed) => sendAdminAlert(event, embed))
+    .then((embed) => sendAdminAlert(event, embed, options))
     .then((result) => {
       if (!result.sent && result.reason === 'failed') console.warn(`[admin-alert] ${event} non envoyée :`, result.error)
     })

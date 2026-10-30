@@ -55,6 +55,18 @@ Garde-fous post-import :
 - Import `success` avec nouveaux matchs → recalcul stats déclenché automatiquement (`syncTrackedClanStats`).
 - Un `404` PUBG sur `/matches/{id}` est traité en `skipped` (non bloquant).
 
+**Fraîcheur des parties** (depuis le 2026-10-30, [fraicheur-des-parties.md](../TODO/fraicheur-des-parties.md)) : le tour
+se mesure lui-même (`startMatchSyncPass` → `finish`, `src/lib/match-sync-health-service.ts`) et écrit **une fois par tour**
+`AppConfig.match_sync_health` : délai entre la fin de chaque partie importée et son import (par clan et par partie,
+rattrapages de plus de 24 h à part), durée du tour, clans en échec, tours sautés (`recordMatchSyncSkip` quand un
+déclenchement tombe pendant un tour), compteurs d'appels PUBG (une requête par l'index `startedAt`) et **parties en
+attente** : une partie dont `matches/{id}` échoue (404 « pas encore publiée », 5xx) est retentée aux tours suivants,
+même si PUBG ne la liste plus pour le joueur, puis « perdue » 24 h après son premier échec ou au 6ᵉ essai. Un échec
+passager (5xx, pas de réponse) de `matches/{id}` est en plus relancé une fois après 5 s dans le tour
+(`TRANSIENT_RETRY_DELAY_MS`). Le rattrapage de la carrière journalise `clan-lifetime-catchup`. Rien de cette mesure
+ne fait échouer la synchronisation (erreurs journalisées `[match-sync-health]`). Contrôle :
+`scripts/check-match-sync-health.ts` (lecture seule).
+
 ### `daily_stats_recalc` — Recalcul stats
 
 Déclenché à 3 h pour tous les clans actifs.
@@ -299,13 +311,23 @@ Agrège via `GET /api/clans/[clanId]/cron-control` (`take: 200`) :
 - Jobs en cours (`running`).
 - Échecs récents.
 
+### Bloc « Fraîcheur des parties » (2026-10-30)
+
+En tête de page, même sans clan sélectionné (`MatchSyncHealthCard`, `GET /api/settings/match-sync-health`, SuperUser) :
+délai fin de partie → site (médiane, 90 %, sur 24 h glissantes), dernier tour, marge (durée médiane d'un tour sur
+l'intervalle de `daily_sync`), tours sautés, parties en attente (liste dépliable : clan, partie, premier échec, essais,
+code), appels PUBG de la dernière heure ; raisons en tête quand un seuil est franchi. La route ne lit que `AppConfig`,
+l'horaire et le tag des clans en attente — jamais `Match` ni le journal PUBG. Avant le premier tour mesuré : « Pas
+encore de mesure », jamais un faux zéro. Les mêmes seuils alimentent la ligne « Synchronisation des parties » de la
+boîte « À traiter » (lien `/settings/cron#fraicheur`) et l'alerte Discord `match_sync_degraded`.
+
 ### Bloc statut des workers
 
 Affiche 3 panneaux côte à côte via `GET /api/settings/cron-workers-status` :
 
 | Panneau | Source de données |
 |---|---|
-| Cron scheduler (Next.js) | `runtime.webWorker` dans la réponse `cron-control` |
+| Service des tâches (cron) | `runtime.webWorker` dans la réponse `cron-control` |
 | `telemetry:worker` | Lock file `.telemetry-resync-worker.lock` + stats queue `CronExecution` |
 | `telemetry:aggregates:worker` | Lock file `.telemetry-aggregate-worker.lock` + stats queue `CronExecution` |
 

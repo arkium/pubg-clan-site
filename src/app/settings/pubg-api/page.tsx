@@ -37,7 +37,17 @@ import Pagination from '@/components/ui/Pagination'
 import SegmentedControl from '@/components/ui/SegmentedControl'
 import SortableTh from '@/components/ui/SortableTh'
 import { useAuthSession } from '@/hooks/useAuthSession'
-import { categorizePubgApiCall, PUBG_API_CALL_CATEGORY_LABELS, type PubgApiCallCategory } from '@/lib/pubg-api-call-category'
+import {
+  categorizePubgApiCall,
+  PUBG_API_CALL_CATEGORY_LABELS,
+  PUBG_API_FAILURE_CLASSES,
+  PUBG_API_FAILURE_LABELS,
+  pubgApiSlotTone,
+  type PubgApiCallCategory,
+  type PubgApiFailureClass,
+  type PubgApiFailureCounts,
+} from '@/lib/pubg-api-call-category'
+import { MATCH_SYNC_THRESHOLDS } from '@/lib/match-sync-health'
 
 type ApiCallRow = {
   id: string
@@ -64,17 +74,15 @@ type MinutePoint = {
   minute: string
   total: number
   success: number
-  rateLimited: number
   errors: number
-}
+} & PubgApiFailureCounts
 
 type DayPoint = {
   date: string
   total: number
   success: number
-  rateLimited: number
   errors: number
-}
+} & PubgApiFailureCounts
 
 type CategoryStat = {
   category: PubgApiCallCategory
@@ -86,9 +94,13 @@ type CategoryStat = {
   avgDurationMs: number | null
 }
 
-type TopError = {
-  message: string
+type TopFailure = {
+  failureClass: PubgApiFailureClass
+  statusCode: number | null
+  category: PubgApiCallCategory
+  label: string
   count: number
+  example: string | null
 }
 
 type ClanStat = {
@@ -116,6 +128,7 @@ type CallsPayload = {
     errors: number
     retriesTotal: number
     avgDurationMs: number | null
+    failures: PubgApiFailureCounts
   }
   latestRateLimit: {
     limit: number | null
@@ -136,7 +149,11 @@ type CallsPayload = {
   dailySeries: DayPoint[]
   byCategory: CategoryStat[]
   byClan: ClanStat[]
-  topErrors: TopError[]
+  topFailures: TopFailure[]
+  quota: {
+    lastHour: { limited: number; high: number; normal: number; low: number }
+    peakHour: { hour: string; limited: number } | null
+  }
   history: ApiCallRow[]
 }
 
@@ -355,7 +372,13 @@ export default function PubgApiSettingsPage() {
     { label: 'Appels', value: formatCount(totals?.total), detail: 'depuis minuit', icon: Activity, color: 'var(--game-sky)' },
     { label: 'Succès', value: formatCount(totals?.success), detail: 'réponses 2xx', icon: CheckCircle2, color: 'var(--game-pos)' },
     { label: '429', value: formatCount(totals?.rateLimited), detail: 'limite de débit atteinte', icon: AlertTriangle, color: 'var(--game-warn)' },
-    { label: 'Erreurs', value: formatCount(totals?.errors), detail: '429 compris', icon: XCircle, color: 'var(--game-neg)' },
+    {
+      label: 'Erreurs',
+      value: totals ? formatCount(totals.failures.action + totals.failures.transient) : '—',
+      detail: totals ? `hors 429 et ${formatCount(totals.failures.expected)} × 404 attendu(s)` : 'hors 429 et 404 attendus',
+      icon: XCircle,
+      color: 'var(--game-neg)',
+    },
     { label: 'Retries', value: formatCount(totals?.retriesTotal), detail: 'nouvelles tentatives', icon: RotateCcw, color: 'var(--theme-ui-text-muted)' },
     {
       label: 'Latence',
@@ -416,6 +439,7 @@ export default function PubgApiSettingsPage() {
           title="Activité du jour"
           meta="Journée en cours (00:00 – 23:59) par tranches de 30 minutes ; la grille repart à zéro à minuit."
         >
+          {payload ? <QuotaLine quota={payload.quota} rpm={payload.rpm} /> : null}
           <div className="flex flex-col gap-1.5 md:hidden">
             <HeatRows series={payload?.series ?? []} perRow={8} max={chartMax} />
           </div>
@@ -426,9 +450,9 @@ export default function PubgApiSettingsPage() {
             <HeatRows series={payload?.series ?? []} perRow={24} max={chartMax} />
           </div>
           <div className="t-meta flex flex-wrap items-center gap-x-4 gap-y-1.5">
-            <LegendSwatch tone="pos" label="Appels réussis" />
+            <LegendSwatch tone="pos" label="En ordre (404 attendus compris)" />
             <LegendSwatch tone="warn" label="Tranche avec des 429" />
-            <LegendSwatch tone="neg" label="Tranche avec des erreurs" />
+            <LegendSwatch tone="neg" label="Échec à traiter, ou 3 échecs passagers et plus" />
             <span>Plus la case est soutenue, plus le volume est élevé.</span>
           </div>
         </SectionCard>
@@ -458,29 +482,45 @@ export default function PubgApiSettingsPage() {
             )}
           </SectionCard>
 
-          <SectionCard id="pubg-api-top-errors" icon={XCircle} title="Erreurs les plus fréquentes" meta="Aujourd’hui, messages regroupés.">
-            {(payload?.topErrors.length ?? 0) === 0 ? (
-              <EmptyState icon={CheckCircle2} title="Aucune erreur aujourd’hui" />
+          <SectionCard
+            id="pubg-api-top-errors"
+            icon={XCircle}
+            title="Échecs du jour"
+            meta="Aujourd’hui, par classe, code et type d’appel ; les 404 sont attendus."
+          >
+            {(payload?.topFailures.length ?? 0) === 0 ? (
+              <EmptyState icon={CheckCircle2} title="Aucun échec aujourd’hui" />
             ) : (
-              <ul className="m-0 flex list-none flex-col gap-2 p-0">
-                {(() => {
-                  const maxCount = Math.max(1, ...(payload?.topErrors ?? []).map((entry) => entry.count))
-                  return (payload?.topErrors ?? []).map((entry) => (
-                    <li key={entry.message} className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5">
+              <div className="flex flex-col gap-3">
+                <p className="t-meta m-0 flex flex-wrap gap-x-3 gap-y-1" data-testid="pubg-api-failure-classes">
+                  {PUBG_API_FAILURE_CLASSES.filter((failureClass) => (payload?.totals.failures[failureClass] ?? 0) > 0).map(
+                    (failureClass) => (
+                      <span key={failureClass}>
+                        {PUBG_API_FAILURE_LABELS[failureClass].label} :{' '}
+                        <span className="t-num font-semibold text-gray-900">{formatCount(payload?.totals.failures[failureClass])}</span>
+                      </span>
+                    )
+                  )}
+                </p>
+                <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                  {(payload?.topFailures ?? []).map((entry) => (
+                    <li
+                      key={`${entry.failureClass}:${entry.statusCode}:${entry.category}`}
+                      className="app-panel-muted flex flex-col gap-1 px-3 py-2.5"
+                      title={entry.example ?? undefined}
+                    >
                       <span className="flex items-start justify-between gap-3">
-                        <span className="t-body break-all text-gray-700">{entry.message}</span>
-                        <Tag tone="neg">× {formatCount(entry.count)}</Tag>
+                        <span className="t-body font-semibold text-gray-900">{entry.label}</span>
+                        <span className="flex shrink-0 items-center gap-1.5">
+                          <Tag tone={FAILURE_CLASS_TONES[entry.failureClass]}>{PUBG_API_FAILURE_LABELS[entry.failureClass].label}</Tag>
+                          <Tag tone="neutral">× {formatCount(entry.count)}</Tag>
+                        </span>
                       </span>
-                      <span className="h-1.5 w-full overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]">
-                        <span
-                          className="block h-full rounded-full"
-                          style={{ width: `${Math.round((entry.count / maxCount) * 100)}%`, backgroundColor: 'var(--game-neg)' }}
-                        />
-                      </span>
+                      <span className="t-meta">{PUBG_API_FAILURE_LABELS[entry.failureClass].hint}</span>
                     </li>
-                  ))
-                })()}
-              </ul>
+                  ))}
+                </ul>
+              </div>
             )}
           </SectionCard>
         </div>
@@ -794,12 +834,57 @@ export default function PubgApiSettingsPage() {
   )
 }
 
-/** Ton d'une tranche ou d'un jour : erreur l'emporte sur 429, qui l'emporte sur succès. */
-function pointTone(point: { errors: number; rateLimited: number }): 'pos' | 'warn' | 'neg' {
-  // `errors` (success === false) inclut déjà les 429 : une tranche n'est « en erreur » que pour d'autres échecs.
-  if (point.errors > point.rateLimited) return 'neg'
-  if (point.rateLimited > 0) return 'warn'
-  return 'pos'
+/**
+ * Quota de la clé sur la dernière heure (docs/TODO/fraicheur-des-parties.md, lot 2) : appels limités sur le plafond
+ * (`rpm × 60`), par priorité dans la file. En octobre 2026, ~545 sur 600 : c'est ce qui lâchera le premier.
+ */
+function QuotaLine({ quota, rpm }: { quota: CallsPayload['quota']; rpm: number }) {
+  const ceiling = rpm * 60
+  const ratio = ceiling > 0 ? quota.lastHour.limited / ceiling : 0
+  const tone = ratio >= MATCH_SYNC_THRESHOLDS.quotaTodo ? 'neg' : ratio >= MATCH_SYNC_THRESHOLDS.quotaWarn ? 'warn' : 'pos'
+  const width = (value: number) => `${ceiling > 0 ? Math.min(100, (value / ceiling) * 100) : 0}%`
+  return (
+    <div className="app-panel-muted flex flex-col gap-1.5 px-3 py-2.5" data-testid="pubg-api-quota">
+      <span className="flex flex-wrap items-center justify-between gap-2">
+        <span className="t-body font-semibold text-gray-900">Quota sur la dernière heure</span>
+        <span className="flex items-center gap-1.5">
+          <span className="t-num t-body font-semibold text-gray-900">
+            {formatCount(quota.lastHour.limited)} / {formatCount(ceiling)}
+          </span>
+          <Tag tone={tone}>{Math.round(ratio * 100)} %</Tag>
+        </span>
+      </span>
+      <span className="flex h-1.5 w-full overflow-hidden rounded-full bg-[var(--theme-ui-surface-strong)]" aria-hidden="true">
+        <span className="h-full" style={{ width: width(quota.lastHour.high), backgroundColor: 'var(--theme-ui-accent)' }} />
+        <span className="h-full" style={{ width: width(quota.lastHour.normal), backgroundColor: 'var(--game-sky)' }} />
+        <span className="h-full" style={{ width: width(quota.lastHour.low), backgroundColor: 'var(--theme-ui-text-muted)' }} />
+      </span>
+      <span className="t-meta">
+        Synchronisation des parties et tournois : <span className="t-num">{formatCount(quota.lastHour.high)}</span> · pages et
+        actions : <span className="t-num">{formatCount(quota.lastHour.normal)}</span> · tâches de fond :{' '}
+        <span className="t-num">{formatCount(quota.lastHour.low)}</span>. Au plafond, les tâches de fond ralentissent d’abord ; la
+        synchronisation des parties passe devant.
+        {quota.peakHour
+          ? ` Heure la plus chargée aujourd’hui : ${new Date(quota.peakHour.hour).toLocaleTimeString('fr-FR', { hour: '2-digit' }).replace(/\s/g, ' ')} (${formatCount(quota.peakHour.limited)}).`
+          : ''}
+      </span>
+    </div>
+  )
+}
+
+const FAILURE_CLASS_TONES: Record<PubgApiFailureClass, Tone> = {
+  action: 'neg',
+  transient: 'warn',
+  rateLimited: 'warn',
+  expected: 'neutral',
+}
+
+/** Échecs d'une tranche ou d'un jour, pour l'infobulle : seules les classes présentes. */
+function failureSummary(point: PubgApiFailureCounts) {
+  const parts = PUBG_API_FAILURE_CLASSES.filter((failureClass) => point[failureClass] > 0).map(
+    (failureClass) => `${point[failureClass]} ${PUBG_API_FAILURE_LABELS[failureClass].label.toLowerCase()}`
+  )
+  return parts.length > 0 ? parts.join(' · ') : 'aucun échec'
 }
 
 function getIntensityLevel(value: number, max: number) {
@@ -816,7 +901,7 @@ const INTENSITY_MIX = [0, 28, 48, 70, 100]
 function heatCellStyle(point: MinutePoint, max: number): CSSProperties {
   const level = getIntensityLevel(point.total, max)
   if (level === 0) return { backgroundColor: 'var(--theme-ui-surface-strong)', borderColor: 'var(--theme-ui-border)' }
-  const tone = pointTone(point)
+  const tone = pubgApiSlotTone(point)
   return {
     backgroundColor: `color-mix(in srgb, var(--game-${tone}) ${INTENSITY_MIX[level]}%, transparent)`,
     borderColor: `color-mix(in srgb, var(--game-${tone}) ${Math.min(100, INTENSITY_MIX[level] + 25)}%, transparent)`,
@@ -825,7 +910,7 @@ function heatCellStyle(point: MinutePoint, max: number): CSSProperties {
 
 function slotTitle(point: MinutePoint) {
   const time = new Date(point.minute).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' })
-  return `${time} · ${point.total} appel(s) · ${point.errors} erreur(s) · ${point.rateLimited} × 429`
+  return `${time} · ${point.total} appel(s) · ${failureSummary(point)}`
 }
 
 /** Grille d'activité découpée en lignes de `perRow` tranches de 30 min, chaque ligne repérée par son heure de début. */
@@ -870,9 +955,9 @@ function DailyBars({ points }: { points: DayPoint[] }) {
         return (
           <div key={point.date} className="flex h-full flex-1 flex-col items-center justify-end gap-1">
             <div
-              title={`${date.toLocaleDateString('fr-FR')} · ${point.total} appel(s) · ${point.errors} erreur(s) · ${point.rateLimited} × 429`}
+              title={`${date.toLocaleDateString('fr-FR')} · ${point.total} appel(s) · ${failureSummary(point)}`}
               className="w-full rounded-t-[4px]"
-              style={{ height: `${heightPct}%`, backgroundColor: `var(--game-${pointTone(point)})` }}
+              style={{ height: `${heightPct}%`, backgroundColor: `var(--game-${pubgApiSlotTone(point)})` }}
             />
             <span className="t-meta t-num">{date.toLocaleDateString('fr-FR', { day: '2-digit' })}</span>
           </div>

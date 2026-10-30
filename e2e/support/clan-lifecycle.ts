@@ -232,6 +232,7 @@ export function mockClanLifecycle(api: ApiMock, options: LifecycleMockOptions = 
       privacy_request: true,
       daily_digest: true,
       resource_queue: true,
+      match_sync_degraded: true,
     } as Record<string, boolean>,
   }
   const mutations = initialMutations()

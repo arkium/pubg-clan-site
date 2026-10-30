@@ -56,7 +56,8 @@ import { listSquadMatchesNeedingTelemetry } from '@/lib/pubg-telemetry/backlog'
 import { upsertFailedTelemetrySnapshot } from '@/lib/pubg-telemetry/index'
 import { enqueueTelemetryLiveSyncJobs } from '@/lib/pubg-telemetry/live-sync-queue'
 import { recalculateStatsForClan } from '@/lib/stats-calculator'
-import { syncClanMatches } from '@/lib/matches-sync-service'
+import { recordMatchSyncSkip, startMatchSyncPass } from '@/lib/match-sync-health-service'
+import { syncClanMatches, type PendingMatchTracker } from '@/lib/matches-sync-service'
 
 const DAILY_SYNC_TIMEZONE = process.env.CLAN_MATCH_SYNC_TIMEZONE ?? 'UTC'
 const MAX_SYNC_ATTEMPTS = 3
@@ -159,11 +160,11 @@ async function loadChallengeService(): Promise<ChallengeService> {
   return load()
 }
 
-async function triggerClanSync(clanId: number) {
-  return await syncClanMatches(clanId)
+async function triggerClanSync(clanId: number, pending?: PendingMatchTracker) {
+  return await syncClanMatches(clanId, { pending })
 }
 
-async function syncClanWithRetry(clanId: number, clanName: string) {
+async function syncClanWithRetry(clanId: number, clanName: string, pending?: PendingMatchTracker) {
   let lastError: unknown
 
   for (let attempt = 1; attempt <= MAX_SYNC_ATTEMPTS; attempt += 1) {
@@ -171,7 +172,7 @@ async function syncClanWithRetry(clanId: number, clanName: string) {
       console.info(
         `[Cron] Syncing clan "${clanName}" (${clanId}) - attempt ${attempt}/${MAX_SYNC_ATTEMPTS}`
       )
-      const result = await triggerClanSync(clanId)
+      const result = await triggerClanSync(clanId, pending)
 
       if (result.importedCount > 0) {
         try {
@@ -486,6 +487,7 @@ async function syncClanSeasonStats(clanId: number) {
           const player = await searchPlayerByName(member.pubgPlayerName, shard, {
             clanId,
             memberId: member.id,
+            source: 'player-lookup',
           })
           if (!player?.accountId) {
             errors.push(`Member ${member.id} (${member.pubgPlayerName}): PUBG account not found`)
@@ -496,8 +498,8 @@ async function syncClanSeasonStats(clanId: number) {
         }
 
         const [ranked, normal] = await Promise.all([
-          fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id, priority: 'low' }),
-          fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id, priority: 'low' }),
+          fetchPlayerRankedStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id, source: 'season-stats-sync', priority: 'low' }),
+          fetchPlayerSeasonStats(playerId, shard, currentSeason.seasonId, { clanId, memberId: member.id, source: 'season-stats-sync', priority: 'low' }),
         ])
 
         const now = new Date()
@@ -559,6 +561,7 @@ async function syncClanWeaponMastery(clanId: number) {
         const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
           clanId,
           memberId: member.id,
+          source: 'player-lookup',
         })
         if (!player?.accountId) {
           errors.push(`Member ${member.id} (${member.pubgPlayerName}): PUBG account not found`)
@@ -568,7 +571,7 @@ async function syncClanWeaponMastery(clanId: number) {
         await prisma.clanMember.update({ where: { id: member.id }, data: { pubgAccountId: playerId } })
       }
 
-      const entries = await fetchWeaponMastery(playerId, member.platformShard, { clanId, memberId: member.id, priority: 'low' })
+      const entries = await fetchWeaponMastery(playerId, member.platformShard, { clanId, memberId: member.id, source: 'weapon-mastery-sync', priority: 'low' })
       if (entries.length === 0) {
         refreshedCount += 1
         continue
@@ -787,6 +790,8 @@ async function notifyLifecyclePassSafely(summary: Awaited<ReturnType<typeof runM
 async function runDailyClanSync() {
   if (globalForCron.clanSyncInProgress) {
     console.warn('[Cron] Daily clan sync skipped because a previous run is still in progress')
+    // Fraîcheur des parties : un tour sauté se voit sur /settings/cron et compte dans les alertes.
+    await recordMatchSyncSkip()
     return
   }
 
@@ -813,6 +818,8 @@ async function runDailyClanSync() {
     const failureTracker = getFailureTracker()
     let importedMatches = 0
     let syncedClans = 0
+    // Fraîcheur des parties (docs/TODO/fraicheur-des-parties.md) : délais, parties en attente, une écriture en fin de tour.
+    const health = await startMatchSyncPass(startedAt)
 
     for (const clan of activeClans) {
       const execution = await startCronExecution({
@@ -821,8 +828,11 @@ async function runDailyClanSync() {
         source: 'scheduler',
       })
 
+      let countedForHealth = false
       try {
-        const result = await syncClanWithRetry(clan.id, clan.name)
+        const result = await syncClanWithRetry(clan.id, clan.name, health.tracker)
+        health.addClan(result ?? null)
+        countedForHealth = true
         const clanImportedMatches = result?.importedMatches ?? result?.importedCount ?? 0
         const errorsCount = result?.errorsCount ?? result?.errors?.length ?? 0
         const isPartialSync = result?.status === 'partial' || errorsCount > 0
@@ -928,6 +938,7 @@ async function runDailyClanSync() {
           },
         })
       } catch (error) {
+        if (!countedForHealth) health.addClan(null)
         const consecutiveFailures = (failureTracker.get(clan.id) ?? 0) + 1
         failureTracker.set(clan.id, consecutiveFailures)
 
@@ -955,6 +966,7 @@ async function runDailyClanSync() {
     }
 
     const finishedAt = new Date()
+    await health.finish(finishedAt)
 
     console.info(
       `[Cron] Daily clan sync finished at ${finishedAt.toISOString()} - synced clans: ${syncedClans}/${activeClans.length}, imported matches: ${importedMatches}`

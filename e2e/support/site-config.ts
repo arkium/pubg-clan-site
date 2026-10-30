@@ -96,9 +96,70 @@ export function mockSiteConfiguration(api: ApiMock) {
   api.on('GET', '/api/settings/site-config', { body: siteConfiguration() })
 }
 
+/**
+ * Fraîcheur des parties (`GET /api/settings/match-sync-health`, docs/TODO/fraicheur-des-parties.md) : en ordre (chiffres
+ * de production du 2026-10-28, une partie en attente), dégradé (synchronisation arrêtée, une partie perdue) ou vide.
+ */
+export function matchSyncHealthPayload(kind: 'ok' | 'degraded' | 'empty' = 'ok') {
+  const health = {
+    generatedAt: '2026-10-29T20:00:00.000Z',
+    intervalMinutes: 30,
+    measured: kind !== 'empty',
+    delay:
+      kind === 'empty'
+        ? { count: 0, median: null, p90: null, underPromiseShare: null, catchUps: 0, toned: false }
+        : { count: 1221, median: 15, p90: 27, underPromiseShare: 1, catchUps: 2, toned: true },
+    lastPass:
+      kind === 'empty'
+        ? null
+        : {
+            startedAt: '2026-10-29T19:47:00.000Z',
+            finishedAt: '2026-10-29T20:00:00.000Z',
+            durationMinutes: 13,
+            clans: 45,
+            failedClans: 0,
+            importedMatches: 52,
+          },
+    passes: kind === 'empty' ? { count: 0, medianDurationMinutes: null, maxDurationMinutes: null, marginRatio: null } : { count: 46, medianDurationMinutes: 13, maxDurationMinutes: 18, marginRatio: 0.43 },
+    skipped: { last24h: 0, consecutive: 0 },
+    pending: {
+      waiting: kind === 'ok' ? 1 : 0,
+      lost: kind === 'degraded' ? 1 : 0,
+      oldestFailedAt: kind === 'ok' ? '2026-10-29T19:40:00.000Z' : null,
+      entries:
+        kind === 'empty'
+          ? []
+          : [
+              {
+                matchId: 'f131a4aa-4e9b-46e5-bf8e-d49233bd9c7e',
+                clanId: CLAN_ID,
+                firstFailedAt: '2026-10-29T19:40:00.000Z',
+                attempts: kind === 'ok' ? 1 : 6,
+                lastStatus: 404,
+                lost: kind === 'degraded',
+              },
+            ],
+    },
+    calls:
+      kind === 'empty'
+        ? null
+        : { at: '2026-10-29T20:00:00.000Z', limitedLastHour: 545, ceilingPerHour: 600, http429Last24h: 0, actionLast24h: 0, transientLastHour: 0, quotaRatio: 0.91 },
+    status: kind === 'degraded' ? 'urgent' : 'ok',
+    reasons:
+      kind === 'degraded'
+        ? [
+            { key: 'stale', tone: 'urgent', text: 'Aucun tour terminé depuis 2 h 10' },
+            { key: 'lost', tone: 'todo', text: '1 partie perdue : toujours pas importée 24 h après le premier échec' },
+          ]
+        : [],
+  }
+  return { ok: true, health, clans: [{ id: CLAN_ID, tag: 'ALP', name: 'Clan Alpha' }] }
+}
+
 /** Tâches planifiées : statut du clan sélectionné, horaires, workers absents (non bloquant). */
-export function mockCronSettings(api: ApiMock) {
+export function mockCronSettings(api: ApiMock, options: { matchSyncHealth?: 'ok' | 'degraded' | 'empty' } = {}) {
   api
+    .on('GET', '/api/settings/match-sync-health', { body: matchSyncHealthPayload(options.matchSyncHealth) })
     .on('GET', '/api/settings/cron-workers-status', { body: { ok: false } })
     .on('GET', '/api/settings/cron-schedules', {
       body: {

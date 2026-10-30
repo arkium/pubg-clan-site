@@ -22,6 +22,7 @@ import {
 import { KpiGrid, type Kpi } from '@/components/matches/MatchesUi'
 import AdminPageBanner, { BANNER_GLASS_BUTTON } from '@/components/settings/AdminPageBanner'
 import { ADMIN_PAGE_CLASS, AdminPageLoading } from '@/components/settings/AdminPageStates'
+import MatchSyncHealthCard from '@/components/settings/MatchSyncHealthCard'
 import { Callout, ChoiceMenu, ConfirmDialog, EmptyState, SectionCard, Tag, ToastStack, type Toast, type Tone } from '@/components/ui/CharteKit'
 import Pagination from '@/components/ui/Pagination'
 import SortableTh from '@/components/ui/SortableTh'
@@ -438,6 +439,8 @@ export default function CronSettingsPage() {
 
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
+  // Relance la lecture de « Fraîcheur des parties » (bloc à part, valable pour toute la plateforme).
+  const [healthToken, setHealthToken] = useState(0)
   const [pendingAction, setPendingAction] = useState<CronAction | null>(null)
   const [progressMessage, setProgressMessage] = useState<string | null>(null)
   const [progressPercent, setProgressPercent] = useState<number | null>(null)
@@ -950,6 +953,7 @@ export default function CronSettingsPage() {
   function handleRefreshAll() {
     if (!clanId) return
     setRefreshing(true)
+    setHealthToken((current) => current + 1)
     void Promise.allSettled([loadStatus(clanId), loadWorkers(), loadSchedules()])
   }
 
@@ -999,6 +1003,7 @@ export default function CronSettingsPage() {
     return (
       <div className={ADMIN_PAGE_CLASS}>
         {banner}
+        <MatchSyncHealthCard reloadToken={healthToken} />
         <Callout tone="sky" icon={Info} title="Aucun clan sélectionné">
           L’état des tâches se lit à travers un clan.{' '}
           <Link href="/clans" className="app-link font-semibold">
@@ -1077,6 +1082,8 @@ export default function CronSettingsPage() {
 
       {payload ? <KpiGrid items={kpis} className="grid-cols-2 lg:grid-cols-4" /> : null}
 
+      <MatchSyncHealthCard reloadToken={healthToken} />
+
       <SectionCard
         id="cron-workers"
         icon={Cpu}
@@ -1091,8 +1098,8 @@ export default function CronSettingsPage() {
       >
         <div className="grid gap-2.5 md:grid-cols-3">
           <WorkerTile
-            title="Scheduler cron (Next.js)"
-            subtitle="Tâches planifiées dans le processus web"
+            title="Service des tâches (cron)"
+            subtitle="Tâches planifiées dans le service cron ; le web enregistre seulement leurs horaires"
             badge={cronWorkerHealth.status === 'ok' ? 'OK' : cronWorkerHealth.status === 'error' ? 'Inaccessible' : 'À vérifier'}
             badgeStatus={cronWorkerHealth.status}
             details={

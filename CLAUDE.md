@@ -493,6 +493,13 @@ Orchestrated by `src/lib/cron-jobs.ts`. Triggered via:
 the worker re-reads it every minute. **Never call `cron.schedule` from a route** — the web would run a second copy
 (double clan sync on 2026-10-27; static check in `cron-schedules-route-contracts.test.ts`). Web and cron read
 `.next/standalone/.env`, not the root `.env`.
+**Match freshness** (2026-10-30, [fraicheur-des-parties.md](docs/TODO/fraicheur-des-parties.md)): the clan match sync
+measures itself — delay from match end to import, pass duration, skipped passes, PUBG call counts, **pending matches**
+(failed `matches/{id}` retried on the next passes, « lost » after 24 h) — and writes `AppConfig.match_sync_health` once
+per pass (`src/lib/match-sync-health*.ts`). Pages, the « À traiter » inbox and the `match_sync_degraded` alert read that
+summary: **never query `Match` or `PubgApiCallLog` row by row in a page** (a `Match` group-by takes ~30 s). PUBG
+failures are classed by `classifyPubgApiFailure` (404 = expected, 5xx / no response = transient, 429, other 4xx =
+to act on); a background PUBG call names its `source` and `priority` (`PUBG_API_SOURCE_PRIORITIES`, checked on the code).
 **Observability:** `/clans/[clanId]/settings/cron` dashboard shows last run time & errors.
 **Tracking:** `CronExecution` table stores execution logs.
 **Database health:** `npx tsx scripts/db-health.ts status|report` (read-only) — measured state, index review and

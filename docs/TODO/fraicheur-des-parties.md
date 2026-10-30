@@ -1,7 +1,7 @@
 # Fraîcheur des parties — indicateur et alertes
 
 > Plan du 2026-10-28, à la suite de la synchronisation toutes les 30 minutes ([synchro-parties-30-min.md](synchro-parties-30-min.md),
-> déployée le 2026-10-27). **Rien d'implémenté.** But : voir, sans requête lourde, si les parties arrivent vite, si la
+> déployée le 2026-10-27). **Implémenté le 2026-10-30, non déployé** : état au §9. But : voir, sans requête lourde, si les parties arrivent vite, si la
 > synchronisation tient dans son intervalle et si le quota PUBG approche du plafond — et être prévenu quand ça se
 > dégrade, plutôt que de l'apprendre par un joueur. *Destiné à l'utilisateur et à l'équipe de développement.*
 
@@ -25,6 +25,30 @@ Avant : 3 jours précédant le déploiement du 2026-10-27 (21:55) ; après : 23 
 
 Ce que l'on ne voit nulle part aujourd'hui : le délai fin → site, la marge d'un tour sur son intervalle, les tours
 sautés (`clanSyncInProgress` ne laisse qu'une ligne de journal), et la part du quota prise par la synchronisation.
+
+### 1 bis. Les cases rouges de « Activité du jour » (`/settings/pubg-api`, 2026-10-29)
+
+La grille montrait 8 tranches rouges dans la journée. En base :
+
+- **13 échecs sur 11 679 appels (0,11 %)**, tous sur `matches/{id}` de la synchronisation des parties ; aucun 429.
+  Une tranche passe au rouge **dès un seul échec** (`pointTone` : `errors > rateLimited`), sur 300 à 380 appels par
+  tranche.
+- **10 × 404 « partie pas encore publiée »** : la liste des parties d'un joueur éliminé contient la partie **environ
+  4 minutes avant sa fin** (médiane du 404 par rapport à la fin `pubgCreatedAt + duration`, 7 jours) — `matches/{id}`
+  répond 404 tant que PUBG ne l'a pas publiée. C'est attendu, et ancien : 20 à 45 par jour avant le 2026-10-27, 10 à 14
+  depuis.
+- **3 × 502 / 504 à 19:08 UTC**, une minute, deux parties : incident passager chez PUBG ; aucune relance dans le tour
+  (`retryCount` 0), les deux parties importées au tour suivant.
+- **Récupération** (3 jours, 36 parties en 404) : 33 importées, médiane **24 min** après le 404 (tour suivant) ;
+  mais **90 % sous 4 h 36** — une partie sur dix n'est rappelée que par la synchronisation de la carrière (toutes les
+  4 h). Exemple : `f131a4aa…`, 404 à 14:27 UTC, aucun nouvel appel depuis. Probablement une partie vue seulement dans
+  `/seasons/lifetime` (rattrapage de la carrière) : on ne peut pas le vérifier, ce rattrapage journalise sous la même
+  origine `clan-match-sync` que la synchronisation.
+- **Une partie jamais publiée** (`cdd1bc38…`, 4 essais en 404 sur une journée) : perdue, sans que rien ne le dise.
+
+Le plan initial (délai, tours, quota, 429) ne voyait **rien** de cela : ces échecs ne déplacent ni le délai médian ni le
+quota. Il faut distinguer les échecs attendus des vrais incidents, et suivre les parties en échec jusqu'à leur import
+(lot 6).
 
 ## 2. Principe
 
@@ -52,6 +76,12 @@ poignée de parties ne dit rien), crons attendus (`cronJobsExpected`, production
 | Dernier tour terminé | < 2 × intervalle + 30 min | — | au-delà | synchro arrêtée (service cron tombé, boucle bloquée) |
 | Appels limités, dernière heure / plafond | < 85 % | ≥ 95 % | — | à 95 %, les tâches de fond n'avancent plus |
 | Réponses 429, 24 h | 0 | ≥ 1 | ≥ 20 | une 429 = deux processus se partagent la clé sans se voir |
+| Échecs « à traiter » (401, 403, 400, 422…), 24 h | 0 | — | ≥ 1 | clé refusée ou appel mal formé : rien ne se répare seul |
+| Échecs passagers PUBG (5xx, délai dépassé, réseau), dernière heure | < 10 | ≥ 10 | — | incident PUBG qui dure : les parties attendent |
+| Parties perdues (toujours pas importées 24 h après le premier échec) | 0 | ≥ 1 | — | une partie (un Top 1, peut-être) manque au site |
+
+Les 404 « partie pas encore publiée » ne comptent dans aucun seuil : ils sont attendus et repris au tour suivant ; seule
+une partie qui reste en échec 24 h devient « perdue ».
 
 Constantes dans le module pur (`src/lib/match-sync-health.ts`), pour la page, la boîte et Discord.
 
@@ -122,6 +152,34 @@ Constantes dans le module pur (`src/lib/match-sync-health.ts`), pour la page, la
   publique ; ni pseudo ni adresse), envoyé par `fireAdminAlert` depuis `finishMatchSyncPass` quand `shouldAlert` le dit ;
   retour à la normale : un message sans mention. État d'envoi (`lastAlertAt`, `lastStatus`) gardé dans le résumé.
 
+### Lot 6 — Échecs PUBG classés et parties en attente (§1 bis)
+
+- **Classement pur** (`src/lib/pubg-api-call-category.ts`) : `classifyPubgApiFailure(statusCode)` → `expected` (**toute
+  404** : partie pas encore publiée, joueur ou clan introuvable), `transient` (5xx, échec réseau sans code), `rateLimited`
+  (429), `action` (401, 403, 400, 422, autre 4xx). Décision du 2026-10-30, sur 14 jours de production : 378 des 391
+  échecs étaient des 404 sur `matches/{id}`, `players?filter`, `players/{id}` et `clans` — tous « absent chez PUBG » ;
+  13 des 5xx ou des appels sans réponse ; aucun 401, 403 ni 422. Classer la 404 selon l'endpoint n'apportait rien.
+- **Grille « Activité du jour » et tendance sur 14 jours** : ton d'une tranche par une fonction pure testée
+  (`pubgApiSlotTone`, sortie de la page) — rouge pour au moins un échec `action` ou 3 échecs `transient` ; orange pour
+  les 429 (inchangé) ; les `expected` ne colorent plus la tranche, ils restent comptés dans l'infobulle. « Erreurs les
+  plus fréquentes » regroupées par classe, avec une phrase par classe (« Partie pas encore publiée par PUBG : reprise au
+  tour suivant »). Légende mise à jour.
+- **Parties en attente** (dans `AppConfig.match_sync_health`, `pending`) : chaque partie dont `matches/{id}` échoue
+  pendant la synchronisation y entre (identifiant, membre, clan, premier échec, essais, dernier code) ; **le tour suivant
+  du clan la retente même si elle n'est plus dans la liste lue chez PUBG** (supprime la traîne de 4 h du §1 bis) ;
+  sortie à l'import. Au-delà de 24 h ou de 6 essais : « perdue », gardée 7 jours pour l'affichage, plus retentée.
+- **Origine propre au rattrapage de la carrière** (`clan-lifetime-catchup` au lieu de `clan-match-sync`) : le journal
+  dit enfin quel chemin a vu la partie.
+- **Une relance dans le tour pour un échec passager** de `matches/{id}` (5xx, délai dépassé), après 5 s, une seule : le
+  502 de 19:08 aurait été absorbé sans attendre 30 min. Les 404 ne sont pas relancés dans le tour (la partie n'est pas
+  publiée, le tour suivant suffit).
+- **Affichage** : dans le bloc « Fraîcheur des parties » de `/settings/cron`, une tuile **Parties en attente** (nombre,
+  plus ancienne, perdues sur 7 jours) avec la liste dépliable (partie, clan, premier échec, essais, code) ; sur
+  `/settings/pubg-api`, une ligne « Échecs du jour » par classe.
+- **Alertes** : seuils du §3 (`action`, `transient`, parties perdues) dans `summarizeMatchSyncHealth`, donc dans « À
+  traiter » et l'alerte Discord du lot 4. Les compteurs d'échecs par classe sont pris par `finishMatchSyncPass` (un
+  `COUNT … GROUP BY statusCode` sur la dernière heure, par l'index `startedAt`).
+
 ### Lot 5 — Documentation
 
 `docs/ops/cron.md` (indicateur, seuils, clé `AppConfig`), `docs/features/discord-notifications.md` (nouvel événement),
@@ -141,6 +199,9 @@ une page), ce plan (§8 État), `docs/sommaire.md`.
 | `match-sync-health` (contrat de route) | 403 hors SuperUser ; résumé rendu depuis `AppConfig` seul (aucun mock `match` / `pubgApiCallLog` appelé) ; `AppConfig` absente = état vide |
 | `admin-inbox.test.ts` | ligne `match_sync` absente en ordre, `todo` / `urgent` aux seuils, détail = première raison ; source illisible = `unavailable` |
 | `admin-alerts.test.ts` | événement `match_sync_degraded` au catalogue ; message sans pseudo, adresse ni lien brut (base publique) |
+| `pubg-api-call-category.test.ts` (lot 6) | `classifyPubgApiFailure` : 404 sur `matches/{id}` = `expected`, 404 sur un autre endpoint ≠ `expected`, 502 / 504 / code absent = `transient`, 401 / 403 / 422 = `action`, 429 = `rateLimited` ; `pubgApiSlotTone` : une tranche avec seulement des 404 attendus reste verte, un 401 la rend rouge, 2 × 502 non, 3 × 502 oui, 429 orange |
+| `matches-sync-service.test.ts` (lot 6) | partie en 404 ajoutée aux parties en attente ; retentée au tour suivant **alors qu'elle n'est plus dans la liste PUBG** ; retirée à l'import ; « perdue » après 24 h ou 6 essais et plus retentée ; un 502 relancé une fois après 5 s dans le tour, un 404 jamais ; le rattrapage de la carrière journalise `clan-lifetime-catchup` |
+| `match-sync-health.test.ts` (lot 6) | seuils `action` (≥ 1 = urgent), `transient` (≥ 10 / h = todo), parties perdues (≥ 1 = todo) ; les 404 attendus n'entrent dans aucun seuil ; la liste `pending` reste bornée (200 entrées) |
 | existants | `tutoiement.test.ts` (nouveaux textes), `admin-action-log-routes.test.ts` (routes en lecture seule : rien à envelopper), `cron-schedules-route-contracts.test.ts` (aucun `cron.schedule`) |
 
 ## 6. Playwright (`e2e/`, toutes les API figées)
@@ -149,7 +210,9 @@ une page), ce plan (§8 État), `docs/sommaire.md`.
   chiffres), en état dégradé (tons, raisons), vide (« Pas encore de mesure », aucun « 0 min ») ; nouveau libellé de la
   carte du service cron. Réponse figée de `GET /api/settings/match-sync-health` dans `mockCronSettings`.
 - `e2e/pubg-api-settings.spec.ts` (nouveau — la page n'a aucun test) : ligne « Quota » à 70 % et à 97 %, détail par
-  priorité ; réponses figées de `pubg-api-calls` et `pubg-api-rate-limit`.
+  priorité ; grille avec seulement des 404 attendus → aucune tranche rouge, avec un 401 → tranche rouge ; « Échecs du
+  jour » par classe ; réponses figées de `pubg-api-calls` et `pubg-api-rate-limit`.
+- `/settings/cron` : tuile « Parties en attente » (vide, deux en attente, une perdue) et sa liste dépliable.
 - `e2e/platform-hub.spec.ts` : ligne « Synchronisation des parties » dans « À traiter », lien vers `/settings/cron#fraicheur`.
 - Thèmes clair et sombre, mobile : sur les quatre projets ; captures de référence seulement si une page déjà capturée
   change (`visual.spec.ts` ne couvre ni `/settings/cron` ni `/settings/pubg-api` aujourd'hui).
@@ -174,6 +237,12 @@ délai fin → site des 24 dernières heures (la requête lourde du §1, ~30 s, 
 4. Alerte : vérifiée en test (lot 4) ; en production, l'interrupteur de `match_sync_degraded` est visible avec ceux des
    autres alertes, sur la page « Cycle de vie des clans ». Pas d'essai forcé en production.
 5. Retour arrière : l'indicateur ne fait que lire ; l'alerte se coupe par son interrupteur, sans déploiement.
+6. Échecs (lot 6), sur une journée ordinaire : plus aucune tranche rouge pour des 404 attendus ; parties en 404
+   importées en 90 % sous 1 h (contre 4 h 36 le 2026-10-29) ; aucune partie « perdue » hors partie jamais publiée par
+   PUBG — chaque partie perdue est vérifiée à la main une fois (`matches/{id}` relu, sans clé, hors file). Mesure par
+   `scripts/check-match-sync-health.ts`, qui lit le journal **une seule fois par l'index `startedAt`** et croise en
+   mémoire : jamais de `LIKE '%…'` corrélé sur `PubgApiCallLog` (le 2026-10-29, une telle lecture a tourné 10 min en
+   production avant d'être interrompue).
 
 ## 8. Hors de ce plan
 
@@ -185,6 +254,38 @@ délai fin → site des 24 dernières heures (la requête lourde du §1, ~30 s, 
   (aucune depuis le 2026-10-27) ; le seuil 429 du §3 dira s'il faut aller plus loin.
 - **Télémétrie** : 90 % sous 2,2 h après l'import ; la file du worker a déjà son indicateur sur `/settings/telemetry`.
 
-## 9. État (2026-10-28)
+## 9. État (2026-10-30)
 
-Plan écrit, rien d'implémenté. À trancher avant de commencer : les seuils du §3, l'alerte Discord active par défaut.
+Plan écrit le 2026-10-28 (lot 6 le 2026-10-29), **implémenté le 2026-10-30, non déployé**. Seuils du §3 retenus tels
+quels (constantes `MATCH_SYNC_THRESHOLDS`, `TRANSIENT_FAILURES_ALERT`) ; alerte Discord active par défaut.
+
+| Lot | Fait |
+|---|---|
+| 6 — échecs classés, parties en attente | `classifyPubgApiFailure`, `pubgApiSlotTone` (grille et tendance de `/settings/pubg-api` : les 404 ne rougissent plus rien), « Échecs du jour » regroupés par classe, code et type d'appel (`topFailures`, au lieu d'un message par partie) ; KPI « Erreurs » hors 429 et 404 attendus ; parties en attente (`PendingMatchTracker`, retentées au tour suivant même absentes de la liste PUBG, perdues après 24 h ou 6 essais) ; relance unique d'un 5xx de `matches/{id}` après 5 s (`api-throttle.ts`) ; origine `clan-lifetime-catchup` |
+| 1 — mesure | `matches-sync-service.ts` rend `newMatchDelaysMinutes` / `catchUpMatches` ; `match-sync-health.ts` (pur : état glissant, résumé, seuils, décision d'alerte) ; `match-sync-health-service.ts` (une lecture au début d'un tour, une écriture à la fin, tours sautés, comptage des appels PUBG en une requête) ; branchement dans `runDailyClanSync` |
+| 2 — quota | origines explicites (`clan-lifetime-sync`, `season-stats-sync`, `weapon-mastery-sync`, `clan-stats-sync`, `clan-membership-sync`, `player-lookup`) ; priorité basse ajoutée aux noms du kill feed et au cycle de vie de nuit ; `PUBG_API_SOURCE_PRIORITIES` ; ligne « Quota » de « Activité du jour » (dernière heure par priorité, heure la plus chargée) |
+| 3 — affichage | `GET /api/settings/match-sync-health` ; `MatchSyncHealthCard` en tête de `/settings/cron` (aussi sans clan sélectionné) ; carte « Service des tâches (cron) » |
+| 4 — alertes | ligne `match_sync` de la boîte « À traiter » (production seulement) ; événement `match_sync_degraded`, messages `matchSyncDegradedAlert` / `matchSyncRecoveredAlert` (sans mention, option `withoutMention` de `sendAdminAlert`) |
+| 5 — documentation | `docs/ops/cron.md`, `docs/features/discord-notifications.md`, `CLAUDE.md`, ce plan, `docs/sommaire.md` |
+
+**En passant** : la tendance sur 14 jours de `/settings/pubg-api` rangeait les appels par date UTC mais ses jours à
+partir du minuit local — sur un serveur qui n'est pas en UTC (un poste de dev), aucun appel du jour n'y apparaissait.
+Corrigé (même horloge pour les deux) ; la production, en UTC, n'était pas touchée.
+
+**Tests** : `match-sync-health.test.ts` (20), `match-sync-health-service.test.ts` (10, dont le contrôle statique du
+branchement dans `cron-jobs.ts`), `match-sync-health-route-contracts.test.ts` (4), `pubg-api-call-category.test.ts`
+(classement, ton, priorité de chaque origine contrôlée sur le code), `pubg-api-call-log-service.test.ts` (échecs par
+classe, regroupement, quota ; passe à l'heure de Paris comme en UTC), `api-throttle.test.ts` (+3 : relance d'un 5xx, une
+seule, jamais d'une 404 ni d'un endpoint limité), `matches-sync-service.test.ts` (+4 : délais, parties en attente,
+retentée hors liste, origine du rattrapage), `admin-inbox.test.ts` (+2), `admin-alerts.test.ts` (+2) ; suite complète
+verte. Playwright : `e2e/pubg-api-settings.spec.ts` (nouveau : grille, échecs du jour, quota), `e2e/site-config.spec.ts`
+(+3 : bloc en ordre, dégradé, vide), `e2e/platform-hub.spec.ts` (+1), `e2e/clan-lifecycle.spec.ts` (9 alertes à
+mention sur 12) — quatre projets ; rendu vérifié en clair et en sombre, ordinateur et mobile.
+
+**Mesure de référence** (`scripts/check-match-sync-health.ts`, base de production, 24 h jusqu'au 2026-10-30 16:55 UTC) :
+1 960 parties (par clan et par partie), délai médian 15 min, 90 % sous 28 min ; 48 tours, durée médiane 12 min ;
+545 / 600 appels limités sur la dernière heure, aucun 429 ni échec à traiter. À comparer, le lendemain du déploiement,
+à la mesure de la synchronisation (§7).
+
+**Après le déploiement** : §7 (contrôles 1 à 6). Rien à régler : la clé `AppConfig.match_sync_health` se crée au premier
+tour ; l'alerte se coupe, si besoin, sur la page « Cycle de vie des clans ».

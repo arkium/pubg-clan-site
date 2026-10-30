@@ -37,6 +37,8 @@ import {
   dailyDigestAlert,
   clanRequestAlert,
   lifecycleFailedAlert,
+  matchSyncDegradedAlert,
+  matchSyncRecoveredAlert,
   orphanJoinRequestAlert,
   privacyRequestAlert,
   resourceQueueAlert,
@@ -109,6 +111,15 @@ describe('sendAdminAlert', () => {
     expect(payload.content).toBe('<@&123456789>')
     expect(payload.username).toBe('Administration')
     expect(payload.embeds[0]).toMatchObject({ title: 'Alerte', timestamp: expect.any(String) })
+  })
+
+  it('ne mentionne personne pour un retour à la normale, même d’une alerte à traiter', async () => {
+    mocks.getMention.mockResolvedValue({ type: 'everyone', roleId: '' })
+
+    await sendAdminAlert('match_sync_degraded', EMBED, { withoutMention: true })
+    expect(mocks.sendWebhook.mock.calls[0][1]).not.toHaveProperty('content')
+    await sendAdminAlert('match_sync_degraded', EMBED)
+    expect(mocks.sendWebhook.mock.calls[1][1].content).toBe('@everyone')
   })
 
   it('ne mentionne personne pour une alerte d’information', async () => {
@@ -194,6 +205,25 @@ describe('contenu des alertes', () => {
     const report = resourceQueueAlert({ submission: 'report', mapKey: 'Savage_Main', pointKind: 'dock', reportKind: 'missing', queueSize: 1 })
     expect(report.description).toBe('Signalement « N’existe plus » sur un point **Ponton** de Sanhok.')
     expect(report.fields?.[0].value).toBe('1 élément')
+  })
+
+  it('synchronisation des parties : raisons et délai, vers la fraîcheur des parties ; retour à la normale', () => {
+    const degraded = matchSyncDegradedAlert({
+      urgent: true,
+      reasons: ['1 échec PUBG à traiter en 24 h (clé refusée ou appel mal formé)', '2 tours sautés en 24 h'],
+      delayMedianMinutes: 15,
+      delayP90Minutes: 27,
+      matches: 1221,
+    })
+    expect(degraded.title).toContain('en difficulté')
+    expect(degraded.description).toBe('• 1 échec PUBG à traiter en 24 h (clé refusée ou appel mal formé)\n• 2 tours sautés en 24 h')
+    expect(degraded.fields?.[0].value).toBe('médiane 15 min, 90 % sous 27 min (1221 parties en 24 h)')
+    expect(degraded.url).toBe('https://chickendinner.fr/settings/cron#fraicheur')
+    expect(matchSyncDegradedAlert({ urgent: false, reasons: ['x'], delayMedianMinutes: null, delayP90Minutes: null, matches: 0 })).toMatchObject({
+      title: expect.stringContaining('à surveiller'),
+      fields: [{ value: 'pas encore mesuré' }, expect.anything()],
+    })
+    expect(matchSyncRecoveredAlert({ delayMedianMinutes: 14, matches: 900 }).description).toBe('Délai médian 14 min sur 900 parties en 24 h.')
   })
 
   it('Coach IA : plafond à 80 % puis atteint, erreurs du fournisseur, échéance du modèle — vers la page du Coach', () => {

@@ -91,3 +91,79 @@ export function categorizePubgApiCall(source: string, endpoint: string): PubgApi
 
   return 'other'
 }
+
+/**
+ * Échec d'un appel PUBG, classé par ce qu'il faut en faire (docs/TODO/fraicheur-des-parties.md, lot 6). Sur 14 jours
+ * (2026-10-30), 378 des 391 échecs étaient des 404 — partie pas encore publiée, joueur ou clan introuvable —, 13 des 5xx
+ * ou des appels sans réponse, aucun 401, 403 ni 422.
+ */
+export type PubgApiFailureClass = 'expected' | 'transient' | 'rateLimited' | 'action'
+
+/** Du plus grave au moins grave : ordre d'affichage des échecs regroupés. */
+export const PUBG_API_FAILURE_CLASSES: PubgApiFailureClass[] = ['action', 'transient', 'rateLimited', 'expected']
+
+export function classifyPubgApiFailure(statusCode: number | null | undefined): PubgApiFailureClass {
+  if (statusCode === 429) return 'rateLimited'
+  if (statusCode === 404) return 'expected'
+  if (!statusCode || statusCode >= 500) return 'transient'
+  return 'action'
+}
+
+export const PUBG_API_FAILURE_LABELS: Record<PubgApiFailureClass, { label: string; hint: string }> = {
+  expected: {
+    label: 'Attendu',
+    hint: 'Absent chez PUBG : partie pas encore publiée (reprise au tour suivant), joueur ou clan introuvable.',
+  },
+  transient: {
+    label: 'Passager',
+    hint: 'Incident chez PUBG ou coupure réseau (5xx, pas de réponse) : la partie est retentée.',
+  },
+  rateLimited: { label: 'Limite de débit', hint: 'Réponse 429 : la clé a dépassé sa limite d’appels par minute.' },
+  action: {
+    label: 'À traiter',
+    hint: 'Clé refusée ou appel mal formé (401, 403, 400, 422…) : rien ne se répare seul.',
+  },
+}
+
+/**
+ * Priorité dans la file PUBG d'après l'origine d'un appel (`PubgApiCallLog.source`), pour lire le quota par priorité
+ * sans colonne de plus (docs/TODO/fraicheur-des-parties.md, lot 2). Doit dire la même chose que les appels eux-mêmes
+ * (`priority` de leur contexte) : `pubg-api-call-category.test.ts` le contrôle sur le code. Une origine absente est
+ * « normale » (pages, actions manuelles, `pubg-lib` pour un appel sans origine).
+ */
+export const PUBG_API_SOURCE_PRIORITIES: Readonly<Record<string, 'high' | 'low'>> = {
+  'clan-match-sync': 'high',
+  'tournament-sync': 'high',
+  'clan-lifetime-sync': 'low',
+  'season-stats-sync': 'low',
+  'weapon-mastery-sync': 'low',
+  'encountered-player-resolution-cron': 'low',
+  'kill-feed-name-resolution-cron': 'low',
+  'clan-lifecycle-cron': 'low',
+}
+
+export type PubgApiSourcePriority = 'high' | 'normal' | 'low'
+
+export function pubgApiPriorityOfSource(source: string): PubgApiSourcePriority {
+  return PUBG_API_SOURCE_PRIORITIES[source] ?? 'normal'
+}
+
+/** Échecs passagers à partir desquels une tranche (ou un jour) passe au rouge. */
+export const TRANSIENT_FAILURES_ALERT = 3
+
+export type PubgApiFailureCounts = { expected: number; transient: number; rateLimited: number; action: number }
+
+export function emptyPubgApiFailureCounts(): PubgApiFailureCounts {
+  return { expected: 0, transient: 0, rateLimited: 0, action: 0 }
+}
+
+/**
+ * Ton d'une tranche ou d'un jour de la page API PUBG. Un seul échec « à traiter » ou une série d'échecs passagers la
+ * rougit ; les 429 l'orangent ; les 404 attendus ne colorent rien — avant le 2026-10-30, un seul 404 sur 350 appels
+ * suffisait à rougir une tranche.
+ */
+export function pubgApiSlotTone(point: Pick<PubgApiFailureCounts, 'action' | 'transient' | 'rateLimited'>): 'pos' | 'warn' | 'neg' {
+  if (point.action > 0 || point.transient >= TRANSIENT_FAILURES_ALERT) return 'neg'
+  if (point.rateLimited > 0) return 'warn'
+  return 'pos'
+}

@@ -250,7 +250,7 @@ async function resolvePubgClanForLocalClan(clanId: number) {
   }
 
   if (clan.pubgClanId) {
-    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard, { clanId: clan.id })
+    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard, { clanId: clan.id, source: 'clan-stats-sync' })
     return pubgClan ? { clan, pubgClan } : { clan, pubgClan: null }
   }
 
@@ -261,6 +261,7 @@ async function resolvePubgClanForLocalClan(clanId: number) {
       const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
         clanId: clan.id,
         memberId: member.id,
+        source: 'player-lookup',
       })
       playerId = player?.accountId ?? null
     }
@@ -469,11 +470,11 @@ export async function syncClanMembership(clanId: number): Promise<ClanMembership
   let pubgMemberCountFromApi: number | null = null
 
   try {
-    pubgMembers = await fetchClanMembers(clan.pubgClanId, clan.platformShard, { clanId })
+    pubgMembers = await fetchClanMembers(clan.pubgClanId, clan.platformShard, { clanId, source: 'clan-membership-sync' })
     pubgMemberCountFromApi = pubgMembers.length
   } catch {
     usedFallback = true
-    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard, { clanId })
+    const pubgClan = await fetchPubgClanById(clan.pubgClanId, clan.platformShard, { clanId, source: 'clan-membership-sync' })
     pubgMemberCountFromApi = pubgClan?.memberCount ?? null
     pubgMembers = (pubgClan?.memberIds ?? []).map((id) => ({ accountId: id, name: null }))
   }
@@ -574,6 +575,7 @@ export async function syncClanLifetimeStats(clanId: number) {
         const player = await searchPlayerByName(member.pubgPlayerName, member.platformShard, {
           clanId,
           memberId: member.id,
+          source: 'player-lookup',
         })
 
         if (!player?.accountId) {
@@ -591,7 +593,12 @@ export async function syncClanLifetimeStats(clanId: number) {
       }
 
       // Tâche de fond (toutes les 4 heures) : la synchronisation des parties passe devant dans la file PUBG.
-      const stats = await fetchLifetimeStats(accountId, member.platformShard, { clanId, memberId: member.id, priority: 'low' })
+      const stats = await fetchLifetimeStats(accountId, member.platformShard, {
+        clanId,
+        memberId: member.id,
+        source: 'clan-lifetime-sync',
+        priority: 'low',
+      })
       const now = new Date()
 
       await prisma.memberLifetimeStats.upsert({

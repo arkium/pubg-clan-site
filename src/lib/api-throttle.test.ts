@@ -143,4 +143,47 @@ describe('ApiQueue — priorités et endpoints non limités', () => {
     expect(mockedCreateLog).toHaveBeenCalledWith(expect.objectContaining({ endpoint: MATCH('m0'), success: true }))
     void limited
   })
+
+  describe('relance d’un échec passager', () => {
+    const httpError = (status: number | undefined) => Object.assign(new Error(`[PUBG] API request failed (${status ?? 'no-status'})`), { status })
+    const failingThen = (errors: unknown[]) => {
+      const fn = vi.fn(async () => {
+        const next = errors.shift()
+        if (next) throw next
+        return { data: 'ok', status: 200 }
+      })
+      return fn
+    }
+
+    it('relance une fois, après le délai, un 502 ou une absence de réponse sur une partie ; journalise une seule ligne', async () => {
+      const queue = new ApiQueue(6000, 3, { transientRetryDelayMs: 10 })
+      for (const status of [502, undefined]) {
+        mockedCreateLog.mockClear()
+        const fn = failingThen([httpError(status)])
+        await expect(queue.add(fn, { endpoint: MATCH('m502') })).resolves.toEqual({ data: 'ok', status: 200 })
+        expect(fn).toHaveBeenCalledTimes(2)
+        expect(mockedCreateLog).toHaveBeenCalledTimes(1)
+        expect(mockedCreateLog).toHaveBeenCalledWith(expect.objectContaining({ success: true, retryCount: 1 }))
+      }
+    })
+
+    it('ne relance qu’une fois : deux 5xx de suite font échouer l’appel, avec sa relance comptée', async () => {
+      const queue = new ApiQueue(6000, 3, { transientRetryDelayMs: 10 })
+      const fn = failingThen([httpError(504), httpError(502)])
+      await expect(queue.add(fn, { endpoint: MATCH('m504') })).rejects.toThrow('(502)')
+      expect(fn).toHaveBeenCalledTimes(2)
+      expect(mockedCreateLog).toHaveBeenCalledWith(expect.objectContaining({ success: false, retryCount: 1, statusCode: 502 }))
+    })
+
+    it('ne relance ni une 404 (partie pas encore publiée) ni un endpoint limité', async () => {
+      const queue = new ApiQueue(6000, 3, { transientRetryDelayMs: 10 })
+      const notFound = failingThen([httpError(404)])
+      await expect(queue.add(notFound, { endpoint: MATCH('m404') })).rejects.toThrow('(404)')
+      expect(notFound).toHaveBeenCalledTimes(1)
+
+      const limited = failingThen([httpError(502)])
+      await expect(queue.add(limited, { endpoint: LIMITED })).rejects.toThrow('(502)')
+      expect(limited).toHaveBeenCalledTimes(1)
+    })
+  })
 })

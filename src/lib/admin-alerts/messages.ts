@@ -225,6 +225,48 @@ export function coachModelNoticeAlert(input: {
   }
 }
 
+const MATCH_SYNC_PATH = '/settings/cron#fraicheur'
+
+/**
+ * Synchronisation des parties dégradée (docs/TODO/fraicheur-des-parties.md) : les raisons, du plus grave au moins grave,
+ * et le délai mesuré. Ni pseudo ni partie : la liste détaillée reste sur la page.
+ */
+export function matchSyncDegradedAlert(input: {
+  urgent: boolean
+  reasons: string[]
+  delayMedianMinutes: number | null
+  delayP90Minutes: number | null
+  matches: number
+}): DiscordEmbed {
+  const delay =
+    input.delayMedianMinutes !== null && input.delayP90Minutes !== null
+      ? `médiane ${input.delayMedianMinutes} min, 90 % sous ${input.delayP90Minutes} min (${input.matches} parties en 24 h)`
+      : 'pas encore mesuré'
+  return {
+    title: input.urgent ? '🛑 Synchronisation des parties en difficulté' : '⚠️ Synchronisation des parties à surveiller',
+    description: input.reasons.map((reason) => `• ${reason}`).join('\n').slice(0, 1_500),
+    url: linkTo(MATCH_SYNC_PATH),
+    color: input.urgent ? COLOR_INCIDENT : COLOR_TO_DECIDE,
+    fields: [
+      { name: 'Délai fin de partie → site', value: delay, inline: false },
+      { name: 'À faire', value: 'Ouvrir « Fraîcheur des parties » dans les tâches planifiées', inline: false },
+    ],
+  }
+}
+
+/** Retour à la normale, sans mention. */
+export function matchSyncRecoveredAlert(input: { delayMedianMinutes: number | null; matches: number }): DiscordEmbed {
+  return {
+    title: '✅ Synchronisation des parties revenue à la normale',
+    description:
+      input.delayMedianMinutes !== null
+        ? `Délai médian ${input.delayMedianMinutes} min sur ${input.matches} parties en 24 h.`
+        : 'Plus aucune raison de s’inquiéter.',
+    url: linkTo(MATCH_SYNC_PATH),
+    color: COLOR_INFO,
+  }
+}
+
 /** Message du bouton « Envoyer un test » : ce que le salon recevra désormais. */
 export function adminAlertTestMessage(events: AdminAlertEvents): DiscordEmbed {
   const enabled = ADMIN_ALERT_EVENTS.filter((definition) => events[definition.key])

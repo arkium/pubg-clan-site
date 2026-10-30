@@ -8,6 +8,8 @@
  * Les faits sont lus par `service.ts` ; le seuil de chaque ton est fixé ici, pour la page et pour Discord.
  */
 
+import type { MatchSyncHealthSummary } from '@/lib/match-sync-health'
+
 /** `urgent` : quelque chose se perd ou a cassé ; `todo` : une décision t'attend ; `info` : à relire quand tu peux. */
 export type AdminInboxTone = 'urgent' | 'todo' | 'info'
 
@@ -50,6 +52,8 @@ export type AdminInboxFacts = {
   configErrors: number | null
   /** Réponses du Coach IA votées « Inexact » et pas encore relues (`/settings/coach/questions`). */
   coachInaccurateVotes: number | null
+  /** Fraîcheur des parties (`AppConfig.match_sync_health`, docs/TODO/fraicheur-des-parties.md). */
+  matchSync: Pick<MatchSyncHealthSummary, 'status' | 'reasons'> | null
 }
 
 export const ADMIN_INBOX_SOURCE_LABELS: Record<Exclude<keyof AdminInboxFacts, 'cronJobsExpected'>, string> = {
@@ -65,6 +69,7 @@ export const ADMIN_INBOX_SOURCE_LABELS: Record<Exclude<keyof AdminInboxFacts, 'c
   cronFailures: 'tâches planifiées',
   configErrors: 'configuration',
   coachInaccurateVotes: 'Coach IA',
+  matchSync: 'synchronisation des parties',
 }
 
 const DAY_MS = 24 * 60 * 60 * 1000
@@ -181,6 +186,24 @@ function lifecycleItem(facts: AdminInboxFacts, now: Date): AdminInboxItem | null
   return null
 }
 
+/**
+ * Synchronisation des parties dégradée : ton et raisons du résumé (seuils dans `src/lib/match-sync-health.ts`, les
+ * mêmes que l'alerte Discord). Rien hors production : sans crons, l'absence de tour n'est pas un incident.
+ */
+function matchSyncItem(facts: AdminInboxFacts): AdminInboxItem | null {
+  const matchSync = facts.matchSync
+  if (!matchSync || !facts.cronJobsExpected || matchSync.status === 'ok' || matchSync.reasons.length === 0) return null
+  const [first, ...others] = matchSync.reasons
+  return {
+    key: 'match_sync',
+    tone: matchSync.status === 'urgent' ? 'urgent' : 'todo',
+    count: matchSync.reasons.length,
+    label: 'Synchronisation des parties',
+    detail: others.length > 0 ? `${first.text} (et ${others.length} autre${others.length > 1 ? 's' : ''})` : first.text,
+    href: '/settings/cron#fraicheur',
+  }
+}
+
 function telemetryItems(telemetry: NonNullable<AdminInboxFacts['telemetry']>): AdminInboxItem[] {
   const items: AdminInboxItem[] = []
   if (!telemetry.workerAlive && telemetry.queueRemaining > 0) {
@@ -242,6 +265,7 @@ export function buildAdminInbox(facts: AdminInboxFacts, now: Date = new Date()):
     })
   }
   items.push(lifecycleItem(facts, now))
+  items.push(matchSyncItem(facts))
   if (facts.telemetry) items.push(...telemetryItems(facts.telemetry))
   if (facts.cronFailures) items.push(cronFailuresItem(facts.cronFailures))
   if (facts.configErrors) {

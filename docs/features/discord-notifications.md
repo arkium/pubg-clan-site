@@ -288,6 +288,7 @@ interrupteur ; tous sont activés par défaut. Ceux qui attendent une décision 
 | `coach_budget` | Coach IA : plafond global du mois à 80 %, puis atteint (une alerte par niveau et par mois, mémoire dans `AppConfig`) | oui | Coach IA › Consommation |
 | `coach_provider_errors` | Coach IA : 5 réponses en erreur en 15 min, puis silence 6 h (`src/lib/coach/coach-alerts.ts`) | oui | Coach IA › Consommation |
 | `coach_model_notice` | Coach IA : arrêt annoncé ou changement de prix du modèle actif dans les 30 jours, vérifié chaque matin avec la veille | non | Coach IA › Réglages |
+| `match_sync_degraded` | Synchronisation des parties dégradée, décidée à la fin de chaque tour (`finishMatchSyncPass`) : 90 % des parties au-delà de 60 min, tour sauté, synchronisation arrêtée, échec PUBG à traiter, 429, partie perdue, quota à 95 % (seuils de `src/lib/match-sync-health.ts`). À l'entrée dans l'état ou s'il s'aggrave, rappel au plus toutes les 6 h ; retour à la normale **sans mention** (`withoutMention`) — [fraicheur-des-parties.md](../TODO/fraicheur-des-parties.md) | oui | Tâches planifiées › Fraîcheur des parties |
 
 **Données personnelles.** Discord est un service tiers : n'y partent ni adresse e-mail, ni le pseudo ou le motif d'une
 demande « Retirer mes données » (type et échéance seulement). Contrôlé par `admin-alerts.test.ts`.

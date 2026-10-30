@@ -211,6 +211,7 @@ async function createPendingClanForDetection(
 
   const pubgClan = await fetchPubgClanById(request.pubgClanId, request.shard, {
     source: `clan-lifecycle-${source}`,
+    priority: source === 'cron' ? 'low' : 'normal',
   })
 
   if (!pubgClan) {
@@ -352,6 +353,7 @@ export async function runMembershipSyncPass(
       for (const chunk of chunkAccountIds(accountIds, PLAYER_IDS_BATCH_LIMIT)) {
         const chunkStates = await fetchPlayersClanStates(chunk, shard, {
           source: `clan-lifecycle-${source}`,
+          priority: source === 'cron' ? 'low' : 'normal',
         })
         summary.apiCalls += 1
         for (const [accountId, state] of chunkStates) {

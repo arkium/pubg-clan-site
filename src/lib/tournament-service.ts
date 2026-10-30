@@ -809,7 +809,7 @@ export async function materializeTournamentCustomMatches(
   for (const [pubgMatchId, shard] of shardByPubgId) {
 
     try {
-      const details = await fetchMatchOverview(pubgMatchId, shard, { clanId: tournament.organizerClanId, source: 'tournament-sync' })
+      const details = await fetchMatchOverview(pubgMatchId, shard, { clanId: tournament.organizerClanId, source: 'tournament-sync', priority: 'high' })
       // Une partie découverte est déjà filtrée ; ce contrôle garde la règle en un seul endroit.
       const createdAt = new Date(details.createdAt).getTime()
       if (details.matchType !== 'custom' || createdAt < startAt || createdAt > endAt) continue

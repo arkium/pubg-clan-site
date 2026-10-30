@@ -330,6 +330,48 @@ test.describe('SuperUser', () => {
     await expect(page.getByTestId('coach-pending-review')).toContainText('0')
     await noHorizontalScroll(page)
   })
+
+  test('questions difficiles, outils et fils (2026-10-30) : signaux, lacunes, suppression confirmée', async ({ api, page }, testInfo) => {
+    test.skip(isMobile(testInfo), 'page d’administration, ordinateur')
+    const admin = mockCoachAdmin(api)
+
+    // Questions difficiles : signaux et donnée manquante ; le fil se supprime après confirmation.
+    await page.goto('/settings/coach/questions')
+    const difficult = page.getByTestId('coach-difficult-60')
+    await expect(difficult).toContainText('Chiffres sans outil')
+    await expect(difficult).toContainText('Donnée manquante')
+    await expect(difficult).toContainText('coéquipiers par partie')
+    await expect(difficult).toContainText('Avec qui je gagne le plus ?')
+    await difficult.getByTestId('coach-conversation-delete-9').click()
+    const dialog = page.getByTestId('coach-conversation-delete-dialog')
+    await expect(dialog).toContainText('l’historique du joueur')
+    await expect(dialog.getByRole('button', { name: 'Annuler' })).toBeFocused()
+    await dialog.getByRole('button', { name: 'Supprimer' }).click()
+    await expect(page.getByTestId('coach-difficult-60')).toHaveCount(0)
+    expect(admin.conversationDeletes).toEqual([9])
+
+    // Outils : jamais appelé, échec, votes « Inexact », lacunes signalées.
+    await page.goto('/settings/coach/tools')
+    await expect(page.getByTestId('coach-tools-never')).toContainText('1')
+    await expect(page.getByTestId('coach-tool-getCityInsights')).toContainText('Jamais appelé')
+    await expect(page.getByTestId('coach-tool-getTournamentResults')).toContainText('tournament_not_found × 1')
+    await expect(page.getByTestId('coach-tool-getClanLeaderboard')).toContainText('2 votes « Inexact »')
+    await expect(page.getByTestId('coach-tools-gaps')).toContainText('coéquipiers par partie')
+    await noHorizontalScroll(page)
+
+    // Fils : les siens seulement ; un par un, puis tous, chaque fois après confirmation.
+    await page.goto('/settings/coach/conversations')
+    await expect(page.getByTestId('coach-conversations-list').getByRole('listitem')).toHaveCount(2)
+    await page.getByTestId('coach-conversation-delete-12').click()
+    await page.getByTestId('coach-conversation-delete-dialog').getByRole('button', { name: 'Supprimer' }).click()
+    await expect(page.getByTestId('coach-conversation-12')).toHaveCount(0)
+    await page.getByTestId('coach-conversations-delete-all').click()
+    await page.getByTestId('coach-conversations-delete-all-dialog').getByRole('button', { name: 'Tout supprimer' }).click()
+    await expect(page.getByTestId('coach-conversations-message')).toContainText('1 fil supprimé.')
+    await expect(page.getByTestId('coach-conversations')).toContainText('Aucun fil')
+    expect(admin.conversationDeletes).toEqual([9, 12, 'mine'])
+    await noHorizontalScroll(page)
+  })
 })
 
 // Captures de référence (docs/ops/tests-e2e.md) : tiroir après une réponse, panneau mobile depuis le débriefing.

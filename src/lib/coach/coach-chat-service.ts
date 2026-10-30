@@ -6,6 +6,7 @@ import { coachGuardRefusal, redactCoachText } from '@/lib/coach/coach-guard'
 import { resolveCoachContext } from '@/lib/coach/coach-context-service'
 import { coachConversationTitle } from '@/lib/coach/coach-conversation-service'
 import { coachCostMicroUsd } from '@/lib/coach/coach-cost'
+import { COACH_GAP_TOOL_DECLARATION, COACH_GAP_TOOL_NAME, runCoachGapTool } from '@/lib/coach/coach-gap'
 import { COACH_MEMORY_TOOL_NAME, coachMemoryPromptBlock } from '@/lib/coach/coach-memory'
 import { createCoachMemoryTool, listCoachMemories } from '@/lib/coach/coach-memory-service'
 import { COACH_DEFAULT_MODEL_ID, getCoachModel } from '@/lib/coach/coach-models'
@@ -75,6 +76,7 @@ export const COACH_TOOL_LABELS: Record<string, string> = {
   getZoneClosures: 'Je regarde les fins de zone…',
   getBodyZones: 'Je regarde où tes tirs touchent…',
   [COACH_MEMORY_TOOL_NAME]: 'Je note ce que tu me dis…',
+  [COACH_GAP_TOOL_NAME]: 'Je signale ce qui me manque pour te répondre…',
 }
 
 /**
@@ -257,6 +259,13 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
   const toolAudit: CoachToolAudit[] = []
   const runTool = async (call: CoachToolCall) => {
     try {
+      // Lacune déclarée : rien à lire, l'appel reste dans l'audit pour l'administration (coach-gap.ts).
+      if (call.name === COACH_GAP_TOOL_NAME) {
+        const recorded = runCoachGapTool(call)
+        const failed = toolResultError(recorded)
+        toolAudit.push(failed ? { ...call, failed } : { ...call })
+        return recorded
+      }
       if (memoryTool && call.name === memoryTool.declaration.name) {
         const remembered = await memoryTool.run(call)
         const failed = toolResultError(remembered)
@@ -290,7 +299,7 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
       }),
       history,
       question: body.message,
-      tools: memoryTool ? [...tools.declarations, memoryTool.declaration] : tools.declarations,
+      tools: [...tools.declarations, COACH_GAP_TOOL_DECLARATION, ...(memoryTool ? [memoryTool.declaration] : [])],
       runTool,
       maxToolRounds: settings.maxToolRounds,
       signal,
@@ -303,8 +312,10 @@ export async function runCoachChat(input: CoachChatRunInput, prepared: Prepared)
     // L'audit vient de nos propres appels quand il les couvre tous (le fournisseur les liste dans le même ordre).
     const audit: CoachToolAudit[] = toolAudit.length === answer.toolCalls.length ? toolAudit : answer.toolCalls
     // La mémoire garde la règle d'avant : ses chiffres viennent du joueur, un refus (`not_in_message`) n'en invente pas.
-    const answered = audit.filter((call) => !call.failed || call.name === COACH_MEMORY_TOOL_NAME).length
-    const unverified = isUnverifiedAnswer(answer.text, answer.toolCalls, answered)
+    // Une lacune déclarée ne lit aucune donnée : elle ne compte ni comme outil appelé ni comme outil qui a répondu.
+    const dataCalls = audit.filter((call) => call.name !== COACH_GAP_TOOL_NAME)
+    const answered = dataCalls.filter((call) => !call.failed || call.name === COACH_MEMORY_TOOL_NAME).length
+    const unverified = isUnverifiedAnswer(answer.text, dataCalls, answered)
     const costMicroUsd = coachCostMicroUsd(model, answer.tokensIn, answer.tokensOut, now)
     const saved = await saveAnswer(conversationId, answer.text, audit, unverified)
     await completeCoachUsage(usageId, { status: 'ok', tokensIn: answer.tokensIn, tokensOut: answer.tokensOut, costMicroUsd })

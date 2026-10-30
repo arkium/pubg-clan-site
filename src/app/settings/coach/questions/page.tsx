@@ -1,19 +1,24 @@
 'use client'
 
-import { Brain, Check, MessageSquare, Pencil, ThumbsDown } from 'lucide-react'
+import { AlertTriangle, Brain, Check, MessageSquare, Pencil, ThumbsDown } from 'lucide-react'
 import { useState } from 'react'
 
 import { useLifecycleResource } from '@/components/clan-lifecycle/LifecycleShared'
 import { DATE_TIME, INT, Kpi } from '@/components/settings/coach/CoachAdminShared'
+import CoachConversationDelete from '@/components/settings/coach/CoachConversationDelete'
 import CoachRulesSection, { type CoachRulePrefill } from '@/components/settings/coach/CoachRulesSection'
-import { EmptyState, ErrorState, ListSkeleton, SectionCard, Tag } from '@/components/ui/CharteKit'
+import { EmptyState, ErrorState, ListSkeleton, SectionCard, Tag, type Tone } from '@/components/ui/CharteKit'
 import Pagination from '@/components/ui/Pagination'
-import type { CoachQuestionsReport } from '@/lib/coach/coach-admin-report'
+import { COACH_DIFFICULT_SIGNAL_LABELS, type CoachDifficultSignal, type CoachQuestionsReport } from '@/lib/coach/coach-admin-report'
 import { COACH_FEEDBACK_NOTE_MAX } from '@/lib/coach/coach-conversation-service'
 import { paginate } from '@/lib/pagination'
 
 /** Questions fréquentes par page : la liste se pagine, elle ne s'allonge jamais sans fin (règle du site). */
 const QUESTIONS_PAGE_SIZE = 10
+/** Questions difficiles par page. */
+const DIFFICULT_PAGE_SIZE = 10
+
+const SIGNAL_TONES: Record<CoachDifficultSignal, Tone> = { inaccurate: 'neg', unverified: 'warn', tool_failed: 'neg', gap: 'sky', rephrased: 'warn' }
 
 /**
  * Questions posées au Coach IA (docs/TODO/chatbot-ia.md §9, onglet 3) : fréquences sur 30 jours regroupées par texte
@@ -33,6 +38,14 @@ export default function CoachQuestionsPage() {
   const [noteDraft, setNoteDraft] = useState<{ messageId: number; text: string } | null>(null)
   const [savedNotes, setSavedNotes] = useState<Map<number, string | null>>(() => new Map())
   const [noteSaving, setNoteSaving] = useState(false)
+  // Fils supprimés depuis cette page (2026-10-30) : retirés tout de suite des deux listes, les compteurs suivent au rechargement.
+  const [deletedConversations, setDeletedConversations] = useState<Set<number>>(() => new Set())
+  const [difficultPage, setDifficultPage] = useState(1)
+
+  function conversationDeleted(conversationId: number) {
+    setDeletedConversations((current) => new Set(current).add(conversationId))
+    setToken((value) => value + 1)
+  }
 
   async function saveNote() {
     if (!noteDraft || noteSaving) return
@@ -75,10 +88,12 @@ export default function CoachQuestionsPage() {
   if (error && !data) return <ErrorState message={error} onRetry={() => setToken((value) => value + 1)} testId="coach-questions-error" />
   if (!data) return <ListSkeleton rows={4} />
 
-  const pending = data.inaccurate.filter((answer) => !reviewed.has(answer.messageId))
+  const pending = data.inaccurate.filter((answer) => !reviewed.has(answer.messageId) && !deletedConversations.has(answer.conversationId))
   // Barres à l'échelle de la question la plus posée, quelle que soit la page affichée.
   const maxCount = data.frequent[0]?.count ?? 1
   const questions = paginate(data.frequent, questionsPage, QUESTIONS_PAGE_SIZE)
+  const difficultRows = data.difficult.filter((answer) => !deletedConversations.has(answer.conversationId))
+  const difficult = paginate(difficultRows, difficultPage, DIFFICULT_PAGE_SIZE)
 
   return (
     <div className={`flex flex-col gap-5 ${loading ? 'opacity-60' : ''}`} data-testid="coach-questions">
@@ -125,6 +140,79 @@ export default function CoachQuestionsPage() {
         )}
       </SectionCard>
 
+      <SectionCard
+        id="coach-difficult"
+        icon={AlertTriangle}
+        title="Questions difficiles"
+        meta={`${data.days} derniers jours : réponses marquées par un vote « Inexact », des chiffres sans outil, un outil en échec, une donnée que le Coach dit ne pas pouvoir lire, ou une question reposée dans la foulée. Aucune auto-évaluation du modèle ; date, contexte et clan, jamais le compte.`}
+      >
+        {difficultRows.length === 0 ? (
+          <EmptyState icon={Check} title="Aucune question difficile" text="Une réponse arrive ici dès qu’un signal la marque." />
+        ) : (
+          <>
+            <div className="flex flex-col gap-3" data-testid="coach-difficult">
+              {difficult.visible.map((answer) => (
+                <article key={answer.messageId} className="coach-review" data-testid={`coach-difficult-${answer.messageId}`}>
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <span className="t-meta flex flex-wrap items-center gap-1.5">
+                      {DATE_TIME.format(new Date(answer.createdAt))}
+                      {answer.contextLabel ? ` · ${answer.contextLabel}` : ''}
+                      {answer.clanTag ? <span className="coach-tag">[{answer.clanTag}]</span> : null}
+                      {answer.signals.map((signal) => (
+                        <Tag key={signal} tone={SIGNAL_TONES[signal]}>
+                          {COACH_DIFFICULT_SIGNAL_LABELS[signal]}
+                        </Tag>
+                      ))}
+                    </span>
+                    <CoachConversationDelete conversationId={answer.conversationId} ownedBySomeoneElse onDeleted={conversationDeleted} onError={setReviewError} />
+                  </div>
+                  <div>
+                    <div className="t-label">Question</div>
+                    <div className="t-body t-strong text-gray-900">{answer.question ?? '—'}</div>
+                  </div>
+                  {answer.gapTopics.length > 0 ? (
+                    <div className="t-body text-gray-700">
+                      <span className="t-label">Donnée manquante · </span>
+                      {answer.gapTopics.join(' · ')}
+                    </div>
+                  ) : null}
+                  {answer.failures.length > 0 ? (
+                    <div className="t-body text-gray-700">
+                      <span className="t-label">Échec · </span>
+                      {answer.failures.join(' · ')}
+                    </div>
+                  ) : null}
+                  <details>
+                    <summary className="t-label cursor-pointer">Réponse</summary>
+                    <div className="t-body mt-1 whitespace-pre-wrap text-gray-700">{answer.answer}</div>
+                  </details>
+                  {answer.tools.length > 0 ? (
+                    <div className="flex flex-wrap gap-1">
+                      {answer.tools.map((tool, index) => (
+                        <span key={`${tool}-${index}`} className="coach-tool-chip">
+                          {tool}
+                        </span>
+                      ))}
+                    </div>
+                  ) : (
+                    <span className="t-meta">Aucun outil appelé</span>
+                  )}
+                </article>
+              ))}
+            </div>
+            <Pagination
+              page={difficult.current}
+              pageCount={difficult.pageCount}
+              total={difficultRows.length}
+              pageSize={DIFFICULT_PAGE_SIZE}
+              onPageChange={setDifficultPage}
+              ariaLabel="Pages des questions difficiles"
+              itemLabel="Réponses"
+            />
+          </>
+        )}
+      </SectionCard>
+
       <SectionCard id="coach-inaccurate" icon={ThumbsDown} title="Votes « Inexact » à relire" meta="Question, précision du joueur, réponse et outils appelés : de quoi corriger le prompt ou un outil. « Relu » sort la réponse de la file.">
         {reviewError ? (
           <p className="t-body t-neg m-0" role="alert">
@@ -163,6 +251,7 @@ export default function CoachQuestionsPage() {
                       <Check className="h-3.5 w-3.5" aria-hidden="true" />
                       {reviewing === answer.messageId ? 'Enregistrement…' : 'Relu'}
                     </button>
+                    <CoachConversationDelete conversationId={answer.conversationId} ownedBySomeoneElse onDeleted={conversationDeleted} onError={setReviewError} />
                   </span>
                 </div>
                 <div className="coach-review-grid">

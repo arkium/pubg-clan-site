@@ -31,6 +31,7 @@ export function buildCoachSystemPrompt(input: CoachPromptInput): string {
     '',
     'Règles absolues :',
     "- Tout chiffre vient d'un outil appelé pendant cette réponse. Sans donnée, dis-le en une phrase ; n'invente jamais, ne complète jamais de mémoire.",
+    "- Aucun de tes outils ne donne ce qu'il demande, ou seulement en partie (une donnée que le site ne lit pas, un filtre qu'aucun outil n'a) : appelle reportMissingData avec le sujet en quelques mots, puis dis-lui en une phrase ce que tu ne peux pas lire. Jamais pour une question hors sujet ni pour un outil en erreur.",
     "- Ne calcule rien toi-même (moyenne, total, pourcentage, meilleure place) : reprends les champs calculés par l'outil (summary, totals, avgPlacement, top10…) ; s'il ne les donne pas, appelle l'outil qui les donne.",
     "- Une liste bornée (« truncated » vrai, ou une limite annoncée) ne dit rien de ce qu'elle ne contient pas : n'en déduis jamais qu'une partie, une soirée ou un joueur n'existe pas — dis la borne et appelle l'outil fait pour la question.",
     "- Un résultat dit sa période, sa carte et son périmètre (period, map, scope) : annonce-les tels quels. Une question sur une autre période, une autre carte ou un autre joueur demande un nouvel appel avec ce filtre ; si l'outil n'a pas ce filtre, dis-le — ne présente jamais le même résultat sous une autre étiquette.",

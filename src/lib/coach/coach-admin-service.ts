@@ -1,15 +1,21 @@
 import 'server-only'
 
 import {
+  buildCoachDifficultAnswers,
+  buildCoachToolsReport,
   buildCoachUsageReport,
   coachToolNames,
   groupCoachQuestions,
   questionBefore,
   type CoachAdminState,
+  type CoachAnswerRow,
   type CoachModelTestResult,
+  type CoachOwnConversation,
   type CoachQuestionsReport,
+  type CoachToolsReport,
   type CoachUsageReport,
 } from '@/lib/coach/coach-admin-report'
+import { COACH_TOOL_LABELS } from '@/lib/coach/coach-chat-service'
 import { COACH_SETTING_BOUNDS, COACH_SETTING_DEFAULTS, getCoachSettings, hasCoachApiKey } from '@/lib/coach/coach-config'
 import { coachCostMicroUsd, microUsdToEur } from '@/lib/coach/coach-cost'
 import { getCoachModel } from '@/lib/coach/coach-models'
@@ -61,10 +67,35 @@ export const COACH_QUESTIONS_DAYS = 30
 /** Votes « Inexact » affichés à la fois ; les plus récents d'abord. */
 export const COACH_INACCURATE_LIMIT = 50
 
+/** Réponses du modèle depuis `since` (contexte et clan du fil, jamais le compte) : onglets Outils et Questions. */
+async function loadCoachAnswerRows(since: Date): Promise<CoachAnswerRow[]> {
+  const rows = await prisma.coachMessage.findMany({
+    where: { role: 'assistant', createdAt: { gte: since } },
+    orderBy: { createdAt: 'desc' },
+    take: 5000,
+    select: {
+      id: true,
+      conversationId: true,
+      content: true,
+      toolCalls: true,
+      unverified: true,
+      feedbackScore: true,
+      createdAt: true,
+      conversation: { select: { contextLabel: true, clan: { select: { tag: true } } } },
+    },
+  })
+  return rows.map(({ conversation, ...row }) => ({ ...row, clanTag: conversation.clan?.tag ?? null, contextLabel: conversation.contextLabel }))
+}
+
 export async function readCoachQuestionsReport(now: Date = new Date()): Promise<CoachQuestionsReport> {
   const since = new Date(now.getTime() - COACH_QUESTIONS_DAYS * DAY_MS)
-  const [userMessages, helpful, inaccurate, pendingReview, answers] = await Promise.all([
-    prisma.coachMessage.findMany({ where: { role: 'user', createdAt: { gte: since } }, select: { content: true }, orderBy: { createdAt: 'desc' }, take: 5000 }),
+  const [userMessages, helpful, inaccurate, pendingReview, answers, answerRows] = await Promise.all([
+    prisma.coachMessage.findMany({
+      where: { role: 'user', createdAt: { gte: since } },
+      select: { id: true, conversationId: true, content: true, createdAt: true },
+      orderBy: { createdAt: 'desc' },
+      take: 5000,
+    }),
     prisma.coachMessage.count({ where: { feedbackScore: 1, createdAt: { gte: since } } }),
     prisma.coachMessage.count({ where: { feedbackScore: -1, createdAt: { gte: since } } }),
     prisma.coachMessage.count({ where: { feedbackScore: -1, reviewedAt: null } }),
@@ -83,6 +114,7 @@ export async function readCoachQuestionsReport(now: Date = new Date()): Promise<
         conversation: { select: { contextLabel: true, clan: { select: { tag: true } } } },
       },
     }),
+    loadCoachAnswerRows(since),
   ])
   const conversationIds = [...new Set(answers.map((answer) => answer.conversationId))]
   const questions =
@@ -105,7 +137,56 @@ export async function readCoachQuestionsReport(now: Date = new Date()): Promise<
       tools: coachToolNames(answer.toolCalls),
       unverified: answer.unverified,
     })),
+    difficult: buildCoachDifficultAnswers(answerRows, userMessages),
   }
+}
+
+/** Onglet Outils : 30 jours de réponses, tous les outils déclarés (libellés du tiroir), lacunes signalées. */
+export async function readCoachToolsReport(now: Date = new Date()): Promise<CoachToolsReport> {
+  const since = new Date(now.getTime() - COACH_QUESTIONS_DAYS * DAY_MS)
+  return buildCoachToolsReport({ days: COACH_QUESTIONS_DAYS, answers: await loadCoachAnswerRows(since), toolLabels: COACH_TOOL_LABELS })
+}
+
+/** Onglet Fils : les fils du SuperUser lui-même (ses essais), jamais ceux des membres — leur texte ne se lit pas ici. */
+export async function listCoachOwnConversations(userId: number): Promise<CoachOwnConversation[]> {
+  const rows = await prisma.coachConversation.findMany({
+    where: { userId },
+    orderBy: { updatedAt: 'desc' },
+    take: 500,
+    select: {
+      id: true,
+      title: true,
+      contextLabel: true,
+      createdAt: true,
+      updatedAt: true,
+      clan: { select: { tag: true } },
+      _count: { select: { messages: { where: { role: 'user' } } } },
+    },
+  })
+  return rows.map((row) => ({
+    id: row.id,
+    title: row.title,
+    contextLabel: row.contextLabel,
+    clanTag: row.clan?.tag ?? null,
+    questions: row._count.messages,
+    createdAt: row.createdAt.toISOString(),
+    updatedAt: row.updatedAt.toISOString(),
+  }))
+}
+
+/**
+ * Supprime un fil (questions, réponses, votes ; les règles apprises qui en venaient perdent seulement leur lien). Les
+ * lignes de coût (`CoachUsage`) restent : l'argent a été dépensé, le budget du mois reste juste. Faux si le fil n'existe pas.
+ */
+export async function deleteCoachConversationById(id: number): Promise<boolean> {
+  const result = await prisma.coachConversation.deleteMany({ where: { id } })
+  return result.count > 0
+}
+
+/** Supprime tous les fils d'un compte (« Supprimer mes fils de test ») ; rend le nombre de fils supprimés. */
+export async function deleteCoachConversationsOf(userId: number): Promise<number> {
+  const result = await prisma.coachConversation.deleteMany({ where: { userId } })
+  return result.count
 }
 
 /** Marque un vote « Inexact » comme relu ; faux si le message n'est pas un vote « Inexact » en attente. */

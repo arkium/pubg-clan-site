@@ -82,7 +82,8 @@ données).
 
 ## `/settings/coach` — Coach IA (2026-10-24)
 
-Trois onglets (`SettingsTabsShell`, garde `AdminAccessGate` platform dans `src/app/settings/coach/layout.tsx`) :
+Cinq onglets (`SettingsTabsShell`, garde `AdminAccessGate` platform dans `src/app/settings/coach/layout.tsx`) — **Outils**
+(`tools/`) et **Fils** (`conversations/`) ajoutés le 2026-10-30, détail dans la fiche :
 **Réglages** (interrupteur enregistré tout de suite, présence de la clé `GEMINI_API_KEY`, tuiles radio des modèles
 Gemini avec prix, coût estimé par question, pastilles de statut et bouton « Tester » — résultat sous la tuile —, budgets
 et limites en brouillon + « Enregistrer »), **Consommation** (`usage/` : mois de Paris, jauge du plafond global avec
@@ -101,6 +102,9 @@ votes, questions fréquentes sur 30 jours, votes « Inexact » à relire avec «
   (`CoachRulesSection`, routes `GET · POST /api/settings/coach/rules`, `PATCH · DELETE …/rules/[id]`, 20 actives au
   plus). La mémoire personnelle des joueurs n'est lisible nulle part dans l'administration — [coach-ia.md](../features/coach-ia.md) §9.
   La précision d'un vote « Inexact » se réécrit en place (crayon, `PATCH …/questions/[id]/note`, journalisé).
+- **Outils, questions difficiles, fils (2026-10-30)** : `GET …/tools` (usage par outil, lacunes signalées), section
+  « Questions difficiles » de l'onglet Questions, `GET · DELETE …/conversations` (fils du SuperUser), `DELETE
+  …/conversations/[id]` (un fil relu) — écritures journalisées, coût conservé. [coach-ia.md](../features/coach-ia.md) §9.
 
 ---
 

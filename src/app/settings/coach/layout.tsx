@@ -6,7 +6,9 @@ import SettingsTabsShell from '@/components/settings/SettingsTabsShell'
 const TABS = [
   { name: 'Réglages', href: '/settings/coach', description: 'Interrupteur, modèle, budgets et limites' },
   { name: 'Consommation', href: '/settings/coach/usage', description: 'Coût du mois, par modèle, comptes et erreurs' },
-  { name: 'Questions', href: '/settings/coach/questions', description: 'Questions fréquentes et votes « Inexact » à relire' },
+  { name: 'Questions', href: '/settings/coach/questions', description: 'Questions fréquentes, questions difficiles et votes « Inexact » à relire' },
+  { name: 'Outils', href: '/settings/coach/tools', description: 'Usage de chaque outil, échecs et données manquantes signalées' },
+  { name: 'Fils', href: '/settings/coach/conversations', description: 'Tes propres fils : tes essais, à supprimer' },
 ]
 
 export default function CoachSettingsLayout({ children }: { children: React.ReactNode }) {

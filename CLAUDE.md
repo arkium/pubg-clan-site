@@ -424,7 +424,8 @@ sont liés dans la fermeture de chaque outil (`createCoachTools`) ; un visiteur 
 aux API du Coach (teaser seul) ; `GEMINI_API_KEY` est lue par `coach-config.ts` seulement, jamais renvoyée (`apiKeyPresent`) ;
 chaque question est réservée dans `CoachUsage` **avant** l'appel ; le flux SSE garde ses en-têtes `COACH_SSE_HEADERS`
 (`X-Accel-Buffering: no`) ; un fil étranger répond 404 ; aucune donnée d'authentification dans un résultat d'outil ;
-tout chiffre vient d'un outil (`unverified` sinon). Un nouvel outil = une fermeture sur le scope + un test d'étanchéité
+tout chiffre vient d'un outil (`unverified` sinon) ; `reportMissingData` (`coach-gap.ts`) n'est pas un outil de
+données : une lacune déclarée, gardée dans l'audit, jamais comptée comme outil qui a répondu. Un nouvel outil = une fermeture sur le scope + un test d'étanchéité
 dans `coach-tools.test.ts` ; un nouveau modèle = une entrée de `coach-models.ts`. **Règles apprises** (`CoachRule`,
 `coach-rules*.ts`) : écrites par le SuperUser seul, jamais par le modèle ni reprises d'une note de joueur ; **mémoire
 personnelle** (`CoachMemory`, `coach-memory*.ts`) : par compte, texte **repris de la question du joueur** (le serveur

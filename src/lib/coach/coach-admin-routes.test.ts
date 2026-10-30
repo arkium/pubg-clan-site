@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   ruleUpdate: vi.fn(),
   ruleFindUnique: vi.fn(),
   ruleDeleteMany: vi.fn(),
+  conversationFindMany: vi.fn(),
+  conversationDeleteMany: vi.fn(),
 }))
 
 vi.mock('server-only', () => ({}))
@@ -41,11 +43,14 @@ vi.mock('@/lib/prisma', () => ({
     coachMessage: { findMany: mocks.messageFindMany, count: mocks.messageCount, updateMany: mocks.messageUpdateMany, findUnique: mocks.messageFindUnique },
     coachRule: { findMany: mocks.ruleFindMany, count: mocks.ruleCount, create: mocks.ruleCreate, update: mocks.ruleUpdate, findUnique: mocks.ruleFindUnique, deleteMany: mocks.ruleDeleteMany },
     userAccount: { findMany: mocks.userFindMany },
+    coachConversation: { findMany: mocks.conversationFindMany, deleteMany: mocks.conversationDeleteMany },
     $transaction: mocks.transaction,
   },
 }))
 vi.mock('@/lib/coach/coach-provider-gemini', () => ({ createGeminiProvider: () => ({ streamAnswer: mocks.streamAnswer }) }))
 
+import { DELETE as deleteConversationRoute } from '@/app/api/settings/coach/conversations/[id]/route'
+import { DELETE as deleteOwnConversationsRoute, GET as ownConversationsRoute } from '@/app/api/settings/coach/conversations/route'
 import { PATCH as noteRoute } from '@/app/api/settings/coach/questions/[id]/note/route'
 import { POST as reviewedRoute } from '@/app/api/settings/coach/questions/[id]/reviewed/route'
 import { GET as questionsRoute } from '@/app/api/settings/coach/questions/route'
@@ -53,6 +58,7 @@ import { GET as getSettings, PUT as putSettings } from '@/app/api/settings/coach
 import { DELETE as deleteRuleRoute, PATCH as patchRuleRoute } from '@/app/api/settings/coach/rules/[id]/route'
 import { GET as rulesRoute, POST as createRuleRoute } from '@/app/api/settings/coach/rules/route'
 import { POST as testModelRoute } from '@/app/api/settings/coach/test-model/route'
+import { GET as toolsRoute } from '@/app/api/settings/coach/tools/route'
 import { GET as usageRoute } from '@/app/api/settings/coach/usage/route'
 import { COACH_SETTING_DEFAULTS, resetCoachSettingsCache } from '@/lib/coach/coach-config'
 import { CoachProviderError } from '@/lib/coach/coach-provider'
@@ -105,6 +111,11 @@ describe('garde', () => {
     expect((await createRuleRoute(json('/api/settings/coach/rules', 'POST', { text: 'Un Top 10 n’est pas une victoire.' }))).status).toBe(403)
     expect((await patchRuleRoute(json('/api/settings/coach/rules/1', 'PATCH', { enabled: false }), params('1'))).status).toBe(403)
     expect((await deleteRuleRoute(json('/api/settings/coach/rules/1', 'DELETE'), params('1'))).status).toBe(403)
+    expect((await toolsRoute(json('/api/settings/coach/tools', 'GET'))).status).toBe(403)
+    expect((await ownConversationsRoute(json('/api/settings/coach/conversations', 'GET'))).status).toBe(403)
+    expect((await deleteOwnConversationsRoute(json('/api/settings/coach/conversations', 'DELETE'))).status).toBe(403)
+    expect((await deleteConversationRoute(json('/api/settings/coach/conversations/3', 'DELETE'), params('3'))).status).toBe(403)
+    expect(mocks.conversationDeleteMany).not.toHaveBeenCalled()
     expect(mocks.appConfigFindMany).not.toHaveBeenCalled()
     expect(mocks.ruleFindMany).not.toHaveBeenCalled()
     expect(mocks.ruleCreate).not.toHaveBeenCalled()
@@ -288,7 +299,27 @@ describe('GET /api/settings/coach/usage', () => {
 describe('GET /api/settings/coach/questions', () => {
   it('regroupe les questions, compte les votes et joint sa question à chaque réponse « Inexact »', async () => {
     mocks.messageFindMany.mockImplementation(async ({ where }: { where: Record<string, unknown> }) => {
-      if (where.role === 'user' && where.createdAt) return [{ content: 'Quelle est ma meilleure arme ?' }, { content: 'quelle est ma meilleure arme' }]
+      if (where.role === 'user' && where.createdAt) {
+        return [
+          { id: 38, conversationId: 7, content: 'Quelle est ma meilleure arme ?', createdAt: new Date('2026-10-22T19:00:00.000Z') },
+          { id: 39, conversationId: 8, content: 'quelle est ma meilleure arme', createdAt: new Date('2026-10-22T19:10:00.000Z') },
+        ]
+      }
+      // Réponses du modèle sur 30 jours (questions difficiles) : une réponse chiffrée sans outil.
+      if (where.role === 'assistant') {
+        return [
+          {
+            id: 40,
+            conversationId: 7,
+            content: 'Ta meilleure arme : 12 kills au Kar98k.',
+            toolCalls: null,
+            unverified: true,
+            feedbackScore: null,
+            createdAt: new Date('2026-10-22T19:01:00.000Z'),
+            conversation: { contextLabel: null, clan: { tag: '47R' } },
+          },
+        ]
+      }
       if (where.feedbackScore === -1) {
         return [
           {
@@ -324,6 +355,9 @@ describe('GET /api/settings/coach/questions', () => {
         unverified: false,
       },
     ])
+    expect(body.difficult).toEqual([
+      expect.objectContaining({ messageId: 40, conversationId: 7, clanTag: '47R', question: 'Quelle est ma meilleure arme ?', signals: ['unverified'], tools: [] }),
+    ])
     // Jamais le compte : ni identifiant d'utilisateur ni adresse dans la réponse.
     expect(JSON.stringify(body)).not.toMatch(/userId|@/)
   })
@@ -340,5 +374,74 @@ describe('POST /api/settings/coach/questions/[id]/reviewed', () => {
     const response = await reviewedRoute(json('/api/settings/coach/questions/9/reviewed', 'POST'), params('9'))
     expect(response.status).toBe(200)
     expect(mocks.messageUpdateMany).toHaveBeenLastCalledWith({ where: { id: 9, feedbackScore: -1, reviewedAt: null }, data: { reviewedAt: expect.any(Date) } })
+  })
+})
+
+describe('GET /api/settings/coach/tools (2026-10-30)', () => {
+  it('compte chaque outil déclaré sur 30 jours, jamais appelés compris, et les lacunes signalées', async () => {
+    mocks.messageFindMany.mockResolvedValue([
+      {
+        id: 50,
+        conversationId: 9,
+        content: 'Bilan de samedi…',
+        toolCalls: [{ name: 'getSessions', args: { date: '2026-10-24' } }, { name: 'reportMissingData', args: { topic: 'coéquipiers par partie' } }],
+        unverified: false,
+        feedbackScore: null,
+        createdAt: new Date('2026-10-28T20:00:00.000Z'),
+        conversation: { contextLabel: null, clan: { tag: '47R' } },
+      },
+    ])
+    const body = await (await toolsRoute(json('/api/settings/coach/tools', 'GET'))).json()
+    expect(mocks.messageFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: expect.objectContaining({ role: 'assistant' }) }))
+    expect(body).toMatchObject({ days: 30, answers: 1, withoutTool: 0 })
+    expect(body.tools[0]).toMatchObject({ name: 'getSessions', calls: 1, answers: 1, share: 1 })
+    // Tous les outils du tiroir, à zéro s'ils n'ont pas servi ; la lacune n'est pas un outil de données.
+    expect(body.tools.find((tool: { name: string }) => tool.name === 'getCityInsights')).toMatchObject({ calls: 0 })
+    expect(body.tools.map((tool: { name: string }) => tool.name)).not.toContain('reportMissingData')
+    expect(body.gaps).toEqual([{ text: 'coéquipiers par partie', count: 1, variants: 1 }])
+  })
+})
+
+describe('/api/settings/coach/conversations (2026-10-30)', () => {
+  it('liste les fils du SuperUser connecté seulement, jamais ceux des membres', async () => {
+    mocks.conversationFindMany.mockResolvedValue([
+      {
+        id: 12,
+        title: 'Essai du tiroir',
+        contextLabel: null,
+        createdAt: new Date('2026-10-25T08:00:00.000Z'),
+        updatedAt: new Date('2026-10-25T08:05:00.000Z'),
+        clan: { tag: '47R' },
+        _count: { messages: 3 },
+      },
+    ])
+    const body = await (await ownConversationsRoute(json('/api/settings/coach/conversations', 'GET'))).json()
+    expect(mocks.conversationFindMany).toHaveBeenCalledWith(expect.objectContaining({ where: { userId: 1 } }))
+    expect(body.conversations).toEqual([
+      { id: 12, title: 'Essai du tiroir', contextLabel: null, clanTag: '47R', questions: 3, createdAt: '2026-10-25T08:00:00.000Z', updatedAt: '2026-10-25T08:05:00.000Z' },
+    ])
+  })
+
+  it('« Supprimer mes fils de test » : les fils du compte connecté, le coût reste', async () => {
+    mocks.conversationDeleteMany.mockResolvedValue({ count: 22 })
+    const response = await deleteOwnConversationsRoute(json('/api/settings/coach/conversations', 'DELETE'))
+    expect(await response.json()).toEqual({ deleted: 22 })
+    expect(mocks.conversationDeleteMany).toHaveBeenCalledWith({ where: { userId: 1 } })
+    expect(mocks.usageUpdate).not.toHaveBeenCalled()
+  })
+
+  it('sans session valide : 401, rien n’est supprimé', async () => {
+    mocks.getSession.mockResolvedValue(null)
+    expect((await deleteOwnConversationsRoute(json('/api/settings/coach/conversations', 'DELETE'))).status).toBe(401)
+    expect(mocks.conversationDeleteMany).not.toHaveBeenCalled()
+  })
+
+  it('un fil relu se supprime par son identifiant ; 404 s’il n’existe pas, 400 sur un identifiant invalide', async () => {
+    mocks.conversationDeleteMany.mockResolvedValueOnce({ count: 1 })
+    expect((await deleteConversationRoute(json('/api/settings/coach/conversations/7', 'DELETE'), params('7'))).status).toBe(200)
+    expect(mocks.conversationDeleteMany).toHaveBeenCalledWith({ where: { id: 7 } })
+    mocks.conversationDeleteMany.mockResolvedValueOnce({ count: 0 })
+    expect((await deleteConversationRoute(json('/api/settings/coach/conversations/8', 'DELETE'), params('8'))).status).toBe(404)
+    expect((await deleteConversationRoute(json('/api/settings/coach/conversations/x', 'DELETE'), params('x'))).status).toBe(400)
   })
 })

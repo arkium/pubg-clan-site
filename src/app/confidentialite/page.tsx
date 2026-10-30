@@ -39,7 +39,7 @@ const DATA_ROWS = [
   {
     data: 'Questions au Coach IA : tes questions, les réponses, les outils consultés, tes votes « Utile » / « Inexact » et leur précision',
     source: 'Toi, dans le Coach IA (membres connectés seulement)',
-    usage: 'Te répondre à partir des données de ton clan ; relecture par le SuperUser des réponses votées « Inexact », sans ton compte, pour améliorer le Coach',
+    usage: 'Te répondre à partir des données de ton clan ; relecture par le SuperUser des réponses votées « Inexact » ou signalées comme difficiles (chiffres sans outil, outil en échec, donnée que le Coach ne sait pas lire, question reposée), sans ton compte, pour améliorer le Coach ; il peut supprimer un fil relu',
   },
   {
     data: 'Consommation du Coach IA : nombre de questions, tokens, coût',

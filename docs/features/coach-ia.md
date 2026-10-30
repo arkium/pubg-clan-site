@@ -134,7 +134,10 @@ gardent la semaine des pages — lundi à minuit — et le disent dans leur `not
 **Couverture des pages** (2026-10-25). Avec outil : débriefing et replay, parties et soirées, armes, objets consommés,
 adversaires / Némésis, largages, villes et zones de combat, fin de zone, cartes du clan, calendrier d'activité, carrière
 PUBG du joueur et du clan, saisons, style de jeu du clan et du joueur, classement du clan, Ligue, joueurs inter-clans,
-tournois. **Sans outil** (le Coach le dit s'il est interrogé) : cartes du joueur (`/members/[id]/map-stats`),
+tournois. **Lacune déclarée** (2026-10-30, `src/lib/coach/coach-gap.ts`) : quand aucun outil ne couvre la question,
+le modèle appelle `reportMissingData({ topic })` — rien n'est lu, l'appel reste dans `CoachMessage.toolCalls` et ne
+compte jamais comme un outil qui a répondu (marque « chiffres sans outil » inchangée) ; l'onglet Outils en fait la liste
+des outils à créer. **Sans outil** (le Coach le dit s'il est interrogé) : cartes du joueur (`/members/[id]/map-stats`),
 distinctions et awards, défis, mortier, lecture de zone, carte des ressources. La liste à faire est tenue dans le plan
 (docs/TODO/chatbot-ia.md §13, « Outils à la demande »).
 
@@ -246,7 +249,9 @@ se ferme ; ce qui a été dit reste dans le fil (`aborted`) et la question compt
 |---|---|
 | Réglages | Interrupteur (enregistré tout de suite), clé présente ou absente, tuiles radio des modèles (prix, coût estimé par question au taux courant, plafond de sortie, pastilles recommandé / prix doublé / arrêt, note de l'essai, **Tester** avec résultat sous la tuile), budgets et limites en brouillon + « Enregistrer » |
 | Consommation | Mois de Paris : coût, questions répondues, comptes actifs, coût par question, erreurs, interrompues ; jauge du plafond global (repère 80 %) ; par modèle ; comptes au-delà de 80 % de leur budget ; erreurs des 24 h |
-| Questions | Votes Utile / Inexact / à relire ; questions fréquentes sur 30 jours **regroupées par mots-clés** (`questionTokens` : accents, ponctuation, mots vides, tournures de demande et terminaisons ignorés ; deux questions qui partagent 60 % de leurs mots-clés font une ligne, le libellé est la formulation la plus fréquente, « · N formulations » quand elles diffèrent), 200 groupes au plus, paginées par 10 ; chaque vote « Inexact » avec question, précision du joueur, réponse, outils, bouton « Relu » — **jamais le compte** |
+| Questions | Votes Utile / Inexact / à relire ; questions fréquentes sur 30 jours **regroupées par mots-clés** (`questionTokens` : accents, ponctuation, mots vides, tournures de demande et terminaisons ignorés ; deux questions qui partagent 60 % de leurs mots-clés font une ligne, le libellé est la formulation la plus fréquente, « · N formulations » quand elles diffèrent), 200 groupes au plus, paginées par 10 ; **questions difficiles** (2026-10-30, `buildCoachDifficultAnswers`) : réponses marquées par un vote « Inexact », des chiffres sans outil, un outil en échec, une donnée manquante déclarée ou une question reposée dans les 10 minutes (50 % de mots-clés communs), les plus marquées d'abord, paginées par 10 — **aucune auto-évaluation du modèle**, qui ne sait pas si ses chiffres sont justes ; chaque vote « Inexact » avec question, précision du joueur, réponse, outils, bouton « Relu » ; « Supprimer le fil » (confirmé, journalisé) sur une réponse relue — **jamais le compte** |
+| Outils | (2026-10-30, `buildCoachToolsReport`) Sur 30 jours : réponses, sans outil, chiffres sans outil, avec un outil en échec, outils jamais appelés ; par outil déclaré (`COACH_TOOL_LABELS`) appels, réponses et part, votes « Inexact », échecs par code, dernier appel — un outil jamais appelé reste dans la liste, à mieux décrire ou à retirer ; **données manquantes signalées** (`reportMissingData`), regroupées comme les questions : la liste des outils à créer |
+| Fils | (2026-10-30) Les fils du SuperUser connecté seulement — ses essais —, supprimés un par un ou d'un coup (« Supprimer mes fils », `DELETE /api/settings/coach/conversations`) ; ceux des membres ne se listent pas (`/confidentialite`). Le coût dépensé reste compté (`CoachUsage` n'est jamais supprimé avec un fil) |
 
 Rapports purs dans `coach-admin-report.ts` (tests `coach-admin-report.test.ts`), lectures dans
 `coach-admin-service.ts`, routes testées par `coach-admin-routes.test.ts`.

@@ -1,5 +1,6 @@
 import { microUsdToEur } from '@/lib/coach/coach-cost'
 import type { COACH_SETTING_BOUNDS, CoachSettings } from '@/lib/coach/coach-config'
+import { COACH_GAP_TOOL_NAME, coachGapTopics } from '@/lib/coach/coach-gap'
 import { getCoachModel } from '@/lib/coach/coach-models'
 import type { CoachProviderErrorCode } from '@/lib/coach/coach-provider'
 import type { CoachUsageStatus } from '@/lib/coach/coach-quota'
@@ -303,6 +304,8 @@ export type CoachQuestionsReport = {
   frequent: CoachFrequentQuestion[]
   votes: { helpful: number; inaccurate: number; pendingReview: number }
   inaccurate: CoachInaccurateAnswer[]
+  /** Réponses à relire d'après des signaux enregistrés, sans auto-évaluation du modèle (2026-10-30). */
+  difficult: CoachDifficultAnswer[]
 }
 
 /** Noms des outils d'une colonne `toolCalls` (même lecture que la vue d'un fil). */
@@ -324,4 +327,217 @@ export function questionBefore(
     if (!best || message.id > best.id) best = message
   }
   return best?.content ?? null
+}
+
+// ── Outils et questions difficiles (2026-10-30) ────────────────────────────────────────────────────────────────────
+
+/** Une réponse du modèle, telle que la lisent les onglets Outils et Questions (contexte et clan, jamais le compte). */
+export type CoachAnswerRow = {
+  id: number
+  conversationId: number
+  content: string
+  toolCalls: unknown
+  unverified: boolean
+  feedbackScore: number | null
+  createdAt: Date
+  clanTag: string | null
+  contextLabel: string | null
+}
+
+export type CoachUserMessageRow = { id: number; conversationId: number; content: string; createdAt: Date }
+
+type AuditEntry = { name: string; failed: string | null }
+
+/** Appels d'une colonne `toolCalls`, avec leur code d'échec (`failed`, coach-chat-service.ts). */
+function auditEntries(toolCalls: unknown): AuditEntry[] {
+  if (!Array.isArray(toolCalls)) return []
+  return toolCalls.flatMap((call) => {
+    if (!call || typeof call !== 'object') return []
+    const entry = call as { name?: unknown; failed?: unknown }
+    if (typeof entry.name !== 'string') return []
+    return [{ name: entry.name, failed: typeof entry.failed === 'string' && entry.failed ? entry.failed : null }]
+  })
+}
+
+/** Appels qui lisent des données : tout sauf la lacune déclarée. */
+const dataEntries = (toolCalls: unknown) => auditEntries(toolCalls).filter((entry) => entry.name !== COACH_GAP_TOOL_NAME)
+
+export type CoachToolStat = {
+  name: string
+  label: string
+  calls: number
+  /** Réponses qui l'ont appelé au moins une fois, et leur part parmi toutes les réponses de la période. */
+  answers: number
+  share: number
+  /** Parmi ces réponses, celles votées « Inexact ». */
+  inaccurate: number
+  failures: Array<{ code: string; count: number }>
+  lastUsedAt: string | null
+}
+
+export type CoachToolsReport = {
+  days: number
+  answers: number
+  /** Réponses sans aucun outil de données : salutations, aide, refus compris. */
+  withoutTool: number
+  unverified: number
+  withFailure: number
+  /** Tous les outils déclarés, jamais appelés compris, du plus appelé au moins appelé. */
+  tools: CoachToolStat[]
+  /** Données manquantes signalées par le modèle (`reportMissingData`), regroupées comme les questions fréquentes. */
+  gaps: CoachFrequentQuestion[]
+}
+
+/**
+ * Onglet Outils : par outil, appels, réponses, échecs et votes « Inexact » sur la période ; les outils déclarés
+ * jamais appelés restent dans la liste (à zéro), un outil disparu des déclarations mais présent dans l'historique aussi.
+ */
+export function buildCoachToolsReport(input: { days: number; answers: readonly CoachAnswerRow[]; toolLabels: Readonly<Record<string, string>> }): CoachToolsReport {
+  const stats = new Map<string, CoachToolStat & { failureCounts: Map<string, number> }>()
+  const statOf = (name: string) => {
+    let stat = stats.get(name)
+    if (!stat) {
+      stat = { name, label: input.toolLabels[name] ?? name, calls: 0, answers: 0, share: 0, inaccurate: 0, failures: [], lastUsedAt: null, failureCounts: new Map() }
+      stats.set(name, stat)
+    }
+    return stat
+  }
+  for (const name of Object.keys(input.toolLabels)) if (name !== COACH_GAP_TOOL_NAME) statOf(name)
+
+  let withoutTool = 0
+  let withFailure = 0
+  const gapTopics: Array<{ content: string }> = []
+  for (const answer of input.answers) {
+    const entries = dataEntries(answer.toolCalls)
+    if (entries.length === 0) withoutTool += 1
+    if (entries.some((entry) => entry.failed)) withFailure += 1
+    for (const topic of coachGapTopics(answer.toolCalls)) gapTopics.push({ content: topic })
+    const seen = new Set<string>()
+    for (const entry of entries) {
+      const stat = statOf(entry.name)
+      stat.calls += 1
+      if (entry.failed) stat.failureCounts.set(entry.failed, (stat.failureCounts.get(entry.failed) ?? 0) + 1)
+      const at = answer.createdAt.toISOString()
+      if (!stat.lastUsedAt || at > stat.lastUsedAt) stat.lastUsedAt = at
+      if (seen.has(entry.name)) continue
+      seen.add(entry.name)
+      stat.answers += 1
+      if (answer.feedbackScore === -1) stat.inaccurate += 1
+    }
+  }
+
+  const total = input.answers.length
+  const tools = [...stats.values()]
+    .map(({ failureCounts, ...stat }) => ({
+      ...stat,
+      share: total > 0 ? stat.answers / total : 0,
+      failures: [...failureCounts.entries()].map(([code, count]) => ({ code, count })).sort((a, b) => b.count - a.count || a.code.localeCompare(b.code)),
+    }))
+    .sort((a, b) => b.calls - a.calls || a.label.localeCompare(b.label, 'fr'))
+
+  return {
+    days: input.days,
+    answers: total,
+    withoutTool,
+    unverified: input.answers.filter((answer) => answer.unverified).length,
+    withFailure,
+    tools,
+    gaps: groupCoachQuestions(gapTopics),
+  }
+}
+
+export type CoachDifficultSignal = 'inaccurate' | 'unverified' | 'tool_failed' | 'gap' | 'rephrased'
+
+export const COACH_DIFFICULT_SIGNAL_LABELS: Record<CoachDifficultSignal, string> = {
+  inaccurate: 'Vote « Inexact »',
+  unverified: 'Chiffres sans outil',
+  tool_failed: 'Outil en échec',
+  gap: 'Donnée manquante',
+  rephrased: 'Question reposée',
+}
+
+export type CoachDifficultAnswer = {
+  messageId: number
+  conversationId: number
+  createdAt: string
+  clanTag: string | null
+  contextLabel: string | null
+  question: string | null
+  answer: string
+  tools: string[]
+  signals: CoachDifficultSignal[]
+  gapTopics: string[]
+  failures: string[]
+}
+
+/** Question reposée : la suivante du même fil, posée dans ce délai après la réponse, avec assez de mots-clés communs. */
+export const COACH_REPHRASE_WINDOW_MS = 10 * 60 * 1000
+export const COACH_REPHRASE_SIMILARITY = 0.5
+/** Réponses difficiles renvoyées au SuperUser ; la page les pagine. */
+export const COACH_DIFFICULT_LIMIT = 100
+
+/**
+ * Questions difficiles : réponses marquées par au moins un signal enregistré — vote « Inexact », chiffres sans outil,
+ * outil en échec, donnée manquante déclarée, question reposée dans la foulée. Aucune auto-évaluation du modèle : il ne
+ * sait pas si ses chiffres sont justes. Les plus marquées d'abord, puis les plus récentes.
+ */
+export function buildCoachDifficultAnswers(answers: readonly CoachAnswerRow[], userMessages: readonly CoachUserMessageRow[]): CoachDifficultAnswer[] {
+  const byConversation = new Map<number, CoachUserMessageRow[]>()
+  for (const message of userMessages) {
+    const list = byConversation.get(message.conversationId) ?? []
+    list.push(message)
+    byConversation.set(message.conversationId, list)
+  }
+  for (const list of byConversation.values()) list.sort((a, b) => a.id - b.id)
+
+  const difficult: CoachDifficultAnswer[] = []
+  for (const answer of answers) {
+    const messages = byConversation.get(answer.conversationId) ?? []
+    const question = [...messages].reverse().find((message) => message.id < answer.id) ?? null
+    const next = messages.find((message) => message.id > answer.id) ?? null
+    const entries = dataEntries(answer.toolCalls)
+    const failures = entries.flatMap((entry) => (entry.failed ? [`${entry.name} : ${entry.failed}`] : []))
+    const gapTopics = coachGapTopics(answer.toolCalls)
+    const rephrased =
+      question !== null &&
+      next !== null &&
+      next.createdAt.getTime() - answer.createdAt.getTime() <= COACH_REPHRASE_WINDOW_MS &&
+      jaccard(questionTokens(question.content), questionTokens(next.content)) >= COACH_REPHRASE_SIMILARITY
+
+    const signals: CoachDifficultSignal[] = []
+    if (answer.feedbackScore === -1) signals.push('inaccurate')
+    if (answer.unverified) signals.push('unverified')
+    if (failures.length > 0) signals.push('tool_failed')
+    if (gapTopics.length > 0) signals.push('gap')
+    if (rephrased) signals.push('rephrased')
+    if (signals.length === 0) continue
+
+    difficult.push({
+      messageId: answer.id,
+      conversationId: answer.conversationId,
+      createdAt: answer.createdAt.toISOString(),
+      clanTag: answer.clanTag,
+      contextLabel: answer.contextLabel,
+      question: question?.content ?? null,
+      answer: answer.content,
+      tools: entries.map((entry) => entry.name),
+      signals,
+      gapTopics,
+      failures,
+    })
+  }
+  return difficult
+    .sort((a, b) => b.signals.length - a.signals.length || b.createdAt.localeCompare(a.createdAt))
+    .slice(0, COACH_DIFFICULT_LIMIT)
+}
+
+/** Fil du SuperUser (onglet Fils) : ses essais, à supprimer d'un coup ou un par un. */
+export type CoachOwnConversation = {
+  id: number
+  title: string
+  contextLabel: string | null
+  clanTag: string | null
+  questions: number
+  createdAt: string
+  updatedAt: string
 }

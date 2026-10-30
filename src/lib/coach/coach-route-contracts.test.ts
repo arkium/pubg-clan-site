@@ -190,7 +190,7 @@ describe('POST /api/clans/[clanId]/coach/chat — règles apprises et mémoire p
     const request = mocks.streamAnswer.mock.calls[0][0]
     expect(request.system).not.toContain('Règles du site')
     expect(request.system).not.toContain('rememberAboutMe')
-    expect(request.tools.map((tool: { name: string }) => tool.name)).toEqual(['getMatchDebrief'])
+    expect(request.tools.map((tool: { name: string }) => tool.name)).toEqual(['getMatchDebrief', 'reportMissingData'])
     expect(mocks.ruleFindMany).not.toHaveBeenCalled()
     expect(mocks.memoryFindMany).not.toHaveBeenCalled()
   })
@@ -224,7 +224,7 @@ describe('POST /api/clans/[clanId]/coach/chat — règles apprises et mémoire p
     const request = mocks.streamAnswer.mock.calls[0][0]
     expect(request.system).toContain('« 30 % de headshots »')
     expect(request.system).toContain('rememberAboutMe')
-    expect(request.tools.map((tool: { name: string }) => tool.name)).toEqual(['getMatchDebrief', 'rememberAboutMe'])
+    expect(request.tools.map((tool: { name: string }) => tool.name)).toEqual(['getMatchDebrief', 'reportMissingData', 'rememberAboutMe'])
     expect(mocks.memoryFindMany.mock.calls[0][0].where).toMatchObject({ userId: 10 })
     expect(mocks.memoryCreate.mock.calls[0][0].data).toMatchObject({ userId: 10, memberId: 100, clanId: 292, key: 'preference', text: 'je joue surtout le soir', source: 'player' })
     expect(mocks.runTool).not.toHaveBeenCalled()
@@ -291,6 +291,22 @@ describe('POST /api/clans/[clanId]/coach/chat — flux', () => {
     expect(stored).not.toMatch(/mickyoun|@gmail|https?:/)
     expect(stored).toContain('[adresse masquée]')
     expect(mocks.usageUpdate).toHaveBeenCalledWith({ where: { id: 500 }, data: { status: 'refused', tokensIn: 0, tokensOut: 0, costMicroUsd: 0 } })
+  })
+
+  it('lacune déclarée (2026-10-30) : gardée dans l’audit, jamais lue comme un outil qui a répondu, offerte au modèle', async () => {
+    mocks.getSession.mockResolvedValue(session())
+    let offered: string[] = []
+    mocks.streamAnswer.mockImplementation(async (request: { runTool: (call: unknown) => Promise<unknown>; tools: Array<{ name: string }> }) => {
+      offered = request.tools.map((tool) => tool.name)
+      expect(await request.runTool({ name: 'reportMissingData', args: { topic: '  coéquipiers   par partie ' } })).toEqual({ recorded: true, topic: 'coéquipiers par partie' })
+      return { text: 'Je ne lis pas encore tes 3 coéquipiers par partie.', toolCalls: [{ name: 'reportMissingData', args: { topic: 'coéquipiers par partie' } }], tokensIn: 900, tokensOut: 40, rounds: 2, finishReason: 'STOP' }
+    })
+    const events = await readSse(await chat({ message: 'Avec qui je gagne le plus ?' }))
+    expect(offered).toContain('reportMissingData')
+    // Un chiffre sans outil de données : marqué « non vérifié », la lacune ne le couvre pas.
+    expect(events.at(-1)?.data).toMatchObject({ unverified: true })
+    expect(mocks.messageCreate.mock.calls[1][0].data).toMatchObject({ toolCalls: [{ name: 'reportMissingData', args: { topic: '  coéquipiers   par partie ' } }] })
+    expect(mocks.runTool).not.toHaveBeenCalled()
   })
 
   it('marque « non vérifié » une réponse chiffrée quand l’outil a échoué, et garde l’échec dans l’audit', async () => {

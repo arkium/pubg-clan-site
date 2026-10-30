@@ -8,6 +8,8 @@ import { describe, expect, it, vi } from 'vitest'
 vi.mock('@/lib/prisma', () => ({ prisma: {} }))
 
 import {
+  buildCoachDifficultAnswers,
+  buildCoachToolsReport,
   buildCoachUsageReport,
   coachTestSummary,
   coachToolNames,
@@ -15,6 +17,7 @@ import {
   normalizeCoachQuestion,
   questionBefore,
   questionTokens,
+  type CoachAnswerRow,
   type CoachUsageRow,
 } from '@/lib/coach/coach-admin-report'
 import { COACH_SETTING_DEFAULTS } from '@/lib/coach/coach-config'
@@ -168,5 +171,78 @@ describe('coachTestSummary', () => {
       tone: 'neg',
       text: 'Test échoué · clé refusée ou accès limité — 403 — API key not valid',
     })
+  })
+})
+
+// Onglets Outils et Questions difficiles (2026-10-30).
+const answer = (id: number, overrides: Partial<CoachAnswerRow> = {}): CoachAnswerRow => ({
+  id,
+  conversationId: 1,
+  content: 'Réponse',
+  toolCalls: null,
+  unverified: false,
+  feedbackScore: null,
+  createdAt: new Date('2026-10-28T20:00:00.000Z'),
+  clanTag: '47R',
+  contextLabel: null,
+  ...overrides,
+})
+
+describe('buildCoachToolsReport', () => {
+  const labels = { getSessions: 'Je fais le bilan des soirées…', getDropZones: 'Je compte les largages…', reportMissingData: 'Je signale…' }
+
+  it('compte appels, réponses, part, échecs et votes « Inexact » ; garde les outils jamais appelés, jamais la lacune', () => {
+    const report = buildCoachToolsReport({
+      days: 30,
+      toolLabels: labels,
+      answers: [
+        answer(10, { toolCalls: [{ name: 'getSessions', args: {} }, { name: 'getSessions', args: {} }], feedbackScore: -1 }),
+        answer(11, { toolCalls: [{ name: 'getSessions', args: {}, failed: 'exception' }], createdAt: new Date('2026-10-29T20:00:00.000Z') }),
+        answer(12, { toolCalls: [{ name: 'reportMissingData', args: { topic: 'coéquipiers par partie' } }], unverified: true }),
+        answer(13, { toolCalls: [{ name: 'reportMissingData', args: { topic: 'Coéquipiers, par partie' } }] }),
+        answer(14),
+      ],
+    })
+    expect(report).toMatchObject({ days: 30, answers: 5, withoutTool: 3, unverified: 1, withFailure: 1 })
+    expect(report.tools.map((tool) => tool.name)).toEqual(['getSessions', 'getDropZones'])
+    expect(report.tools[0]).toMatchObject({ calls: 3, answers: 2, share: 0.4, inaccurate: 1, failures: [{ code: 'exception', count: 1 }], lastUsedAt: '2026-10-29T20:00:00.000Z' })
+    expect(report.tools[1]).toMatchObject({ calls: 0, answers: 0, lastUsedAt: null, label: 'Je compte les largages…' })
+    // Deux écritures de la même lacune (casse, ponctuation) : une ligne, une formulation.
+    expect(report.gaps).toEqual([{ text: 'coéquipiers par partie', count: 2, variants: 1 }])
+  })
+})
+
+describe('buildCoachDifficultAnswers', () => {
+  const question = (id: number, content: string, at: string, conversationId = 1) => ({ id, conversationId, content, createdAt: new Date(at) })
+
+  it('retient les réponses marquées par un signal, les plus marquées d’abord, avec question, outils et lacunes', () => {
+    const difficult = buildCoachDifficultAnswers(
+      [
+        answer(2, { createdAt: new Date('2026-10-28T20:00:00.000Z') }),
+        answer(4, { conversationId: 2, unverified: true, feedbackScore: -1, toolCalls: [{ name: 'getSessions', args: {}, failed: 'exception' }], createdAt: new Date('2026-10-28T21:00:00.000Z') }),
+        answer(6, { conversationId: 3, toolCalls: [{ name: 'reportMissingData', args: { topic: 'coéquipiers' } }], createdAt: new Date('2026-10-28T22:00:00.000Z') }),
+      ],
+      [
+        question(1, 'Bonjour', '2026-10-28T19:59:00.000Z'),
+        question(3, 'Combien de Top 1 samedi ?', '2026-10-28T20:59:00.000Z', 2),
+        question(5, 'Avec qui je gagne ?', '2026-10-28T21:59:00.000Z', 3),
+      ]
+    )
+    expect(difficult.map((row) => row.messageId)).toEqual([4, 6])
+    expect(difficult[0]).toMatchObject({ question: 'Combien de Top 1 samedi ?', signals: ['inaccurate', 'unverified', 'tool_failed'], failures: ['getSessions : exception'], tools: ['getSessions'] })
+    expect(difficult[1]).toMatchObject({ signals: ['gap'], gapTopics: ['coéquipiers'], tools: [] })
+    expect(JSON.stringify(difficult)).not.toMatch(/userId/)
+  })
+
+  it('« question reposée » : la suivante du même fil, dans les 10 minutes, avec assez de mots-clés communs', () => {
+    const answers = [answer(2, { createdAt: new Date('2026-10-28T20:00:00.000Z') })]
+    const rephrased = buildCoachDifficultAnswers(answers, [
+      question(1, 'Quelle est ma meilleure arme ?', '2026-10-28T19:59:00.000Z'),
+      question(3, 'Ma meilleure arme, stp ?', '2026-10-28T20:03:00.000Z'),
+    ])
+    expect(rephrased[0]?.signals).toEqual(['rephrased'])
+    // Trop tard, ou une autre question : rien.
+    expect(buildCoachDifficultAnswers(answers, [question(1, 'Quelle est ma meilleure arme ?', '2026-10-28T19:59:00.000Z'), question(3, 'Ma meilleure arme ?', '2026-10-28T20:30:00.000Z')])).toEqual([])
+    expect(buildCoachDifficultAnswers(answers, [question(1, 'Quelle est ma meilleure arme ?', '2026-10-28T19:59:00.000Z'), question(3, 'Et sur Miramar ?', '2026-10-28T20:02:00.000Z')])).toEqual([])
   })
 })

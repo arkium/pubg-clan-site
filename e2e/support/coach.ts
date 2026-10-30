@@ -185,6 +185,12 @@ export function mockCoachAdmin(api: ApiMock) {
   const saves: Array<Record<string, unknown>> = []
   const ruleWrites: CoachRuleWrite[] = []
   const noteWrites: string[] = []
+  // Suppressions de fils (2026-10-30) : « mine » pour « Supprimer mes fils de test », sinon l'identifiant du fil.
+  const conversationDeletes: Array<number | 'mine'> = []
+  let ownConversations = [
+    { id: 12, title: 'Essai du tiroir', contextLabel: null, clanTag: 'DEMO', questions: 3, createdAt: '2026-10-25T08:00:00.000Z', updatedAt: '2026-10-25T08:05:00.000Z' },
+    { id: 13, title: 'Test de la mémoire', contextLabel: COACH_CONTEXT_LABEL, clanTag: 'DEMO', questions: 1, createdAt: '2026-10-25T09:00:00.000Z', updatedAt: '2026-10-25T09:01:00.000Z' },
+  ]
   let settings = { ...COACH_SETTINGS }
   let rules: CoachRuleFixture[] = [{ id: 1, text: 'Un Top 10 n’est pas une victoire.', enabled: true, fromMessageId: null, createdAt: '2026-10-25T09:00:00.000Z', updatedAt: '2026-10-25T09:00:00.000Z', tokens: 9 }]
   const rulesReport = () => {
@@ -255,13 +261,58 @@ export function mockCoachAdmin(api: ApiMock) {
             unverified: false,
           },
         ],
+        difficult: [
+          {
+            messageId: 60,
+            conversationId: 9,
+            createdAt: '2026-10-28T20:12:00.000Z',
+            clanTag: 'DEMO',
+            contextLabel: null,
+            question: 'Avec qui je gagne le plus ?',
+            answer: 'Je ne lis pas encore tes coéquipiers partie par partie.',
+            tools: [],
+            signals: ['unverified', 'gap'],
+            gapTopics: ['coéquipiers par partie'],
+            failures: [],
+          },
+        ],
       },
     })
+    .on('GET', '/api/settings/coach/tools', {
+      body: {
+        days: 30,
+        answers: 143,
+        withoutTool: 55,
+        unverified: 10,
+        withFailure: 1,
+        tools: [
+          { name: 'getClanLeaderboard', label: 'Je lis le classement du clan…', calls: 15, answers: 15, share: 0.105, inaccurate: 2, failures: [], lastUsedAt: '2026-10-29T20:00:00.000Z' },
+          { name: 'getTournamentResults', label: 'Je lis le classement du tournoi…', calls: 7, answers: 7, share: 0.049, inaccurate: 0, failures: [{ code: 'tournament_not_found', count: 1 }], lastUsedAt: '2026-10-28T20:00:00.000Z' },
+          { name: 'getCityInsights', label: 'Je regarde les villes et les zones de combat…', calls: 0, answers: 0, share: 0, inaccurate: 0, failures: [], lastUsedAt: null },
+        ],
+        gaps: [{ text: 'coéquipiers par partie', count: 9, variants: 2 }],
+      },
+    })
+    .on('GET', '/api/settings/coach/conversations', () => ({ body: { conversations: ownConversations } }))
+    .on('DELETE', '/api/settings/coach/conversations', () => {
+      conversationDeletes.push('mine')
+      const deleted = ownConversations.length
+      ownConversations = []
+      return { body: { deleted } }
+    })
+  for (const id of [9, 12, 13]) {
+    api.on('DELETE', `/api/settings/coach/conversations/${id}`, () => {
+      conversationDeletes.push(id)
+      ownConversations = ownConversations.filter((conversation) => conversation.id !== id)
+      return { body: { ok: true } }
+    })
+  }
+  api
     .on('POST', '/api/settings/coach/questions/42/reviewed', { body: { ok: true } })
     .on('PATCH', '/api/settings/coach/questions/42/note', (_url, request: Request) => {
       const { note } = request.postDataJSON() as { note: string }
       noteWrites.push(note)
       return { body: { ok: true, note: note.trim() || null } }
     })
-  return { saves, ruleWrites, noteWrites }
+  return { saves, ruleWrites, noteWrites, conversationDeletes }
 }

@@ -50,6 +50,7 @@ d'inscrire son clan.
 | 2026-10-25 | Tournoi : le joueur | Fil 10, page d'un tournoi : « détaille mon résultat » a rendu le bilan **du clan** au tutoiement (l'outil n'avait aucune ligne pour le joueur), le rang de la manche aux points pris pour la place en jeu (« 5e place » pour une 12e place) ; « les armes les plus utiles ? » a lu les armes de tout l'historique sans le dire ; « je parle du tournoi » : « aucune statistique par arme », alors que le kill feed des quatre manches est en base. **Décidé :** `getTournamentResults` rend `you` (manches, totaux, MVP, armes du tournoi) et `clanWeapons`, champs `roundRank` / `gamePlacement` ; sur la page d'un tournoi, une question porte sur ce tournoi sauf mention contraire, « mon résultat » = `you` | Utilisateur |
 | 2026-10-25 | Largages et outils en échec | Fil 9, suite : « liste des drops favoris ? » puis « et cette semaine ? » ont reçu **le même** résultat (`getDropZones` n'avait pas de période), étiqueté « cette semaine » ; 2 000 lignes lues au lieu de 90 jours ; « Hors ville » en tête. Plus tôt dans le même fil, deux réponses chiffrées après `getSessions` (« 20 parties samedi », « 15 vendredi ») ne correspondent à **aucune** soirée en base, le même appel rendant les bons chiffres 30 s plus tard — outil probablement en échec, chiffres inventés. **Décidé :** `getDropZones` réécrit sur les calculs de la page (période, joueur, toutes les cartes, sauts et non parties, hors-ville à part, pression en adversaires, borne à 20 000) ; règles du prompt « un résultat dit sa période et son périmètre » et « outil en échec : aucun chiffre » ; nombres à la française ; marque `unverified` aussi quand tous les appels ont échoué, issue de chaque appel dans l'audit ; contexte de la page des largages d'un joueur | Utilisateur |
 | 2026-10-25 | Soirées et calculs | Analyse d'un fil de production (clan 25, fil 9) : « combien de Top 1 samedi ? » répondu depuis `getRecentMatches` (10 parties sur 31), « aucune partie vendredi » (55 en base), moyenne fausse (10,9 pour 13,0), « vous » dans les conseils. **Décidé :** outil **`getSessions`** (bilan par soirée calculé par le serveur, date ou plage, 06:00 à 06:00 par `sessionStartOf`) ; `truncated` et résumé calculé (`summary`) dans `getRecentMatches` ; règles du prompt « ne calcule rien toi-même », « une liste bornée ne prouve pas une absence », bloc « Choix de l'outil », tutoiement de la recommandation ; les outils de période gardent la semaine des pages (lundi minuit) et le disent dans leur `note` — le Coach ne contredit pas l'écran | Utilisateur |
+| 2026-10-30 | Administration | Suppression d'un fil depuis l'admin (essais du SuperUser, fils relus), onglet **Outils** (usage par outil, jamais appelés, échecs), **questions difficiles** tirées de signaux enregistrés — pas d'auto-évaluation du modèle, qui se surestime et doublerait le coût — et **lacune déclarée** par l'outil `reportMissingData` (sans migration : l'appel reste dans l'audit d'outils). `/confidentialite` élargie aux réponses signalées | Utilisateur |
 
 **Propositions confirmées le 2026-10-24** (elles ont valeur de décision) :
 
@@ -1105,6 +1106,24 @@ Relevé des 128 questions réelles du 2026-10-27 ([coach-ia-pistes.md §7](coach
 - [ ] Mise en production : `deploy.sh` (migration additive, rien d'autre) ; puis ouverture des interrupteurs depuis
       `/settings/coach` quand tu le décides — règles d'abord, une fois la première semaine de votes « Inexact » relue ;
       mémoire ensuite
+
+### Lot 12 — Administration : outils, questions difficiles, fils (2026-10-30)
+
+- [x] Suppression d'un fil : onglet **Fils** (`/settings/coach/conversations`, fils du SuperUser seulement, un par un ou
+      tous), « Supprimer le fil » sur un vote « Inexact » ou une question difficile ; modale de confirmation, routes
+      `GET · DELETE /api/settings/coach/conversations`, `DELETE …/conversations/[id]` journalisées ; le coût reste compté
+- [x] Onglet **Outils** (`/settings/coach/tools`, `GET …/tools`, `buildCoachToolsReport`) : appels, part des réponses,
+      votes « Inexact », échecs par code, outils jamais appelés, réponses sans outil
+- [x] **Questions difficiles** (onglet Questions, `buildCoachDifficultAnswers`) : vote « Inexact », chiffres sans outil,
+      outil en échec, donnée manquante, question reposée dans les 10 minutes
+- [x] **Lacune déclarée** : outil `reportMissingData` (`coach-gap.ts`), règle du prompt, jamais compté comme outil qui a
+      répondu ; liste « Données manquantes signalées » de l'onglet Outils
+- [x] `/confidentialite` : relecture étendue aux réponses signalées, suppression d'un fil relu ; `LEGAL_UPDATED_AT` au
+      30 octobre 2026
+- [x] Tests : `coach-gap.test.ts`, `coach-admin-report.test.ts`, `coach-admin-routes.test.ts`, `coach-route-contracts.test.ts`,
+      `e2e/coach.spec.ts` (« questions difficiles, outils et fils »)
+- [ ] Après le déploiement : supprimer les fils de test depuis l'onglet Fils ; relire la liste des données manquantes
+      après une semaine
 
 ---
 

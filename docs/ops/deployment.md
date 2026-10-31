@@ -382,9 +382,11 @@ Posés par l'application, donc versionnés et testés — rien à ajouter dans N
 
 - **`next.config.ts` → `SECURITY_HEADERS`**, sur toutes les réponses : `Strict-Transport-Security: max-age=31536000`,
   `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options: SAMEORIGIN`, `Permissions-Policy` ; plus
-  `poweredByHeader: false` (plus de `X-Powered-By: Next.js`). **HSTS sans `includeSubDomains`** tant que le certificat
-  wildcard des sous-domaines de clan n'est pas posé : un navigateur qui l'aurait vu refuserait d'ouvrir un sous-domaine
-  sans certificat valide. Une fois `https://<clan>.chickendinner.fr` valide, ajouter `; includeSubDomains`.
+  `poweredByHeader: false` (plus de `X-Powered-By: Next.js`). **HSTS sans `includeSubDomains`** : un navigateur qui
+  l'aurait vu refuserait d'ouvrir un sous-domaine sans certificat valide. Le wildcard couvre les sous-domaines de clan
+  depuis le 2026-10-31, mais pas `mail`, `imap`, `pop3` ni `smtp` (CNAME vers `ssl0.ovh.net`, certificat d'OVH) :
+  `includeSubDomains` rendrait inaccessible le raccourci webmail `http://mail.chickendinner.fr`. Décision en attente
+  ([chickendinnerfr.md §8](../TODO/chickendinnerfr.md)).
 - **CSP** : posée par le proxy (`src/proxy.ts`, `src/lib/security/csp.ts`) avec un nonce par requête, **bloquante**
   (`Content-Security-Policy`) depuis le 2026-10-23, après cinq jours en observation (`Report-Only`, depuis le
   2026-10-18). Avant la bascule : 54 pages de production parcourues en visiteur et suite Playwright complète sur le
@@ -403,7 +405,9 @@ Posés par l'application, donc versionnés et testés — rien à ajouter dans N
 
 Spec : [docs/TODO/chickendinnerfr.md](../TODO/chickendinnerfr.md). Chaque clan actif a un sous-domaine
 (`Clan.subdomain`) qui **redirige** (307) vers sa vue d'ensemble ; un sous-domaine inconnu redirige vers la vitrine `/`.
-Le DNS wildcard `*.chickendinner.fr` est déjà en place. Dans l'ordre :
+Exceptions : `/m/<match>` (lien court) et `/login` (connexion aux couleurs du clan). En service depuis le 2026-10-31
+(recette au §6 de la spec). Le sous-domaine persistant (`bee.chickendinner.fr/overview`, sans redirection) est étudié
+au §9, non planifié. Le DNS wildcard `*.chickendinner.fr` est déjà en place. Dans l'ordre :
 
 1. **Certificat wildcard** — Le DNS de `chickendinner.fr` est chez **OVH** (`dns200.anycast.me` / `ns200.anycast.me`).
    Let's Encrypt ne délivre un wildcard que par validation **DNS-01**, via le plugin `python3-certbot-dns-ovh` :

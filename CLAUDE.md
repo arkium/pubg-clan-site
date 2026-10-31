@@ -383,7 +383,8 @@ poste à l'heure de Paris décale les semaines de deux heures ; les scripts des 
   sans compilation, `privacy-request.ts`). Un écart ne s'affiche pas dans la
   console de Playwright : la fixture `cspViolations` (`e2e/support/api.ts`) l'écoute par `securitypolicyviolation` et
   fait échouer le test (suite complète sur le build : 0 écart le 2026-10-22). En-têtes de sécurité :
-  `SECURITY_HEADERS` de `next.config.ts` (HSTS **sans** `includeSubDomains` tant que le wildcard n'est pas posé).
+  `SECURITY_HEADERS` de `next.config.ts` (HSTS **sans** `includeSubDomains` : le wildcard posé le 2026-10-31 ne couvre
+  pas `mail.chickendinner.fr`, CNAME OVH — décision en attente, docs/TODO/chickendinnerfr.md §8).
 
 **Administration (depuis le 2026-10-07, [administration.md](docs/TODO/administration.md)) :** quatre profils — visiteur,
 membre, Owner, SuperUser. Toute route d'administration passe par `src/lib/auth/admin-guards.ts` :
@@ -577,6 +578,9 @@ or dropping an index (`EncounteredPlayer` carried 3× more index than data befor
 - **Sous-domaines de clan:** même règle — le proxy lit la table `sous-domaine → clan` par
   `GET /api/internal/clan-subdomains` et la garde en cache (`src/lib/clan-subdomain-host.ts`) ; tout ce qu'il
   importe doit rester sans Prisma (`src/lib/clan-subdomain.ts` est pur, le service Prisma est à part).
+  Un sous-domaine **redirige** (307), il ne sert jamais de page : le sous-domaine persistant (réécriture,
+  `bee.chickendinner.fr/overview`) est étudié et non planifié — cookie de session, 271 liens internes,
+  `usePathname()` et canonique à reprendre d'abord (docs/TODO/chickendinnerfr.md §9).
 
 #### 5. **useSearchParams() SSR Hydration Mismatch**
 - **Issue:** Next.js 16 warns if `useSearchParams()` used in Server-rendered page

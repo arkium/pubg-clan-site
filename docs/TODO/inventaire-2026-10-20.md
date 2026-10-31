@@ -110,7 +110,7 @@ lignes correspondantes avant de paginer en mémoire.~~ — **Réglé par la fin 
 | ⚠️ **Port 3306 ouvert à tout Internet** ; jail fail2ban `mysqld-auth` à étudier | [todo.md](todo.md) l. 174 |
 | ⚠️ `REVOKE` des droits globaux du compte `smk` | [database-performance.md](../ops/database-performance.md) |
 | Rapport `db-health` à J+7 (prévu le 2026-09-22) jamais consigné ; en dépendent les index d'`EncounteredPlayer`, les réglages mémoire MariaDB et le `db-health disable` | [todo.md](todo.md) l. 157, 170 |
-| Sous-domaines de clan : certificat wildcard (DNS-01), `server_name *.chickendinner.fr` dans Nginx, `CLAN_SUBDOMAIN_ROOT=chickendinner.fr`, redémarrage ; **puis** `includeSubDomains` au HSTS | [chickendinnerfr.md §5](chickendinnerfr.md), [deployment.md](../ops/deployment.md) |
+| ~~Sous-domaines de clan : certificat wildcard (DNS-01), `server_name *.chickendinner.fr` dans Nginx, `CLAN_SUBDOMAIN_ROOT=chickendinner.fr`, redémarrage~~ — **fait** le 2026-10-31. `includeSubDomains` au HSTS reste à trancher : il rendrait inaccessible `mail.chickendinner.fr` (CNAME OVH sans certificat valide, [chickendinnerfr.md §8](chickendinnerfr.md)) | [chickendinnerfr.md §5](chickendinnerfr.md), [deployment.md](../ops/deployment.md) |
 | ~~`APP_URL` et `NEXT_PUBLIC_APP_URL` à `https://chickendinner.fr` dans le `.env`, rebuild, redémarrage~~ — **fait** : posées le 2026-10-20, prises en compte par les déploiements des 2026-10-21 et 22 (`deploy.sh` reconstruit et redémarre tout) | [url-masking.md §5](url-masking.md) |
 | Créer la boîte `contact@chickendinner.fr` (déjà citée par les pages légales) | [CU_todo.md](CU_todo.md) |
 | `OPTIMIZE` de `SquadMatchTelemetry` (~16 Go à rendre au disque) | [todo.md](todo.md) l. 721, 733 |

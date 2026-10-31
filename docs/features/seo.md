@@ -79,6 +79,9 @@ Tous les titres finissent par « · chickendinner.fr ». Une page indexée a une
 4. **Inspection d'URL** : demander l'indexation de l'accueil, de la Ligue et de l'annuaire des clans.
 
 Les sous-domaines de clan (`smk.chickendinner.fr`) redirigent vers le domaine principal : rien à déclarer à part.
+Si le sous-domaine persistant (`bee.chickendinner.fr/overview`) est un jour adopté, la canonique reste sur
+`chickendinner.fr/clans/<id>/…`, à condition que le proxy passe le chemin interne dans `x-pathname`
+([chickendinnerfr.md §9](../TODO/chickendinnerfr.md)).
 
 ## 5. Ce qui fait (ou non) la première place
 

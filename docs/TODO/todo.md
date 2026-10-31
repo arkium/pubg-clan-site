@@ -810,17 +810,21 @@ persistance de la période par l'URL et une mémoire de visite.
   `startup.sh` et `.deployment` (démarrage Azure App Service) et `deploy-phase2.sh` retirés le 2026-10-11, remplacés
   par `scripts/deploy.sh`
 
-#### Lot 6 — Sous-domaine par clan (`<clan>.chickendinner.fr`) — 📐 Cadrage validé le 2026-09-26 ; ✅ code livré le 2026-09-26 (`7a36208`), reste la mise en service
+#### Lot 6 — Sous-domaine par clan (`<clan>.chickendinner.fr`) — 📐 Cadrage validé le 2026-09-26 ; ✅ code livré le 2026-09-26 (`7a36208`) ; ✅ en service le 2026-10-31
 
 Spec : [chickendinnerfr.md](chickendinnerfr.md). Décisions : **redirection** vers `chickendinner.fr/clans/<id>/overview`
-(pas de sous-domaine persistant), champ **`Clan.subdomain` unique** plutôt que le tag, tags en double (`kms`, `fr`)
-remplacés par le nom de chaque clan. DNS wildcard déjà en place.
+(pas de sous-domaine persistant ; réexaminé le 2026-10-31, §9), champ **`Clan.subdomain` unique** plutôt que le tag,
+tags en double (`kms`, `fr`) remplacés par le nom de chaque clan. DNS wildcard déjà en place.
 
 - [x] Code : `src/lib/clan-subdomain.ts`, champ et migration, attribution à l'activation, route interne, proxy,
   réglage SuperUser, script de remplissage, tests (2026-09-26)
 - [x] Migration et remplissage en production (accord du 2026-09-26) : 29 clans actifs, `kms` et `fr` par le nom
-- [ ] Certificat wildcard (validation DNS) et `server_name` Nginx
-- [ ] `CLAN_SUBDOMAIN_ROOT` en production
+- [x] Certificat wildcard (validation DNS, plugin OVH) et `server_name` Nginx (2026-10-31)
+- [x] `CLAN_SUBDOMAIN_ROOT` en production ; recette passée, `/login` et pastille de la vitrine comprises (2026-10-31)
+- [ ] HSTS `includeSubDomains` : bloqué par `mail.chickendinner.fr` (CNAME OVH sans certificat valide), à trancher
+  (§8 de la spec)
+- [ ] Sous-domaine persistant (`bee.chickendinner.fr/overview`) : étudié le 2026-10-31, plan en quatre lots, non
+  planifié (§9 de la spec)
 
 #### Lot 7 — Liens courts (`/m/<match>`, `/t/<tournoi>`, `/j/<joueur>`) — ✅ Code livré et déployé le 2026-10-20 (`1ea5662`, `c9d0ba8`)
 

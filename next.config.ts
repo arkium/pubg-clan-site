@@ -2,8 +2,9 @@ import type { NextConfig } from "next";
 
 /**
  * En-têtes de sécurité de toutes les réponses (docs/TODO/geo-seo-propositions.md, lot 0.1 ; docs/ops/deployment.md).
- * HSTS **sans** `includeSubDomains` ni `preload` : les sous-domaines de clan n'ont pas encore de certificat valide
- * (wildcard à poser), et un navigateur qui a vu `includeSubDomains` refuserait de les ouvrir en HTTP.
+ * HSTS **sans** `includeSubDomains` ni `preload` : le wildcard couvre les sous-domaines de clan (2026-10-31), mais pas
+ * `mail.chickendinner.fr` (CNAME OVH), qu'un navigateur ayant vu `includeSubDomains` refuserait d'ouvrir en HTTP
+ * (docs/TODO/chickendinnerfr.md §8).
  * La CSP est posée par le proxy (`src/proxy.ts`), qui seul peut générer un nonce par requête.
  */
 export const SECURITY_HEADERS = [

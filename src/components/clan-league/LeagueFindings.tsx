@@ -1,11 +1,21 @@
+import { Calculator, ShieldCheck, Sparkles, TrendingUp, Trophy, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { cache } from 'react'
 
 import JsonLd from '@/components/seo/JsonLd'
-import { leagueFindings } from '@/lib/clan-league-findings'
+import RankCell from '@/components/ui/RankCell'
+import { leagueFindings, type LeagueFormulaStep } from '@/lib/clan-league-findings'
 import { getClanLeague } from '@/lib/clan-league-service'
 import { siteUrl } from '@/lib/seo/page-seo'
 import { itemListJsonLd, toJsonLd } from '@/lib/seo/structured-data'
+
+const ICON = 'h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]'
+/** Mêmes icônes que `PowerScoreExplanation` ; le score brut, qui porte la formule, prend toute la largeur. */
+const FORMULA_STEP_ICONS: Record<LeagueFormulaStep['id'], LucideIcon> = {
+  raw: Calculator,
+  volume: TrendingUp,
+  qualification: ShieldCheck,
+}
 
 /** Une seule lecture par requête pour le résumé et la formule (`cache`). Même calcul et même cache que l'API. */
 const loadLeagueFindings = cache(async () => {
@@ -42,26 +52,47 @@ export default async function LeagueFindings() {
   return (
     <section aria-labelledby="league-findings-title" className="flex flex-col gap-3" data-testid="league-findings">
       <JsonLd json={structuredData} />
-      <div className="flex flex-col gap-1">
-        <h2 id="league-findings-title" className="t-section-title">
-          {findings.title}
+      <div className="flex flex-col gap-0.5">
+        <h2 id="league-findings-title" className="app-help-bar-card-title">
+          <Trophy className={ICON} aria-hidden="true" />
+          <span>{findings.title}</span>
         </h2>
         <p className="t-meta">{findings.scope}</p>
       </div>
-      {findings.podium.length > 0 ? (
-        <ol className="m-0 flex list-none flex-col gap-1.5 p-0">
-          {findings.podium.map((line) => (
-            <li key={line.clanId} className="t-body text-gray-700">
-              <b className="text-gray-900">{line.rank === 1 ? '1er' : `${line.rank}e`}</b>{' '}
-              <Link href={`/clans/${line.clanId}/overview`} className="font-semibold text-gray-900 underline-offset-2 hover:underline">
-                {line.label}
-              </Link>{' '}
-              — Power score <span className="t-num">{line.powerScore}</span>, {line.matches} parties
-            </li>
-          ))}
-        </ol>
-      ) : null}
-      <p className="t-body text-gray-700">{findings.summary}</p>
+
+      <div className="app-help-bar-rows">
+        {findings.podium.length > 0 ? (
+          <div className="app-panel-muted app-help-bar-row">
+            <h3 className="app-help-bar-card-title">
+              <Trophy className={ICON} aria-hidden="true" />
+              <span>Podium de la semaine</span>
+            </h3>
+            <ol className="m-0 flex list-none flex-col gap-2 p-0">
+              {findings.podium.map((line) => (
+                <li key={line.clanId} className="flex items-center gap-2 text-[13px] text-gray-700">
+                  <RankCell rank={line.rank} size="sm" />
+                  <Link href={`/clans/${line.clanId}/overview`} className="font-semibold text-gray-900 underline-offset-2 hover:underline">
+                    {line.label}
+                  </Link>
+                  <span className="ml-auto text-xs text-gray-500">
+                    Power score <b className="t-num text-gray-900">{line.powerScore}</b> · {line.matches} parties
+                  </span>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
+
+        <div className={`app-panel-muted app-help-bar-row ${findings.podium.length > 0 ? '' : 'app-help-bar-row--wide'}`.trim()}>
+          <h3 className="app-help-bar-card-title">
+            <Sparkles className={ICON} aria-hidden="true" />
+            <span>Participation</span>
+          </h3>
+          <div className="app-help-bar-card-body">
+            <p>{findings.summary}</p>
+          </div>
+        </div>
+      </div>
     </section>
   )
 }
@@ -76,10 +107,23 @@ export async function LeagueFormula() {
   const findings = await loadLeagueFindings()
   if (!findings) return null
   return (
-    <div className="flex flex-col gap-2" data-testid="league-formula">
-      {findings.formula.map((sentence) => (
-        <p key={sentence}>{sentence}</p>
-      ))}
+    <div className="app-help-bar-rows" data-testid="league-formula">
+      {findings.formula.map((step) => {
+        const Icon = FORMULA_STEP_ICONS[step.id]
+        return (
+          <div key={step.id} className={`app-panel-muted app-help-bar-row ${step.id === 'raw' ? 'app-help-bar-row--wide' : ''}`.trim()}>
+            <h3 className="app-help-bar-card-title">
+              <Icon className={ICON} aria-hidden="true" />
+              <span>{step.title}</span>
+            </h3>
+            <div className="app-help-bar-card-body">
+              {step.paragraphs.map((paragraph) => (
+                <p key={paragraph}>{paragraph}</p>
+              ))}
+            </div>
+          </div>
+        )
+      })}
     </div>
   )
 }

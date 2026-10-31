@@ -1,6 +1,6 @@
 'use client'
 
-import { ArrowLeftRight, ChartColumn, CircleDot, Crosshair } from 'lucide-react'
+import { ArrowLeftRight, ChartColumn, CircleDot, Crosshair, Plane, ShieldCheck, Shuffle, type LucideIcon } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useEffect, useRef, useState, type KeyboardEvent } from 'react'
 
@@ -17,7 +17,7 @@ import { usePagePeriod } from '@/hooks/usePagePeriod'
 import { useSelectedClan } from '@/hooks/useSelectedClan'
 import { METHODOLOGY_PATH } from '@/lib/legal/legal-info'
 import { ROLLING_PERIODS } from '@/lib/period'
-import { ZONE_READING_METHOD } from '@/lib/zone-reading/zone-reading-findings'
+import { ZONE_READING_METHOD_PARTS, type ZoneReadingMethodPart } from '@/lib/zone-reading/zone-reading-findings'
 import {
   ZONE_READING_MODES,
   ZONE_READING_MODE_LABELS,
@@ -37,6 +37,9 @@ import type { Axis } from '@/lib/zone-reading/zone-reading-geometry'
  */
 
 type ZoneReadingTab = 'analysis' | 'training'
+
+/** Icône de chaque partie de la méthode (« Comment c'est calculé ? ») ; les textes et le seuil viennent de la lib. */
+const METHOD_ICONS: Record<ZoneReadingMethodPart['id'], LucideIcon> = { telemetry: Plane, random: Shuffle, threshold: ShieldCheck }
 
 const TABS: Array<{ value: ZoneReadingTab; label: string; icon: typeof Crosshair }> = [
   { value: 'analysis', label: 'Analyse', icon: ChartColumn },
@@ -270,7 +273,23 @@ function ZoneReadingContent({ findings }: { findings?: React.ReactNode }) {
 
         {/* « Comment c'est calculé ? » : la méthode, puis le bloc « En bref » rendu par le serveur — replié, dans le HTML. */}
         <CalculationHelp methodologyHref={`${METHODOLOGY_PATH}#soirees-periodes`} summary={findings} testId="zone-reading-calculation-help">
-          <p>{ZONE_READING_METHOD}</p>
+          <div className="app-help-bar-rows">
+            {ZONE_READING_METHOD_PARTS.map((part, index) => {
+              const Icon = METHOD_ICONS[part.id]
+              const isOddLast = ZONE_READING_METHOD_PARTS.length % 2 === 1 && index === ZONE_READING_METHOD_PARTS.length - 1
+              return (
+                <div key={part.id} className={`app-panel-muted app-help-bar-row ${isOddLast ? 'app-help-bar-row--wide' : ''}`.trim()}>
+                  <h3 className="app-help-bar-card-title">
+                    <Icon className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                    <span>{part.title}</span>
+                  </h3>
+                  <div className="app-help-bar-card-body">
+                    <p>{part.text}</p>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
         </CalculationHelp>
 
         <p className="t-meta border-t border-gray-200 pt-3" data-testid="zone-reading-hazard">

@@ -3006,6 +3006,9 @@ body[data-app-theme] :where(.divide-gray-100, .divide-gray-200, .divide-gray-300
         <a class="docs-sidebar-link" href="#zoom-carte" onclick="setActive(this)">
           <span class="num">20</span> Zoom cartographique
         </a>
+        <a class="docs-sidebar-link" href="#aide-pages" onclick="setActive(this)">
+          <span class="num">20b</span> Barres d'aide
+        </a>
       </div>
       <div class="docs-sidebar-group">
         <div class="docs-sidebar-group-title">Structure de page</div>
@@ -7049,6 +7052,67 @@ return (
             </tbody>
           </table>
           <code class="docs-code">src/components/drop-zones/DropZonesExplorer.tsx · src/components/maps/MapToolbarControls.tsx · tests e2e : drop-zones.spec.ts, positions.spec.ts, zone-closures.spec.ts, zone-reading.spec.ts</code>
+        </div>
+      </section>
+
+      <!-- SECTION 20b — BARRES D'AIDE (« D'où viennent ces chiffres ? », « Comment c'est calculé ? ») -->
+      <section class="docs-section" id="aide-pages">
+        <h2 class="docs-section-title">
+          <span class="docs-section-num">20b</span>
+          Barres d'aide — PageScopeNote, CalculationHelp
+          <span class="sync-tag sync-tag--ok" style="margin-left:auto;">À jour</span>
+        </h2>
+        <div class="sync-note"><b>Par rapport au code :</b><ul><li>Classes dans <code>src/app/globals.css</code> (<code>.app-help-bar*</code>) ; composants <code>src/components/ui/PageScopeNote.tsx</code> et <code>src/components/ui/CalculationHelp.tsx</code>. Grille de cartes généralisée le 31/10/2026 sur le modèle du guide de la page Joueurs (<code>PlayersScoringGuide</code>).</li></ul></div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Rôle</div>
+          <div class="text-gray-700" style="font-size:0.8125rem;margin-bottom:1.25rem;line-height:1.6;">
+            Deux barres repliées (<code class="docs-code">&lt;details&gt;</code>), texte <strong>dans le HTML</strong> (lu par les robots) : <strong>« D'où viennent ces chiffres ? »</strong> (<code class="docs-code">PageScopeNote</code>) en bas des pages joueur et clan, <strong>« Comment c'est calculé ? »</strong> (<code class="docs-code">CalculationHelp</code>) sur les sept pages de classement et d'analyse. Dedans, la méthode, puis le bloc « En bref » rendu par le serveur (<code class="docs-code">.app-help-bar-extra</code>), puis le lien vers la Méthodologie.
+          </div>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Grille de cartes</div>
+          <div style="display:grid;gap:12px;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));max-width:640px;margin-bottom:1rem;">
+            <div class="app-panel-muted" style="display:flex;flex-direction:column;gap:8px;padding:14px;">
+              <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:var(--theme-ui-text);"><span style="width:16px;height:16px;border-radius:4px;background:var(--theme-ui-accent-text);opacity:.85;"></span>Période</div>
+              <div style="font-size:13px;line-height:1.625;color:var(--theme-ui-text-secondary);">Semaine du lundi au dimanche, heure de Paris.</div>
+            </div>
+            <div class="app-panel-muted" style="display:flex;flex-direction:column;gap:8px;padding:14px;">
+              <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:var(--theme-ui-text);"><span style="width:16px;height:16px;border-radius:4px;background:var(--theme-ui-accent-text);opacity:.85;"></span>Parties comptées</div>
+              <div style="font-size:13px;line-height:1.625;color:var(--theme-ui-text-secondary);">Type « Normal », membres actifs du clan.</div>
+            </div>
+            <div class="app-panel-muted" style="display:flex;flex-direction:column;gap:8px;padding:14px;grid-column:1/-1;">
+              <div style="display:flex;align-items:center;gap:8px;font-size:14px;font-weight:800;color:var(--theme-ui-text);"><span style="width:16px;height:16px;border-radius:4px;background:var(--theme-ui-accent-text);opacity:.85;"></span>Toutes les pages du clan <span class="t-meta" style="font-weight:600;">(carte large, puces)</span></div>
+              <div style="display:flex;flex-wrap:wrap;gap:6px;">
+                <span style="padding:4px 10px;border-radius:8px;border:1px solid var(--app-border);background:var(--app-surface);font-size:12px;font-weight:600;color:var(--theme-ui-text-secondary);">Classement</span>
+                <span style="padding:4px 10px;border-radius:8px;border:1px solid var(--app-border);background:var(--app-surface);font-size:12px;font-weight:600;color:var(--theme-ui-text-secondary);">Matchs</span>
+                <span style="padding:4px 10px;border-radius:8px;border:1px solid var(--app-border);background:var(--app-surface);font-size:12px;font-weight:600;color:var(--theme-ui-text-secondary);">Soirées</span>
+              </div>
+            </div>
+          </div>
+          <table style="width:100%;border-collapse:collapse;font-size:0.8125rem;">
+            <thead><tr style="border-bottom:1px solid var(--app-border);text-align:left;"><th style="padding:0.5rem;">Élément</th><th style="padding:0.5rem;">Classe</th><th style="padding:0.5rem;">Règle</th></tr></thead>
+            <tbody>
+              <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Grille</td><td style="padding:0.5rem;"><code class="docs-code">.app-help-bar-rows</code></td><td style="padding:0.5rem;">Une colonne, deux à partir de 768 px ; écart 12 px. Sur un <code>ul</code>, <code>ol</code>, <code>dl</code> ou <code>div</code> (puces retirées).</td></tr>
+              <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Carte</td><td style="padding:0.5rem;"><code class="docs-code">.app-panel-muted .app-help-bar-row</code></td><td style="padding:0.5rem;">Toujours avec <code>.app-panel-muted</code> (bordure et rayon des jetons, jamais <code>rounded</code> + <code>border</code> à la main) ; padding 14 px, 16 px dès 640 px.</td></tr>
+              <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Carte large</td><td style="padding:0.5rem;"><code class="docs-code">.app-help-bar-row--wide</code></td><td style="padding:0.5rem;">Dernière carte d'un nombre impair, ou contenu large (formule, liste de puces).</td></tr>
+              <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Titre</td><td style="padding:0.5rem;"><code class="docs-code">.app-help-bar-card-title</code> (ou <code>dt</code>)</td><td style="padding:0.5rem;"><code>h3</code> (le titre « En bref » est un <code>h2</code>) ; 14 px, 800 ; icône Lucide 16 px en <code>--theme-ui-accent-text</code>, <code>aria-hidden</code>.</td></tr>
+              <tr style="border-bottom:1px solid var(--app-border);"><td style="padding:0.5rem;white-space:nowrap;">Corps</td><td style="padding:0.5rem;"><code class="docs-code">.app-help-bar-card-body</code> (ou <code>dd</code>)</td><td style="padding:0.5rem;">13 px, interligne 1,625, texte secondaire ; paragraphes et listes sans marge.</td></tr>
+              <tr><td style="padding:0.5rem;white-space:nowrap;">Puces</td><td style="padding:0.5rem;"><code class="docs-code">.app-help-bar-chips</code> + <code class="docs-code">.app-help-bar-chip</code></td><td style="padding:0.5rem;">Liens vers les pages ou les clans (survol à l'anneau d'accent) ; en <code>span</code>, simple étiquette chiffrée.</td></tr>
+            </tbody>
+          </table>
+        </div>
+
+        <div class="docs-subsection">
+          <div class="docs-subsection-title">Règles de contenu</div>
+          <div class="text-gray-700" style="font-size:0.8125rem;line-height:1.6;">
+            <ul style="margin:0;padding-left:1.1rem;display:flex;flex-direction:column;gap:4px;">
+              <li>Textes et seuils de méthode <strong>lus dans la lib</strong>, jamais recopiés dans la page : <code class="docs-code">RESOURCE_METHOD_PARTS</code>, <code class="docs-code">ZONE_READING_METHOD_PARTS</code>, étapes et <code class="docs-code">LEAGUE_FORMULA_TITLES</code> de la Ligue, constantes du calcul (<code>SPOT_MIN_MATCHES</code>, <code>PLAYERS_MIN_MATCHES</code>…). La page n'ajoute que l'icône.</li>
+              <li>Pas de titre associé à un texte par sa position dans un tableau : chaque partie porte son identifiant et son titre.</li>
+              <li>Rang dans un « En bref » : <code class="docs-code">RankCell</code> (médaille avec son texte alternatif, rien à ajouter pour les lecteurs d'écran).</li>
+            </ul>
+          </div>
         </div>
       </section>
 

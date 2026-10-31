@@ -10,12 +10,21 @@ import { PERIOD_WHEN_LABELS } from '@/lib/period'
 
 export type LeaguePodiumLine = { rank: number; clanId: number; label: string; powerScore: string; matches: number }
 
+/** Les trois étapes du Power score : mêmes titres côté serveur (`LeagueFormula`) et côté client (`PowerScoreExplanation`). */
+export const LEAGUE_FORMULA_TITLES = {
+  raw: '1. Score brut',
+  volume: '2. Pondération par le volume',
+  qualification: '3. Qualification',
+} as const
+
+export type LeagueFormulaStep = { id: keyof typeof LEAGUE_FORMULA_TITLES; title: string; paragraphs: string[] }
+
 export type LeagueFindings = {
   title: string
   scope: string
   podium: LeaguePodiumLine[]
   summary: string
-  formula: string[]
+  formula: LeagueFormulaStep[]
 }
 
 const integer = new Intl.NumberFormat('fr-FR', { maximumFractionDigits: 0 })
@@ -52,13 +61,29 @@ export function leagueFindings(payload: ClanLeaguePayload, now: Date): LeagueFin
     })),
     summary,
     formula: [
-      `Score brut d’un clan, en moyenne par partie et pour ses seuls membres actifs : points de placement × ` +
-        `${integer.format(settings.placementWeight)} + ${damage} + kills × ${integer.format(settings.killWeight)} + knocks × ` +
-        `${integer.format(settings.knockWeight)}.`,
-      `Points de placement : ${scale} ; au-delà de la ${placeLabel(settings.placementPoints.length)} place, 0.`,
-      `Pondération par le volume : ${plural(settings.priorMatches, 'partie fictive', 'parties fictives')} au niveau moyen de la ligue ` +
-        `s’ajoutent à celles du clan. Avec peu de parties, le Power score reste proche de la moyenne ; plus un clan joue, plus son niveau pèse.`,
-      `Un clan est classé à partir de ${minMatches} parties sur la période ; en dessous, il est « en qualification ».`,
+      {
+        id: 'raw',
+        title: LEAGUE_FORMULA_TITLES.raw,
+        paragraphs: [
+          `Score brut d’un clan, en moyenne par partie et pour ses seuls membres actifs : points de placement × ` +
+            `${integer.format(settings.placementWeight)} + ${damage} + kills × ${integer.format(settings.killWeight)} + knocks × ` +
+            `${integer.format(settings.knockWeight)}.`,
+          `Points de placement : ${scale} ; au-delà de la ${placeLabel(settings.placementPoints.length)} place, 0.`,
+        ],
+      },
+      {
+        id: 'volume',
+        title: LEAGUE_FORMULA_TITLES.volume,
+        paragraphs: [
+          `${plural(settings.priorMatches, 'partie fictive', 'parties fictives')} au niveau moyen de la ligue s’ajoutent à celles du ` +
+            `clan. Avec peu de parties, le Power score reste proche de la moyenne ; plus un clan joue, plus son niveau pèse.`,
+        ],
+      },
+      {
+        id: 'qualification',
+        title: LEAGUE_FORMULA_TITLES.qualification,
+        paragraphs: [`Un clan est classé à partir de ${minMatches} parties sur la période ; en dessous, il est « en qualification ».`],
+      },
     ],
   }
 }

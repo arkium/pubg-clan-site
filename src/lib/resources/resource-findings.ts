@@ -4,7 +4,15 @@
  * en phrases ; puis la méthode. La carte interactive reste chargée par l'API. Pur, sans import `@/`.
  */
 import type { ResourceMapResponse } from './resource-api'
-import { OBSERVED_FAMILIES, RESOURCE_POINT_KINDS, RESOURCE_POINT_KIND_LABELS, type ObservedFamily } from './resource-map'
+import {
+  OBSERVED_FAMILIES,
+  RESOURCE_POINT_KINDS,
+  RESOURCE_POINT_KIND_LABELS,
+  SPOT_MIN_MATCHES,
+  SPOT_MIN_SHARE,
+  SPOT_RELATIVE_SHARE,
+  type ObservedFamily,
+} from './resource-map'
 
 export type ResourceMapFinding = { label: string; sentence: string }
 
@@ -65,13 +73,37 @@ export function resourceFindings(views: readonly ResourceMapResponse[], now: Dat
   }
 }
 
+export type ResourceMethodPart = { id: 'vehicles' | 'thresholds' | 'points'; title: string; text: string }
+
+const shareLabel = new Intl.NumberFormat('fr-FR', { style: 'percent', maximumFractionDigits: 1 })
+const relativeShareLabel = SPOT_RELATIVE_SHARE === 0.25 ? 'le quart' : shareLabel.format(SPOT_RELATIVE_SHARE)
+
 /**
- * Méthode de la page, en clair : la barre « Comment c'est calculé ? » (`CalculationHelp`) l'affiche même quand le
- * résumé du serveur est indisponible.
+ * Méthode de la page, une carte par partie : la barre « Comment c'est calculé ? » (`CalculationHelp`) l'affiche même
+ * quand le résumé du serveur est indisponible. Seuils lus dans les constantes du calcul (`isSpotShown`).
  */
-export const RESOURCE_METHOD =
-  'Un emplacement observé est l’endroit où un joueur, seul à bord, prend un véhicule en début de partie, dans les ' +
-  'parties normales, classées et casual des clans suivis. Les observations proches sont regroupées ; un emplacement ' +
-  'est affiché à partir de 3 parties, 0,5 % des parties de la carte et le quart de l’emplacement le plus fréquent de ' +
-  'sa famille. Stations-service, garages, pontons et salles secrètes sont placés par les joueurs et validés par un ' +
-  'administrateur.'
+export const RESOURCE_METHOD_PARTS: readonly ResourceMethodPart[] = [
+  {
+    id: 'vehicles',
+    title: 'Véhicules observés',
+    text:
+      'Un emplacement observé est l’endroit où un joueur, seul à bord, prend un véhicule en début de partie, dans les ' +
+      'parties normales, classées et casual des clans suivis.',
+  },
+  {
+    id: 'thresholds',
+    title: 'Seuils d’affichage',
+    text:
+      `Les observations proches sont regroupées ; un emplacement est affiché à partir de ${integer.format(SPOT_MIN_MATCHES)} ` +
+      `parties, ${shareLabel.format(SPOT_MIN_SHARE)} des parties de la carte et ${relativeShareLabel} de l’emplacement le plus ` +
+      'fréquent de sa famille.',
+  },
+  {
+    id: 'points',
+    title: 'Points de la communauté',
+    text: 'Stations-service, garages, pontons et salles secrètes sont placés par les joueurs et validés par un administrateur.',
+  },
+]
+
+/** La méthode en un paragraphe (résumé du serveur). */
+export const RESOURCE_METHOD = RESOURCE_METHOD_PARTS.map((part) => part.text).join(' ')

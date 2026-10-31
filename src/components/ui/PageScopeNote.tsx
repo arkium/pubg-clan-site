@@ -1,6 +1,6 @@
 'use client'
 
-import { ChevronDown, Info } from 'lucide-react'
+import { BookOpen, Calendar, ChevronDown, Database, History, Info, Swords, type LucideIcon } from 'lucide-react'
 import Link from 'next/link'
 import { useState, type ReactNode } from 'react'
 
@@ -13,7 +13,16 @@ import {
   type PageScopeContext,
   type PageScopeData,
   type PageScopeKey,
+  type PageScopeRow,
 } from '@/lib/page-scope'
+
+const ROW_ICONS: Record<PageScopeRow['id'], LucideIcon> = {
+  period: Calendar,
+  matches: Swords,
+  source: Database,
+  since: History,
+  notes: BookOpen,
+}
 
 function pickCoverage(payload: unknown): NonNullable<PageScopeData> | null {
   if (!payload || typeof payload !== 'object' || !('coverage' in payload)) return null
@@ -73,21 +82,32 @@ export default function PageScopeNote({
       </summary>
       <div className="app-help-bar-body">
         <dl className="app-help-bar-rows" data-testid="page-scope-rows">
-          {rows.map((row) => (
-            <div key={row.id} className="app-help-bar-row" data-testid={`page-scope-${row.id}`}>
-              <dt>{row.label}</dt>
-              <dd>
-                {row.text}
-                {row.items ? (
-                  <ul>
-                    {row.items.map((item) => (
-                      <li key={item}>{item}</li>
-                    ))}
-                  </ul>
-                ) : null}
-              </dd>
-            </div>
-          ))}
+          {rows.map((row, index) => {
+            const Icon = ROW_ICONS[row.id]
+            const isOddLast = rows.length % 2 === 1 && index === rows.length - 1
+            return (
+              <div
+                key={row.id}
+                className={`app-panel-muted app-help-bar-row ${isOddLast ? 'app-help-bar-row--wide' : ''}`.trim()}
+                data-testid={`page-scope-${row.id}`}
+              >
+                <dt>
+                  <Icon className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                  <span>{row.label}</span>
+                </dt>
+                <dd>
+                  {row.text ? <p>{row.text}</p> : null}
+                  {row.items ? (
+                    <ul>
+                      {row.items.map((item) => (
+                        <li key={item}>{item}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </dd>
+              </div>
+            )
+          })}
         </dl>
         {error ? <p className="t-meta m-0">Dates indisponibles pour l’instant : réessaie plus tard.</p> : null}
         {children ? <div className="app-help-bar-extra">{children}</div> : null}

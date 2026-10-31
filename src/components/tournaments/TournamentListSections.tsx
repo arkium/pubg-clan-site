@@ -404,9 +404,19 @@ function withBold(line: string) {
 export function TournamentQuickGuide() {
   return (
     <CalculationHelp testId="tournament-quick-guide">
-      <ol className="flex list-decimal flex-col gap-1.5 pl-5">
-        {TOURNAMENT_QUICK_GUIDE.map((line) => (
-          <li key={line}>{withBold(line)}</li>
+      <ol className="app-help-bar-rows">
+        {TOURNAMENT_QUICK_GUIDE.map((line, index) => (
+          <li key={line} className="app-panel-muted app-help-bar-row">
+            <h3 className="app-help-bar-card-title">
+              <span className="t-num grid h-5 w-5 shrink-0 place-items-center rounded-md bg-[var(--theme-ui-accent-soft)] text-xs font-extrabold text-[var(--theme-ui-accent-text)]">
+                {index + 1}
+              </span>
+              <span>Étape {index + 1}</span>
+            </h3>
+            <div className="app-help-bar-card-body">
+              <p>{withBold(line)}</p>
+            </div>
+          </li>
         ))}
       </ol>
     </CalculationHelp>

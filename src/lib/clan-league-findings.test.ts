@@ -48,8 +48,14 @@ describe('leagueFindings', () => {
     expect(result.summary).toBe('4 clans classés, 1 en qualification (moins de 5 parties) et 0 sans partie normale cette semaine.')
   })
 
+  it('donne la formule en trois étapes titrées, comme l’explication du classement chargé', () => {
+    expect(result.formula.map((step) => step.title)).toEqual(['1. Score brut', '2. Pondération par le volume', '3. Qualification'])
+    expect(plain(result.formula[0].paragraphs.join(' '))).toContain('Points de placement : 1re place 10')
+    expect(plain(result.formula[2].paragraphs.join(' '))).toContain('classé à partir de 5 parties')
+  })
+
   it('donne la formule avec les réglages en vigueur', () => {
-    const formula = plain(result.formula.join(' '))
+    const formula = plain(result.formula.flatMap((step) => step.paragraphs).join(' '))
     expect(formula).toContain('points de placement × 250 + dégâts + kills × 10 + knocks × 5')
     expect(formula).toContain('1re place 10, 2e place 6')
     expect(formula).toContain('au-delà de la 8e place, 0')
@@ -59,7 +65,7 @@ describe('leagueFindings', () => {
 
   it('suit les réglages : un coefficient de dégâts différent de 1 est écrit', () => {
     const settings = { ...DEFAULT_LEAGUE_SETTINGS, damageWeight: 1.5 }
-    const formula = leagueFindings({ ...PAYLOAD, scoring: { ...PAYLOAD.scoring, settings } }, NOW).formula[0]
+    const formula = leagueFindings({ ...PAYLOAD, scoring: { ...PAYLOAD.scoring, settings } }, NOW).formula[0].paragraphs[0]
     expect(plain(formula)).toContain('dégâts × 1,5')
   })
 

@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { ChevronDown, CircleDashed, Crosshair, Flame, HandFist, Hourglass, Info, Rocket, ShieldCheck, Swords, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react'
+import { Calculator, ChevronDown, CircleDashed, Crosshair, Flame, HandFist, Hourglass, Info, Rocket, ShieldCheck, Swords, TrendingDown, TrendingUp, type LucideIcon } from 'lucide-react'
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 
 import ClanTag from '@/components/ui/ClanTag'
@@ -20,6 +20,7 @@ import {
   type LeagueQualifier,
   type LeagueSettings,
 } from '@/lib/clan-league'
+import { LEAGUE_FORMULA_TITLES } from '@/lib/clan-league-findings'
 import type { LeagueEntry } from '@/lib/clan-league-service'
 
 /**
@@ -475,26 +476,50 @@ export function PowerScoreExplanation({ scoring }: { scoring: { minMatches: numb
   const scale = settings.placementPoints.map((points, index) => `${index + 1}${index === 0 ? 'er' : 'e'} ${points}`).join(' · ')
   const weight = (value: number) => integer.format(value)
   return (
-    <div className="flex flex-col gap-2.5" data-testid="power-score-explanation">
-      <p>
-        <b>1. Score brut</b> du clan, moyennes par partie (membres actifs uniquement) :
-      </p>
-      <code className="font-mono text-[13px] text-gray-900">
-        points de placement × {weight(settings.placementWeight)} + dégâts{settings.damageWeight !== 1 ? ` × ${oneDecimal.format(settings.damageWeight)}` : ''} + kills ×{' '}
-        {weight(settings.killWeight)} + knocks × {weight(settings.knockWeight)}
-      </code>
-      <p className="text-gray-500">
-        Points de placement : {scale} ; au-delà de la {settings.placementPoints.length}e, 0. Un top 2 rapporte, plus seulement la victoire.
-      </p>
-      <p>
-        <b>2. Pondération par le volume</b> : on ajoute {settings.priorMatches} parties fictives au niveau moyen de la ligue (score brut{' '}
-        <span className="t-num font-bold text-gray-900">{integer.format(scoring.league.rawScore)}</span> sur la période). Avec peu de parties, le
-        score reste proche de la moyenne ; plus un clan joue, plus son propre niveau pèse.
-      </p>
-      <p>
-        <b>3. Qualification</b> : un clan est classé à partir de <b>{scoring.minMatches} parties</b> sur la période ; en dessous, il apparaît « En
-        qualification ». Le win rate reste affiché, il ne compte plus dans le score.
-      </p>
+    <div className="app-help-bar-rows" data-testid="power-score-explanation">
+      <div className="app-panel-muted app-help-bar-row app-help-bar-row--wide">
+        <h3 className="app-help-bar-card-title">
+          <Calculator className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+          <span>{LEAGUE_FORMULA_TITLES.raw}</span>
+        </h3>
+        <div className="app-help-bar-card-body">
+          <p>Du clan, moyennes par partie (membres actifs uniquement) :</p>
+          <code className="app-panel self-start px-3 py-1.5 font-mono text-[13px] font-semibold text-gray-900">
+            points de placement × {weight(settings.placementWeight)} + dégâts{settings.damageWeight !== 1 ? ` × ${oneDecimal.format(settings.damageWeight)}` : ''} + kills ×{' '}
+            {weight(settings.killWeight)} + knocks × {weight(settings.knockWeight)}
+          </code>
+          <p className="text-gray-500">
+            Points de placement : {scale} ; au-delà de la {settings.placementPoints.length}e, 0. Un top 2 rapporte, plus seulement la victoire.
+          </p>
+        </div>
+      </div>
+
+      <div className="app-panel-muted app-help-bar-row">
+        <h3 className="app-help-bar-card-title">
+          <TrendingUp className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+          <span>{LEAGUE_FORMULA_TITLES.volume}</span>
+        </h3>
+        <div className="app-help-bar-card-body">
+          <p>
+            On ajoute <b>{settings.priorMatches} parties fictives</b> au niveau moyen de la ligue (score brut{' '}
+            <span className="t-num font-bold text-gray-900">{integer.format(scoring.league.rawScore)}</span> sur la période). Avec peu de parties,
+            le score reste proche de la moyenne ; plus un clan joue, plus son propre niveau pèse.
+          </p>
+        </div>
+      </div>
+
+      <div className="app-panel-muted app-help-bar-row">
+        <h3 className="app-help-bar-card-title">
+          <ShieldCheck className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+          <span>{LEAGUE_FORMULA_TITLES.qualification}</span>
+        </h3>
+        <div className="app-help-bar-card-body">
+          <p>
+            Un clan est classé à partir de <b>{scoring.minMatches} parties</b> sur la période ; en dessous, il apparaît « En qualification ». Le
+            win rate reste affiché, il ne compte plus dans le score.
+          </p>
+        </div>
+      </div>
     </div>
   )
 }

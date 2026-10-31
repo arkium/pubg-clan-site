@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ZoneReadingAnalysis } from './zone-reading-api'
-import { zoneReadingFindings } from './zone-reading-findings'
+import { ZONE_READING_MIN_MATCHES } from './zone-reading-analysis'
+import { ZONE_READING_METHOD, ZONE_READING_METHOD_PARTS, zoneReadingFindings } from './zone-reading-findings'
 
 // Chiffres de la production (Erangel, Squad, toutes les parties) le 2026-10-18.
 const PAYLOAD: ZoneReadingAnalysis = {
@@ -69,6 +70,12 @@ describe('zoneReadingFindings', () => {
     ])
     expect(result.method).toContain('télémétrie officielle')
     expect(result.method.replace(/ | /g, ' ')).toContain('au-delà de 300 parties')
+  })
+
+  it('méthode en trois cartes, le seuil vient de la constante du calcul', () => {
+    expect(ZONE_READING_METHOD_PARTS.map((part) => part.title)).toEqual(['Télémétrie des parties', 'Comparaison « au hasard »', 'Seuil par carte'])
+    expect(ZONE_READING_METHOD_PARTS[2].text.replace(/\s/g, ' ')).toContain(`au-delà de ${ZONE_READING_MIN_MATCHES} parties`)
+    expect(ZONE_READING_METHOD).toBe(ZONE_READING_METHOD_PARTS.map((part) => part.text).join(' '))
   })
 
   it('rien sous le seuil de parties, comme l’onglet Analyse', () => {

@@ -1,3 +1,4 @@
+import { Flame, Sparkles, UserPlus, Users } from 'lucide-react'
 import Link from 'next/link'
 
 import JsonLd from '@/components/seo/JsonLd'
@@ -7,6 +8,8 @@ import { getClanDirectory } from '@/lib/clan-directory-service'
 import { listClansWithQuickStats } from '@/lib/clan-list-service'
 import { siteUrl } from '@/lib/seo/page-seo'
 import { itemListJsonLd, toJsonLd } from '@/lib/seo/structured-data'
+
+const ICON = 'h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]'
 
 /**
  * Annuaire des clans — « En bref », composant serveur (docs/TODO/geo-seo-propositions.md, lot 2) : totaux, clans les
@@ -33,52 +36,77 @@ export default async function ClanDirectoryFindings() {
       findings.clans.map((entry) => ({ name: entry.label, path: `/clans/${entry.id}/overview` }))
     )
   )
+  const hasActivityCard = Boolean(findings.active || findings.styles)
 
   return (
     <section aria-labelledby="clan-directory-findings-title" className="flex flex-col gap-3" data-testid="clan-directory-findings">
       <JsonLd json={structuredData} />
-      <div className="flex flex-col gap-1">
-        <h2 id="clan-directory-findings-title" className="t-section-title">
-          {findings.title}
+      <div className="flex flex-col gap-0.5">
+        <h2 id="clan-directory-findings-title" className="app-help-bar-card-title">
+          <Sparkles className={ICON} aria-hidden="true" />
+          <span>{findings.title}</span>
         </h2>
         <p className="t-meta">{findings.scope}</p>
       </div>
-      {findings.active ? (
-        <p className="t-body text-gray-700">
-          {findings.active.intro}{' '}
-          {findings.active.clans.map((entry, index) => (
-            <span key={entry.id}>
-              {index > 0 ? ' ; ' : ''}
-              <Link href={`/clans/${entry.id}/overview`} className="font-semibold text-gray-900 underline-offset-2 hover:underline">
-                {entry.label}
-              </Link>{' '}
-              ({entry.detail})
-            </span>
-          ))}
-          .
-        </p>
-      ) : null}
-      {findings.styles ? <p className="t-body text-gray-700">{findings.styles}</p> : null}
-      <div className="flex flex-col gap-1.5 border-t border-gray-200 pt-3">
-        <h3 className="t-card-title">Tous les clans suivis</h3>
-        <ul className="m-0 flex list-none flex-wrap gap-x-3 gap-y-1 p-0">
-          {findings.clans.map((entry) => (
-            <li key={entry.id} className="t-body">
-              <Link href={`/clans/${entry.id}/overview`} className="text-gray-700 underline-offset-2 hover:text-gray-900 hover:underline">
-                {entry.label}
+
+      <div className="app-help-bar-rows">
+        {hasActivityCard ? (
+          <div className="app-panel-muted app-help-bar-row">
+            <h3 className="app-help-bar-card-title">
+              <Flame className={ICON} aria-hidden="true" />
+              <span>Activité et styles de jeu</span>
+            </h3>
+            <div className="app-help-bar-card-body">
+              {findings.active ? (
+                <p>
+                  {findings.active.intro}{' '}
+                  {findings.active.clans.map((entry, index) => (
+                    <span key={entry.id}>
+                      {index > 0 ? ' ; ' : ''}
+                      <Link href={`/clans/${entry.id}/overview`} className="font-semibold text-gray-900 underline-offset-2 hover:underline">
+                        {entry.label}
+                      </Link>{' '}
+                      ({entry.detail})
+                    </span>
+                  ))}
+                  .
+                </p>
+              ) : null}
+              {findings.styles ? <p>{findings.styles}</p> : null}
+            </div>
+          </div>
+        ) : null}
+
+        <div className={`app-panel-muted app-help-bar-row ${hasActivityCard ? '' : 'app-help-bar-row--wide'}`.trim()}>
+          <h3 className="app-help-bar-card-title">
+            <UserPlus className={ICON} aria-hidden="true" />
+            <span>Inscrire son clan</span>
+          </h3>
+          <div className="app-help-bar-card-body">
+            <p>
+              {findings.join}{' '}
+              <Link href="/join" className="app-link font-semibold">
+                Demander l’accès ou inscrire son clan
               </Link>
-            </li>
-          ))}
-        </ul>
-      </div>
-      <div className="flex flex-col gap-1 border-t border-gray-200 pt-3">
-        <h3 className="t-card-title">Inscrire son clan</h3>
-        <p className="t-body text-gray-700">
-          {findings.join}{' '}
-          <Link href="/join" className="app-link font-semibold">
-            Demander l’accès ou inscrire son clan
-          </Link>
-        </p>
+            </p>
+          </div>
+        </div>
+
+        <div className="app-panel-muted app-help-bar-row app-help-bar-row--wide">
+          <h3 className="app-help-bar-card-title">
+            <Users className={ICON} aria-hidden="true" />
+            <span>Tous les clans suivis</span>
+          </h3>
+          <ul className="app-help-bar-chips">
+            {findings.clans.map((entry) => (
+              <li key={entry.id}>
+                <Link href={`/clans/${entry.id}/overview`} className="app-help-bar-chip">
+                  {entry.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
       </div>
     </section>
   )

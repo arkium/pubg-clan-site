@@ -102,12 +102,31 @@ export function zoneReadingFindings(
   }
 }
 
+export type ZoneReadingMethodPart = { id: 'telemetry' | 'random' | 'threshold'; title: string; text: string }
+
 /**
- * Méthode de la page, en clair : la barre « Comment c'est calculé ? » (`CalculationHelp`) l'affiche même quand le
- * résumé du serveur est indisponible.
+ * Méthode de la page, une carte par partie : la barre « Comment c'est calculé ? » (`CalculationHelp`) l'affiche même
+ * quand le résumé du serveur est indisponible.
  */
-export const ZONE_READING_METHOD =
-  'Ces chiffres viennent de la télémétrie officielle de chaque partie (API PUBG) : ligne de vol du C-130, cercles ' +
-  'successifs et zone finale, pour les parties normales et classées des clans suivis par le site. « Au hasard » ' +
-  'confronte chaque zone finale à la ligne de vol de la partie suivante. Une carte n’est analysée qu’au-delà de ' +
-  `${integer.format(ZONE_READING_MIN_MATCHES)} parties.`
+export const ZONE_READING_METHOD_PARTS: readonly ZoneReadingMethodPart[] = [
+  {
+    id: 'telemetry',
+    title: 'Télémétrie des parties',
+    text:
+      'Ces chiffres viennent de la télémétrie officielle de chaque partie (API PUBG) : ligne de vol du C-130, cercles ' +
+      'successifs et zone finale, pour les parties normales et classées des clans suivis par le site.',
+  },
+  {
+    id: 'random',
+    title: 'Comparaison « au hasard »',
+    text: '« Au hasard » confronte chaque zone finale à la ligne de vol de la partie suivante.',
+  },
+  {
+    id: 'threshold',
+    title: 'Seuil par carte',
+    text: `Une carte n’est analysée qu’au-delà de ${integer.format(ZONE_READING_MIN_MATCHES)} parties.`,
+  },
+]
+
+/** La méthode en un paragraphe (résumé du serveur). */
+export const ZONE_READING_METHOD = ZONE_READING_METHOD_PARTS.map((part) => part.text).join(' ')

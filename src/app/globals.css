@@ -4603,12 +4603,42 @@ html[data-app-theme='dark'] .charte .app-btn--primary:hover:not(:disabled) {
 .coach-help-group-body { padding: 0 12px 12px; }
 @media (prefers-reduced-motion: reduce) { .coach-help-group-toggle svg, .app-help-bar-toggle svg { transition: none; } }
 .app-help-bar-body { display: flex; flex-direction: column; gap: 12px; padding: 0 16px 14px; }
-.app-help-bar-rows { margin: 0; display: grid; gap: 8px; }
-.app-help-bar-row { display: grid; gap: 2px; }
-@media (min-width: 640px) { .app-help-bar-row { grid-template-columns: 150px minmax(0, 1fr); gap: 12px; } }
-.app-help-bar-row dt { font-size: 12px; font-weight: 800; letter-spacing: 0.04em; text-transform: uppercase; color: var(--theme-ui-text-muted); }
-.app-help-bar-row dd { margin: 0; font-size: 13px; line-height: 1.5; color: var(--theme-ui-text-secondary); }
-.app-help-bar-row dd ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 2px; }
+.app-help-bar-rows { margin: 0; padding: 0; list-style: none; display: grid; gap: 12px; }
+@media (min-width: 768px) {
+  .app-help-bar-rows { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .app-help-bar-row--wide { grid-column: 1 / -1; }
+}
+.app-help-bar-row { display: flex; flex-direction: column; gap: 8px; padding: 14px; }
+@media (min-width: 640px) { .app-help-bar-row { padding: 16px; } }
+.app-help-bar-row dt,
+.app-help-bar-card-title { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 14px; font-weight: 800; line-height: 1.4; color: var(--theme-ui-text); }
+.app-help-bar-row dd,
+.app-help-bar-card-body { margin: 0; display: flex; flex-direction: column; gap: 6px; font-size: 13px; line-height: 1.625; color: var(--theme-ui-text-secondary); }
+.app-help-bar-row dd p,
+.app-help-bar-card-body p { margin: 0; }
+.app-help-bar-row dd ul,
+.app-help-bar-card-body ul { margin: 0; padding-left: 16px; display: flex; flex-direction: column; gap: 4px; }
+.app-help-bar-chips { margin: 0; padding: 0; list-style: none; display: flex; flex-wrap: wrap; gap: 6px; }
+.app-help-bar-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--theme-ui-border);
+  background: var(--theme-ui-surface);
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--theme-ui-text-secondary);
+  text-decoration: none;
+  transition: background-color 120ms ease-out, color 120ms ease-out, border-color 120ms ease-out;
+}
+a.app-help-bar-chip:hover {
+  background: var(--theme-ui-hover);
+  color: var(--theme-ui-text);
+  border-color: var(--theme-ui-accent-ring);
+}
 .app-help-bar-extra { border-top: 1px solid var(--theme-ui-border); padding-top: 12px; }
 /* Méthode de « Comment c'est calculé ? » (CalculationHelp) : même texte que les lignes de « D'où viennent ces chiffres ? ». */
 .app-help-bar-method { display: flex; flex-direction: column; gap: 8px; font-size: 13px; line-height: 1.5; color: var(--theme-ui-text-secondary); }

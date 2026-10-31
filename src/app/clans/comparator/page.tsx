@@ -1,6 +1,6 @@
 'use client'
 
-import { Swords, Users, HeartPulse, Dna, Calendar } from 'lucide-react'
+import { Swords, Users, HeartPulse, Dna, Calendar, Trophy, GitCompareArrows } from 'lucide-react'
 import { Suspense, useCallback, useEffect, useMemo, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 
@@ -292,34 +292,85 @@ function ComparatorContent() {
         {/* « Comment c'est calculé ? » : règles de `clan-comparator-service.ts` et `head-to-head-service.ts`, repliées mais
             dans le HTML, même sans clan choisi. */}
         <CalculationHelp testId="comparator-calculation-help">
-          <ul className="flex list-disc flex-col gap-1.5 pl-5">
-            <li>
-              <b>Parties</b> : les parties normales où joue au moins un membre actif du clan, sur la période choisie (semaine du
-              lundi au dimanche, mois civil ou depuis le début) ; chiffres recalculés chaque nuit.
+          <ul className="app-help-bar-rows">
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Swords className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Parties</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  Sont comptées les parties normales où joue au moins un membre actif du clan, sur la période choisie (semaine du lundi au
+                  dimanche, mois civil ou depuis le début) ; chiffres recalculés chaque nuit.
+                </p>
+              </div>
             </li>
-            <li>
-              <b>Performances</b> : la place du clan dans une partie est la meilleure de ses membres actifs ; win rate = Top 1 ÷
-              parties, de même pour le Top 10. Dégâts, kills et knocks : ceux de tous ses membres actifs, par partie. Sur les
-              graphiques, le haut de chaque axe est la meilleure valeur des clans comparés.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Trophy className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Performances</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  La place du clan dans une partie est la meilleure de ses membres actifs ; win rate = Top 1 ÷ parties, de même pour le Top 10.
+                  Dégâts, kills et knocks : ceux de tous ses membres actifs, par partie. Sur les graphiques, le haut de chaque axe est la
+                  meilleure valeur des clans comparés.
+                </p>
+              </div>
             </li>
-            <li>
-              <b>Derby</b> : les parties où les deux clans étaient dans le même lobby, tous types de partie et depuis le début ;
-              le vainqueur est le clan dont un membre finit le mieux classé.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <GitCompareArrows className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Derby</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  Les parties où les deux clans étaient dans le même lobby, tous types de partie et depuis le début ; le vainqueur est le clan
+                  dont un membre finit le mieux classé.
+                </p>
+              </div>
             </li>
-            <li>
-              <b>Modes</b> : Duo, Trio ou Squad selon le nombre de joueurs du clan dans la partie (2, 3, 4 ou plus).
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Users className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Modes</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>Duo, Trio ou Squad selon le nombre de joueurs du clan dans la partie (2, 3, 4 ou plus).</p>
+              </div>
             </li>
-            <li>
-              <b>Pouls</b> : effectif actif = membres actifs qui ont joué sur la période, sur l’ensemble des membres actifs ;
-              régularité = soirées avec au moins une partie (de 6 h à 6 h, heure de Paris).
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <HeartPulse className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Pouls</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  Effectif actif = membres actifs qui ont joué sur la période, sur l’ensemble des membres actifs ; régularité = soirées avec au
+                  moins une partie (de 6 h à 6 h, heure de Paris).
+                </p>
+              </div>
             </li>
-            <li>
-              <b>ADN</b> : hot drop = atterrissage avec au moins {DROP_PRESSURE_LEVELS.hot.min} adversaires à moins de{' '}
-              {DROP_PRESSURE_RADIUS_METERS} m ; survie = temps moyen par joueur et par partie ; entraide = réanimations données ÷
-              KO subis.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Dna className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>ADN</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  Hot drop = atterrissage avec au moins {DROP_PRESSURE_LEVELS.hot.min} adversaires à moins de{' '}
+                  {DROP_PRESSURE_RADIUS_METERS} m ; survie = temps moyen par joueur et par partie ; entraide = réanimations données ÷ KO subis.
+                </p>
+              </div>
             </li>
-            <li>
-              <b>Heatmap</b> : jour et heure de début de chaque partie, heure de Paris.
+            <li className="app-panel-muted app-help-bar-row app-help-bar-row--wide">
+              <h3 className="app-help-bar-card-title">
+                <Calendar className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Heatmap</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>Répartition par jour et heure de début de chaque partie, heure de Paris.</p>
+              </div>
             </li>
           </ul>
         </CalculationHelp>

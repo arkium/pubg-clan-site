@@ -1,6 +1,6 @@
 'use client'
 
-import { History, ListChecks, Map as MapIcon, MapPinned, ShieldCheck } from 'lucide-react'
+import { Car, Filter, History, ListChecks, Map as MapIcon, MapPinned, ShieldCheck, type LucideIcon } from 'lucide-react'
 import { useSearchParams } from 'next/navigation'
 import { Suspense, useCallback, useRef, useState, type KeyboardEvent } from 'react'
 
@@ -11,7 +11,7 @@ import { useResourceMap } from '@/components/resources/useResourceMap'
 import CalculationHelp from '@/components/ui/CalculationHelp'
 import { NavigationTrail } from '@/components/ui/NavigationTrail'
 import { CardSkeleton } from '@/components/ui/skeletons/CardSkeleton'
-import { RESOURCE_METHOD } from '@/lib/resources/resource-findings'
+import { RESOURCE_METHOD_PARTS, type ResourceMethodPart } from '@/lib/resources/resource-findings'
 import { RESOURCE_MAPS, resourceMap } from '@/lib/resources/resource-map'
 
 /**
@@ -30,6 +30,9 @@ const TABS: Array<{ value: ResourceTab; label: string; icon: typeof MapIcon }> =
 ]
 
 const DEFAULT_MAP = RESOURCE_MAPS[0].key
+
+/** Icône de chaque partie de la méthode (« Comment c'est calculé ? ») ; les textes et seuils viennent de la lib. */
+const METHOD_ICONS: Record<ResourceMethodPart['id'], LucideIcon> = { vehicles: Car, thresholds: Filter, points: MapPinned }
 
 /**
  * Même mécanique que la période (usePagePeriod) et le mortier : `window.history.replaceState`, suivi par
@@ -158,7 +161,23 @@ function ResourcesContent({ findings }: { findings?: React.ReactNode }) {
           {/* « Comment c'est calculé ? » : la méthode, puis le bloc « En bref » rendu par le serveur
               (src/app/carte-des-ressources/page.tsx), les chiffres de chaque carte — replié, dans le HTML. */}
           <CalculationHelp summary={findings} className="mt-4" testId="resource-calculation-help">
-            <p>{RESOURCE_METHOD}</p>
+            <div className="app-help-bar-rows">
+              {RESOURCE_METHOD_PARTS.map((part, index) => {
+                const Icon = METHOD_ICONS[part.id]
+                const isOddLast = RESOURCE_METHOD_PARTS.length % 2 === 1 && index === RESOURCE_METHOD_PARTS.length - 1
+                return (
+                  <div key={part.id} className={`app-panel-muted app-help-bar-row ${isOddLast ? 'app-help-bar-row--wide' : ''}`.trim()}>
+                    <h3 className="app-help-bar-card-title">
+                      <Icon className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                      <span>{part.title}</span>
+                    </h3>
+                    <div className="app-help-bar-card-body">
+                      <p>{part.text}</p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </CalculationHelp>
         </div>
         {tab === 'validation' ? (

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { History, Search, Users, X } from 'lucide-react'
+import { Award, Clock, Crosshair, Flame, History, Moon, Search, Trophy, Users, X } from 'lucide-react'
 
 import {
   ActiveClanCard,
@@ -327,27 +327,69 @@ export default function ClansPage({ findings }: { findings?: React.ReactNode }) 
         {/* « Comment c'est calculé ? » : la méthode de l'annuaire, puis le bloc « En bref » rendu par le serveur (totaux,
             plus actifs, un lien vers chaque clan) — replié, dans le HTML. */}
         <CalculationHelp methodologyHref={`${METHODOLOGY_PATH}#roles`} summary={findings} testId="clans-calculation-help">
-          <ul className="flex list-disc flex-col gap-1.5 pl-5">
-            <li>
-              <b>Activité</b> : les parties des 7 derniers jours de ses joueurs, tous types de partie confondus ; une partie à
-              plusieurs joueurs du clan compte une fois. Un Top 1 du clan : la meilleure place de ses membres actifs.
+          <ul className="app-help-bar-rows">
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Flame className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Activité</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  Les parties des 7 derniers jours de ses joueurs, tous types de partie confondus ; une partie à plusieurs joueurs du clan
+                  compte une fois. Un Top 1 du clan : la meilleure place de ses membres actifs.
+                </p>
+              </div>
             </li>
-            <li>
-              <b>Ce soir</b> : les joueurs du clan qui ont joué dans la soirée en cours, de 6 h à 6 h, heure de Paris.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Moon className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Ce soir</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>Les joueurs du clan qui ont joué dans la soirée en cours, de 6 h à 6 h, heure de Paris.</p>
+              </div>
             </li>
-            <li>
-              <b>Clan du moment</b> : le plus de Top 1 sur 7 jours, à partir de {MOMENT_MIN_GAMES} parties ; à égalité, le meilleur taux,
-              puis le plus de parties.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Trophy className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Clan du moment</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  Le plus de Top 1 sur 7 jours, à partir de <b>{MOMENT_MIN_GAMES} parties</b> ; à égalité, le meilleur taux, puis le plus de
+                  parties.
+                </p>
+              </div>
             </li>
-            <li>
-              <b>Rang en Ligue</b> : la place du clan dans la Ligue des clans du mois, parties normales.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Award className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Rang en Ligue</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>La place du clan dans la Ligue des clans du mois, parties normales.</p>
+              </div>
             </li>
-            <li>
-              <b>Style de jeu</b> : le plus haut de trois scores moyens de ses membres — agressivité (Fragger), soutien (Medic),
-              discipline de zone (Ghost) — depuis le début du suivi, à partir de {CLAN_STYLE_MIN_MATCHES} parties analysées.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Crosshair className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>Style de jeu</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>
+                  Le plus haut de trois scores moyens de ses membres — agressivité (Fragger), soutien (Medic), discipline de zone (Ghost) —
+                  depuis le début du suivi, à partir de <b>{CLAN_STYLE_MIN_MATCHES} parties analysées</b>.
+                </p>
+              </div>
             </li>
-            <li>
-              <b>En sommeil</b> : aucune partie depuis {SLEEP_AFTER_DAYS} jours.
+            <li className="app-panel-muted app-help-bar-row">
+              <h3 className="app-help-bar-card-title">
+                <Clock className="h-4 w-4 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                <span>En sommeil</span>
+              </h3>
+              <div className="app-help-bar-card-body">
+                <p>Un clan passe en sommeil quand il n’a joué aucune partie depuis {SLEEP_AFTER_DAYS} jours.</p>
+              </div>
             </li>
           </ul>
         </CalculationHelp>

@@ -1,7 +1,8 @@
 import { describe, expect, it } from 'vitest'
 
 import type { ResourceMapResponse } from './resource-api'
-import { resourceFindings } from './resource-findings'
+import { RESOURCE_METHOD, RESOURCE_METHOD_PARTS, resourceFindings } from './resource-findings'
+import { SPOT_MIN_MATCHES } from './resource-map'
 
 const zero = { car: 0, moto: 0, boat: 0, glider: 0, land: 0 }
 const noPoints = { fuel: 0, garage: 0, dock: 0, secret_room: 0 }
@@ -48,6 +49,15 @@ describe('resourceFindings', () => {
   it('explique la méthode et ses seuils', () => {
     expect(result.method).toContain('seul à bord')
     expect(result.method).toContain('à partir de 3 parties')
+  })
+
+  it('méthode en trois cartes, seuils tirés des constantes du calcul', () => {
+    expect(RESOURCE_METHOD_PARTS.map((part) => part.title)).toEqual(['Véhicules observés', 'Seuils d’affichage', 'Points de la communauté'])
+    const thresholds = plain(RESOURCE_METHOD_PARTS[1].text)
+    expect(thresholds).toContain(`à partir de ${SPOT_MIN_MATCHES} parties`)
+    expect(thresholds).toContain('0,5 % des parties de la carte')
+    expect(thresholds).toContain('le quart de l’emplacement le plus fréquent')
+    expect(RESOURCE_METHOD).toBe(RESOURCE_METHOD_PARTS.map((part) => part.text).join(' '))
   })
 
   it('rien sans carte', () => {

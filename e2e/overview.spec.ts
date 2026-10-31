@@ -94,6 +94,32 @@ test('les blocs déplacés ne sont plus sur la page', async ({ page }) => {
   await expect(page.getByText(/Pression au drop/i)).toHaveCount(0)
 })
 
+test('sous-domaine du clan dans la vitrine et bouton « Se connecter » avec retour vers le clan', async ({ api, page }, testInfo) => {
+  // Sans adresse courte (sous-domaines inactifs : `subdomainHost` nul), aucune pastille.
+  await expect(page.getByTestId('clan-subdomain-copy')).toHaveCount(0)
+
+  const overview = clanOverview()
+  api.on('GET', `/api/clans/${CLAN_ID}/overview`, {
+    body: { ...overview, clan: { ...overview.clan, subdomainHost: 'demo.chickendinner.fr' } },
+  })
+  await page.reload()
+
+  const hero = page.getByLabel('Fiche du clan')
+  const subdomainPill = hero.getByTestId('clan-subdomain-copy')
+  await expect(subdomainPill).toBeVisible()
+  await expect(subdomainPill).toContainText('demo.chickendinner.fr')
+  // Copie acceptée ou refusée par le navigateur : le résultat est annoncé, jamais un clic sans effet.
+  await subdomainPill.click()
+  await expect(hero.getByRole('status')).toHaveText(/Adresse copiée|Copie impossible/)
+
+  // En mode visiteur sur une page de clan, « Se connecter » pointe vers /login?redirect=/clans/1/overview
+  if (testInfo.project.name !== 'chromium-desktop') {
+    await page.locator('[data-app-header]').getByRole('button', { name: 'Ouvrir la navigation' }).click()
+  }
+  const loginLink = page.getByRole('link', { name: 'Se connecter' }).first()
+  await expect(loginLink).toHaveAttribute('href', `/login?redirect=/clans/${CLAN_ID}/overview`)
+})
+
 // Type de match : cinq segments ne tiennent pas sous 640 px (382 px pour 343, la page défilait de côté et le bouton
 // du Coach sortait de l'écran) — pastille à menu sur mobile, segmented au-delà.
 test('type de match : pastille à menu sur mobile, segmented au-delà, jamais de défilement horizontal', async ({ api, page }, testInfo) => {

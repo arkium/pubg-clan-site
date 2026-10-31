@@ -1,4 +1,5 @@
 import { prisma } from '@/lib/prisma'
+import { clanSubdomainHost, readSubdomainRoot } from '@/lib/clan-subdomain-host'
 import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
 import { requireNavPermission } from '@/middleware/auth-permission'
 
@@ -40,6 +41,7 @@ export async function GET(
         id: true,
         name: true,
         tag: true,
+        subdomain: true,
         pubgClanId: true,
         platformShard: true,
         clanStats: true,
@@ -122,6 +124,8 @@ export async function GET(
         id: clan.id,
         name: clan.name,
         tag: clan.tag,
+        // Adresse courte affichée dans la vitrine, seulement quand les sous-domaines sont actifs (`CLAN_SUBDOMAIN_ROOT`).
+        subdomainHost: clanSubdomainHost(clan.subdomain, readSubdomainRoot()),
         pubgClanId: clan.pubgClanId,
         platformShard: clan.platformShard,
         imageUrl: clan.clanConfigs[0]?.value ?? null,

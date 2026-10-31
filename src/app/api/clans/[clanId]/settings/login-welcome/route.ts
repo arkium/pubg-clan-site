@@ -3,7 +3,8 @@ import { z } from 'zod'
 import { withAdminActionLog } from '@/lib/admin-action-log'
 import { requireClanFeature } from '@/lib/auth/admin-guards'
 import {
-  getClanLabel,
+  formatClanWelcomeLabel,
+  getClanIdentity,
   getLoginWelcomeSettings,
   normalizeLoginWelcomeSettings,
   updateLoginWelcomeSettings,
@@ -42,12 +43,13 @@ export async function GET(
     return Response.json({ error: 'Invalid clan id' }, { status: 400 })
   }
 
-  const [settings, clanLabel] = await Promise.all([
+  const [settings, clan] = await Promise.all([
     getLoginWelcomeSettings(clanId),
-    getClanLabel(clanId),
+    getClanIdentity(clanId),
   ])
 
-  return Response.json({ settings, clanLabel })
+  // `clan` : nom et tag séparés, pour les aperçus de la page « Accueil login » (badge de l'annuaire, bandeau du clan).
+  return Response.json({ settings, clanLabel: clan ? formatClanWelcomeLabel(clan) : null, clan })
 }
 
 async function handlePut(

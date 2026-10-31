@@ -543,7 +543,8 @@ or dropping an index (`EncounteredPlayer` carried 3× more index than data befor
 | `AUTH_BOOTSTRAP_SECRET` | Ouvre la route de bootstrap Owner ; refusé s'il vaut l'exemple de `.env.example` ou fait moins de 16 caractères (`src/lib/auth/secrets.ts`) | `.env` |
 | `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM` (optional) | Envoi des e-mails ; incomplet = envoi simulé. (`SMTP_URL` n'est lue nulle part) | `.env` |
 | `ENABLE_CRON_JOBS` | Toggle cron scheduling | `.env` (default: `true`) |
-| `CLAN_SUBDOMAIN_ROOT` (optional) | Sous-domaines de clan (`chickendinner.fr`) ; absente = redirection désactivée | `.env` |
+| `CLAN_SUBDOMAIN_ROOT` (optional) | Sous-domaines de clan (`chickendinner.fr`) ; absente = redirection désactivée et pas d'adresse courte dans la vitrine (`clanSubdomainHost`) | `.env` |
+| `PROD_UPLOADS_ORIGIN` (optional) | **Dev seulement** : origine d'où `/uploads/clans/[fileName]` relaie une image absente du disque ; défaut `https://chickendinner.fr`, ignorée hors `NODE_ENV=development` | `.env` |
 | `SITE_NAME` (optional) | Nom du site dans les e-mails (`src/lib/site-name.ts`) ; défaut `chickendinner.fr`. Serveur seulement, jamais dans un composant client | `.env` |
 | `NOTIFICATION_LINK_SECRET` (optional) | Signe le lien « Ne plus recevoir ces e-mails » des notifications ; à défaut `AUTH_BOOTSTRAP_SECRET` | `.env` |
 | `GEMINI_API_KEY` (optional) | Clé de l'API Gemini du Coach IA (projet Google Cloud **avec facturation**) ; absente = Coach fermé. Lue par `src/lib/coach/coach-config.ts` seulement, jamais côté client | `.env` |

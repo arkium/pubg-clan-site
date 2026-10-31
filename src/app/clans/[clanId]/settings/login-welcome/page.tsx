@@ -5,10 +5,15 @@
 import Link from 'next/link'
 import { useParams, useRouter } from 'next/navigation'
 import { useEffect, useState } from 'react'
-import { Lock, Monitor, Save, Upload } from 'lucide-react'
+import { ImageIcon, Lock, Monitor, RotateCcw, Save, Upload } from 'lucide-react'
 
 import { useAuthSession } from '@/hooks/useAuthSession'
+import { useImageFallback } from '@/hooks/useImageFallback'
+import { DEFAULT_CLAN_IMAGE } from '@/lib/clan-image'
+import { AuthVisual } from '@/components/auth/AuthLayout'
 import ClanSettingsBanner from '@/components/clan-settings/ClanSettingsBanner'
+import { ClanShowcaseHero } from '@/components/clan-overview/ClanOverviewSections'
+import { ActiveClanCard, type DirectoryClan } from '@/components/clans/ClanDirectorySections'
 import { ButtonSpinner, Callout, ErrorState, ListSkeleton } from '@/components/ui/CharteKit'
 
 type WelcomeSettings = {
@@ -32,6 +37,35 @@ function parseClanId(value: string | string[] | undefined) {
   return Number.isInteger(parsed) && parsed > 0 ? parsed : null
 }
 
+function extractFileName(url: string): string {
+  const clean = url.split('?')[0]?.split('#')[0] ?? url
+  const segments = clean.split('/').filter(Boolean)
+  return segments[segments.length - 1] || url
+}
+
+type ClanIdentity = { name: string; tag: string }
+
+/**
+ * Carte de l'annuaire en aperçu : vrais nom, tag et image du clan, chiffres d'exemple (la carte n'affiche son palmarès
+ * qu'avec des parties). Même composant que l'annuaire (`ActiveClanCard`), pour que l'aperçu ne s'en écarte jamais.
+ */
+function previewDirectoryClan(clanId: number, clan: ClanIdentity | null, imageUrl: string | null, lastMatchAt: string): DirectoryClan {
+  return {
+    id: clanId,
+    name: clan?.name ?? 'Nom du clan',
+    tag: clan?.tag ?? 'TAG',
+    imageUrl,
+    isSystem: false,
+    membersCount: 12,
+    games7: 18,
+    wins7: 3,
+    playedTonight: 4,
+    lastMatchAt,
+    leagueRank: 2,
+    style: { id: 'ghost', score: 72, aggression: 48, support: 55, zoneDiscipline: 72, members: 8, matches: 140 },
+  }
+}
+
 export default function ClanLoginWelcomeSettingsPage() {
   const router = useRouter()
   const params = useParams()
@@ -41,11 +75,20 @@ export default function ClanLoginWelcomeSettingsPage() {
 
   const [settings, setSettings] = useState<WelcomeSettings>(DEFAULT_SETTINGS)
   const [clanLabel, setClanLabel] = useState<string | null>(null)
+  const [clan, setClan] = useState<ClanIdentity | null>(null)
+  // Dernière partie d'exemple de l'aperçu de l'annuaire : il y a deux heures, figée au montage.
+  const [previewLastMatchAt] = useState(() => new Date(Date.now() - 2 * 3_600_000).toISOString())
+  const [uploadedOriginalName, setUploadedOriginalName] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
   const [uploading, setUploading] = useState(false)
   const [dataLoaded, setDataLoaded] = useState(false)
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
+
+  const previewImage = useImageFallback(settings.imageUrl, DEFAULT_CLAN_IMAGE)
+  const appliedUrl = settings.imageUrl?.trim() || DEFAULT_CLAN_IMAGE
+  const appliedFileName = extractFileName(appliedUrl)
+  const isCustomImage = Boolean(settings.imageUrl?.trim())
 
   const canManageSettings = isSuperUser || permissions.includes('*') || permissions.includes('manage_settings')
 
@@ -68,7 +111,7 @@ export default function ClanLoginWelcomeSettingsPage() {
           cache: 'no-store',
         })
         const payload = (await response.json().catch(() => null)) as
-          | { settings?: WelcomeSettings; clanLabel?: string | null }
+          | { settings?: WelcomeSettings; clanLabel?: string | null; clan?: ClanIdentity | null }
           | null
 
         if (!response.ok) {
@@ -78,6 +121,7 @@ export default function ClanLoginWelcomeSettingsPage() {
         if (!cancelled) {
           setSettings(payload?.settings ?? DEFAULT_SETTINGS)
           setClanLabel(payload?.clanLabel ?? null)
+          setClan(payload?.clan ?? null)
         }
       } catch (loadError) {
         if (!cancelled) {
@@ -141,6 +185,7 @@ export default function ClanLoginWelcomeSettingsPage() {
 
       if (payload?.imageUrl) {
         setSettings((current) => ({ ...current, imageUrl: payload.imageUrl }))
+        setUploadedOriginalName(file.name)
         setSuccess("Image téléchargée avec succès ! N'oublie pas de cliquer sur « Enregistrer » ci-dessous pour valider la modification.")
       }
     } catch (uploadError) {
@@ -281,7 +326,7 @@ export default function ClanLoginWelcomeSettingsPage() {
             />
           </label>
 
-          <div className="flex flex-col gap-1">
+          <div className="flex flex-col gap-1.5">
             <label htmlFor="imageUrl" className="flex items-center justify-between gap-2">
               <span className="t-label">Image du clan</span>
               <span className="t-meta">Facultatif</span>
@@ -292,14 +337,15 @@ export default function ClanLoginWelcomeSettingsPage() {
                 type="text"
                 value={settings.imageUrl ?? ''}
                 maxLength={500}
-                onChange={(event) =>
+                onChange={(event) => {
+                  setUploadedOriginalName(null)
                   setSettings((current) => ({
                     ...current,
                     imageUrl: event.target.value.trim() ? event.target.value : null,
                   }))
-                }
+                }}
                 className="app-input min-w-0 flex-1 basis-[200px]"
-                placeholder="/clans/d32.jpg ou https://…"
+                placeholder={`Par défaut : ${DEFAULT_CLAN_IMAGE}`}
               />
               <label className={`app-btn app-btn--md app-btn--secondary cursor-pointer gap-1.5 whitespace-nowrap ${uploading ? 'opacity-45' : ''}`}>
                 {uploading ? <ButtonSpinner /> : <Upload className="h-4 w-4" aria-hidden="true" />}
@@ -313,6 +359,45 @@ export default function ClanLoginWelcomeSettingsPage() {
                 />
               </label>
             </div>
+
+            <div className="app-panel-muted flex flex-wrap items-center gap-2.5 px-3 py-2" data-testid="applied-clan-image">
+              <img
+                src={previewImage.src}
+                onError={previewImage.onError}
+                alt=""
+                className="h-9 w-14 shrink-0 rounded-md border border-gray-200 object-cover"
+              />
+              <div className="flex min-w-0 flex-1 flex-col">
+                <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                  <ImageIcon className="h-3.5 w-3.5 shrink-0 text-[var(--theme-ui-accent-text)]" aria-hidden="true" />
+                  <span className="text-gray-500">Fichier appliqué :</span>
+                  <code className="truncate font-mono font-bold text-gray-900" title={appliedUrl}>
+                    {uploadedOriginalName ? `${uploadedOriginalName} (${appliedFileName})` : appliedFileName}
+                  </code>
+                </div>
+                <span className="truncate text-[11px] text-gray-500">
+                  {!isCustomImage
+                    ? `Image par défaut du site (${DEFAULT_CLAN_IMAGE})`
+                    : previewImage.broken
+                      ? `Fichier introuvable à l’adresse ${settings.imageUrl} — aperçu replié sur ${extractFileName(DEFAULT_CLAN_IMAGE)}`
+                      : `Chemin actif : ${settings.imageUrl}`}
+                </span>
+              </div>
+              {isCustomImage ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setUploadedOriginalName(null)
+                    setSettings((current) => ({ ...current, imageUrl: null }))
+                  }}
+                  className="app-btn app-btn--sm app-btn--ghost gap-1 text-xs"
+                >
+                  <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
+                  Par défaut
+                </button>
+              ) : null}
+            </div>
+
             <span className="t-meta">JPG, PNG ou WEBP, 5 Mo au plus. Format conseillé : 1024 × 434 px.</span>
           </div>
 
@@ -339,24 +424,66 @@ export default function ClanLoginWelcomeSettingsPage() {
           <h2 id="welcome-preview-title" className="t-label m-0">
             Aperçu de la page de connexion
           </h2>
-          <div className="app-on-photo bg-hero-fallback relative min-h-[16rem] flex-1 overflow-hidden rounded-[14px] text-white">
-            {settings.imageUrl ? (
-              <img src={settings.imageUrl} alt="" className="absolute inset-0 h-full w-full object-cover opacity-40" />
-            ) : null}
-            <div className="absolute inset-0 bg-gradient-to-t from-black/85 via-black/50 to-black/30" aria-hidden="true" />
-            <div className="relative z-10 flex h-full flex-col justify-end gap-3 p-5 sm:p-6">
-              <span className="inline-flex self-start rounded-full border border-white/30 bg-white/10 px-3 py-1 text-xs font-semibold uppercase tracking-[0.2em]">
-                {settings.badge || 'Bienvenue au clan'}
-              </span>
-              <p className="t-banner-title m-0 text-white">{settings.title || 'Connexion escouade'}</p>
-              <p className="m-0 max-w-md text-[13px] text-white/80">
-                {settings.message ||
-                  'Connecte-toi pour retrouver tes statistiques, ta progression et les outils de coordination du clan.'}
-              </p>
-            </div>
+          {/* Même visuel que la page de connexion (`AuthVisual`, voile sombre compris) : l'aperçu ne peut pas s'en écarter. */}
+          <div className="flex min-h-[16rem] flex-1 flex-col overflow-hidden rounded-[14px] [&>div]:flex-1" data-testid="login-preview">
+            <AuthVisual
+              image={previewImage.src}
+              imagePosition="center"
+              onImageError={previewImage.onError}
+              header={
+                <img
+                  src={previewImage.src}
+                  onError={previewImage.onError}
+                  alt=""
+                  className="h-14 w-14 rounded-[10px] border border-white/30 object-cover lg:hidden"
+                />
+              }
+              kicker={settings.badge || DEFAULT_SETTINGS.badge}
+              title={settings.title || DEFAULT_SETTINGS.title}
+              titleAs="p"
+              text={settings.message || DEFAULT_SETTINGS.message}
+              pill={clanLabel}
+            />
           </div>
         </section>
       </div>
+
+      <section className="flex flex-col gap-2" aria-labelledby="badge-preview-title" data-testid="clan-badge-preview">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="badge-preview-title" className="t-label m-0">
+            Aperçu du badge du clan (Annuaire des clans)
+          </h2>
+          <Link href="/clans" className="app-link text-xs font-semibold">
+            Voir l’annuaire des clans →
+          </Link>
+        </div>
+        <div className="grid gap-2.5 md:grid-cols-2">
+          <ActiveClanCard clan={previewDirectoryClan(clanId, clan, settings.imageUrl, previewLastMatchAt)} active />
+        </div>
+        <p className="t-meta m-0">Vignette carrée de 64 × 64 px, recadrée au centre de l’image. Chiffres d’exemple : seule l’image et le nom sont ceux du clan.</p>
+      </section>
+
+      <section className="flex flex-col gap-2" aria-labelledby="header-preview-title" data-testid="clan-header-preview">
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 id="header-preview-title" className="t-label m-0">
+            Aperçu de l’en-tête du clan (Vue d’ensemble)
+          </h2>
+          <Link href={`/clans/${clanId}/overview`} className="app-link text-xs font-semibold">
+            Voir la vue d’ensemble du clan →
+          </Link>
+        </div>
+        {/* Même bandeau que la vue d'ensemble (`ClanShowcaseHero`), sans palmarès ni effectifs (chiffres du clan non lus ici). */}
+        <ClanShowcaseHero
+          image={settings.imageUrl}
+          tag={clan?.tag ?? 'TAG'}
+          name={clan?.name ?? 'Nom du clan'}
+          titleAs="p"
+          syncedLabel={null}
+          trackedMembers={null}
+          showcase={null}
+        />
+        <p className="t-meta m-0">Cadrage : toute la largeur de l’image, centrée à 35 % de sa hauteur.</p>
+      </section>
     </div>
   )
 }

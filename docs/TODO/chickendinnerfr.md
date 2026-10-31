@@ -1,7 +1,9 @@
 # Sous-domaine par clan — `<clan>.chickendinner.fr`
 
 > **Spécification — cadrage validé le 2026-09-26 ; étapes 1 et 2 du §5 faites le 2026-09-26 (code, migration,
-> 29 sous-domaines attribués) ; étapes 3 et 4 (certificat, Nginx, `CLAN_SUBDOMAIN_ROOT`) à faire sur le serveur**
+> 29 sous-domaines attribués) ; étapes 3 et 4 (certificat wildcard, Nginx, `CLAN_SUBDOMAIN_ROOT`) faites le 2026-10-31,
+> recette passée le jour même (§6). Reste : déployer `/login` sur sous-domaine et la pastille de la vitrine (2026-10-31),
+> puis refaire la ligne `/login` de la recette**
 > *Destiné à l'équipe de développement.*
 >
 > Première version : une note d'opportunité. Revue contre le code et l'infrastructure le 2026-09-26 : le DNS est
@@ -23,6 +25,8 @@ action manuelle sur le DNS, le certificat ou Nginx.
 | Sujet | Décision | Date |
 |---|---|---|
 | Comportement | **Redirection** (option A) : `smk.chickendinner.fr/…` → `https://chickendinner.fr/clans/<id>/overview`. Le site reste sur un seul domaine | 2026-09-26 |
+| Connexion directe et depuis le clan | `smk.chickendinner.fr/login` → `https://chickendinner.fr/login?redirect=/clans/<id>/overview` ; le bouton « Se connecter » du menu visiteur sur une page `/clans/<id>/…` passe aussi `?redirect=…` pour afficher l'écran d'accueil personnalisé du clan et ramener le joueur sur son clan après connexion | 2026-10-31 |
+| Affichage de l'adresse courte | Pastille copiable `<clan>.chickendinner.fr` dans le bandeau de la vue d'ensemble du clan (`ClanShowcaseHero`), **seulement quand `CLAN_SUBDOMAIN_ROOT` est défini** : l'API overview renvoie `subdomainHost` (`clanSubdomainHost`), jamais une adresse qui ne mènerait nulle part (local, fonctionnalité coupée) | 2026-10-31 |
 | Sous-domaine persistant (option B, réécriture interne) | **Écarté** : cookie de session à élargir à tous les sous-domaines, liens internes `/clans/<id>/…` à réécrire, clan sélectionné (`localStorage`) perdu d'un sous-domaine à l'autre (§3.C) | 2026-09-26 |
 | Clé de correspondance | **Champ dédié `Clan.subdomain`, unique**, et non le tag PUBG : le tag n'est pas unique et peut changer ou être repris (§3.B) | 2026-09-26 |
 | Tags en double | Aucun des deux clans ne reçoit le tag seul : chacun reçoit un sous-domaine tiré de son **nom** (§4.B) | 2026-09-26 |
@@ -39,8 +43,8 @@ action manuelle sur le DNS, le certificat ou Nginx.
 |---|---|
 | DNS `chickendinner.fr` | ✅ pointe vers le serveur de production (217.182.143.43) |
 | DNS wildcard `*.chickendinner.fr` | ✅ déjà en place : un sous-domaine inventé résout vers la même adresse |
-| Certificat HTTPS | ❌ couvre `chickendinner.fr` seulement : `https://smk.chickendinner.fr` échoue (nom de certificat incorrect) |
-| Nginx (1.24, Ubuntu) | ⚠️ à étendre : `server_name` du domaine principal seulement |
+| Certificat HTTPS | ✅ **depuis le 2026-10-31** : wildcard Let's Encrypt `*.chickendinner.fr` + `chickendinner.fr` (DNS-01, plugin OVH), valable jusqu'au 29/01/2027. Avant : domaine principal seulement, les sous-domaines échouaient (nom de certificat incorrect) |
+| Nginx (1.24, Ubuntu) | ✅ **depuis le 2026-10-31** : sous-domaines servis en HTTPS, HTTP redirigé vers HTTPS (301) |
 
 ### B. Les tags ne peuvent pas servir de clé
 
@@ -112,8 +116,9 @@ la correspondance doit être mise en cache.
   - `<x>` inconnu, réservé, ou clan inactif → **307** vers la vitrine `https://chickendinner.fr/` (révision du
     2026-09-26 ; `/clans` auparavant).
 - Le chemin du sous-domaine est ignoré (`smk.chickendinner.fr/stats` → vue d'ensemble) : pas de second schéma d'URL.
-  Seule exception : `/m/<match>` → `https://chickendinner.fr/m/<match>?c=<sous-domaine>` (lien court de
-  débriefing, [url-masking.md](url-masking.md) §4.C).
+  Deux exceptions :
+  - `/m/<match>` → `https://chickendinner.fr/m/<match>?c=<sous-domaine>` (lien court de débriefing, [url-masking.md](url-masking.md) §4.C) ;
+  - `/login` → `https://chickendinner.fr/login?redirect=/clans/<id>/overview` (lien direct vers la page de connexion personnalisée aux couleurs du clan).
 - Le domaine racine, `www`, `localhost` et les adresses IP ne sont jamais traités comme des sous-domaines.
 - **Aucune lecture Prisma dans le proxy** : il appelle une route interne légère
   (`GET /api/internal/clan-subdomains`, sur le modèle de `/api/setup/status`) qui renvoie la table
@@ -139,7 +144,7 @@ la correspondance doit être mise en cache.
 2. **Migration en production** — *avec accord explicite* : `migrate diff` lu avant, puis ajout de la colonne et de
    l'index unique ; remplissage des clans actifs par un script `scripts/backfill-clan-subdomains.ts` en mode
    simulation d'abord (liste des attributions affichée), puis écriture.
-3. **Certificat puis Nginx** sur le serveur ; vérifier `https://smk.chickendinner.fr` avant d'aller plus loin.
+3. **Certificat puis Nginx** sur le serveur ; vérifier `https://bee.chickendinner.fr` avant d'aller plus loin.
 4. Définir `CLAN_SUBDOMAIN_ROOT` et redémarrer `web`.
 
 ---
@@ -152,8 +157,21 @@ la correspondance doit être mise en cache.
 | `src/lib/clan-subdomain-proxy.test.ts` | Extraction de l'hôte : racine, `www`, `localhost`, IP, sous-domaine ; 307 vers la vue d'ensemble, 307 vers la vitrine `/` si inconnu ou réservé ; fonctionnalité inactive sans `CLAN_SUBDOMAIN_ROOT` ; cache (un seul appel à la route interne par période) |
 | Contrat de la route interne | Ne renvoie que les clans actifs non système ; ne renvoie ni nom ni donnée autre que `sous-domaine → id` |
 
-Recette manuelle en production : `smk.chickendinner.fr`, `kilslms.chickendinner.fr`, un sous-domaine inventé,
-`www.chickendinner.fr`, en HTTP et en HTTPS ; certificat valide sur chacun.
+Recette manuelle en production : deux sous-domaines attribués (liste dans `GET /api/internal/clan-subdomains` —
+`smk` et `kilslms`, pris en exemple dans les tests, n'y sont **pas**), un sous-domaine inventé, `www.chickendinner.fr`,
+en HTTP et en HTTPS ; certificat valide sur chacun.
+
+Recette du 2026-10-31 (certificat et Nginx en place, code du 2026-10-31 pas encore déployé) :
+
+| Adresse | Résultat |
+|---|---|
+| `https://bee.chickendinner.fr/` | ✅ 307 → `/clans/3/overview` ; certificat wildcard valide |
+| `https://ratz.chickendinner.fr/stats` | ✅ 307 → `/clans/6/overview` (chemin ignoré) |
+| `https://ratz.chickendinner.fr/m/abc123` | ✅ 307 → `/m/abc123?c=ratz` |
+| `https://inconnu-xyz.chickendinner.fr/`, `https://smk.chickendinner.fr/` | ✅ 307 → vitrine `/` (non attribués) |
+| `https://www.chickendinner.fr/` | ✅ 301 → `https://chickendinner.fr/` |
+| `http://bee.chickendinner.fr/` | ✅ 301 → `https://bee.chickendinner.fr/` |
+| `https://bee.chickendinner.fr/login` | ⏳ 307 → `/clans/3/overview` : à refaire après déploiement, attendu `/login?redirect=/clans/3/overview` |
 
 ---
 
@@ -170,5 +188,5 @@ Recette manuelle en production : `smk.chickendinner.fr`, `kilslms.chickendinner.
 
 ## 8. Questions ouvertes
 
-- Registrar du domaine : conditionne le plugin `certbot` pour la validation DNS.
-- Faut-il montrer l'adresse du clan sur sa vue d'ensemble (lien copiable) ? Proposé, non décidé.
+- ~~Registrar du domaine : conditionne le plugin `certbot` pour la validation DNS.~~ **Vérifié le 2026-10-31** : zone DNS chez **OVH** (`dns200.anycast.me` / `ns200.anycast.me`, wildcard `* IN A 217.182.143.43` en place, e-mails OVH `imap`/`pop3`/`smtp`/`mail` et `ftp` définis explicitement en CNAME) → plugin **`python3-certbot-dns-ovh`**.
+- ~~Faut-il montrer l'adresse du clan sur sa vue d'ensemble (lien copiable) ?~~ **Fait le 2026-10-31** : pastille copiable `<clan>.chickendinner.fr` affichée dans le bandeau de la vue d'ensemble (`ClanShowcaseHero`), quand `CLAN_SUBDOMAIN_ROOT` est défini.

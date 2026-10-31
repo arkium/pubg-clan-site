@@ -271,6 +271,7 @@ export default function ClanOverviewPage({ findings }: { findings?: React.ReactN
               image={clan?.imageUrl || null}
               imageSettingsHref={imageSettingsHref}
               tag={pubg?.tag ?? clan?.tag ?? null}
+              subdomainHost={clan?.subdomainHost ?? null}
               name={pubg?.name ?? clan?.name ?? `Clan #${clanId}`}
               syncedLabel={fmtRelative((rawStats?.syncedAt as string | undefined) ?? null)}
               trackedMembers={tracked?.membersCount ?? 0}

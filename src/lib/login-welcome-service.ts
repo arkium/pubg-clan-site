@@ -102,14 +102,20 @@ export async function updateLoginWelcomeSettings(clanId: number, next: LoginWelc
   return next
 }
 
-export async function getClanLabel(clanId: number) {
-  const clan = await prisma.clan.findUnique({
+export async function getClanIdentity(clanId: number) {
+  return prisma.clan.findUnique({
     where: { id: clanId },
     select: { name: true, tag: true },
   })
+}
 
-  if (!clan) return null
+export function formatClanWelcomeLabel(clan: { name: string; tag: string }) {
   return `${clan.name} [${clan.tag}]`
+}
+
+export async function getClanLabel(clanId: number) {
+  const clan = await getClanIdentity(clanId)
+  return clan ? formatClanWelcomeLabel(clan) : null
 }
 
 export async function getPrimaryClanId() {

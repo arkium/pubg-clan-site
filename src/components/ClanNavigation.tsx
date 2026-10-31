@@ -19,6 +19,7 @@ import { useNavPermissions } from '@/hooks/useNavPermissions'
 import { DEFAULT_APP_THEME, persistAppTheme, readStoredAppTheme, type AppTheme } from '@/lib/app-theme'
 import { isNavKeyClosedToOwners } from '@/lib/auth/owner-feature-catalog'
 import { HOME_SHOWCASE_HREF } from '@/lib/home-landing'
+import { redirectClanId } from '@/lib/login-redirect'
 import CoachFab from '@/components/coach/CoachFab'
 import CoachTrigger from '@/components/coach/CoachTrigger'
 import { getItemRole, PERSONAL_NAV_KEYS, type NavRole, type NavSection } from '@/lib/nav-permissions-registry'
@@ -383,7 +384,13 @@ export default function ClanNavigation({ children }: ClanNavigationProps) {
       { navKey: 'primary.zone-reading', label: 'Lecture de zone', href: '/lecture-de-zone', tone: 'brand' },
       !isVisitor
         ? { navKey: 'primary.mon-compte', label: 'Mon compte', href: '/account', tone: 'neutral' }
-        : { navKey: 'primary.login', label: 'Se connecter', href: '/login', tone: 'neutral' },
+        : {
+            navKey: 'primary.login',
+            label: 'Se connecter',
+            // Depuis une page de clan : l'accueil de connexion du clan, puis retour sur la page après connexion.
+            href: redirectClanId(pathname) ? `/login?redirect=${pathname}` : '/login',
+            tone: 'neutral',
+          },
     ] as (NavItem | null)[]).filter((item): item is NavItem => item !== null && !isNavHidden(item.navKey))
 
   // Accueil « Mon clan » du clan sélectionné (lot 3b) ; /settings/owner y redirige côté serveur

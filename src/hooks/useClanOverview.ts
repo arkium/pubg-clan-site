@@ -62,6 +62,8 @@ export type ClanOverview = {
     id: number
     name: string
     tag: string
+    /** `<sous-domaine>.<racine>` quand les sous-domaines sont actifs, sinon `null`. */
+    subdomainHost?: string | null
     pubgClanId: string | null
     platformShard: string
     imageUrl: string | null

@@ -405,10 +405,15 @@ Spec : [docs/TODO/chickendinnerfr.md](../TODO/chickendinnerfr.md). Chaque clan a
 (`Clan.subdomain`) qui **redirige** (307) vers sa vue d'ensemble ; un sous-domaine inconnu redirige vers la vitrine `/`.
 Le DNS wildcard `*.chickendinner.fr` est déjà en place. Dans l'ordre :
 
-1. **Certificat wildcard** — Let's Encrypt ne le délivre que par validation DNS-01, avec le plugin `certbot` du
-   registrar :
+1. **Certificat wildcard** — Le DNS de `chickendinner.fr` est chez **OVH** (`dns200.anycast.me` / `ns200.anycast.me`).
+   Let's Encrypt ne délivre un wildcard que par validation **DNS-01**, via le plugin `python3-certbot-dns-ovh` :
    ```bash
-   sudo certbot certonly --dns-<registrar> --dns-<registrar>-credentials /root/.secrets/<registrar>.ini      -d chickendinner.fr -d '*.chickendinner.fr'
+   sudo apt install -y python3-certbot-dns-ovh
+   # Jetons créés sur https://eu.api.ovh.com/createToken/ (droits limités à /domain/zone/chickendinner.fr/*)
+   sudo certbot certonly --dns-ovh --dns-ovh-credentials /root/.secrets/ovh.ini \
+     --dns-ovh-propagation-seconds 60 \
+     -d chickendinner.fr -d '*.chickendinner.fr' \
+     --deploy-hook "systemctl reload nginx"
    sudo certbot renew --dry-run   # le renouvellement automatique doit passer
    ```
 2. **Nginx** — le bloc HTTPS existant et le bloc HTTP de redirection vers HTTPS acceptent les sous-domaines :

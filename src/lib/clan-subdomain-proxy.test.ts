@@ -2,6 +2,7 @@ import { NextRequest } from 'next/server'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  clanSubdomainHost,
   createSubdomainTargetsCache,
   extractSubdomainLabel,
   readSubdomainRoot,
@@ -32,6 +33,19 @@ describe('readSubdomainRoot', () => {
   })
 })
 
+describe('clanSubdomainHost', () => {
+  it('donne l’adresse courte d’un clan quand la fonctionnalité est active', () => {
+    expect(clanSubdomainHost('bee', ROOT)).toBe('bee.chickendinner.fr')
+    expect(clanSubdomainHost(' Ratz ', ROOT)).toBe('ratz.chickendinner.fr')
+  })
+
+  it('ne montre aucune adresse sans sous-domaine ou sans CLAN_SUBDOMAIN_ROOT', () => {
+    expect(clanSubdomainHost(null, ROOT)).toBeNull()
+    expect(clanSubdomainHost('  ', ROOT)).toBeNull()
+    expect(clanSubdomainHost('bee', null)).toBeNull()
+  })
+})
+
 describe('subdomainRedirectLocation', () => {
   const location = (label: string, pathname = '/') => subdomainRedirectLocation({ label, pathname, root: ROOT, targets: TARGETS })
 
@@ -51,6 +65,12 @@ describe('subdomainRedirectLocation', () => {
       'https://chickendinner.fr/m/cmuiawkib067x04zz8htx378f?c=smk'
     )
     expect(location('api', '/m/cmuiawkib067x04zz8htx378f')).toBe('https://chickendinner.fr/m/cmuiawkib067x04zz8htx378f')
+  })
+
+  it('mène /login d’un sous-domaine de clan actif vers la page de connexion aux couleurs du clan', () => {
+    expect(location('smk', '/login')).toBe('https://chickendinner.fr/login?redirect=/clans/1/overview')
+    expect(location('kilslms', '/login/')).toBe('https://chickendinner.fr/login?redirect=/clans/2/overview')
+    expect(location('bidon', '/login')).toBe('https://chickendinner.fr/')
   })
 })
 

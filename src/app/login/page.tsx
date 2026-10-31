@@ -13,6 +13,8 @@ import FirstRunSetup from '@/components/FirstRunSetup'
 import PendingActivation from '@/components/PendingActivation'
 import { ButtonSpinner, ListSkeleton } from '@/components/ui/CharteKit'
 import { useImageFallback } from '@/hooks/useImageFallback'
+import { DEFAULT_CLAN_IMAGE } from '@/lib/clan-image'
+import { redirectClanId, safeRedirectPath } from '@/lib/login-redirect'
 
 /**
  * Connexion — page plein écran, sans le shell. Selon la charte UI (docs/ui/index.html, « Modales » et « Contrôles ») et
@@ -77,13 +79,12 @@ const GUIDE = [
 function LoginPageContent() {
   const searchParams = useSearchParams()
 
-  const redirectTo = useMemo(() => searchParams.get('redirect'), [searchParams])
-
-  const welcomeClanId = useMemo(() => {
-    if (!redirectTo) return null
-    const match = /^\/clans\/(\d+)\//.exec(redirectTo)
-    return match ? match[1] : null
-  }, [redirectTo])
+  // Chemin interne seulement : jamais de redirection hors du site après la connexion (`safeRedirectPath`).
+  const redirectTo = useMemo(() => safeRedirectPath(searchParams.get('redirect')), [searchParams])
+  const welcomeClanId = useMemo(() => redirectClanId(redirectTo), [redirectTo])
+  // Retour sans se connecter : la vue d'ensemble du clan (publique), jamais `redirectTo` — souvent une page protégée
+  // (`/settings/…`, `/account`) qui renverrait aussitôt ici.
+  const backHref = welcomeClanId ? `/clans/${welcomeClanId}/overview` : '/clans'
 
   const [setupState, setSetupState] = useState<'completed' | 'pending_activation' | 'first_run' | 'loading'>('loading')
 
@@ -91,12 +92,15 @@ function LoginPageContent() {
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
   const [submitting, setSubmitting] = useState(false)
-  const [welcome, setWelcome] = useState<WelcomeSettings>(DEFAULT_GLOBAL_WELCOME)
+  const [welcome, setWelcome] = useState<WelcomeSettings>(() =>
+    welcomeClanId ? { ...DEFAULT_GLOBAL_WELCOME, imageUrl: DEFAULT_CLAN_IMAGE } : DEFAULT_GLOBAL_WELCOME
+  )
   const [clanLabel, setClanLabel] = useState<string | null>(null)
-  // Image absente ou qui ne se charge plus (fichier téléversé disparu) : visuel par défaut, jamais un cadre vide.
-  const heroImage = useImageFallback(welcome.imageUrl, '/squad.jpg')
+  // Image absente ou qui ne se charge plus (fichier téléversé disparu) : visuel du clan par défaut si l'on vient d'un clan, sinon visuel global.
+  const defaultHeroImage = welcomeClanId ? DEFAULT_CLAN_IMAGE : '/squad.jpg'
+  const heroImage = useImageFallback(welcome.imageUrl, defaultHeroImage)
   const heroImageUrl = heroImage.src
-  const isGlobalPortal = welcome.badge === 'Portail PUBG'
+  const isGlobalPortal = welcome.badge === 'Portail PUBG' && !welcomeClanId
 
   useEffect(() => {
     let cancelled = false
@@ -195,9 +199,9 @@ function LoginPageContent() {
   return (
     <AuthPage>
       <div className="relative z-10 mb-4 flex w-full max-w-5xl flex-wrap items-center justify-between gap-2">
-        <Link href="/clans" className="app-btn app-btn--sm app-btn--secondary gap-1.5">
+        <Link href={backHref} className="app-btn app-btn--sm app-btn--secondary gap-1.5">
           <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-          Retour à l’accueil du site
+          {welcomeClanId ? (clanLabel ? `Retour au clan ${clanLabel}` : 'Retour au clan') : 'Retour à l’accueil du site'}
         </Link>
         <Link href="/join" className="app-link inline-flex items-center gap-1 text-xs font-semibold">
           Pas encore de compte ?
@@ -291,9 +295,9 @@ function LoginPageContent() {
         </form>
 
         <div className="flex flex-col gap-3 border-t border-gray-200 pt-5">
-          <Link href="/clans" className="app-btn app-btn--md app-btn--secondary w-full gap-2">
+          <Link href={backHref} className="app-btn app-btn--md app-btn--secondary w-full gap-2">
             <ArrowLeft className="h-4 w-4" aria-hidden="true" />
-            Retour à la page principale
+            {welcomeClanId ? 'Retour à la page du clan' : 'Retour à la page principale'}
           </Link>
           <p className="t-meta m-0 text-center">
             Pas encore de compte ?{' '}

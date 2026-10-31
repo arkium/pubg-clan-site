@@ -1,13 +1,15 @@
 'use client'
 
 import Link from 'next/link'
-import type { ReactNode } from 'react'
+import { useState, type ReactNode } from 'react'
 import {
   Award,
   CalendarDays,
+  Check,
   ImagePlus,
   Crosshair,
   Handshake,
+  Link2,
   Medal,
   Radio,
   Skull,
@@ -47,7 +49,9 @@ export function ClanShowcaseHero({
   image,
   imageSettingsHref,
   tag,
+  subdomainHost,
   name,
+  titleAs: Title = 'h1',
   syncedLabel,
   trackedMembers,
   showcase,
@@ -57,11 +61,17 @@ export function ClanShowcaseHero({
   /** Lien vers le réglage de l'image, pour qui peut le modifier ; affiché seulement quand l'image manque ou ne se charge plus. */
   imageSettingsHref?: string | null
   tag: string | null
+  /** Adresse courte du clan (`bee.chickendinner.fr`), en pastille copiable ; `null` quand les sous-domaines sont inactifs. */
+  subdomainHost?: string | null
   name: string
+  /** `p` pour un aperçu rendu dans une autre page (réglage « Accueil login »), qui a déjà son titre. */
+  titleAs?: 'h1' | 'p'
   syncedLabel: string | null
-  trackedMembers: number
+  /** `null` : ligne des effectifs omise (aperçu sans les chiffres du clan). */
+  trackedMembers: number | null
   showcase: ClanShowcase | null
 }) {
+  const [copyState, setCopyState] = useState<'idle' | 'copied' | 'failed'>('idle')
   const palmares = showcase?.palmares
   // Tuiles du palmarès sur la photo : jetons de jeu en variante sombre (`.app-on-photo`), la ligue en blanc (voile).
   const league = { icon: Medal, color: '#fff', bg: 'rgb(255 255 255 / 0.14)' }
@@ -80,6 +90,28 @@ export function ClanShowcaseHero({
   const members = showcase?.pubgMemberCount
   const heroImage = useImageFallback(image, DEFAULT_CLAN_IMAGE)
   const imageMissing = !image?.trim() || heroImage.broken
+  const figures = [
+    members ? `${numberFormat.format(members)} membres PUBG` : null,
+    trackedMembers !== null ? `${numberFormat.format(trackedMembers)} suivis` : null,
+    showcase?.platform ? showcase.platform.charAt(0).toUpperCase() + showcase.platform.slice(1) : null,
+  ]
+    .filter(Boolean)
+    .join(' · ')
+
+  // Presse-papiers refusé (page en HTTP, permission) : on le dit au lieu d'un clic sans effet.
+  function handleCopySubdomain() {
+    if (!subdomainHost) return
+    const showFor2s = (state: 'copied' | 'failed') => {
+      setCopyState(state)
+      window.setTimeout(() => setCopyState('idle'), 2000)
+    }
+    if (typeof navigator === 'undefined' || !navigator.clipboard) return showFor2s('failed')
+    navigator.clipboard.writeText(`https://${subdomainHost}`).then(
+      () => showFor2s('copied'),
+      () => showFor2s('failed')
+    )
+  }
+
   return (
     <header className="app-panel app-on-photo bg-hero-fallback relative min-h-[300px] overflow-hidden p-0 text-white" aria-label="Fiche du clan">
       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -93,6 +125,30 @@ export function ClanShowcaseHero({
         <div className="flex flex-wrap items-center gap-2">
           {tag && <span className="rounded-md bg-[var(--theme-ui-accent)] px-2.5 py-0.5 text-xs font-extrabold tracking-[0.06em] text-slate-950">[{tag}]</span>}
           <span className="text-[11px] font-semibold uppercase tracking-[0.12em] text-white/70">Fiche PUBG officielle</span>
+          {subdomainHost && (
+            <button
+              type="button"
+              onClick={handleCopySubdomain}
+              data-testid="clan-subdomain-copy"
+              title={`Copier https://${subdomainHost}`}
+              aria-label={`Copier l’adresse ${subdomainHost}`}
+              className="inline-flex items-center gap-1.5 rounded-md border border-white/20 bg-slate-950/55 px-2 py-0.5 font-mono text-[11px] font-semibold text-white/90 backdrop-blur transition hover:border-white/40 hover:bg-slate-950/75"
+            >
+              {copyState === 'copied' ? (
+                <Check className="h-3 w-3 text-[var(--game-pos)]" aria-hidden="true" />
+              ) : (
+                <Link2 className="h-3 w-3 text-[var(--theme-ui-accent)]" aria-hidden="true" />
+              )}
+              <span>{subdomainHost}</span>
+              {copyState === 'copied' && <span className="font-sans text-[10px] text-[var(--game-pos)]" aria-hidden="true">Copié</span>}
+              {copyState === 'failed' && <span className="font-sans text-[10px] text-white/80" aria-hidden="true">Copie impossible</span>}
+            </button>
+          )}
+          {subdomainHost && (
+            <span role="status" className="sr-only">
+              {copyState === 'copied' ? 'Adresse copiée' : copyState === 'failed' ? 'Copie impossible' : ''}
+            </span>
+          )}
           {imageMissing && imageSettingsHref && (
             <Link
               href={imageSettingsHref}
@@ -120,16 +176,8 @@ export function ClanShowcaseHero({
             </div>
           ) : null}
           <div className="flex min-w-0 flex-1 basis-[180px] flex-col gap-1.5">
-            <h1 className="t-banner-title m-0 [overflow-wrap:anywhere] [text-shadow:0_4px_24px_rgba(0,0,0,.4)]">{name}</h1>
-            <p className="m-0 text-sm text-white/85">
-              {[
-                members ? `${numberFormat.format(members)} membres PUBG` : null,
-                `${numberFormat.format(trackedMembers)} suivis`,
-                showcase?.platform ? showcase.platform.charAt(0).toUpperCase() + showcase.platform.slice(1) : null,
-              ]
-                .filter(Boolean)
-                .join(' · ')}
-            </p>
+            <Title className="t-banner-title m-0 [overflow-wrap:anywhere] [text-shadow:0_4px_24px_rgba(0,0,0,.4)]">{name}</Title>
+            {figures ? <p className="m-0 text-sm text-white/85">{figures}</p> : null}
           </div>
         </div>
         {cells.length > 0 && (

@@ -43,6 +43,7 @@ export function AuthVisual({
   header,
   kicker,
   title,
+  titleAs: Title = 'h1',
   text,
   pill,
   children,
@@ -53,6 +54,8 @@ export function AuthVisual({
   header?: ReactNode
   kicker?: ReactNode
   title: ReactNode
+  /** `p` pour un aperçu rendu dans une autre page (réglage « Accueil login »), qui a déjà son titre. */
+  titleAs?: 'h1' | 'p'
   text: ReactNode
   pill?: ReactNode
   children?: ReactNode
@@ -74,7 +77,7 @@ export function AuthVisual({
             {kicker}
           </span>
         ) : null}
-        <h1 className="t-banner-title m-0 text-white drop-shadow-md">{title}</h1>
+        <Title className="t-banner-title m-0 text-white drop-shadow-md">{title}</Title>
         <p className="m-0 max-w-md text-sm text-white/85">{text}</p>
         {pill ? <span className="self-start rounded-full border border-white/25 bg-white/15 px-3 py-1 text-xs font-semibold text-white">{pill}</span> : null}
       </div>

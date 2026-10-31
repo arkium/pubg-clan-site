@@ -42,6 +42,20 @@ export async function GET(
     }
   }
 
+  if (!fileBuffer && process.env.NODE_ENV === 'development') {
+    try {
+      const prodBase = (process.env.PROD_UPLOADS_ORIGIN || 'https://chickendinner.fr').replace(/\/+$/, '')
+      const remoteResponse = await fetch(`${prodBase}/uploads/clans/${encodeURIComponent(fileName)}`, {
+        signal: AbortSignal.timeout(5000),
+      })
+      if (remoteResponse.ok) {
+        fileBuffer = Buffer.from(await remoteResponse.arrayBuffer())
+      }
+    } catch {
+      fileBuffer = null
+    }
+  }
+
   if (!fileBuffer) {
     return new Response('File Not Found', { status: 404 })
   }

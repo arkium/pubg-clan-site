@@ -17,6 +17,15 @@ export function readSubdomainRoot(env: Record<string, string | undefined> = proc
 }
 
 /**
+ * Adresse courte d'un clan à afficher (`bee.chickendinner.fr`), ou `null` : sans sous-domaine attribué, ou quand la
+ * fonctionnalité est désactivée — l'adresse ne mènerait nulle part (pas de redirection, ni de certificat en local).
+ */
+export function clanSubdomainHost(subdomain: string | null | undefined, root: string | null): string | null {
+  const label = subdomain?.trim().toLowerCase()
+  return label && root ? `${label}.${root}` : null
+}
+
+/**
  * Libellé du sous-domaine d'un hôte (`smk.chickendinner.fr` → `smk`), ou `null` quand l'hôte n'est pas
  * un sous-domaine de clan : domaine racine, `www`, `localhost`, adresse IP, autre domaine.
  */
@@ -30,10 +39,12 @@ export function extractSubdomainLabel(host: string | null | undefined, root: str
 }
 
 const SHORT_MATCH_PATH = /^\/m\/([A-Za-z0-9]+)\/?$/
+const LOGIN_PATH = /^\/login\/?$/
 
 /**
  * Adresse de redirection (307) pour une requête reçue sur un sous-domaine de clan.
  * - `/m/<match>` : lien court de débriefing, relayé au domaine racine avec le clan (url-masking.md §4.C) ;
+ * - `/login` sur un sous-domaine de clan actif : page de connexion personnalisée aux couleurs du clan, avec retour vers sa vue d'ensemble ;
  * - sous-domaine attribué à un clan actif : vue d'ensemble du clan (le chemin est ignoré) ;
  * - sous-domaine inconnu, réservé, invalide ou d'un clan inactif : vitrine de l'accueil (docs/features/accueil.md).
  */
@@ -53,6 +64,9 @@ export function subdomainRedirectLocation(input: {
   }
 
   const clanId = valid ? input.targets[input.label] : undefined
+  if (clanId && LOGIN_PATH.test(input.pathname)) {
+    return `${base}/login?redirect=/clans/${clanId}/overview`
+  }
   return clanId ? `${base}/clans/${clanId}/overview` : `${base}/`
 }
 

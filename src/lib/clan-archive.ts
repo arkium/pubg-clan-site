@@ -13,6 +13,7 @@ import {
   recordPlayerClanChange,
 } from '@/lib/player-clan-change'
 import { assignClanSubdomainSafely } from '@/lib/clan-subdomain-service'
+import { assignMemberRoleAfterClanChange, clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { prisma } from '@/lib/prisma'
 
 /**
@@ -189,10 +190,13 @@ export async function archiveClan(
       }
 
       for (const [shard, ungrouped] of ungroupedByShard) {
+        const memberIds = members.filter((member) => member.platformShard === shard).map((member) => member.id)
         await tx.clanMember.updateMany({
-          where: { id: { in: members.filter((member) => member.platformShard === shard).map((member) => member.id) } },
+          where: { id: { in: memberIds } },
           data: { clanId: ungrouped.id },
         })
+        // Au parking, ils redeviennent simples Membres, l'Owner du clan archivé compris (`member-clan-roles.ts`).
+        await clearRolesForClanChange(tx, memberIds)
       }
 
       for (const member of members) {
@@ -217,6 +221,13 @@ export async function archiveClan(
     // clan quand la base est distante.
     { timeout: 30_000 }
   )
+
+  if (membersDisposition === 'ungrouped') {
+    for (const member of members) {
+      const ungrouped = ungroupedByShard.get(member.platformShard)
+      if (ungrouped) await assignMemberRoleAfterClanChange(member.id, ungrouped.id)
+    }
+  }
 
   return {
     outcome: 'archived',

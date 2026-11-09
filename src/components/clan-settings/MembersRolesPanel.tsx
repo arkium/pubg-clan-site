@@ -905,10 +905,10 @@ export default function MembersRolesPanel() {
                   setSelectedTargetClanId(compatible[0]?.id ?? null)
                   setMemberToTransfer(member)
                 }}
-                disabled={isMemberBusy || isOwner}
+                disabled={isMemberBusy}
                 title={
                   isOwner
-                    ? 'Un Owner ne peut pas être transféré : change d’abord son rôle.'
+                    ? 'Transférer ce joueur vers un autre clan compatible : il y redevient simple Membre.'
                     : 'Transférer ce joueur vers un autre clan compatible'
                 }
                 className="app-btn app-btn--xs app-btn--secondary gap-1"
@@ -1340,6 +1340,11 @@ export default function MembersRolesPanel() {
                   )}
                 </div>
                 <ul className="m-0 flex list-none flex-col gap-2 p-0">
+                  {memberToTransfer.role.toLowerCase() === 'owner' ? (
+                    <ConsequenceItem tone="warn" title="Il n’est plus Owner de ce clan">
+                      Un Owner qui change de clan redevient simple Membre. Vérifie que ce clan garde un autre Owner.
+                    </ConsequenceItem>
+                  ) : null}
                   <ConsequenceItem tone="sky" title="Rôle Membre dans le nouveau clan">
                     Le joueur reçoit le rôle par défaut ; ses permissions actuelles sont révoquées.
                   </ConsequenceItem>

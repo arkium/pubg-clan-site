@@ -31,6 +31,7 @@ export const MUTATION_SOURCE_LABELS: Record<string, string> = {
   ungrouped_promotion: 'Détecté — a rejoint un clan',
   manual_demotion: 'Sorti du clan par un responsable',
   manual_transfer: 'Transféré par un SuperUser',
+  owner_transfer: 'Récupéré par son nouveau clan',
   manual_revert: 'Mouvement annulé',
   player_sync: 'Écart constaté',
   player_refresh: 'Rafraîchissement',

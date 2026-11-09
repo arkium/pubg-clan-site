@@ -29,11 +29,16 @@ const mocks = vi.hoisted(() => ({
   getConfirmations: vi.fn(),
   getMaxRatio: vi.fn(),
   getAutoPromote: vi.fn(),
+  roleDeleteMany: vi.fn(),
+  assignRole: vi.fn(),
 }))
+
+vi.mock('@/lib/role-service', () => ({ assignDefaultMemberRole: mocks.assignRole }))
 
 vi.mock('@/lib/prisma', () => {
   const tx = {
     clanMember: { update: mocks.memberUpdate },
+    clanMemberRole: { deleteMany: mocks.roleDeleteMany },
     playerClanChange: {
       updateMany: mocks.changeUpdateMany,
       update: mocks.changeUpdate,
@@ -275,6 +280,9 @@ describe("Application différée à l'approbation du clan", () => {
     // Regression WESTEN88 (2026-09-22) : sans ce realignement, le promu restait
     // liste comme « candidat detecte » de son ancien clan sur /settings/clans.
     expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
+    // Il redevient simple Membre du clan validé (`member-clan-roles.ts`).
+    expect(mocks.roleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [11] } } })
+    expect(mocks.assignRole).toHaveBeenCalledWith(11, 999)
   })
 
   it('clôt sans déplacer une ligne devenue caduque', async () => {

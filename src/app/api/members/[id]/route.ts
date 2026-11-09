@@ -4,6 +4,7 @@ import { z } from 'zod'
 import { withAdminActionLog } from '@/lib/admin-action-log'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { syncTrackedClanStats } from '@/lib/clan-service'
+import { clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { prisma } from '@/lib/prisma'
 import { assignDefaultMemberRole, initializeDefaultRoles } from '@/lib/role-service'
 import {
@@ -219,6 +220,7 @@ async function handlePatch(
               role: {
                 select: {
                   name: true,
+                  clanId: true,
                 },
               },
             },
@@ -264,11 +266,15 @@ async function handlePatch(
       return permissionError
     }
 
-    const isOwner = member.roles.some((entry) => entry.role.name === 'Owner')
-    // Un Owner du clan technique peut en sortir : ce role n'y a pas de sens, il
-    // n'est qu'un artefact du parking. Ailleurs, un Owner doit etre retrograde avant.
+    const actorSession = await getSessionFromRequest(request)
+
+    // Seul le rôle Owner de son clan actuel compte : un rôle laissé par un clan précédent ne protège plus rien.
+    const isOwner = member.roles.some((entry) => entry.role.name === 'Owner' && entry.role.clanId === member.clanId)
+    // Un Owner qui change de clan redevient simple Membre (règle du 2026-11-09, `member-clan-roles.ts`) : le SuperUser
+    // le transfère comme un autre. Un Owner, lui, ne fait pas sortir un Owner de son clan vers le parking. Un Owner du
+    // clan technique peut toujours en sortir : ce rôle n'y est qu'un artefact du parking.
     const isSystemClanOwner = isOwner && member.clan?.isSystem === true
-    if (isOwner && !isSystemClanOwner) {
+    if (isOwner && !isSystemClanOwner && !actorSession?.isSuperUser) {
       return Response.json(
         { error: 'Owner member cannot be moved to another clan' },
         { status: 403 }
@@ -296,7 +302,6 @@ async function handlePatch(
     }
 
     const previousClanId = member.clanId
-    const actorSession = await getSessionFromRequest(request)
 
     // Le mouvement et sa trace sont ecrits ensemble : un mouvement sans trace serait
     // invisible dans le journal, une trace sans mouvement serait un faux positif
@@ -307,9 +312,8 @@ async function handlePatch(
         data: { clanId: targetClan.id },
       })
 
-      await tx.clanMemberRole.deleteMany({
-        where: { memberId: member.id },
-      })
+      // Il redevient simple Membre (`member-clan-roles.ts`) ; le rôle est posé après la transaction.
+      await clearRolesForClanChange(tx, [member.id])
 
       await recordPlayerClanChange(tx, {
         clanMemberId: member.id,

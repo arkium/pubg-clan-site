@@ -12,6 +12,7 @@ import {
   getMaxMovesRatioPercent,
   getUngroupedAutoPromote,
 } from '@/lib/clan-lifecycle/config'
+import { assignMemberRoleAfterClanChange, clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { fetchPubgClanById } from '@/lib/pubg'
 import {
   evaluateCircuitBreaker,
@@ -607,6 +608,10 @@ export async function runMembershipSyncPass(
             data: { clanId: movement.targetClanId },
           })
 
+          // Il redevient simple Membre, Owner compris : un rôle gardé de l'ancien clan donnerait ses droits dans le
+          // nouveau (`member-clan-roles.ts`).
+          await clearRolesForClanChange(tx, [movement.memberId])
+
           await tx.playerClanChange.updateMany({
             where: {
               clanMemberId: movement.memberId,
@@ -636,6 +641,7 @@ export async function runMembershipSyncPass(
         // Sans cet appel, `/settings/clans` continue de proposer le joueur
         // comme candidat de son ancien clan (voir player-clan-identity.ts).
         await syncOpponentIdentityForMemberId(movement.memberId)
+        await assignMemberRoleAfterClanChange(movement.memberId, movement.targetClanId)
 
         summary.movementsApplied += 1
       }

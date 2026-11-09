@@ -412,6 +412,13 @@ La table `EncounteredPlayer` est **supprimée** (étape 5, migration `2026102723
 docs/TODO/inventaire-2026-10-20.md §6) : un adversaire se lit dans `Player` (identité, clan PUBG, compteurs de
 rencontres, combats et échecs de résolution) et `ClanEncounter` (rencontres par clan). Le cron de résolution garde son
 journal `EncounteredPlayerResolutionRun` et ses noms historiques (`encountered-player-*`).
+**Changement de clan d'un membre** (depuis le 2026-11-09) : il redevient simple Membre, Owner compris. Tout code qui
+change `ClanMember.clanId` appelle `clearRolesForClanChange` dans la transaction du mouvement, puis
+`assignMemberRoleAfterClanChange` (`src/lib/member-clan-roles.ts`) : les permissions réunissent tous les rôles d'un
+membre sans regarder leur clan (`hasAnyRole`), un rôle gardé ouvrirait le nouveau clan — `member-clan-roles.test.ts`
+échoue sinon. Un Owner récupère un joueur suivi ailleurs — autre clan (source `owner_transfer`) ou parking
+(`POST /api/members`) — **seulement si PUBG le place déjà dans le sien** ; le SuperUser transfère un Owner, qui redevient
+Membre — [cycle-de-vie-clan.md](docs/features/cycle-de-vie-clan.md) §5 et §5 bis.
 **Alerte au SuperUser** (depuis le 2026-10-19) : salon Discord d'administration, par `sendAdminAlert` / `fireAdminAlert`
 (`src/lib/admin-alerts/`) — un nouvel événement = une entrée de `catalog.ts` (interrupteur et mention viennent seuls),
 jamais un `sendDiscordWebhook` direct ; ni adresse e-mail ni donnée d'une demande de confidentialité dans le message

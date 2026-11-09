@@ -28,11 +28,16 @@ const mocks = vi.hoisted(() => ({
   fetchClanById: vi.fn(),
   clanFindFirst: vi.fn(),
   clanCreate: vi.fn(),
+  roleDeleteMany: vi.fn(),
+  assignRole: vi.fn(),
 }))
+
+vi.mock('@/lib/role-service', () => ({ assignDefaultMemberRole: mocks.assignRole }))
 
 vi.mock('@/lib/prisma', () => {
   const tx = {
     clanMember: { update: mocks.memberUpdate },
+    clanMemberRole: { deleteMany: mocks.roleDeleteMany },
     playerClanChange: { updateMany: mocks.changeUpdateMany, create: mocks.changeCreate },
   }
   return {
@@ -241,6 +246,9 @@ describe('Garde-fou A — rien ne bouge sans N confirmations', () => {
     // Regression WESTEN88 (2026-09-22) : le miroir adversaire doit suivre, sinon
     // `/settings/clans` continue de rattacher le joueur a son ancien clan.
     expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
+    // Il redevient simple Membre du clan d'arrivée, Owner compris (règle du 2026-11-09, `member-clan-roles.ts`).
+    expect(mocks.roleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [11] } } })
+    expect(mocks.assignRole).toHaveBeenCalledWith(11, KMS.id)
 
     const applied = mocks.changeCreate.mock.calls.map((c) => c[0].data).find((d) => d.status === 'applied')
     expect(applied).toMatchObject({ source: 'auto_transfer', newClanId: KMS.id })

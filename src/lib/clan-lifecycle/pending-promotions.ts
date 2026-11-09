@@ -1,3 +1,4 @@
+import { assignMemberRoleAfterClanChange, clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { prisma } from '@/lib/prisma'
 import {
   PLAYER_CLAN_CHANGE_SOURCES,
@@ -65,6 +66,8 @@ export async function applyPendingPromotionsForClan(
     // Même règle que partout ailleurs : le mouvement et sa trace ensemble.
     await prisma.$transaction(async (tx) => {
       await tx.clanMember.update({ where: { id: member.id }, data: { clanId } })
+      // Il redevient simple Membre, Owner compris (`member-clan-roles.ts`).
+      await clearRolesForClanChange(tx, [member.id])
 
       await tx.playerClanChange.update({
         where: { id: row.id },
@@ -91,6 +94,7 @@ export async function applyPendingPromotionsForClan(
     // clan, sinon le joueur reste listé comme candidat de son ancien clan sur
     // `/settings/clans`.
     await syncOpponentIdentityForMemberId(member.id)
+    await assignMemberRoleAfterClanChange(member.id, clanId)
 
     applied.push({
       memberId: member.id,

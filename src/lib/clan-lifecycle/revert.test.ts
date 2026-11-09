@@ -19,11 +19,16 @@ const mocks = vi.hoisted(() => ({
   memberFindUnique: vi.fn(),
   memberUpdateMany: vi.fn(),
   getArchiveDays: vi.fn(),
+  roleDeleteMany: vi.fn(),
+  assignRole: vi.fn(),
 }))
+
+vi.mock('@/lib/role-service', () => ({ assignDefaultMemberRole: mocks.assignRole }))
 
 vi.mock('@/lib/prisma', () => {
   const tx = {
     clanMember: { update: mocks.memberUpdate },
+    clanMemberRole: { deleteMany: mocks.roleDeleteMany },
     playerClanChange: { update: mocks.changeUpdate, create: mocks.changeCreate },
   }
   return {
@@ -184,6 +189,9 @@ describe('Garde-fou E — ce que l’annulation fait', () => {
     // Le miroir adversaire suit l'annulation comme il suit le mouvement : sans
     // cet appel, `/settings/clans` resterait sur le clan annule.
     expect(mocks.syncOpponentIdentity).toHaveBeenCalledWith(11)
+    // Simple Membre du clan restauré : le journal ne garde pas les rôles (`member-clan-roles.ts`).
+    expect(mocks.roleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [11] } } })
+    expect(mocks.assignRole).toHaveBeenCalledWith(11, 1)
   })
 })
 

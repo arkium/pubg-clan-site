@@ -22,6 +22,8 @@ const mocks = vi.hoisted(() => ({
   clanMemberFindMany: vi.fn(),
   clanMemberFindFirst: vi.fn(),
   clanMemberUpdate: vi.fn(),
+  roleDeleteMany: vi.fn(),
+  assignRole: vi.fn(),
   clanMemberCreate: vi.fn(),
   playerFindMany: vi.fn(),
   playerFindUnique: vi.fn(),
@@ -36,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
 }))
 
+vi.mock('@/lib/role-service', () => ({ assignDefaultMemberRole: mocks.assignRole }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $transaction: mocks.transaction,
@@ -217,6 +220,7 @@ describe('POST /api/settings/opponents/track — comportements utilisés par l a
     mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
       callback({
         clanMember: { update: mocks.clanMemberUpdate },
+        clanMemberRole: { deleteMany: mocks.roleDeleteMany },
         clan: { findUnique: mocks.clanFindUnique },
         playerClanChange: { create: mocks.playerClanChangeCreate },
       })

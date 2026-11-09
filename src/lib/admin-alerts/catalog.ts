@@ -59,6 +59,14 @@ export const ADMIN_ALERT_EVENTS = [
     defaultEnabled: true,
   },
   {
+    key: 'owner_transfer',
+    group: 'clans',
+    label: 'Joueur récupéré par son nouveau clan',
+    hint: 'Un Owner ajoute un joueur encore rattaché à un autre clan du site, que PUBG place déjà dans le sien : il est transféré sans attendre la synchronisation de nuit. Annulable dans le journal des mouvements.',
+    toAct: false,
+    defaultEnabled: true,
+  },
+  {
     key: 'lifecycle_incident',
     group: 'clans',
     label: 'Passage du cycle de vie abandonné ou en échec',

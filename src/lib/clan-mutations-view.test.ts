@@ -40,6 +40,7 @@ describe('sources', () => {
 
   it('libellé en clair, la source brute si elle est inconnue', () => {
     expect(mutationSourceLabel('manual_demotion')).toBe('Sorti du clan par un responsable')
+    expect(mutationSourceLabel('owner_transfer')).toBe('Récupéré par son nouveau clan')
     expect(mutationSourceLabel('nouvelle_source')).toBe('nouvelle_source')
   })
 })

@@ -10,6 +10,7 @@ import { searchPlayerByName, fetchPlayerClan } from '@/lib/pubg'
 import { initializeDefaultRoles } from '@/lib/role-service'
 import { notifyJoinRequest, notifyClanCreationRequest } from '@/lib/notification-service'
 import { JOIN_PENDING_PER_EMAIL_LIMIT } from '@/lib/join-request-access'
+import { clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
 
 // Exporte pour que le test importe le VRAI schema au lieu d'en recopier une
@@ -258,6 +259,9 @@ export async function POST(request: Request) {
       // If a rejected/inactive record exists, update it to pending; otherwise create a new one.
       // L'adresse de contact sert à l'Owner pour vérifier la demande, puis à l'envoi du lien de création du compte.
       if (existingMember) {
+        // Fiche inactive reprise pour un autre clan : elle y arrive sans les rôles de l'ancien, Owner compris
+        // (`member-clan-roles.ts`) ; l'acceptation posera le rôle Membre.
+        if (existingMember.clanId !== clan.id) await clearRolesForClanChange(prisma, [existingMember.id])
         clanMember = await prisma.clanMember.update({
           where: { id: existingMember.id },
           data: {
@@ -370,6 +374,9 @@ export async function POST(request: Request) {
 
       // Create or reactivate the clan member (en attente de validation SuperUser)
       if (existingMember) {
+        // Nouveau clan : la fiche reprise y arrive sans les rôles de l'ancien (`member-clan-roles.ts`) ; elle reçoit
+        // juste après le rôle Owner de ce clan.
+        await clearRolesForClanChange(prisma, [existingMember.id])
         clanMember = await prisma.clanMember.update({
           where: { id: existingMember.id },
           data: {

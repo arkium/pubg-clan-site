@@ -305,7 +305,7 @@ source, status, runId
 detectedAt, appliedAt, acknowledgedAt, acknowledgedByUserId, triggeredByUserId
 ```
 
-`source` : `player_sync` · `auto_demotion` · `auto_transfer` · `ungrouped_promotion` · `player_refresh` · `manual_demotion` · `manual_transfer` · `manual_revert`
+`source` : `player_sync` · `auto_demotion` · `auto_transfer` · `ungrouped_promotion` · `player_refresh` · `manual_demotion` · `manual_transfer` · `owner_transfer` (joueur récupéré par l'Owner de son nouveau clan, 2026-11-09) · `manual_revert`
 
 `status` : `observed` (écart en cours de confirmation) · `pending` (attend la validation d'un clan) · `applied` · `ignored` · `reverted`
 

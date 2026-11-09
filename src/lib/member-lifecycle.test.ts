@@ -149,14 +149,11 @@ describe('Member Lifecycle: Rejection, Re-application, and Reactivation', () => 
     expect(isOwner(standardMember)).toBe(false)
   })
 
-  it('Changer de clan : exige la même plateforme shard et bloque le rôle Owner', () => {
+  it('Changer de clan : exige la même plateforme shard ; un Owner passe et redevient simple Membre (2026-11-09)', () => {
     const canTransferMember = (
       member: { roles: Array<{ role: { name: string } }>; platformShard: string },
       targetClan: { platformShard: string; isActive: boolean }
     ) => {
-      if (member.roles.some((r) => r.role.name === 'Owner')) {
-        return { error: 'Owner cannot be moved' }
-      }
       if (member.platformShard !== targetClan.platformShard) {
         return { error: 'Platform shard mismatch' }
       }
@@ -178,7 +175,7 @@ describe('Member Lifecycle: Rejection, Re-application, and Reactivation', () => 
     const targetKakaoClan = { platformShard: 'kakao', isActive: true }
 
     expect(canTransferMember(steamMember, targetSteamClan)).toEqual({ success: true })
-    expect(canTransferMember(steamOwner, targetSteamClan)).toEqual({ error: 'Owner cannot be moved' })
+    expect(canTransferMember(steamOwner, targetSteamClan)).toEqual({ success: true })
     expect(canTransferMember(steamMember, targetKakaoClan)).toEqual({ error: 'Platform shard mismatch' })
   })
 })

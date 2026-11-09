@@ -28,6 +28,8 @@ const mocks = vi.hoisted(() => ({
   clanMemberFindFirst: vi.fn(),
   clanMemberFindMany: vi.fn(),
   clanMemberUpdate: vi.fn(),
+  roleDeleteMany: vi.fn(),
+  assignRole: vi.fn(),
   clanMemberUpdateMany: vi.fn(),
   clanMemberCreate: vi.fn(),
   clanFindUnique: vi.fn(),
@@ -36,6 +38,7 @@ const mocks = vi.hoisted(() => ({
   playerClanChangeCreate: vi.fn(),
 }))
 
+vi.mock('@/lib/role-service', () => ({ assignDefaultMemberRole: mocks.assignRole }))
 vi.mock('@/lib/prisma', () => ({
   prisma: {
     $queryRaw: mocks.queryRaw,
@@ -258,6 +261,7 @@ describe('POST /api/settings/opponents/track', () => {
     mocks.transaction.mockImplementation(async (callback: (tx: unknown) => unknown) =>
       callback({
         clanMember: { update: mocks.clanMemberUpdate },
+        clanMemberRole: { deleteMany: mocks.roleDeleteMany },
         clan: { findUnique: mocks.clanFindUnique },
         playerClanChange: { create: mocks.playerClanChangeCreate },
       })
@@ -280,6 +284,9 @@ describe('POST /api/settings/opponents/track', () => {
         }),
       })
     )
+    // Il redevient simple Membre du clan d'arrivée (`member-clan-roles.ts`).
+    expect(mocks.roleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [191] } } })
+    expect(mocks.assignRole).toHaveBeenCalledWith(191, 4)
     // Et le miroir suit le mouvement.
     expect(mocks.playerUpsert).toHaveBeenCalled()
   })

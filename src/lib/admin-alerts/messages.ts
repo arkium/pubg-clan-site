@@ -95,6 +95,40 @@ export function orphanJoinRequestAlert(input: { clanId: number; clanName: string
   }
 }
 
+/**
+ * Un Owner récupère un joueur encore rattaché à un autre clan du site, que PUBG place déjà dans le sien
+ * (`owner_transfer`) : pour information, comme les transferts de la synchronisation de nuit, annulable dans le journal.
+ */
+export function ownerTransferAlert(input: {
+  memberName: string
+  from: { tag: string; name: string }
+  to: { id: number; tag: string; name: string }
+  /** Il était Owner de son ancien clan : il redevient simple Membre (`member-clan-roles.ts`). */
+  wasOwner?: boolean
+  /** …et ce clan n'a plus aucun Owner actif. */
+  previousClanWithoutOwner?: boolean
+}): DiscordEmbed {
+  const lines = [
+    `**${input.memberName}** passe de ${clanLabel(input.from.tag, input.from.name)} à ${clanLabel(input.to.tag, input.to.name)} : ` +
+      'son nouvel Owner l’a ajouté, et PUBG le place déjà dans ce clan. La synchronisation de nuit l’aurait transféré après ses confirmations.',
+  ]
+  if (input.wasOwner) {
+    lines.push(
+      input.previousClanWithoutOwner
+        ? `⚠️ Il était Owner de ${clanLabel(input.from.tag, input.from.name)}, qui n’a plus aucun Owner : à nommer dans le clan.`
+        : `Il était Owner de ${clanLabel(input.from.tag, input.from.name)} ; il redevient simple Membre.`
+    )
+  }
+  return {
+    title: `🔁 Joueur récupéré — ${clanLabel(input.to.tag, input.to.name)}`,
+    description: lines.join('\n'),
+    url: linkTo('/settings/clans/lifecycle?tab=mutations'),
+    color: COLOR_INFO,
+    fields: [{ name: 'Si c’est une erreur', value: 'Annuler dans le journal des mouvements', inline: true }],
+    footer: { text: `Clan n° ${input.to.id}` },
+  }
+}
+
 /** Passage du cycle de vie en échec ; le coupe-circuit, lui, a son propre message (`discord-notifier.ts`). */
 export function lifecycleFailedAlert(input: { runId: string | null; message?: string | null }): DiscordEmbed {
   return {

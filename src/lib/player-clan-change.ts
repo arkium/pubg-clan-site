@@ -28,6 +28,12 @@ export const PLAYER_CLAN_CHANGE_SOURCES = {
    * transfert qui existait déjà avant ces chantiers.
    */
   manualTransfer: 'manual_transfer',
+  /**
+   * Joueur encore rattaché à un autre clan suivi, récupéré par l'Owner de son nouveau clan : PUBG le place déjà dans
+   * ce clan, la synchronisation de nuit l'y aurait transféré (`auto_transfer`) après ses confirmations — l'ajout
+   * l'avance (`POST /api/members`, décision du 2026-11-09).
+   */
+  ownerTransfer: 'owner_transfer',
   /** Annulation d'un mouvement précédent depuis le journal. */
   manualRevert: 'manual_revert',
 } as const

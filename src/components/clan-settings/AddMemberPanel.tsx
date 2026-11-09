@@ -29,6 +29,8 @@ type AddMemberPreviewResponse = {
   } | null
   /** Suivi jusqu'ici sans clan (clan technique « non groupé ») : il rejoint ce clan avec son historique. */
   fromUngrouped?: boolean
+  /** Encore rattaché à ce clan du site, alors que PUBG le place déjà dans celui-ci : il le quitte, avec son historique. */
+  fromClan?: { id: number; name: string; tag: string } | null
 }
 
 /**
@@ -334,9 +336,11 @@ export default function AddMemberPanel({ clanId }: { clanId: number }) {
             </dd>
           </dl>
           <p className="t-meta m-0 mt-2" data-testid="add-member-outcome">
-            {previewData.fromUngrouped
-              ? 'Le site le suivait déjà sans clan (« non groupé ») : il rejoint ton clan avec tout son historique de parties.'
-              : 'Le joueur est rattaché au clan et le suivi de ses parties commence.'}
+            {previewData.fromClan
+              ? `Il est encore rattaché au clan ${previewData.fromClan.name} [${previewData.fromClan.tag}] sur le site, mais PUBG le place déjà dans ton clan : il le quitte et rejoint le tien avec tout son historique de parties, sans attendre la synchronisation de nuit.`
+              : previewData.fromUngrouped
+                ? 'Le site le suivait déjà sans clan (« non groupé ») : il rejoint ton clan avec tout son historique de parties.'
+                : 'Le joueur est rattaché au clan et le suivi de ses parties commence.'}
           </p>
         </ConfirmDialog>
       ) : null}

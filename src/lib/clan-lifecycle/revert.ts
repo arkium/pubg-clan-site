@@ -1,3 +1,4 @@
+import { assignMemberRoleAfterClanChange, clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { prisma } from '@/lib/prisma'
 import {
   PLAYER_CLAN_CHANGE_SOURCES,
@@ -126,6 +127,9 @@ export async function revertPlayerClanChange(
       where: { id: member.id },
       data: { clanId: restoredClanId },
     })
+    // Il redevient simple Membre du clan restauré (`member-clan-roles.ts`) : le journal ne garde pas les rôles, un Owner
+    // déplacé par erreur est renommé à la main après l'annulation.
+    await clearRolesForClanChange(tx, [member.id])
 
     await tx.playerClanChange.update({
       where: { id: change.id },
@@ -151,6 +155,7 @@ export async function revertPlayerClanChange(
 
   // Le miroir adversaire suit l'annulation comme il suit le mouvement.
   await syncOpponentIdentityForMemberId(member.id)
+  if (restoredClanId) await assignMemberRoleAfterClanChange(member.id, restoredClanId)
 
   return {
     ok: true,

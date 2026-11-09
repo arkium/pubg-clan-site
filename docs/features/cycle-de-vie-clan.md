@@ -127,13 +127,56 @@ Le cas B respecte le garde-fou de `/join` : **un clan n'entre dans la ligue que 
 
 ---
 
-## 5. Les trois façons de faire sortir un joueur
+## 5. Les quatre façons de faire sortir un joueur
 
 | Geste | Qui | `ClanMember` | Sync PUBG | Agrégats | Rattachement |
 |---|---|---|---|---|---|
 | **Sortir du clan** (`PATCH`) | Owner | `clanId` → clan système | **maintenue** | retiré | parking |
 | **Transférer de clan** (`PATCH`) | SuperUser | `clanId` → cible | maintenue | retiré de A, ajouté à B | clan cible |
+| **Récupérer un joueur** (`POST /api/members`) | Owner du clan d'arrivée | `clanId` → son clan | maintenue | retiré de A, ajouté à B | clan de l'Owner |
 | **Arrêter le suivi** (`DELETE`) | SuperUser | `isActive: false`, `clanId` inchangé | **arrêtée** | retiré | clan d'origine |
+
+### Récupérer un joueur avant la synchronisation de nuit (2026-11-09)
+
+Un joueur qui quitte A pour B dans le jeu reste membre de A sur le site jusqu'à ce que la synchronisation confirme son
+départ : 3 nuits pour un transfert direct, environ 6 quand il passe d'abord par « sans clan » (parking à la 3e nuit,
+puis 3 nuits pour la promotion). L'Owner de B peut l'**ajouter** depuis « Ajouter un joueur » sans attendre, **à une
+condition : PUBG le place déjà dans B** au moment de l'ajout (lecture en direct de `findTrackedClanForPlayer`).
+
+- **Pourquoi c'est sûr.** Le délai de 3 nuits protège du clignotement de `attributes.clanId`, qui porte sur la
+  *destination*, pas sur le départ (§3). Une lecture en direct qui donne B, plus la demande explicite de l'Owner : deux
+  signaux indépendants. C'est le transfert que la nuit ferait seule (`auto_transfer`, sans validation) — avancé.
+- **Sans clan PUBG confirmé, refus (409)** : « reviens quand il aura rejoint ton clan dans le jeu ». Sinon la nuit le
+  renverrait dans A ou au parking. PUBG le place encore dans A (ou dans un clan non suivi) : 403, comme pour un nouveau
+  joueur.
+- **Même règle pour un joueur du parking** (« non groupé ») : l'Owner ne le récupère que si PUBG le place dans son
+  clan (avant le 2026-11-09, un joueur sans clan PUBG passait, puis la nuit le renvoyait au parking trois nuits plus
+  tard). Trace `ungrouped_promotion`.
+- **Écritures**, dans une transaction : `clanId`, rôles retirés (§5 bis), série d'observations `observed` close (elle
+  portait sur A et pourrait sinon confirmer un « départ » de B), ligne `owner_transfer` avec l'auteur
+  (`manual_transfer` si c'est le SuperUser). Puis rôle Membre de B, miroir adversaire, statistiques de A et de B.
+- **Visibilité** : `/clans/mutations` (« Récupéré par son nouveau clan »), journal SuperUser (annulable), salon Discord
+  d'administration (`owner_transfer`, pour information ; il signale un ancien clan resté sans Owner).
+- L'aperçu le dit à l'Owner : « Il est encore rattaché au clan A… il le quitte et rejoint le tien avec tout son
+  historique de parties ».
+
+### 5 bis. Changer de clan, c'est redevenir simple Membre (2026-11-09)
+
+**Un membre qui change de clan perd tous ses rôles et reçoit le rôle Membre du clan d'arrivée — un Owner compris.**
+Les permissions réunissent tous les rôles d'un membre sans regarder leur clan (`resolveMemberPermissionState`,
+`hasAnyRole`) : avant cette règle, la synchronisation de nuit déplaçait les joueurs sans toucher aux rôles, et un ancien
+Owner passait les gardes Owner de son nouveau clan (5 membres actifs le 2026-11-09, dont un avec un compte).
+
+Tout chemin qui change `ClanMember.clanId` appelle `clearRolesForClanChange` dans la transaction du mouvement, puis
+`assignMemberRoleAfterClanChange` (`src/lib/member-clan-roles.ts`) : synchronisation de nuit, promotions à la validation
+d'un clan, annulation depuis le journal, archivage d'un clan, transfert et sortie (`PATCH`), suivi confirmé
+(`opponents/track`), récupération par l'Owner, et `/join` quand une fiche inactive est reprise pour un autre clan.
+Contrôle statique : `member-clan-roles.test.ts`. L'annulation ne restaure pas les rôles (le journal ne les garde pas) :
+un Owner déplacé par erreur est renommé à la main.
+
+Le SuperUser transfère donc un Owner comme un autre membre (`PATCH /api/members/[id]` ; la fenêtre « Changer de clan »
+prévient qu'il n'est plus Owner). Un Owner, lui, ne fait toujours pas sortir un Owner de son clan vers le parking. Seul
+le rôle Owner **du clan actuel** compte dans ces refus : un rôle laissé par un clan précédent ne protège plus rien.
 
 > **Les trois retirent le membre des agrégats du clan.** `recalculateStatsForClan` filtre sur `{ clanId, isActive: true, joinStatus: 'active' }` : un simple arrêt de suivi suffit déjà à sortir le joueur des totaux, classements et awards. La différence porte sur le **rattachement** : un déplacement re-parente la fiche, donc toutes les vues qui joignent par `member.clanId` réattribuent son passé au nouveau clan.
 >
@@ -335,6 +378,7 @@ décidé. Il est donc journalisé (`console.warn`), jamais propagé — contrair
 | Promotion différée à l'approbation d'un clan | `clan-lifecycle/pending-promotions.ts` |
 | Annulation depuis le journal | `clan-lifecycle/revert.ts` |
 | Transfert / rétrogradation manuels | `PATCH /api/members/[id]` |
+| Récupération par l'Owner du clan d'arrivée (§5), sortie du parking | `POST /api/members` |
 | Arrêt de suivi (soft delete) | `DELETE /api/members/[id]` |
 | « Suivre ce joueur » / « Ajouter à l'effectif » | `POST /api/settings/opponents/track` |
 | Capture télémétrie et résolution | `encountered-players.ts`, `encountered-player-resolution.ts` |

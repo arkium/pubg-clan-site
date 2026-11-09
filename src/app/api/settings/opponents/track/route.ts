@@ -7,6 +7,7 @@ import {
   PLAYER_CLAN_CHANGE_SOURCES,
   recordPlayerClanChange,
 } from '@/lib/player-clan-change'
+import { assignMemberRoleAfterClanChange, clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
 import { classifyMember, type MemberClassification } from '@/lib/players-directory'
 
@@ -137,6 +138,9 @@ async function handlePost(req: NextRequest) {
 
         // Même règle que partout ailleurs : le mouvement et sa trace ensemble.
         if (previousClanId !== targetClanId) {
+          // Il redevient simple Membre, Owner compris (`member-clan-roles.ts`).
+          await clearRolesForClanChange(tx, [member.id])
+
           const [previousClan, targetClan] = await Promise.all([
             previousClanId
               ? tx.clan.findUnique({ where: { id: previousClanId }, select: { pubgClanId: true, tag: true } })
@@ -164,6 +168,7 @@ async function handlePost(req: NextRequest) {
       })
 
       await syncOpponentIdentityForMemberId(updated.id)
+      if (previousClanId !== targetClanId) await assignMemberRoleAfterClanChange(updated.id, targetClanId)
 
       return Response.json(updated)
     }

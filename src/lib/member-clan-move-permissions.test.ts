@@ -150,9 +150,9 @@ describe('Chantier 3 — un Owner peut basculer un membre vers le clan système'
     expect(mocks.requirePermission).not.toHaveBeenCalled()
   })
 
-  it('refuse un Owner qui tenterait de passer par le clan système pour contourner la règle', async () => {
+  it('un Owner ne fait pas sortir un Owner de son clan vers le parking', async () => {
     mocks.clanMemberFindUnique.mockResolvedValue(
-      buildMember({ roles: [{ role: { name: 'Owner' } }] })
+      buildMember({ roles: [{ role: { name: 'Owner', clanId: 1 } }] })
     )
     mocks.clanFindUnique.mockResolvedValue(SYSTEM_CLAN)
 
@@ -160,6 +160,18 @@ describe('Chantier 3 — un Owner peut basculer un membre vers le clan système'
 
     expect(response.status).toBe(403)
     expect(mocks.clanMemberUpdate).not.toHaveBeenCalled()
+  })
+
+  it('un rôle Owner laissé par un clan précédent n’empêche pas la bascule', async () => {
+    mocks.clanMemberFindUnique.mockResolvedValue(
+      buildMember({ roles: [{ role: { name: 'Owner', clanId: 7 } }] })
+    )
+    mocks.clanFindUnique.mockResolvedValue(SYSTEM_CLAN)
+
+    const response = await patchMember(patchRequest(SYSTEM_CLAN.id), { params })
+
+    expect(response.status).toBe(200)
+    expect(mocks.clanMemberRoleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [11] } } })
   })
 
   it('refuse la bascule si les plateformes diffèrent', async () => {
@@ -214,6 +226,20 @@ describe('Chantier 3 — la bascule laisse une trace dans le même mouvement', (
 
     const { data } = mocks.playerClanChangeCreate.mock.calls[0][0]
     expect(data.source).toBe('manual_transfer')
+  })
+
+  it('le SuperUser transfère un Owner : il redevient simple Membre (règle du 2026-11-09)', async () => {
+    mocks.getSessionFromRequest.mockResolvedValue({ userId: 1, isSuperUser: true })
+    mocks.clanMemberFindUnique.mockResolvedValue(buildMember({ roles: [{ role: { name: 'Owner', clanId: 1 } }] }))
+    mocks.clanFindUnique.mockResolvedValue(OTHER_TRACKED_CLAN)
+
+    const response = await patchMember(patchRequest(OTHER_TRACKED_CLAN.id), { params })
+
+    expect(response.status).toBe(200)
+    expect(mocks.clanMemberUpdate).toHaveBeenCalledWith({ where: { id: 11 }, data: { clanId: OTHER_TRACKED_CLAN.id } })
+    expect(mocks.clanMemberRoleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [11] } } })
+    const { data } = mocks.playerClanChangeCreate.mock.calls[0][0]
+    expect(data).toMatchObject({ source: 'manual_transfer', triggeredByUserId: 1 })
   })
 })
 

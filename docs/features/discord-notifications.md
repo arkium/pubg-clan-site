@@ -281,6 +281,7 @@ interrupteur ; tous sont activés par défaut. Ceux qui attendent une décision 
 | `clan_discovered` | Le cycle de vie crée un clan inconnu (cas B) | oui | Clans en attente |
 | `orphan_join_request` | Demande d'adhésion à un clan sans Owner actif (clan en attente, clan découvert) | oui | Demandes d'adhésion du clan |
 | `lifecycle_report` | Passage quotidien avec mouvements (le compte rendu historique) | non | — |
+| `owner_transfer` | Un Owner récupère un joueur encore rattaché à un autre clan, que PUBG place déjà dans le sien (`POST /api/members`, [cycle-de-vie-clan.md](cycle-de-vie-clan.md) §5) ; signale un ancien clan resté sans Owner. Pas envoyé quand c'est le SuperUser | non | Journal des mouvements |
 | `lifecycle_incident` | Coupe-circuit ou passage en échec — **jamais envoyé avant le 2026-10-19** : le cron sortait avant la notification | oui | Santé |
 | `privacy_request` | Formulaire « Retirer mes données » | oui | Demandes de confidentialité |
 | `daily_digest` | Veille du matin, 09:00 (cron `admin_daily_digest`) : la boîte « À traiter » de l'accueil Plateforme, envoyée seulement si une décision ou un incident attend | oui | Accueil Plateforme |

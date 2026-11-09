@@ -31,6 +31,7 @@ const mocks = vi.hoisted(() => ({
   memberUpdate: vi.fn(),
   txClanUpdateMany: vi.fn(),
   txMemberUpdateMany: vi.fn(),
+  txRoleDeleteMany: vi.fn(),
   changeCount: vi.fn(),
   changeCreate: vi.fn(),
   runFindFirst: vi.fn(),
@@ -95,7 +96,7 @@ vi.mock('@/lib/pubg', () => ({
   searchPlayerByName: mocks.searchPlayerByName,
 }))
 vi.mock('@/lib/stats-calculator', () => ({ recalculateStatsForClan: vi.fn(async () => undefined) }))
-vi.mock('@/lib/role-service', () => ({ initializeDefaultRoles: vi.fn(async () => undefined) }))
+vi.mock('@/lib/role-service', () => ({ initializeDefaultRoles: vi.fn(async () => undefined), assignDefaultMemberRole: vi.fn(async () => null) }))
 vi.mock('@/lib/member-player-link', () => ({ ensurePlayerLinkForMember: vi.fn(async () => undefined) }))
 vi.mock('@/lib/notification-service', () => ({
   notifyJoinRequest: mocks.notifyJoinRequest,
@@ -170,6 +171,7 @@ beforeEach(() => {
     callback({
       clan: { updateMany: mocks.txClanUpdateMany },
       clanMember: { updateMany: mocks.txMemberUpdateMany },
+      clanMemberRole: { deleteMany: mocks.txRoleDeleteMany },
       playerClanChange: { create: mocks.changeCreate },
     })
   )

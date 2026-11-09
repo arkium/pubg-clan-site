@@ -1,6 +1,8 @@
 import { Prisma } from '@prisma/client'
 
 import { withAdminActionLog } from '@/lib/admin-action-log'
+import { ownerTransferAlert } from '@/lib/admin-alerts/messages'
+import { fireAdminAlert } from '@/lib/admin-alerts/send'
 import { getActiveMemberClanId, requireClanFeature } from '@/lib/auth/admin-guards'
 import { getSessionFromRequest } from '@/lib/auth-session'
 import { prisma } from '@/lib/prisma'
@@ -13,6 +15,7 @@ import {
   syncTrackedClanStats,
 } from '@/lib/clan-service'
 import { calculateLifetimeMedalCounts } from '@/lib/lifetime-medals'
+import { clearRolesForClanChange } from '@/lib/member-clan-roles'
 import { ensurePlayerLinkForMember } from '@/lib/member-player-link'
 import { PLAYER_CLAN_CHANGE_SOURCES, PLAYER_CLAN_CHANGE_STATUSES, recordPlayerClanChange } from '@/lib/player-clan-change'
 import { syncOpponentIdentityForMemberId } from '@/lib/player-clan-identity'
@@ -120,19 +123,53 @@ async function handlePost(request: Request) {
       },
       include: {
         clan: {
-          select: { id: true, name: true, tag: true, isSystem: true },
+          select: { id: true, name: true, tag: true, isSystem: true, pubgClanId: true },
         },
+        roles: { select: { role: { select: { name: true, clanId: true } } } },
       },
     })
 
     const existingIsActive = Boolean(existingMember?.isActive && existingMember.joinStatus === 'active')
-    // Un joueur suivi sans clan est rangé dans le clan technique (« non groupé ») : ce n'est pas un vrai clan, il
-    // rejoint celui qui l'ajoute — même règle de clan PUBG qu'un nouveau joueur, vérifiée plus haut (demande du
-    // 2026-10-27 : « il me marque qu'il est toujours dans son ancien clan »).
-    const fromUngrouped =
-      existingIsActive && Boolean(existingMember?.clan?.isSystem) && existingMember?.clanId !== resolvedClanId && !usedFallbackUngrouped
+    // Un joueur déjà suivi ailleurs — au clan technique (« non groupé », demande du 2026-10-27) ou dans un autre clan
+    // suivi — rejoint le clan qui l'ajoute seulement si PUBG l'y place déjà (décision du 2026-11-09,
+    // docs/features/cycle-de-vie-clan.md §5). C'est le mouvement que la synchronisation de nuit ferait seule après ses
+    // confirmations : l'ajout l'avance. Sans cette confirmation, la nuit le renverrait au parking ou dans son ancien clan.
+    const previousClan = existingMember?.clan ?? null
+    const pubgConfirmsTarget = Boolean(detectedClan?.clan) && detectedClan?.clan?.id === resolvedClanId
+    const inUngroupedElsewhere = Boolean(
+      existingIsActive && previousClan?.isSystem && existingMember?.clanId !== resolvedClanId && !usedFallbackUngrouped
+    )
+    const inOtherTrackedClan = Boolean(existingIsActive && previousClan && !previousClan.isSystem && existingMember?.clanId !== resolvedClanId)
+    const fromUngrouped = inUngroupedElsewhere && pubgConfirmsTarget
+    const fromTrackedClan = inOtherTrackedClan && pubgConfirmsTarget
 
-    if (existingMember && existingIsActive && !fromUngrouped) {
+    if (inUngroupedElsewhere && !pubgConfirmsTarget) {
+      return Response.json(
+        {
+          error:
+            'Ce joueur est suivi sans clan (« non groupé ») et PUBG ne le place dans aucun clan : reviens quand il aura rejoint ton clan dans le jeu.',
+        },
+        { status: 409 }
+      )
+    }
+
+    if (inOtherTrackedClan && !pubgConfirmsTarget) {
+      return Response.json(
+        {
+          error: `Ce joueur est encore membre du clan « ${previousClan?.name} » sur le site et PUBG ne le place dans aucun clan : reviens quand il aura rejoint ton clan dans le jeu.`,
+        },
+        { status: 409 }
+      )
+    }
+
+    // Un Owner qui change de clan redevient simple Membre (règle du 2026-11-09, `member-clan-roles.ts`) : pas de refus,
+    // mais le salon d'administration est prévenu si son ancien clan reste sans Owner.
+    const wasOwnerOfPreviousClan = Boolean(
+      fromTrackedClan &&
+        existingMember?.roles.some((entry) => entry.role.name === 'Owner' && entry.role.clanId === existingMember.clanId)
+    )
+
+    if (existingMember && existingIsActive && !fromUngrouped && !fromTrackedClan) {
       return Response.json(
         {
           error: existingMember.clan?.isSystem
@@ -159,6 +196,7 @@ async function handlePost(request: Request) {
             }
           : null,
         fromUngrouped,
+        fromClan: fromTrackedClan && previousClan ? { id: previousClan.id, name: previousClan.name, tag: previousClan.tag } : null,
       })
     }
 
@@ -175,21 +213,36 @@ async function handlePost(request: Request) {
       clan: { select: { id: true, name: true, tag: true, pubgClanId: true, platformShard: true } },
     } as const
 
-    // Créer, réactiver, ou sortir du clan technique : ce dernier mouvement et sa trace s'écrivent ensemble, comme
-    // la promotion automatique (`pending-promotions.ts`, source `ungrouped_promotion`).
-    const member = existingMember && fromUngrouped
+    // Créer, réactiver, ou déplacer (clan technique, autre clan suivi) : un déplacement et sa trace s'écrivent ensemble,
+    // comme la promotion automatique (`pending-promotions.ts`, source `ungrouped_promotion`).
+    const movesIn = fromUngrouped || fromTrackedClan
+    const member = existingMember && movesIn
       ? await prisma.$transaction(async (tx) => {
           const moved = await tx.clanMember.update({ where: { id: existingMember.id }, data: memberData, include: memberInclude })
+          // Il redevient simple Membre, Owner compris (`member-clan-roles.ts`) : le rôle Membre du nouveau clan est posé
+          // plus bas, par `assignDefaultMemberRole`.
+          await clearRolesForClanChange(tx, [existingMember.id])
+          // La série d'observations de la nuit portait sur l'ancien clan : close, comme le fait le passage qui applique un
+          // mouvement — sinon elle pourrait confirmer un « départ » du nouveau clan.
+          await tx.playerClanChange.updateMany({
+            where: { clanMemberId: existingMember.id, status: PLAYER_CLAN_CHANGE_STATUSES.observed },
+            data: { status: PLAYER_CLAN_CHANGE_STATUSES.ignored },
+          })
           await recordPlayerClanChange(tx, {
             clanMemberId: existingMember.id,
             pubgAccountId: pubgPlayer.accountId,
             platformShard: validated.platformShard,
             previousClanId: existingMember.clanId,
-            previousPubgClanTag: existingMember.clan?.tag ?? null,
+            previousPubgClanId: previousClan?.pubgClanId ?? null,
+            previousPubgClanTag: previousClan?.tag ?? null,
             newClanId: resolvedClanId,
             newPubgClanId: detectedClan?.pubgClan.id ?? null,
             newPubgClanTag: moved.clan?.tag ?? null,
-            source: PLAYER_CLAN_CHANGE_SOURCES.ungroupedPromotion,
+            source: !fromTrackedClan
+              ? PLAYER_CLAN_CHANGE_SOURCES.ungroupedPromotion
+              : session.isSuperUser
+                ? PLAYER_CLAN_CHANGE_SOURCES.manualTransfer
+                : PLAYER_CLAN_CHANGE_SOURCES.ownerTransfer,
             status: PLAYER_CLAN_CHANGE_STATUSES.applied,
             triggeredByUserId: session.userId,
           })
@@ -204,15 +257,37 @@ async function handlePost(request: Request) {
       : await prisma.clanMember.create({ data: memberData, include: memberInclude })
 
     await ensurePlayerLinkForMember(member.id)
-    // Sorti du clan technique : son identité d'adversaire suit son nouveau clan (sinon il resterait candidat ailleurs).
-    if (fromUngrouped) await syncOpponentIdentityForMemberId(member.id)
+    // Déplacé : son identité d'adversaire suit son nouveau clan (sinon il resterait candidat ailleurs).
+    if (movesIn) await syncOpponentIdentityForMemberId(member.id)
     await initializeDefaultRoles(resolvedClanId)
     await assignDefaultMemberRole(member.id, resolvedClanId)
 
-    try {
-      await syncTrackedClanStats(resolvedClanId)
-    } catch (syncError) {
-      console.warn('Unable to synchronize clan stats after member creation:', syncError)
+    const clansToSync = fromTrackedClan && existingMember?.clanId ? [resolvedClanId, existingMember.clanId] : [resolvedClanId]
+    for (const clanToSync of clansToSync) {
+      try {
+        await syncTrackedClanStats(clanToSync)
+      } catch (syncError) {
+        console.warn('Unable to synchronize clan stats after member creation:', syncError)
+      }
+    }
+
+    // Salon d'administration, pour information comme les transferts de la nuit ; le SuperUser n'a pas à être prévenu de
+    // ce qu'il fait lui-même.
+    if (fromTrackedClan && previousClan && !session.isSuperUser) {
+      const previousClanWithoutOwner =
+        wasOwnerOfPreviousClan &&
+        (await prisma.clanMemberRole.count({
+          where: { role: { clanId: previousClan.id, name: 'Owner' }, member: { clanId: previousClan.id, isActive: true } },
+        })) === 0
+      fireAdminAlert('owner_transfer', () =>
+        ownerTransferAlert({
+          memberName: member.displayName,
+          from: { tag: previousClan.tag, name: previousClan.name },
+          to: { id: resolvedClanId, tag: member.clan?.tag ?? '', name: member.clan?.name ?? '' },
+          wasOwner: wasOwnerOfPreviousClan,
+          previousClanWithoutOwner,
+        })
+      )
     }
 
     return Response.json(member, { status: 201 })

@@ -394,7 +394,7 @@ model PlayerClanChange {
   newPubgClanTag      String?
 
   // player_sync | auto_demotion | auto_transfer | ungrouped_promotion
-  // | player_refresh | manual_demotion | manual_revert
+  // | player_refresh | manual_demotion | manual_transfer | owner_transfer | manual_revert
   source String
   // observed | pending | applied | ignored | reverted
   status String @default("applied")

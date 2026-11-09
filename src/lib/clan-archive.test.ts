@@ -19,6 +19,8 @@ const mocks = vi.hoisted(() => ({
   transaction: vi.fn(),
   getOrCreateUngroupedClan: vi.fn(),
   syncOpponentIdentityForMemberId: vi.fn(),
+  txRoleDeleteMany: vi.fn(),
+  assignRole: vi.fn(),
 }))
 
 vi.mock('@/lib/prisma', () => ({
@@ -30,6 +32,7 @@ vi.mock('@/lib/prisma', () => ({
 }))
 
 vi.mock('@/lib/clan-service', () => ({ getOrCreateUngroupedClan: mocks.getOrCreateUngroupedClan }))
+vi.mock('@/lib/role-service', () => ({ assignDefaultMemberRole: mocks.assignRole }))
 
 // Garde de non-régression : l'archivage ne doit pas réécrire le miroir adversaire.
 vi.mock('@/lib/player-clan-identity', () => ({
@@ -74,6 +77,7 @@ beforeEach(() => {
     callback({
       clan: { updateMany: mocks.txClanUpdateMany },
       clanMember: { updateMany: mocks.txMemberUpdateMany },
+      clanMemberRole: { deleteMany: mocks.txRoleDeleteMany },
       playerClanChange: { create: mocks.txChangeCreate },
     })
   )
@@ -221,6 +225,10 @@ describe('archiveClan — écritures', () => {
     expect(mocks.txMemberUpdateMany).toHaveBeenCalledWith({ where: { id: { in: [11, 13] } }, data: { clanId: 201 } })
     expect(mocks.txMemberUpdateMany).toHaveBeenCalledWith({ where: { id: { in: [12] } }, data: { clanId: 202 } })
     expect(mocks.txChangeCreate).toHaveBeenCalledTimes(3)
+    // Au parking, simples Membres, l’Owner du clan archivé compris (`member-clan-roles.ts`).
+    expect(mocks.txRoleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [11, 13] } } })
+    expect(mocks.txRoleDeleteMany).toHaveBeenCalledWith({ where: { memberId: { in: [12] } } })
+    expect(mocks.assignRole.mock.calls.sort()).toEqual([[11, 201], [12, 202], [13, 201]])
     expect(mocks.txChangeCreate.mock.calls.map(([args]) => args.data)).toContainEqual(
       expect.objectContaining({
         clanMemberId: 12,
